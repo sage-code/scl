@@ -53,6 +53,11 @@ vercel.json          # Vercel configuration
 - Projects: `public/projects/<project>/...`
 - Community: `public/community/...`
 
+Roadmap authoring rule:
+- In source roadmap index pages, topic links must use absolute canonical routes: `/roadmap/<track>/<topic>`.
+- Avoid relative links like `./topic` because they can resolve incorrectly when the index route is loaded without a trailing slash.
+- Avoid legacy root track links like `/cse/topic.html`; always keep roadmap topics under `/roadmap/<track>/...`.
+
 This contract keeps educational roadmap content and project showcases clearly separated.
 
 ## Roadmap Progress TODO
