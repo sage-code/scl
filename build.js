@@ -14,6 +14,7 @@ const ASSETS_DIR = path.join(ROOT, "assets");
 
 const SYSTEM_RUNTIME_FILES = ["robots.txt", "sitemap.xml"];
 const ROADMAP_BASE_FOLDERS = ["cse", "csp", "csa", "dsa", "dsl", "hpc", "tek", "dba", "sml", "osd", "dsk"];
+const ROADMAP_TOPIC_ALIAS_EXCLUDED_FILES = new Set(["index.html", "topic.html"]);
 
 const LAB_ROUTE_MAP = {
   engineering: "cse",
@@ -1119,6 +1120,114 @@ function copyRoadmapTopLevelPages() {
   }
 }
 
+function buildRoadmapTopicAliasHtml(slug, track) {
+  const canonicalPath = `/roadmap/${track}/${slug}`;
+
+  return [
+    "<!DOCTYPE html>",
+    '<html lang="en">',
+    "<head>",
+    '  <meta charset="utf-8">',
+    `  <title>Redirecting: ${slug}</title>`,
+    `  <link rel="canonical" href="https://sagecode.org${canonicalPath}">`,
+    `  <meta http-equiv="refresh" content="0; url=${canonicalPath}">`,
+    "</head>",
+    "<body>",
+    `  <p>Redirecting to <a href="${canonicalPath}">${canonicalPath}</a>...</p>`,
+    '  <script>window.location.replace(' + JSON.stringify(canonicalPath) + ');</script>',
+    "</body>",
+    "</html>",
+    ""
+  ].join("\n");
+}
+
+function buildAmbiguousRoadmapTopicAliasHtml(slug, tracks) {
+  const items = tracks
+    .map((track) => {
+      const route = `/roadmap/${track}/${slug}`;
+      return `  <li><a href="${route}">${route}</a></li>`;
+    })
+    .join("\n");
+
+  return [
+    "<!DOCTYPE html>",
+    '<html lang="en">',
+    "<head>",
+    '  <meta charset="utf-8">',
+    `  <title>Select Roadmap Topic: ${slug}</title>`,
+    '  <meta name="robots" content="noindex, follow">',
+    "</head>",
+    "<body>",
+    `  <h1>Select Topic Route for ${slug}</h1>`,
+    "  <p>This topic slug exists in multiple roadmaps. Choose one:</p>",
+    "  <ul>",
+    items,
+    "  </ul>",
+    "</body>",
+    "</html>",
+    ""
+  ].join("\n");
+}
+
+function generateRoadmapTopicAliases() {
+  const routesDir = path.join(PUBLIC_DIR, "roadmap");
+  ensureDir(routesDir);
+
+  const topLevelRoadmapPages = new Set(
+    collectTopLevelHtmlFiles(ROADMAP_DIR).map((filePath) => path.basename(filePath, ".html").toLowerCase())
+  );
+
+  const aliasCandidates = new Map();
+
+  for (const track of ROADMAP_BASE_FOLDERS) {
+    const trackDir = path.join(ROADMAP_DIR, track);
+    if (!fs.existsSync(trackDir)) {
+      continue;
+    }
+
+    const topicFiles = collectTopLevelHtmlFiles(trackDir).filter(
+      (filePath) => !ROADMAP_TOPIC_ALIAS_EXCLUDED_FILES.has(path.basename(filePath).toLowerCase())
+    );
+
+    for (const topicFile of topicFiles) {
+      const slug = path.basename(topicFile, ".html").toLowerCase();
+      if (topLevelRoadmapPages.has(slug)) {
+        continue;
+      }
+
+      if (!aliasCandidates.has(slug)) {
+        aliasCandidates.set(slug, []);
+      }
+
+      aliasCandidates.get(slug).push(track);
+    }
+  }
+
+  let aliasCount = 0;
+  let disambiguationCount = 0;
+
+  for (const [slug, tracks] of aliasCandidates.entries()) {
+    const uniqueTracks = Array.from(new Set(tracks));
+    const aliasPath = path.join(routesDir, `${slug}.html`);
+    const html =
+      uniqueTracks.length === 1
+        ? buildRoadmapTopicAliasHtml(slug, uniqueTracks[0])
+        : buildAmbiguousRoadmapTopicAliasHtml(slug, uniqueTracks);
+
+    fs.writeFileSync(aliasPath, html, "utf8");
+    if (uniqueTracks.length === 1) {
+      aliasCount += 1;
+    } else {
+      disambiguationCount += 1;
+    }
+  }
+
+  console.log(`Roadmap topic aliases generated: ${aliasCount}`);
+  if (disambiguationCount > 0) {
+    console.log(`Roadmap topic disambiguation pages generated: ${disambiguationCount}`);
+  }
+}
+
 function buildContentPages() {
   const baseTemplate = readTextOrEmpty(path.join(LAYOUTS_DIR, "base.html"));
   const headerTemplate = readTextOrEmpty(path.join(LAYOUTS_DIR, "header.html"));
@@ -1199,6 +1308,7 @@ function main() {
   copyRoadmapBaseIndexes();
   copyRoadmapTopLevelPages();
   copyRoadmapLandingPage();
+  generateRoadmapTopicAliases();
   const contentResult = buildContentPages();
   optimizePublishedHtmlFiles();
   writeBuildManifest(contentResult);
