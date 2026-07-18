@@ -6,5 +6,5 @@
 ## Notes
 
 - This roadmap focuses on data structures, algorithms, and complexity analysis.
-- The first integrated topic is `algorithms.html`, migrated from CSE.
-- Remaining topic pages are placeholders with navigation JSON for future content.
+- All DSA topic pages are standardized placeholders with matching navigation JSON.
+- Each placeholder includes common sidebar scaffolding, a clear title header, and status text for future authoring.
