@@ -43,10 +43,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function computeBarPercent() {
-    const topicIds = Object.keys(remoteProgress);
-    if (topicIds.length > 0) {
-      const sum = topicIds.reduce((acc, topicId) => acc + (remoteProgress[topicId].percent || 0), 0);
-      return Math.round(sum / topicIds.length);
+    if (Object.keys(remoteProgress).length > 0) {
+      let sum = 0;
+      let total = 0;
+
+      checkboxes.forEach((check) => {
+        const topicId = getTopicId(check);
+        if (!topicId) return;
+        total += 1;
+        sum += remoteProgress[topicId] ? (remoteProgress[topicId].percent || 0) : 0;
+      });
+
+      return total ? Math.round(sum / total) : 0;
     }
 
     const total = checkboxes.length;
