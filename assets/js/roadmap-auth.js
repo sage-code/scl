@@ -479,12 +479,24 @@
 
   async function handleUnregister(form, client) {
     var status = document.getElementById("auth-status");
+    var submitButton = form.querySelector('button[type="submit"]');
+
+    function setSubmitting(isSubmitting) {
+      if (!submitButton) {
+        return;
+      }
+
+      submitButton.disabled = isSubmitting;
+      submitButton.setAttribute("aria-busy", isSubmitting ? "true" : "false");
+    }
 
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
+      setSubmitting(true);
 
       var authState = await client.auth.getUser();
       if (authState.error || !authState.data || !authState.data.user) {
+        setSubmitting(false);
         setStatus(status, "Sign in first to remove your roadmap account.", "warning");
         return;
       }
@@ -493,6 +505,7 @@
       var password = form.elements.password ? form.elements.password.value : "";
 
       if (!password) {
+        setSubmitting(false);
         setStatus(status, "Enter your password to confirm account removal.", "warning");
         return;
       }
@@ -503,20 +516,21 @@
       });
 
       if (verification.error) {
+        setSubmitting(false);
         setStatus(status, verification.error.message, "error");
         return;
       }
 
-      if (verification.data && verification.data.session) {
-        await client.auth.setSession({
-          access_token: verification.data.session.access_token,
-          refresh_token: verification.data.session.refresh_token
-        });
-      }
-
       var removalResult = await client.rpc("delete_current_user_account");
       if (removalResult.error) {
+        setSubmitting(false);
         setStatus(status, removalResult.error.message, "error");
+        return;
+      }
+
+      if (!removalResult.data) {
+        setSubmitting(false);
+        setStatus(status, "Removal could not be confirmed. Please try again.", "error");
         return;
       }
 
@@ -529,7 +543,7 @@
 
       window.setTimeout(function () {
         window.location.href = "/roadmap/";
-      }, 900);
+      }, 1500);
     });
   }
 

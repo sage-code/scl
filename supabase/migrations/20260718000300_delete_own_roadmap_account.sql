@@ -2,14 +2,19 @@
 -- Allow an authenticated user to delete their own account and cascade related roadmap data.
 
 create or replace function public.delete_current_user_account()
-returns void
+returns boolean
 language plpgsql
 security definer
 set search_path = public, auth
 as $$
+declare
+  deleted_user_id uuid;
 begin
   delete from auth.users
-  where id = auth.uid();
+  where id = auth.uid()
+  returning id into deleted_user_id;
+
+  return deleted_user_id is not null;
 end;
 $$;
 
