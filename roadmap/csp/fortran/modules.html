@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Using modules to organize complex data and data methods using Fortran 2003 new features.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="fortran, modules, object, oriented, data, structures">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>Fortran Modules</title>  
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
+  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="/prism.css">
+  <script src="/prism.js"></script>
+  <!-- custom css -->
+  <link rel="stylesheet" href="/sage.css">
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="fortran-modules">Fortran Modules</h1>
+
+<div class="alert alert-secondary shadow-sm">Modern Fortran is a multi-paradigm programming language. It does not have support fo classes, but has similar concepts. It has support for abstraction, encapsulation, inheritance and polymorphism. To use these features you need to understend Fortran modules.</div>
+
+<h2 id="module-syntax-we-have-already-talk-about-module-syntax-in-the-structure-section-remember-a-module-can-encapsulate-declarations-and-subprograms-we-can-use-modules-to-define-and-implement-object-oriented-components-syntax-pattern-module-static-often-exported-data-definitions-contains-procedure-definitions-and-interfaces-end-module-notes-best-practice-is-to-create-one-module-in-one-file-fortran-enable-one-module-to-be-split-in-many-files-also-one-single-file-can-contain-many-modules-member-access-by-default-module-members-are-public-you-can-use-keywords-private-and-public-to-disableenable-explicit-access-to-specific-members-in-next-example-we-will-create-private-and-public-members-object-oriented">Module syntax</h4>
+
+<p>We have already talk about module syntax in the <a href="/csp/fortran/structure.html#module">structure</a> section. Remember a module can encapsulate declarations and subprograms. We can use modules to define and implement object oriented components.</em>
+
+<h4>Syntax pattern</h4>
+
+<!--code pannel-->
+<pre><code class="language-fortran line-numbers">module &lt;name&gt;
+    !static (often exported) data definitions
+    ...
+contains
+    !procedure definitions and interfaces
+    ...
+end module &lt;name&gt;
+</code></pre>
+
+<p><em>Notes: </em>Best practice is to create one module in one file. Fortran enable one module to be split in many files. Also one single file can contain many modules.</p>
+
+<h3 id="member-access">Member Access</h3>
+
+<p>By default module members are public. You can use keywords, private and public to disable/enable explicit access to specific members. In next example we will create private and public members.</p>
+
+<h2 id="object-oriented">Object Oriented</h2>
+
+<p>In fortran 2003 you can create object oriented modules. Public members of modules can be accessed using symbol "%", that is usually "." in other languages.</p>
+
+<div class="panel-heading">example: circle.f95</div>
+<div class="panel-body">
+<pre class="code-panel"><code class="language-fortran line-numbers">
+module class_Circle
+  implicit none
+  real, private, parameter :: pi = 3.14159265d0
+  type, public :: Circle
+     real :: radius
+   contains
+     procedure :: area => circle_area
+     procedure :: print => circle_print
+  end type Circle
+contains
+  function circle_area(this) result(area)
+    class(Circle), intent(in) :: this
+    real :: area
+    area = pi * this%radius**2
+  end function circle_area
+
+  subroutine circle_print(this)
+    class(Circle), intent(in) :: this
+    real :: area
+    area = this%area()  
+    print *, 'radius = ', this%radius, ' area = ', area
+  end subroutine circle_print
+end module class_Circle
+</code></pre>
+</div>
+
+<p>A module do not work alone. You need to create a program that uses the module. In the main program you import the module by using "use" statement, then you can access its members:</p>
+
+<!--two columns pattern-->
+<div class="row">
+<!-- first column -->
+<div class="column col-md-6 panel">
+<div class="panel-heading">main program</div>
+<div class="panel-body">
+<pre class="code-panel">
+<code class="language-fortran line-numbers"
+>program circle_test
+  use class_Circle
+  implicit none
+
+  ! Declare a Circle.
+  type(Circle) :: test  
+  real :: radius
+  print *, "Enter 0, for exit."
+  do
+     write (*,"(a)", & 
+     advance="no") "radius:"
+
+     read *, radius
+     if (radius == 0) exit
+     test = Circle(radius)    
+     
+     ! Call bound subroutine
+     call test%print          
+end program 
+</code></pre>
+</div>
+</div>
+<!-- second column -->
+<div class="column col-md-6 panel">
+<div class="panel-heading">console output</div>
+<div class="panel-body">
+<pre class="code-panel">
+<code class="language-output"
+>~/fortran-demo$ ./circle
+Enter 0, for exit.
+radius:1
+radius=  1.00area=     3.142
+radius:2
+radius=  2.00area=    12.566
+radius:10
+radius= 10.00area=   314.159
+radius:20
+radius= 20.00area=  1256.637
+radius:1.5
+radius=  1.50area=     7.069
+radius:0
+~/fortran-demo$ 
+</code></pre>
+</div>
+</div>
+</div>
+
+<p><em>Note: </em>In this example we have used a special option for print: advance="no". This will enable user to enter the number immediatly after ":" and do not create a new line for print.</p>
+
+<!-- work in progress-->
+
+<hr>
+
+
+</main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'fortran',
+    topicId: 'modules',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html><script src="/sage.js"></script>
+</html>

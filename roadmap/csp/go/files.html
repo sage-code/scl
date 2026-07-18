@@ -1,0 +1,443 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Working with files and folders in GoLang.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="go, golang, language, list files, folers, how to work, examples">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Go Files</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/prism.css">
+  <script src="/prism.js"></script>
+  <link rel="stylesheet" href="/sage.css">
+
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+</div>
+<hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="title">Go Files and Folders</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Working with files is an important features implemented in Go using packages. Go has a full set of features to list files and folders, open files, read and write content. 
+</div>
+
+<h4>Content Topics:</h4>
+<hr>
+<ul>
+    <li><a href="#list">List files</a></li>
+    <li><a href="#walk">Walk in directory</a></li>
+    <li><a href="#readir">Read folder content</a></li>
+    <li><a href="#read">Read files</a></li>  
+    <li><a href="#write">Write in files</a></li>    
+    <li><a href="#temp">Use temporary files</a></li>    
+</ul>
+<hr>
+<h2 id="list">Listing Files</h2>
+
+<p>In programming, often you have multiple sollutions to do the same thing. I have identified 3 methods to list files in a given folder. Let's see some examples:</p>
+
+<ul>
+    <li>ioutil.ReadDir</li>
+    <li>filepath.Walk</li>
+    <li>os.File.Readdir</li>
+</ul>
+
+<h3 id="ioutilreaddir">ioutil.ReadDir</h3>
+
+ioutil.ReadDir comes from the ioutil package in the Go standard library, you can check the documentation from the official Go Doc website
+
+<h4>Signature:</h4>
+<pre><code class="language-go">
+func ReadDir(dirname string) ([]os.FileInfo, error)
+</code></pre>
+
+<h4><a id="list-example"></a>Example:</h4>
+
+<p>This example will list files and folders found in ./test. If the folder is not found you will get a fatal error using "log" package.</p>
+
+<pre><code class="language-go line-numbers">// list files
+package main
+
+import (
+    "fmt"
+    "io/ioutil"
+    "log"
+)
+
+func main() {
+    files, err := ioutil.ReadDir("./test")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    for _, file := range files {
+        fmt.Println(file.Name(), file.IsDir())
+    }
+}
+</code></pre>
+
+<p>
+Try it: <a href="https://replit.com/@elucian/list-files#main.go" rel="nofollow noopener" target="_blank">list-files</a></p>
+
+<h3 id="filepathwalk">filepath.Walk</h3>
+
+<p>filepath.Walk can list files in a directory structure, it also allows us to recursively discover directories and files. Let's study this function:</p>
+
+<h4>Signature:</h4>
+
+<pre><code class="language-go">
+func Walk(root string, walkFn WalkFunc) error
+</code></pre>
+
+<p>Walk walks the file tree rooted at root, calling walkFn for each file or directory in the tree, including root. All errors that arise visiting files and directories are filtered by walkFn. The files are walked in lexical order, which makes the output deterministic but means that for very large directories Walk can be inefficient. Walk does not follow symbolic links.</p>
+
+<p>WalkFunc is a callback function signature you must create to call Walk() with it:</p>
+
+<pre><code class="language-go">
+type WalkFunc func(path string, info os.FileInfo, err error) error
+</code></pre>
+
+<h4><a id="walk"></a>Example</h4>
+
+<pre><code class="language-go line-numbers">//walk function
+package main
+
+import (
+    "fmt"
+    "os"
+    "path/filepath"
+)
+
+func main() {
+    err := filepath.Walk("./test", 
+           func(path string, info os.FileInfo, 
+                err error) error {
+        if err != nil {
+            fmt.Println(err)
+            return err
+        }
+        fmt.Printf("dir: %v: name: %s\n", info.IsDir(), path)
+        return nil
+    })
+    if err != nil {
+        fmt.Println(err)
+    }
+}
+</code></pre>
+
+<h4>Output:</h4>
+
+<pre class="output">
+>make run
+./main
+dir: true: name: ./test
+dir: true: name: test/subfolder
+dir: false: name: test/subfolder/file21
+dir: false: name: test/subfolder/file22
+dir: false: name: test/test1
+>
+</pre>
+
+<p>
+Try it: <a href="https://replit.com/@elucian/walkfunction#main.go" rel="nofollow noopener" target="_blank">walk-function</a></p>
+
+<h3 id="osfilereaddir">os.File.Readdir</h3>
+
+<p>os.File object, can be used on folders. With a File object can use Readdir() method. This will return a array slice with all the files in sthe directory associated with the respective file.</p>
+
+<h4>Signature:</h4>
+
+<pre><code class="language-go line-numbers">
+func (f *File) Readdir(n int) ([]FileInfo, error)
+</code></pre>
+
+<p>Readdir reads the contents of the directory associated with file and returns a slice of up to n FileInfo values, as would be returned by Lstat, in directory order. Subsequent calls on the same file will yield further FileInfos.</p>
+
+<p>You can use parammeter n: If n > 0, Readdir returns at most n FileInfo structures. In this case, if Readdir returns an empty slice, it will return a non-nil error explaining why. At the end of a directory, the error is io.EOF. If n &lt;= 0, Readdir returns all the FileInfo from the directory in a single slice.</p>
+
+<h4><a id="readir"></a>Example:</h4>
+
+<pre><code class="language-go line-numbers">//readir.go
+package main
+
+import (
+    "fmt"
+    "os"
+)
+
+// list files in a folder
+func main() {
+    //open a folder
+    f, err := os.Open("./test")
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    files, err := f.Readdir(0)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    
+    for _, v := range files {
+        fmt.Println(v.Name(), v.IsDir())
+    }
+}
+</code></pre>  
+<!-- work in progress-->
+
+<p>
+Try it: <a href="https://replit.com/@elucian/filereadir#main.go" rel="nofollow noopener" target="_blank">file-readir</a></p>
+
+<h2 id="read">Reading Files</h2>
+
+<p>Reading and writing files are basic tasks needed for many Go programs. First we'll look at some examples of reading files.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-go line-numbers">//reading file
+package main
+
+import (
+    "bufio"
+    "fmt"
+    "io"
+    "os"
+)
+
+// This helper will streamline our error checks below.
+func check(e error) {
+    if e != nil {
+        panic(e)
+    }
+}
+
+func main() {
+
+    f, err := os.Open("files/dat.txt")
+    check(err)
+
+    // Postpone closing 
+    defer f.Close()
+  
+    // Read some bytes
+    b1 := make([]byte, 12)
+    n1, err := f.Read(b1)
+    check(err)
+    fmt.Printf("%d bytes: %s\n", n1, string(b1[:n1]))
+
+    // You can jump using "Seek" 
+    o2, err := f.Seek(6, 0)
+    check(err)
+    b2 := make([]byte, 2)
+    n2, err := f.Read(b2)
+    check(err)
+    fmt.Printf("%d bytes @ %d: ", n2, o2)
+    fmt.Printf("%v\n", string(b2[:n2]))
+
+    // Read at least 
+    o3, err := f.Seek(3, 0)
+    check(err)
+    b3 := make([]byte, 10)
+    n3, err := io.ReadAtLeast(f, b3, 10)
+    check(err)
+    fmt.Printf("%d bytes @ %d: %s\n", n3, o3, string(b3))
+
+    // Seek(0, 0) accomplishes rewind
+    _, err = f.Seek(0, 0)
+    check(err)
+
+    // buffered reader
+    r4 := bufio.NewReader(f)
+    b4, err := r4.Peek(12)
+    check(err)
+    fmt.Printf("12 bytes: %s\n", string(b4))
+}
+</code></pre>
+
+<p>
+Try it: <a href="https://replit.com/@elucian/readfile#main.go" rel="nofollow noopener" target="_blank">read_file</a></p>
+
+<h2 id="write">Writing Files</h2>
+
+<p>Writing files in Go follows similar patterns to reading.</p>
+
+<h4>Example</h4>
+
+
+<pre><code class="language-go line-numbers">
+package main
+
+import (
+    "bufio"
+    "fmt"
+    "os"
+)
+
+func check(e error) {
+    if e != nil {
+        panic(e)
+    }
+}
+
+func main() {
+
+    // To start, here's how to dump a string (or just bytes) into a file.
+    d1 := []byte("hello\ngo\n")
+    err := os.WriteFile("tmp/dat1", d1, 0644)
+    check(err)
+
+    // For more granular writes, open a file for writing.
+    f, err := os.Create("tmp/dat2")
+    check(err)
+
+    // It's idiomatic to defer a Close immediately
+    // after opening a file.
+    defer f.Close()
+
+    // You can Write byte slices as you'd expect.
+    d2 := []byte{115, 111, 109, 101, 10}
+    n2, err := f.Write(d2)
+    check(err)
+    fmt.Printf("wrote %d bytes\n", n2)
+
+    // A WriteString is also available.
+    n3, err := f.WriteString("writes\n")
+    check(err)
+    fmt.Printf("wrote %d bytes\n", n3)
+
+    // Issue a Sync to flush writes to stable storage.
+    f.Sync()
+
+    // bufio provides buffered writers in addition
+    // to the buffered readers we saw earlier.
+    w := bufio.NewWriter(f)
+    n4, err := w.WriteString("buffered\n")
+    check(err)
+    fmt.Printf("wrote %d bytes\n", n4)
+
+    // Use Flush to ensure all buffered operations have
+    // been applied to the underlying writer.
+    w.Flush()
+
+}  
+</code></pre>
+
+<p>
+Try it: <a href="https://replit.com/@elucian/filewriter#main.go" rel="nofollow noopener" target="_blank">file-writer</a></p>
+<hr>
+
+<h2 id="temp"><a ></a>Temporary Files</h2>
+
+<p>You can use temporary files for intermediate data processing jobs. You can use folder /temp or /tmp but you never know if this folder exist. Sometimes system temporary folder is redirected. Therefore is better to use Go API special design for this purpose.</p>
+
+<h3 id="example">Example:</h3>
+
+<pre><code class="language-go line-numbers">// temp_files.go
+package main
+
+import (
+    "fmt"
+    "os"
+    "path/filepath"
+)
+
+func check(e error) {
+    if e != nil {
+        panic(e)
+    }
+}
+
+func main() {
+
+    f, err := os.CreateTemp("", "sample")
+    check(err)
+    fmt.Println("Temp file name:", f.Name())
+    defer os.Remove(f.Name())
+
+    // We can write some data to the file.
+    _, err = f.Write([]byte{1, 2, 3, 4})
+    check(err)
+
+
+    // prefer to create a temporary *directory*.
+    dname, err := os.MkdirTemp("", "sampledir")
+    check(err)
+    fmt.Println("Temp dir name:", dname)
+    defer os.RemoveAll(dname)
+
+    // Now we can synthesize temporary file names by
+    // prefixing them with our temporary directory.
+    fname := filepath.Join(dname, "file1")
+    err = os.WriteFile(fname, []byte{1, 2}, 0666)
+    check(err)
+}
+</code></pre>
+
+<p>
+Try it: <a href="https://replit.com/@elucian/gotem#main.go" rel="nofollow noopener" target="_blank">file-writer</a></p>
+
+<h2 id="references">References</h2>
+
+<p>For advanced programming, you need these references. Learn all the fundtions. If you know a function exists you can check it's signature and examples.</p>
+
+<ul>
+<li><a href="https://pkg.go.dev/os" rel="nofollow noopener">os package</a></li>
+<li><a href="https://pkg.go.dev/io/ioutil" rel="nofollow noopener">ioutil package</a></li>
+<li><a href="https://pkg.go.dev/bufio" rel="nofollow noopener">bufio package</a></li>
+</ul>
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">â˜°</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'go',
+    topicId: 'files',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/sage.js" defer></script>
+<script src="/common/progress.js" defer></script>
+<script src="/common/lab-progress-bridge.js" defer></script>
+<script src="/common/topic-loader.js" defer></script>
+
+</body>
+</html>
+
+
+

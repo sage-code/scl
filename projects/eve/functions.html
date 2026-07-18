@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Sage-Code Eve programming language specification, by Sage-Code Laboratory.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, functions">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Functions</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/sage.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<h1><a id="functions">Eve Functions</h1>
+
+<div class="alert alert-secondary shadow-sm">
+A function is a relation between input and output values. A function makes a computation to establish the output. Eve functions are objects of type Function. Eve enable functional programming paradigm (FP).</div>
+
+<h4>Page bookmarks:</h4>
+<hr>
+<ul>
+<li><a href="#declaration">Function declaration</a></li>
+<li><a href="#closures">Closure functions</a></li>
+<li><a href="#lambdas">Lambda expressions</a></li>
+</ul>
+<hr>
+<h2><a id="declaration"></a>Function declaration</h2>
+
+<p>Functions are declared with keyword: "function". A function can be public or private. You can define public functions in modules and private functions in other scripts.</p>
+
+<h4>Pattern:</h4>
+
+<pre><code class="language-eve">#function declaration
+function name(parameters) =&gt; (@result:TypeName):
+  ** executable block
+  ...
+return;
+</code></pre>
+
+<h4>Notes:</h4>
+
+<ul>
+<li>Function result is mandatory and explicit, </li>
+<li>Result type must is declared using prefix @,</li>
+<li>A function can have input/output parameters,</li>
+<li>A function can receive parameters of type function,</li>
+<li>A function can return a result but the result is optional,</li>
+<li>A function can create as a result another function called closure,</li>
+<li>A function has a name. There are no anonymous functions,</li>
+<li>A function can raise errors but it can't handle errors,</li>
+<li>A function can be suspended and resumed on demand,</li>
+<li>A function can't modify a global variable.</li>
+</ul>
+
+<p><b>Execute function</b>&nbsp;Function is executed in expressions using the name of the function followed by semicolon, and list of arguments in round brackets (). Brackets are mandatory even if there are no arguments.</p>
+
+<p><b>Function arguments</b>&nbsp;The arguments can be pass by position or by name. The names of arguments is useful when when a function has optional parameters.</p>
+
+<h4>Pattern:</h4>
+
+<pre><code class="language-eve">
+#demo function execution
+driver function_ex:
+
+** declare functions
+function name1(param :Type,...) => (@result:Type):
+   let result := expression;
+return;
+
+function name2(param := value,...) => (@result:Type):
+   let result := expression;
+return;
+
+process:
+  ** execute using argument list
+  new result1 := name1(arguments);
+
+  ** execute using parameter names with pair operator (:)
+  new result2 := name2(param:arg,....);
+return;
+</code></pre>
+
+<p><b>Note:</b>&nbsp;Argument value can be an expression or a variable that translate to a value of expected type. For clarity of application we encourage creation of local variables for arguments.</p>
+
+<ul>
+<li>value ::= constant | variable</li>
+<li>value ::= expression | other function call</li>
+</ul>
+
+<h3>Formal parameters</h3>
+<ul>
+<li>Parameters are declared in parenthesis () after the function name,</li>
+<li>Each parameter has name and type and can have one default value,</li>
+<li>When a function is called each parameter receive an argument.</li>
+</ul>
+
+<h3>Function arguments</h3>
+
+<p>There is a difference between the parameter and the argument. The parameter is a local variable in the function scope while arguments are values assigned to these parameters in a function call. Arguments can be literals, constants, variables or expressions.</p>
+
+<h4>Example:</h4>
+<pre><code class="language-eve"># demo function with parameters
+driver function_params:
+
+function sum(a, b: Integer) => (@result:Integer):
+  let result := (a + b);
+return;
+
+process:
+  print sum(1,2);  -- 3
+  print sum(2,4);  -- 6
+return;
+</code></pre>
+
+<h2><a id="closures"><a>Closures</h2>
+
+<p>A closure is a function created by another function. The closure has read/write access to context variables. The context is the scope of parent function, that is called <em>high order function</em>. The context is replicated and bound to every closure instance.</p>
+
+<h4>Why closures?</h4>
+
+<p>Closures are enabled in Eve to offer a convenient way to create generators. These are functions that can return a different result for every call. A closure is a light weight object. Like objects closures are dynamicly created at runtime using "new" keyword.</p>
+
+<pre><code class="language-eve">
+driver test_closure:
+
+# declare a high order function
+function generator(start:Integer) => (@closure:Function):
+  new current := start; 
+
+  ** define a closure using let
+  let closure := Function() => (@result:Integer): 
+      let current += 1;
+      let result := current;
+  return; 
+return;
+
+process:
+  ** instantiate two closures
+  new index1 := generator(0);
+  new index2 := generator(10);
+  
+  ** interlace the two calls
+  print index1(), index1(); -- 1, 2
+  print index2(), index2(); -- 11, 12
+  print index1(), index1(); -- 3, 4
+return;
+</code></pre>
+
+<p><b>Notes: </b>
+<ul>
+  <li>Closures are stochastic functions, that is opposite to deterministic. The compiler will make no effort to optimize this kind of functions.</li>
+  <li>Closures can be created only in higher order functions not in routines or classes. A class method can't create closures.</li>
+  <li>One high order function can create multiple closures. This advanced feature will be demonstrated in examples of code later when we create de compiler.</li>
+</ul>
+
+
+<h2><a id="lambdas"></a>Lambda expressions</h2>
+
+<p>Lambda expressions are simpler functions that respect arithmetic rules. These can receive several arguments and can produce one result. A lambda expression is created with keywords "set" or "new". Lambda expressions do not have local variables or states and do not have side effects.</p>
+
+<p>Lambda expressions can be declared in global region but also in the process region. You can define more than one global regions in a script. Lambda expressions are associated to a variable, sometimes can be associated to a member in a collection.</p>
+
+<h4>Example</h4>
+
+<p>In next example we define two lambda expressions.</p>
+
+<pre><code class="language-eve">
+global
+  set sum = (p1, p2 :Integer) => (p1 + p2):Integer;
+  set sqr = (p1, p2 :Integer) => (p1 * p2):Integer;
+</code></pre>
+
+<h3>Lambda signature</h3>
+
+<p>Lambda expression can be declared as data type using keyword "class". Later, this type can be used to enforce a specific signature for a <em>call-back</em> argument, variable or collection element.<p>
+
+<pre><code class="language-eve">
+# define a lambda signature
+driver lam_sig
+
+** Sefine callback signature
+class BinEx = (p1, p2 :Integer):Integer <: Lambda;
+
+** Use lambda signature as parameter type
+routine useLambda(test :BinEx):
+   print test(); -- execute callback
+return;
+
+** Execute a process with lambda argument
+process:
+   ** use anonymous lambda argument
+   call useLambda((x, y) => (x + y));
+return;
+</code></pre>
+
+<p><b>Note: </b>Lambda expressions can be created by a function or method as a result. Lambda expressions can't modify values of variable declared in the parent scope.</p>
+
+<h3>Lambda & states</h3>
+
+<p>Lambda expressions can read global or parent scope states, but can not modify them. However, if external values change after expression is defined, the result may be influenced by the new values.</li>
+
+<h4>Example:</h4>
+
+<pre><code class="language-eve">
+# verify shared state influence
+driver shared_states:
+
+** define global settings
+  set decimals = 2: Integer;
+
+global
+  set trunc = (x:Real) => floor(x* 10^decimal)/10^decimal;
+
+process:
+  new x := 10/3;
+  ** call the lambda expression
+  print trunc(x) -- expected 3.33
+
+  ** overwrite the initial settings 
+  let decimals := 4;
+  print trunc(x) -- expected 3.3333
+return;
+</code></pre>
+
+<div class="alert alert-warning"><b>Warning: </b>Observe we have used "set" to create the initial value for a global variable. Then we alter it using "let" inside the process. The new value is used by the function to cut several decimals after round(). This is not exactly a side-effect but is an influence, that is not accepted in functional programming.</div>
+
+<p><b>Disclaim: </b>We acknowledge, Eve is not a pure functional language. This behavior is present in many other modern languages. Eve is not different. We seek for a balance between the theory and pragmatism.</p>
+
+<!-- work in progress-->
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/classes/">Classes</a></p>
+
+<!-- Footer -->
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js"></script>
+</body>
+</html>
