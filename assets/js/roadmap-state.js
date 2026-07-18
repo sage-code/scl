@@ -214,6 +214,16 @@
     }
   }
 
+    function emitAuthChange() {
+      window.dispatchEvent(new CustomEvent("roadmap-auth-changed", {
+        detail: {
+          user: state.user,
+          profile: state.profile,
+          session: state.session
+        }
+      }));
+    }
+
   async function loadProfile(client, user) {
     if (!user) {
       return null;
@@ -243,6 +253,7 @@
     }
 
     renderState();
+    emitAuthChange();
     return state;
   }
 

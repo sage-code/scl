@@ -7,16 +7,44 @@
  * - Parent checkbox on CSP hub can clear the whole lab.
  */
 (function () {
+  function getSync() {
+    return window.sageRoadmapProgressSync || null;
+  }
+
   function roadmapStorageKey(courseId) {
+    var sync = getSync();
+    if (sync && typeof sync.roadmapStorageKey === 'function') {
+      return sync.roadmapStorageKey(courseId);
+    }
+
     return 'sage_progress_' + courseId;
   }
 
   function detailStorageKey(labId, topicId) {
+    var sync = getSync();
+    if (sync && typeof sync.detailStorageKey === 'function') {
+      return sync.detailStorageKey(labId, topicId);
+    }
+
     return 'progress-' + labId + '-' + topicId;
   }
 
   function readMsStorageKey(courseId, topicId) {
+    var sync = getSync();
+    if (sync && typeof sync.readMsStorageKey === 'function') {
+      return sync.readMsStorageKey(courseId, topicId);
+    }
+
     return 'sage_read_ms_' + courseId + '_' + topicId;
+  }
+
+  function labCompleteKey(courseId) {
+    var sync = getSync();
+    if (sync && typeof sync.labCompleteStorageKey === 'function') {
+      return sync.labCompleteStorageKey(courseId);
+    }
+
+    return 'sage_lab_complete_' + courseId;
   }
 
   function courseIdForLab(labId, explicitCourseId) {
@@ -38,15 +66,24 @@
     if (done) data[topicId] = true;
     else delete data[topicId];
     localStorage.setItem(k, JSON.stringify(data));
+
+    const sync = getSync();
+    if (sync && window.roadmapState && typeof window.roadmapState.getUser === 'function' && window.roadmapState.getUser()) {
+      if (done && typeof sync.saveRoadmapTopic === 'function') {
+        sync.saveRoadmapTopic(courseId, topicId, true, 100);
+      } else if (!done && typeof sync.clearTopicProgress === 'function') {
+        sync.clearTopicProgress(courseId, topicId);
+      }
+    }
   };
 
   window.sageNotifyLabFullyComplete = function (courseId) {
-    localStorage.setItem('sage_lab_complete_' + courseId, '1');
+    localStorage.setItem(labCompleteKey(courseId), '1');
     window.dispatchEvent(new CustomEvent('sage-lab-progress-changed', { detail: { courseId } }));
   };
 
   window.sageNotifyLabIncomplete = function (courseId) {
-    localStorage.removeItem('sage_lab_complete_' + courseId);
+    localStorage.removeItem(labCompleteKey(courseId));
     window.dispatchEvent(new CustomEvent('sage-lab-progress-changed', { detail: { courseId } }));
   };
 
@@ -61,7 +98,23 @@
         localStorage.removeItem(k);
       }
     }
-    localStorage.removeItem('sage_lab_complete_' + courseId);
+    localStorage.removeItem(labCompleteKey(courseId));
+
+    const sync = getSync();
+    if (sync && typeof sync.fetchCourseRows === 'function' && typeof sync.clearTopicProgress === 'function' && window.roadmapState && typeof window.roadmapState.getUser === 'function' && window.roadmapState.getUser()) {
+      sync.fetchCourseRows(courseId).then(function (rows) {
+        const seen = {};
+        rows.forEach(function (row) {
+          if (!row || !row.topic_key) return;
+          const parts = String(row.topic_key).split('::');
+          const topicId = parts[0];
+          if (!topicId || seen[topicId]) return;
+          seen[topicId] = true;
+          sync.clearTopicProgress(courseId, topicId);
+        });
+      });
+    }
+
     window.dispatchEvent(new CustomEvent('sage-lab-progress-changed', { detail: { courseId } }));
   };
 
