@@ -80,6 +80,10 @@ Auto-run Supabase migration mirror:
 - `supabase/migrations/20260718000200_roadmap_progress.sql`
 - `supabase/migrations/20260718000300_delete_own_roadmap_account.sql`
 
+Deployment automation:
+- GitHub Action: `.github/workflows/supabase-db-push.yml`
+- Required secret: `SUPABASE_DB_URL`
+
 Run SQL scripts in order using Supabase SQL Editor before enabling connected roadmap mode.
 
 Supabase Auth must allow the password recovery redirect URL:
