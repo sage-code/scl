@@ -1308,7 +1308,6 @@ function main() {
   copyRoadmapBaseIndexes();
   copyRoadmapTopLevelPages();
   copyRoadmapLandingPage();
-  generateRoadmapTopicAliases();
   const contentResult = buildContentPages();
   optimizePublishedHtmlFiles();
   writeBuildManifest(contentResult);
