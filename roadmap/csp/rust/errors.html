@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Introduction to Rust error handling.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="rust, syntax, errors, try, catch">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>Rust Errors</title>  
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
+  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="/prism.css">
+  <script src="/prism.js"></script>
+  <!-- custom css -->
+  <link rel="stylesheet" href="/sage.css">
+  </head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h2 id="rust-errors">Rust Errors</h2>
+
+
+<div class="alert alert-secondary shadow-sm">
+Rust groups errors into two major categories: <em>recoverable</em> and <em>unrecoverable</em> errors. First are situations in which it's reasonable to report the problem and retry or continue. Unrecoverable errors are always symptoms of bugs. In this case, program should stop execution immediately.!
+</div>
+
+<h2 id="page-bookmarks">Page Bookmarks</h2>
+
+<hr><nav><ul>
+    <li><a href="#stderr">Standard Errors</a></li>
+    <li><a href="#recover">Recoverable Errors</a></li>
+    <li><a href="#unrecoverable">Unrecoverable Errors</a></li>
+    <li><a href="#best-practice">Best Practice</a></li>
+    <li><a href="#expect">Expect method</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a>/</li> 
+    <li><a href="#references">References</a></li>    
+</ul></nav><hr>
+
+<h2 id="stderr">Standard Errors</h2>
+
+<p>Rust has a robust and standardized error handling system that helps developers write more reliable and robust code. The standard errors in Rust are defined in the <code>std::error</code> module and are implemented by the <code>std::error::Error</code> trait. This trait is automatically implemented for any type that satisfies the <code>Send + Sync + 'static</code> bounds.</p>
+
+<p>The <code>std::error::Error</code> trait defines two methods:</p>
+
+<ul>
+  <li><code>fn source(&self) -> Option<&(dyn Error + 'static)>;</code> - returns the lower-level cause of this error, if any.</li>
+  <li><code>fn backtrace(&self) -> Option<&Backtrace>;</code> - returns a backtrace of the error, if available.</li>
+</ul>
+
+<p>Any type that implements the <code>std::error::Error</code> trait can be used as an error type in Rust. This means that not only can standard errors be used, but custom error types can also be defined and used throughout a Rust application.</p>
+
+<p>Standard errors in Rust have several benefits:</p>
+
+<ul>
+  <li>They are standardized across the Rust ecosystem, making it easy for developers to understand and work with errors in Rust code.</li>
+  <li>They can be easily extended or replaced with custom error types if needed.</li>
+  <li>They provide a consistent and structured approach to error handling that helps prevent bugs and improve code reliability and maintainability.</li>
+</ul>
+
+<p>In summary, standard errors in Rust are an integral part of the language's error handling system. By using these standardized error types, Rust developers can write more reliable and maintainable code.</p>
+
+<h2 id="recover">Recoverable Errors</h2>
+
+<p>Recoverable errors are situations in which it's reasonable to report the problem and retry or continue with the program execution.</p>
+
+<h3 id="option-enum">Option Enum</h3>
+<p>The <code>Option</code> enum is a built-in type in Rust that's used to represent optional values. It has two variants: <code>Some(T)</code>, which wraps a value of type <code>T</code>, and <code>None</code>, which indicates absence of a value.</p>
+
+<p>Here's an example:</p>
+
+<pre>
+<code class="language-rust line-numbers">
+fn divide(x: i32, y: i32) -&gt; Option&lt;i32&gt;{
+    if y == 0 {
+        None
+    } else {
+        Some(x / y)
+    }
+}</code>
+</pre>
+
+<p>The above function returns a value of type <code>Option&lt;i32&gt;</code>. When the divisor is zero, it returns <code>None</code>, which indicates an error. Otherwise, it returns the result wrapped in <code>Some</code>.</p>
+
+<h3 id="result-enum">Result Enum</h3>
+<p>The <code>Result</code> enum is another built-in type in Rust that's used for error handling. It's similar to <code>Option</code>, but it's used to represent operations that can fail with an error.</p>
+
+<p>Here's an example:</p>
+
+<pre>
+<code class="language-rust line-numbers">
+fn read_file_contents(path: &str) -&gt; Result&lt;String, std::io::Error&gt; {
+    let mut file = File::open(path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    Ok(contents)
+}</code>
+</pre>
+
+<p>The above function returns a value of type <code>Result&lt;String, std::io::Error&gt;</code>. The <code>Ok</code> variant contains the string with file contents, while the <code>Err</code> variant holds an instance of the <code>std::io::Error</code> struct, which contains information about the error that occurred.</p>
+
+<h2 id="unrecoverable">Unrecoverable Errors</h2>
+
+<p>Unrecoverable errors are always symptoms of bugs in the code, and the program should stop execution immediately when one is encountered.</p>
+
+<h3 id="panic-macro">Panic Macro</h3>
+<p>The <code>panic!</code> macro is used to create an unrecoverable error and stop program execution immediately. </p>
+
+<pre>
+<code class="language-rust line-numbers">
+fn main() {
+    panic!("Failed to open the file");
+}</code>
+</pre>
+
+<p>The above code will print an error message and stop the program execution.</p>
+
+<h3 id="assert-macro">assert! Macro</h3>
+<p>The <code>assert!</code> macro is another way to create an unrecoverable error. It's used to verify that a given condition is true at runtime. If the condition is false, the program will panic.</p>
+
+<pre>
+<code class="language-rust line-numbers">
+fn divide(x: i32, y: i32) -&gt; i32 {
+    assert!(y != 0, "division by zero");
+    x / y
+}</code>
+</pre>
+
+<p>The above function will panic if the divisor is zero.</p>
+
+Sure, here's an explanation of standard errors in Rust using HTML format:
+
+
+<h2 id="best-practice">Best Practice</h2>
+
+<p>When it comes to error handling in Rust, there are some best practices to keep in mind:</p>
+
+<h3 id="return-a-result-type">Return a "Result" Type</h3>
+<p>It's a good practice to indicate potential errors by returning a "Result" type. This allows the calling function to handle the error appropriately. Here's an example:</p>
+
+<pre>
+<code class="language-rust line-numbers">
+fn read_file(file_path: &str) -&gt; Result&lt;String, io::Error&gt; {
+  let content = fs::read_to_string(file_path)?;
+  Ok(content)
+}</code>
+</pre>
+
+<p>In this example, if the file doesn't exist, the "read_to_string" method will return an "io::Error" type that will automatically be propagated to the calling function, "read_file", as an "Err". The calling function can then handle the error case as needed.</p>
+
+<h3 id="use-unwrap-with-caution">Use "unwrap" with Caution</h3>
+<p>The "unwrap" method is a convenient way to get the value inside a "Result" type, but it should be used with caution. If the "Result" is an "Err", then "unwrap" will cause the program to panic. Instead of using "unwrap", you can use the "match" statement or one of the error handling macros, such as "expect" or "unwrap_or". Here's an example:</p>
+
+<pre>
+<code class="language-rust line-numbers">
+let numerator = 5;
+let denominator = 0;
+let result = if denominator != 0 {
+  numerator / denominator
+}
+else {
+  Err("Denominator cannot be 0")
+};
+
+match result {
+  Ok(value) =&gt; println!("Result: {}", value),
+  Err(err) =&gt; eprintln!("Error: {}", err),
+}</code>
+</pre>
+
+<p>In this example, instead of using "unwrap", we use a "match" statement to handle both the "Ok" and "Err" cases. This way, the program won't panic if an error occurs.</p>
+
+<h3 id="provide-clear-and-useful-error-messages">Provide Clear and Useful Error Messages</h3>
+<p>When you return an error, provide a clear and useful error message that helps the caller understand what went wrong. Here's an example:</p>
+
+<pre>
+<code class="language-rust line-numbers">
+fn create_directory(path: &Path) -&gt; Result&lt;(), io::Error&gt; {
+  match fs::create_dir(path) {
+      Err(error) => {
+          if error.kind() == io::ErrorKind::AlreadyExists {
+              return Ok(());
+          }
+          else {
+              return Err(error);
+          }
+      },
+      Ok(_) => Ok(())
+  }
+}</code>
+</pre>
+
+<p>In this example, if the directory already exists, we return an "Ok(())". Otherwise, we return an "Err" with a useful error message that explains what went wrong.</p>
+
+<h3 id="use-custom-error-types">Use Custom Error Types</h3>
+<p>For more complex applications, it's a good practice to define custom error types that provide more information about what went wrong. This can help improve the readability and maintainability of your code by providing a standardized way to handle errors. Here's an example:</p>
+
+<pre>
+<code class="language-rust line-numbers">
+#[derive(Debug)]
+enum MyError {
+  InvalidNumber,
+  InvalidString,
+}
+
+impl fmt::Display for MyError {
+  fn fmt(&self, f: &mut fmt::Formatter) -&gt; fmt::Result {
+      match *self {
+          MyError::InvalidNumber => write!(f, "Invalid number"),
+          MyError::InvalidString => write!(f, "Invalid string"),
+      }
+  }
+}
+
+impl Error for MyError {}
+
+fn do_something(&input: i32, &string: &str) -&gt; Result&lt;(), MyError&gt; {
+  if input &lt; 0 {
+      return Err(MyError::InvalidNumber);
+  }
+
+  if string.is_empty() {
+      return Err(MyError::InvalidString);
+  }
+
+  // Do something with the input and string
+  Ok(())
+}</code>
+</pre>
+
+<p>In this example, we define a custom error type called "MyError" with two variants to indicate "InvalidNumber" and "InvalidString" errors. We also implement the "fmt::Display" and "Error" traits to make it easy to print and handle these errors.</p>
+
+<p>By following these best practices, you can write more robust and reliable Rust code that handles errors and exceptions more effectively.</p>
+
+<h2 id="expect">Expect method</h2>
+
+<p>The "expect" method in Rust is a way to handle errors in a concise way. It is often used in conjunction with the "Result" type, which is returned by functions that may return an error. The "expect" method takes a string argument, which is used to provide a custom error message to the user in case the function call fails.</p>
+
+<p>Here's an example of using the "expect" method with a function that returns a "Result" type:</p>
+
+
+<pre><code class="language-rust line-numbers">use std::fs::File;
+
+fn main() {
+    let file = File::open("sample.txt").expect("Failed to open sample.txt");
+    // Do something with the file
+}</code></pre>
+
+<p>In this example, "File::open" is a function that returns a "Result" type. If the file cannot be opened, an error will be returned. The "expect" method is used to provide a custom error message if the file cannot be opened.</p>
+
+<p>If the file cannot be opened, the program will terminate and the error message "Failed to open sample.txt" will be displayed to the user.</p>
+
+<p>It's important to note that using the "expect" method is not always appropriate, and there may be cases where more advanced error handling techniques are needed. However, for simple cases, using "expect" can be a convenient way to handle errors.
+</p>
+
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<p>As with any programming language, Rust has its share of common errors and pitfalls that can make error handling challenging for beginners. Here are some of the most common errors that developers might encounter when working with Rust:</p>
+
+<h3 id="1-borrow-checker-errors">1. Borrow checker errors</h3>
+
+<p>Rust's borrow checker is designed to prevent certain types of bugs that can occur when working with references and memory allocation. However, the borrow checker can be tricky to work with and can cause errors that might seem cryptic and hard to understand.</p>
+
+<p>Solution: Read Rust's documentation on borrowing and ownership, and pay careful attention to how references and ownership work in Rust. Take the time to understand the borrow checker's rules and how to work with them.</p>
+
+<h3 id="2-type-mismatch-errors">2. Type mismatch errors</h3>
+
+<p>Rust is a strongly-typed language, which means that the types of variables and expressions must match in order for the code to compile. Type mismatch errors can occur when trying to use incompatible types together.</p>
+
+<p>Solution: Double-check that the types of variables and expressions match when writing Rust code. Understand Rust's type system and what types are compatible with each other.</p>
+
+<h3 id="3-lifetime-errors">3. Lifetime errors</h3>
+
+<p>Lifetimes are a key feature of Rust's memory management system, and can cause errors when working with references and mutable borrows.</p>
+
+<p>Solution: Review Rust's documentation on lifetimes, and make sure to understand how they work and how to use them properly.</p>
+
+<h3 id="4-incorrect-function-arguments">4. Incorrect function arguments</h3>
+
+<p>Passing incorrect arguments to functions can cause errors and prevent code from compiling properly.</p>
+
+<p>Solution: Check the documentation and function signatures carefully to make sure that the correct arguments are being passed. Use Rust's static type system to catch errors early.</p>
+
+<h3 id="5-missing-error-handling">5. Missing error handling</h3>
+
+<p>Failing to handle errors properly can cause Rust programs to crash or produce incorrect output.</p>
+
+<p>Solution: Be diligent about error handling and make sure to handle errors with the appropriate error handling mechanisms, such as the <code>Result</code> type in Rust.</p>
+
+<p>By being aware of these common Rust errors and pitfalls, developers can write more reliable and maintainable Rust code.</p>
+
+<h2 id="conclusion">Conclusion</h2>
+<p>In Rust, errors are handled using two main types: <code>Option</code> and <code>Result</code>. Recoverable errors are situations in which the program can continue execution, while unrecoverable errors are the result of bugs in the code and should cause the program to stop execution immediately. Rust provides <code>panic!</code> and <code>assert!</code> macros for creating unrecoverable errors.</p>
+
+
+<h2 id="references">References</h2>
+
+<ul>
+  <li><a href="https://doc.rust-lang.org/book/ch09-00-error-handling.html">Rust Book - Error handling chapter</a></li>
+  <li><a href="https://doc.rust-lang.org/stable/rust-by-example/error/result/result_map.html">Rust By Example - Result Map Example</a></li>
+  <li><a href="https://stevedonovan.github.io/rust-gentle-intro/error-handling.html">A Gentle Introduction to Rust - Error handling</a></li>
+  <li><a href="https://nick.groenen.me/posts/rust-error-handling/">Rust Error Handling - A Comprehensive Guide with Examples</a></li>
+  <li><a href="https://hoverbear.org/2016/10/12/rust-state-machine-pattern/">The Rust State Machine Pattern</a></li>
+</ul>
+
+<hr>
+<p><b>Go back to: </b>
+<a href="/csp/rust/packages/">Rust Packages</a></p>
+
+</main>
+    </div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'rust',
+    topicId: 'errors',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Introduction to SQL optimization techniques.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SQL, execution, plan, index">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>SQL Optimization</title>  
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
+  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="/prism.css">
+  <script src="/prism.js"></script>
+  <!-- custom css -->
+  <link rel="stylesheet" href="/sage.css">
+  </head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h2 id="sql-optimization">SQL Optimization</h2>
+
+
+<div class="alert alert-secondary shadow-sm">
+Writing SQL is a piece of cake if you know the database structure. 
+So if you have designed the database you should have all ingredients to write good SQL.
+But sometimes the SQL can have performance issues that need tunning.
+</div>
+
+<h2 id="reverse-engineering">Reverse Engineering</h2>
+
+<p>If you do not have all the design document for a database you will have hard time to maintain and optimize.
+In this case it is required to analyze the database structure. You can do so using a tool that is capabel to read,
+the structure back into a diagram. 
+</p>
+
+<p>
+The reverse ingineered diagrams will not be preaty. You can start new diagrams following the foreign keys.
+You start with one table and read the all its foreign keys. Then show all master tables related to it.
+Then show all the child/detail tables that have foreign keys to it.
+If a detail table looks like an association you go one more level to show M:M relations.
+</p>
+
+<h2 id="storage-performance">Storage Performance</h2>
+
+<p>If you use your own servers to store the database you should know how the storage characteristics can affect the database performance. Usually in production and on the cloud, servers are using RAID6 but on small servers you can chose how to organize your storage so that you maximize the local database performance.</p>
+
+<p>RAID5 and RAID6 on small number of disks will result in poor database performance. RAID1 and RAID10 will offer good performance for storing the data. RAID0 can be used to store the indexes. Of course this will make your database more fragile, but for developement and testing this will do just fine.</p>
+
+<p>Using SSD is a good idea to store database "metadata" or so called "system tabes". If you install the database on SSD this may improve your queries against the "database dictionary". You can use this methid to store your more "permanent tables" that are usually small and require little maintenance. This may improve performance for queries that look for the  metadata.
+</p>
+
+<h2 id="execution-plan">Execution Plan</h2>
+
+<p>SQL Is a declarative langauge. You describe the problem by making a "query".
+The database engine will resolve the "query" for you using an algorithm.
+This algorithm is called <em>Query Execution Plan</em>.
+Execution plan may become outdated when you make bulk opperations or you change database structure.
+A database is usually detecting these changes and is rebuilding the execution plan.
+It is possible to use special commands to force the database to rebuild the execution plans.
+</p>
+
+<p>When we optimize a query, we need data. Initially when database is created this is empty.
+The best thing a developer can do is to generate data using a "random" data generator.
+The second best is to ask for a data sample that is representative from a business manager.
+Third option is to have some well known core data (metadata) loaded.
+Based on this you can create a "smart generator" that will fill the database with mixed data: real and fake.</p>
+
+<p>Analyze the query assume to create its execution plan and visualize this plan. It consist of several steps,
+that prepare data for making the final data-set. These steps are more or less performant. 
+An execution plan can show how much cost each step has. </p>
+
+<h2 id="access-methods">Access Methods</h2>
+
+<p>
+If you do not like the plan, you can change two things.
+Modify the query or modify the database. 
+But before you do this you must know what is wrong.
+So you need to understend the data access methods.
+</p>
+
+<ul>
+<li><b>Table Full Scan:</b> read all table record by record</li>
+<li><b>Index Full Scan</b> read an index record by record</li>
+<li><b>Index Range Scan:</b> read only a set of records</li>
+<li><b>By Bitmap Index:</b> read a bitmap index</li>
+<li><b>By Alternate Key:</b> do a binary search in index</li>
+<li><b>By Primary Key:</b> do a binary search in primary key index</li>
+<li><b>By Unique Row ID:</b> jump to a particular block address</li>
+</ul>
+
+<h2 id="temporary-tables">Temporary Tables</h2>
+
+<p>Many developers do not know, but sometimes a query can use large temporary disk storage.
+This may be good or bad. If your database do not has enaugh temporary storage for your query,
+this can become slow.</p>
+
+<p>Avoid query that require temporary space on disk.
+If you can not, then make sure your server has the best HDD for temorary space.
+For example, I use a Raptor disk in my home server to make a temporary table-space.
+Do not use SSD for temporary space, this will be overused and will probably break apart quicly.
+</p>
+
+
+<h2 id="small-query">Small Query</h2>
+
+<p>We call "small query" a select statement that search for one record or a reduced number of records.
+It is a query with <em>WHERE</em> clause that filter the records using a logical expression.
+In this case the first method is the worst and other methods are better. 
+So access by the Row ID is the fastest method and is called "Direct Access".
+An access that is using Primary Key or Alternate Kye is the second best.
+It require reading an index then finding the row ID and the using a direct access to find the record in the table.
+</p>
+
+<h3 id="create-indexes">Create Indexes</h3>
+
+<p>The best method to improve performance for small query is to use indexes.
+This will slow down the Insert and Update but can improve performance for Delete statement.
+Also can improve dramatically the jon opperations may reduce cost of small query.
+As a general rule, you need to make indexes for all <em>foreign keys</em> from design phase. 
+If these indexes are missing, Delete statement may be very slow.
+</p>
+
+<h3 id="use-iot-tables">Use IOT tables</h3>
+
+<p>Sometimes a table is very rarely updated and contains metadata for example.
+In this case you can store your data into special table called: Index Organized Table (IOT).
+Performance of IOT is similar to performance of an index.
+Association tables may be good candidates to be implemented as IOT.
+</p>
+
+<h3 id="use-bitmap-indexes">Use Bitmap Indexes</h3>
+
+<p>Some fields may have reduced set of values. Let's say under 10 values.
+This field is very good candidate for "bitmap index".
+Then if you use this field in a filter (WHERE) you may improve performance significantly for specific queies.
+Try it out and if is working make a proposal to add this index in production database.
+</p>
+
+
+<h2 id="bulk-query">Bulk Query</h2>
+
+<p>A "bulk query" is a select statement that read many records. Maybe all the records in a table.
+In this case, the fastest method is the first method: Full Table Scan. 
+To improve full scan, you can use parallel SQL. Reading the data in multiple threads may help.</p>
+
+<div class="alert alert-warning"> Not all databases have support for parallel query.
+Also if you do it and the server is in use, it may be taking too many resources from other users.
+Therefore is good to control the resources using hints or session settings that limit the number of threads.
+</div>
+
+<h3 id="using-hints">Using Hints</h3>
+
+<p>This method is not recommanded, except if you know what you are doing.
+Sometimes you can add a special comment in the query that is interpreted by the query engine.
+This hint can change the execution plan and can improve performance.
+</p>
+
+<p>For example in oracle you can use some hints for bulk insert to make it faster: <code class="language-sql">INSERT /*+append parallel(8)*/</code>. This hint will ask Oracle database to add new data at the end of the table and do not search for the empty blocks. Also if possible this query will work in parallel on 8 cores.<p>
+
+<h3 id="disabling-constrains">Disabling Constrains</h3>
+
+<p>A good trick is to disable constraints, indexes and triggers. 
+After this you can load data in bulk then you can re-enable constraints and refresh the indexes.
+Sometimes the loading process require exclusive access to the database for several hours until the job is done.
+</p>
+
+<h3 id="rebuild-indexes">Rebuild Indexes</h3>
+
+<p>After many years of service, an index may become inneficient.
+Rebuilding the index will do good. So make sure you have a script that can do that.
+You can run this script once every year to rebuild all your indexes.</p>
+
+<h3 id="compact-tables">Compact Tables</h3>
+
+<p>A Table may have "free blocks" resulting due to many delete opperations. 
+In this case you can reorganize the table to use less space and re-order the records.
+You can do so by using this statement: <code class="language-sql">CREATE TABLE new_name AS SLECT * FROM old_name.</code>
+After you have create new table, you follow next steps to rebuild the old table:
+</p>
+
+<ol>
+<li>Disable all indexes, foreign keys and other constraints on the original;</li>
+<li>Clean the original table by using <em>TRUNCATE TABLE</em> command;</li>
+<li>Transfer all data back using bulk <em>INSERT /*+append*/</em>;</li>
+<li>Rebuild the indexes and enable the constrains.</li>
+<li>Drop the intermediary table that no longer useful.</li>
+</ol>
+
+<div class="alert alert-danger">Data is stored in random order. You can not "sort" a table.
+When you query the data you use <em>ORDER BY</em> to sort your dataset. 
+When you compact a table you can use <em>ORDER BY</em> to change the phisical order of records.
+</div>
+<hr>
+
+
+
+</main>
+    </div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'plsql',
+    topicId: 'optimize',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

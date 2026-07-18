@@ -1,0 +1,599 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Sage-Code Eve project structure.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, EVE, project, language">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>Eve Topology</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/sage.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active {
+        display: block;
+        position: absolute;
+        top: 100px;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: rgba(0,0,0,0.95);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+</div>
+<hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 p-3">
+<h1 id="title">Eve Topology</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Eve is designed to quickly build a data processing app that can have jobs to be executed in order on a precise schedule. You can create one module app but sometimes you need to divide a project into many small modules that run together. Eve provide features to do both kinds of applications.
+</div>
+
+<h2 id="project">Projects</h2>
+<p>A project is a folder with a specific structure. It contains one or more applications that can run independent of each other on the same computer or a group of computers.</p>
+
+<p><b>project structure</b></p>
+<p>Next project contains two applications: server/agent and show folders where you should put your code (src+lib) and documentation (doc). This is a recommendation but not a hard rule.</p>
+
+<pre><code class="language-bee">$pro_home
+project
+  |-- agent
+  |   |-- aspect1.bee
+  |   |-- aspect2.bee
+  |   ...
+  |-- server
+  |   |--  aspect1.bee
+  |   |--- aspect2.bee
+  |   ...
+  |-- library
+  |   |-- module1
+  |   |     |-- module_script1.bee
+  |   |     |-- module_script2.bee
+  |   |     ...
+  |   |-- module2
+  |   ... 
+  |       
+  |-- documents
+  |   |-- readme.md
+  |   |-- index.html
+  |   ...
+  |-- agent.eve
+  |-- server.eve
+</code></pre>
+
+<h2 id="scripts">Scripts</h2>
+
+<p>Eve define several kind of scripts that together makes a "project suite". Some scripts are reusable but some are specific to a single project. Here are all the possible scripts:</p>
+
+<ul>
+<li>Driver, created with keyword: "driver",</li>    
+<li>Aspect, created with keyword: "aspect",</li>
+<li>Module, created with keyword: "module",</li>
+</ul>
+
+<p><b>Notes:&nbsp;</b>One project can contain one or many drivers. Each driver is an independent script. A driver has a single executable process. A driver control the execution of aspects. An aspect is encapsulated and contains it's own process. An aspect can receive parameters from the driver. An aspect or driver can "import" modules and can use classes or functions defined in these modules.</p>
+
+<h4>Features:</h4>
+
+<ul>
+<li>A driver can import one or more modules;</li>
+<li>A driver can <em>run</em> aspects in a sequence or asynchron;</li>
+<li>A driver or aspect define a single executable process;</li>
+<li>An aspect or driver can import modules;</li>
+<li>Every driver/aspect has its own global scope;</li>
+<li>Modules can share states with the driver or aspect global scope.</li>
+</ul>
+
+<h3 id="regions">Regions</h3>
+
+<p>A script file is divided into regions using keywords: {import, alias, constant, global, process, initialize}. Regions members are using indentation, like Python. A region ends when next region begins. Eve try to be flat as much as possible. Therefore these regions are right side aligned.</p>
+
+<h4>Syntax Pattern:</h4>
+
+<p>An Eve script begins with one of these keywords: {"driver", "aspect", "module"}. Script name is the same as the file name without the extension. A driver or aspect script can have parameters, defined after script name in a list, but a module do not have parameters.</p>
+
+<pre><code class="language-eve">
++--------------------------------------------
+ Header comments: explain the module purpose  
+ These comments can be used on top of module      
+---------------------------------------------+
+[driver | aspect | module] name:
+
+** set system variables
+  set $sys_con    = value;
+  ...
+
+** import region
+import
+  from $path/library_name use (*);
+
+** qualifier suppression region
+alias
+  AliasName1 = library_name.MemberName;
+  AliasName2 = ClassName[parameters];
+  ...
+** define constants 
+constant
+  NAME = Value;
+  ...
+
+** define user types (classes)
+class
+  NewType  = {} &lt;: Type;
+  ...
+** define functions using Lambda expression
+global
+  set expression_name = (params) => (expression);
+  ...
+** global & shared states
+global
+  set local = value1: user_tupe;
+  ...
+----------------------------------------------------
+** main process, or initialization region
+process | initialize:
+  new my_var  = value;  -- private variable
+  ** executable region
+  ...
+[recover]
+  ** emergency error handling area 
+  ...
+[finalize | release]
+  ** release locked resources & log reports
+  ...
+return;
+-----------------------------------------------------
+/* notes: can be used at the end of the script. 
+   usually the notes use C like, block comments.
+*/
+</code></pre>
+
+
+<h4>Members</h4>
+<ul>
+<li>a script can define members, visible in process;</li>
+<li>a script can import public members from modules;</li>
+<li>a script can "set" shared states using "$" sigil;</li>
+</ul>
+
+<p><b>Note: </b>Any script has one or more <em>global</em> regions. In this regions, you can set system states and define global states. In declaration region you can also define: classes, methods, functions & routines.</p> 
+
+<p>All variables defined in global scope are static. You must use keyword "set" to define them and assign initial value. Static variables are created on the heap and have a permanent nature.</p>
+
+<h3 id="system-variables">System Variables</h3>
+
+<p><em>System variables </em>use prefix "$". These are defined and maintained by EVE virtual engine. Values for these variables can be read automatically by EVE engine at startup. Can be loaded from a configuration file (*.cfg). New variables can be defined by user for each script.</p>
+
+<p><em>New system variables </em> can be defined in the first region after ":", with indentation. No need to use <em>global</em> keyword for this region. The first region is the <em>global</em> region.</p>
+
+<h4>Note:</h4>
+<ul>
+<li>System variables can be defined in a configuration file,</li>
+<li>System variables are usually defined in core EVE modules,</li>
+<li>System variables can be defined or overwriten in program modules,</li>
+</ul>
+
+<h4>Examples:</h4>
+
+<p>Several system variables are provided by Eve environment:</p>
+<ul>
+<li>$EVE_DIR  :eve runtime</li>
+<li>$EVE_LIB  :eve lib folder</li>
+<li>$MY_DIR   :program location</li>
+<li>$MY_LIB   :project lib folder</li>
+<li>$MY_LOG   :project log folder</li>
+<li>$OS_PWD   :current working folder</li>
+</ul>
+
+<p><em>System objects</em> are instantiated at startup and are part of core library. These contain runtime information that you can use for debugging. System objects do not need module qualifier. You can access them directly once the module is imported.</p>
+
+<ul>
+<li>$error :contains last error with code & message</li>
+<li>$stack :contains debug information about current call stack</li>
+<li>$trace :contains reporting information about executed statements
+</ul>
+
+<h2 id="constants">Global Constants</h2>
+
+<p>Constants have at least first letter capitalized. The best practice is to use all capital letters for constants. The next symbols in a constant name can be numbers or underscore but no special or Unicode character.</p>
+
+<h4>Example</h4>
+
+<pre><code class="language-eve">
+** define global scope
+constant
+  set PI  = 3.14 :Float;      -- global constant
+  ...
+global
+  set var = 0    :Integer;    -- global variable
+  ...
+</code></pre>
+
+
+<h4>Notes:</h4>
+<ul>
+<li>You can create new global constants and variables;</li>
+<li>Prefix "$" for system constants to avoid scope qualifier;</li>
+<li>OS environment variables are transferred to constants;</li>
+<li>System constants are capitalized and also begin with "$";</li>
+</ul>
+
+
+<h4>Example</h4>
+
+<pre><code class="language-eve">
+driver test:
+
+** driver context constant
+constant
+  E = 2.52 :Real;    -- Euler's number
+  
+** driver private class
+class Person = {name:String, age:Integer} &lt;: Object;
+
+** driver context variable
+global
+  set  x = 0    :Integer; -- global state
+...
+</code></pre>
+
+<h4>Notes:</h4>
+<ul>
+<li>All global states must be created using keyword "set", </li>
+<li>All global states are bound to the current scope, </li>
+<li>We are using operator "=" for initialization,</li>
+<li>Constants are by convention using uppercase letters,</li>
+<li>In the global regions you can not use type inference,</li>
+<li>$user_path is a shared variable defined by the user;</li>
+<li>spaces in script-names are not supported you must use: "_";</li>
+<li>aliases are created from public members of other module;</li>
+<li>variables can be concatenate using smart operator /</li>
+</ul>
+
+<h3 id="import-region">Import Region</h3>
+
+<p>The import is used to include public members from modules:</p>
+
+<h4>Syntax:</h4>
+<pre><code class="language-eve">
+driver script_name:
+  ** define global system variable
+  set $user_path := root_path/relative_path;
+
+import
+  from $user_path use (module_name,...);  -- specific modules
+  from $user_path use (*);                -- find all modules
+  ...
+alias
+  ** create alias for some of the hidden members
+  set new_name := module_name.member_name;
+process:
+  ...
+return;
+</code></pre>
+
+
+<h2 id="process">Process</h2>
+
+<p>A process is an executable region of a script, mandatory for drivers and aspects. While modules don't use the 'process' keyword, they have an initialization region that serves a similar purpose. This initialization region is executed first when a process starts. For modules imported by a driver, the initialization runs within the driver's main process. When imported by an aspect, it runs in the sub-process created by that aspect.</p> 
+
+<h4>Process context</h4>
+
+<p>Every process has a local context. In this context you can define variables, and instantiate objects but you can't define routines, classes, methods or functions. Process local members can't be shared but can be send as input/output parameters to subprograms or aspects.</p>
+
+<h3 id="process-termination">Process Termination</h3>
+
+<p>Process can be early terminated using: <em>"over"</em> or <em>"panic"</em>. This is a way to release all locked resources and terminate the process. Program can end with an error code using "panic N" statement, otherwise it will automatically return 1 with panic and 0 with "over". Actually "panic 0" is equivalent to "over".</p>
+
+<h4>Example:</h4>
+
+<p>Next code sequence is terminated after 100 iterations:</p>
+
+<pre><code class="language-eve">
+# terminate a program with: over
+driver test_over:
+
+process:
+  cycle:
+    new i = 0 :Integer;
+  loop
+    write "."; wait  10;
+    over if i > 10;
+    let   i += 1;
+  repeat;
+return;
+</code></pre>
+
+<h2 id="drivers">Drivers</h2>
+
+<p>A&nbsp;<em>driver</em>&nbsp;represents the application main script. It has the role to lead the application main process. When&nbsp;<em>driver</em>&nbsp;execution is over the application give control back to the EVE virtual machine. If no other process is running, the machine shuts-down after it clean-up the memory.</p>
+
+<h4>Notes:</h4>
+<ul>
+<li>Any application can have one or more drivers,</li>
+<li>A driver is the process entry point,</li>
+<li>A driver can read configuration files at startup,</li>
+<li>A driver can receive parameters;</li>
+<li>A driver can have one single main process;</li>
+<li>A driver is independent, can not be imported;</li>
+</ul>
+
+<h2 id="aspects">Aspects</h2>
+
+<p>An <em>"aspect"</em> is a script specific to a particular project. It resolve a problem or address a specific concern. Aspect files are executable. One aspect can execute other aspects, however it can't be recursive.</p>
+
+<p>An aspect can receive parameters. One aspect has a declaration region and an executable region. You can execute main() process of an aspect by using keyword: "run". An aspect must handle it's own errors it can't raise errors. If errors are not handled, the program panic and stop execution.</p>
+
+<h4>Aspect Syntax:</h4>
+
+<pre><code class="language-eve">
+aspect aspect_name(parameter_list):
+  ** declare variables
+  ...
+process:
+  ** executable region
+  ...
+recover
+  ** handle all errors
+  ...
+return;
+</code></pre>
+
+<h3 id="running-aspect">Running an Aspect</h3>
+
+<p>Aspect is executed with keyword "run". An aspect can be executed synchronously or asynchronously. We will explain more about aspect execution after we define the control flow, coroutines, functions and error handling. At this time let's focus on Driver execution and Modules.</p>
+
+<h2 id="modules">Modules</h2>
+
+<p>Eve modules are abstract concepts. One module exist in a folder. A module consist of several scripts with extension ".eve". Modules can be combined together in large projects. Some modules are common for many projects. These are called system modules or library modules.</p>
+
+<p>modules ...</p>
+<ul>
+<li>exist in a folder,</li>
+<li>consist of *.eve scripts,</li>
+<li>can use each other,</li>
+<li>belong to one or more projects,</li>
+<li>can define public or private members,</li>
+<li>can be initialized when imported first time</li>
+</ul>
+
+<h4>Module Syntax:</h4>
+
+<p>An Eve module begins with "module" keyword. Module name is the same as the last segment in a library path. A module can have an initialization region. This is executed when the module is imported for the first time. That is the difference, a module do not have a "main process".</p>
+
+<pre><code class="language-eve">
++-----------------------------------------
+module name is the folder name, so that
+one module can have more then one scripts.    
+-----------------------------------------+
+module module_name:
+
+** shared states
+  set $system_variable: Type;
+  ...
+
+** import region
+import
+  from $path/library_name use (*);
+
+** declare members
+  ...
+initialize
+** setup initial states 
+  let $system_variable := value;
+  ...
+release
+** verify states & log
+  $error.log();
+  ... 
+return;
+</code></pre>
+
+<h4>Notes:</h4>
+<ul>
+<li>Modules are not executable and can't define processes;</li>
+<li>Modules can define public members and shared states;</li>   
+<li>Modules are loaded in a process that belong to driver or aspect;</li>
+<li>A module "initialize" region is executed immediate after module is loaded;</li>
+</ul>
+
+<p><b>Module names </b>are using lowercase letters, can contain underscore or digits but no special characters and no Unicode strings. Longer names that use several words can be separate with underscore. The module name can be 30 characters long.</p>
+
+<p><b>Module files:</b> A module is a single script file but modules can be grouped into "crates". A crate is a folder that can contain many module script files. You can specify in the import statement module by module or you can specify the "crate" and concatenate with module name using "/" that can concatenate a root_path.</p>
+
+<h2 id="configuration">Configuration</h2>
+
+<p>EVE virtual machine can load system environment variables from a configuration file. These are stored as "$name:value" pairs. Some system constants can be derived from environment variables using concatenation operators "+", "/" or "\".</p>
+
+<p>A configuration file have extension .cfg. One application can run with different configuration file. Application documentation must contain description of all variables required by the application.</p>
+
+<p>A good practice is to provide a configuration <em>template</em>&nbsp;. The template file may contain comments and $key = value pairs. Values can be numeric, string, symbol, date, time or data literals: [],(),{}. Eve application will automatically parse configuration file to read values for the <em>system variables</em>.</p>
+
+<h2 id="library">Library</h2>
+
+<p>A&nbsp;<em>library</em>&nbsp;is a set of reusable modules. A library can be installed in EVE environment or can be project specific. EVE machine is using a special system variable to search for a library: $EVE_LIB. If the library is not found the module can't be imported and the script fails.</p>
+
+<ul>
+<li>libraries contain generic functionality and can be shared between multiple projects;</li>
+<li>using import, several modules can be loaded from a library one by one or all using (*);</li>
+<li>circular import is possible, but EVE prevent infinite recursive reference;</li>
+<li>after import you can call public members of a module using&nbsp;<em>dot notation</em>;</li>
+</ul>
+
+<p><b>Note: </b>Library name is the name of the subfolder. Module is the name of the last folder in a path. By convention you can create intermediate subfolder but only the last folder is relevant and it must be unique in a library.<p>
+
+
+<h2 id="execution">Script Execution</h2>
+
+<p>Eve scripts are executed using a virtual machine. You can start the virtual machine as a service or as console application. In console you can&nbsp;<em>run</em>&nbsp;only a one driver script at a time. In service mode you can&nbsp;<em>run</em>&nbsp;multiple drivers in parallel. Each driver is independent, it has it's own scope (memory location) and can't communicate with other drivers executed by EVE in the same time.</p>
+
+<p><b>Configuration: &nbsp;</b>Eve services using a general configuration file: eve.cfg. This file contains default settings for EVE machine. System variables are shared. A copy of EVE system variables is send to every new driver instance.</p> 
+
+<p>Configuration settings are loaded over the default values and have priority. In a process, you can temporary change the settings using let. These changes do not propagate back into the configuration file.</p>
+
+<p><b>Memory allocation:&nbsp;</b>EVE service is in charge of allocating memory for each process. There is no shared memory between processes. When a process is terminated the memory is cleaned up of garbage and the machine continue to run until all processes are finished.</p>
+
+<p>To execute a driver there are 2 methods:</p>
+<ol>
+<li>Using the "eve" system command with parameters,</li>
+<li>Using console REPL commands with "load" command,</li>
+<li>EVE virtual machine can be run as a daemon,</li>
+<li>You can control EVE virtual machine using command: eve with parameters</li>
+</ol>
+
+<h3 id="driver-execution">Driver Execution</h3>
+
+<p>When a driver is loaded, all it's components are compiled in memory, then the <em>main process</em> is executed. An aspect do not have a "main process", however it can be manually loaded from EVE console. Then you can call one process or function at a time, for testing purpose.</p>
+
+<h4>Start EVE REPL</h4>
+
+<p>EVE is a REPL machine. (Read Execute Print Loop). This machine has a menu and a command line. You can issue commands that can load, compile, debug a script. We have not yet created this machine. It should work using "eve" command in console on Linux, Windows or Mac.</p>
+
+<pre class="language-out">~/eve -c file.cfg</pre>
+
+<h4>Running a Driver</h4>
+
+<p>The load command will load a driver into memory without running the main process. You can use this to load any script not only the driver. You can specify how much memory to allocate to the process that is available to run when you start it.</p>
+
+<pre class="language-out">eve:&gt; load ~/path/driver_name.eve -c file.cfg -m 2048GB</pre>
+
+<h4>Debug a Driver</h4>
+
+<p>You can debug a driver. In debug mode the messages are more comprehensive and the console echo automatically more information that can be reported to console.</p>
+
+<pre class="language-out">eve:&gt; debug ~/path/driver_name.eve -c file.cfg</pre>
+
+<p>Eve REPL can be used to load or debug a driver step by step, using special commands. The command options are not yet fully designed. We will implement these basic commands:</p>
+
+<table class="table table-bordered">
+<tr>
+  <th>command</td>
+  <th>description</td>
+</tr>
+<tr>
+  <td>load</td>
+  <td>compile a driver and execute the main process</td>
+</tr>
+<tr>
+  <td>debug</td>
+  <td>compile a driver but does not execute main process</td>
+</tr>
+<tr>
+  <td>begin</td>
+  <td>start the driver main process step by step execution</td>
+</tr>
+<tr>
+  <td>enter</td>
+  <td>this is actually the enter key. execute next step</td>
+</tr>
+<tr>
+  <td>print</td>
+  <td>display value for a global variable, it can't print locals</td>
+</tr>
+<tr>
+  <td>resume</td>
+  <td>continue running until a "halt" statement is encounter</td>
+</tr> 
+<tr>    
+  <td>report</td>
+  <td>create a debugging report about system state</td>
+</tr>
+<tr>    
+  <td>stop</td>
+  <td>stop the driver execution but do not clean memory</td>
+</tr>
+<tr>    
+  <td>clear</td>
+  <td>stop the driver and clean the memory</td>
+</tr>
+<tr> 
+  <td>setup</td>
+  <td>load configuration file and set "$" variables</td>     
+</tr>
+<tr>    
+  <td>quit</td>
+  <td>stop EVE machine and exit from REPL</td>
+</tr>
+</table>
+
+<p>You can use "halt" inside the script to stop a script and debug the script later. "halt" is working only when debug mode is active. Statement "halt" can be conditioned with "if" to create a debugging break-point. You should remove "halt" statements when the software is mature and do no longer need debugging.</p>
+
+<p>In debug mode you can modify the configuration and reload using "setup" command. REPL must be in "ready" state when you reload settings otherwise you will get an error.</p>
+<!-- work in progress-->
+
+<h3 id="module-import">Module Import</h3>
+
+<p>The driver or aspect can import modules. After import, all public elements of modules can be used on demand. The parent process is controlling the execution. Remember, modules are not directly executable and must be hosted into a process.</p>
+
+<p>Modules are "singleton" once a module is loaded in memory, it will bind it's scope to the process. Global variables are all merged in the context of driver or aspect. Eve is a multi-session system. In each session you can have run single driver.</p>
+
+<h3 id="exclusive-mode">Exclusive Mode</h3>
+
+<p>When a eve is executed, it can be started with parameter: -x or --exclusive. This is a signal that only one session can run at a time. In this mode "start" is not starting a new driver if any other driver is active. You can use this more especially for debugging or tunning purpose.</p>
+
+
+    </main>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+
+</div>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'eve',
+    topicId: 'topology',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+
+<script src="/sage.js"></script>
+<script src="/common/progress.js" defer></script>
+<script src="/common/lab-progress-bridge.js" defer></script>
+<script src="/common/topic-loader.js" defer></script>
+<script src="/common/sidebar.js" defer></script>
+
+</body>
+</html>
+
+

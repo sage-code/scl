@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Sage-Code Eve routine and coroutines. Synchron versus asynchron execution.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, parallel, asynchronous, concurency, routine, coroutine, begin, suspend, resume">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Concurrency</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/sage.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<h1>Eve Concurrency</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Eve can execute one or more routines in synchronous or asynchronous mode. We will define in this chapter the routine and the coroutine. A routine can be suspended in memory, and later resumed. Using this system we can create light weight multi-treding applications.
+</div>
+
+<h2 id="routines">Routines</h2>
+
+<p>Before we can create coroutines we must understand the concept of simple routine. In Eve we create a subprogram that can receive parameters and can have side-effects. You can call a routine by name, with or without arguments enumerated in a list. A routine is created with keyword "routine" and is ending with keyword "return". Routine do not have to be follow by empty parenthesis when it has no arguments.</p>
+
+<h4>Syntax:</h4>
+
+<pre><code class="language-eve">
+# define a routine
+routine name(parameter_list):
+    ** routine statements
+    ...
+return;
+</code></pre>  
+
+<h4>Example</h4>
+
+<p>Next example demonstrate two routines: "foo" and "bar". We declare the routines and then call the routines. One of routine has no parameters, the other has 3 parameters. Two input and one output parameter.</p>
+
+<pre><code class="language-eve">
+# demonstrate two routines
+driver process_demo:
+
+** foo has no parameters
+routine foo:
+  print "I have no arguments";
+return;
+
+** bar has 3 parameters
+routine bar(param1:Integer, 
+            param2 = 0: Integer,
+            @result = 0: Integer):
+  print "I have two parameters: param1 and param2";
+  let result = param1 + param2;                    
+return;
+
+process:
+  foo; -- call routine without arguments
+  new output:=0; -- prepare a variable to receive output
+
+  ** execute routine with 2 arguments and receiver
+  bar(1,2,output);
+  expect output == 3; -- the value of output should be 3.
+  print ("outout=", output);
+return;
+</code></pre>
+
+
+<h2><a id="side-effects"></a>Side Effects</h2>
+
+<p>A process can use process states and can have side-effects. When a global state is changed by a routine or method this is called side-effect. This may be useful but potential unsafe. Some side effects may be harder to debug. It is safer to use input/output parameters than side effects.</p>
+
+<p>these are side effects...</p>
+
+<ul>
+  <li>modify a global variable or system state;</li>
+  <li>open and write into an external file;</li>
+  <li>print a message or accept input from console;</li>
+  <li>upload something on internet or network;</li>
+</ul>
+
+<h4>Examples</h4>
+
+<p>Next routine: "add_numbers" has side effects:</p>
+<pre><code class="language-eve">
+driver side_effect:
+  set test   :Integer;
+  set p1, p2 :Integer;
+
+** routine with side effects
+routine add_numbers:
+  let test := p1 + p2; -- first side-effect
+  print test;          -- second side-effect
+return;
+
+** define main process
+process:
+  let p1 := 10;
+  let p2 := 20;
+  add_numbers; --  routine call without arguments
+  expect test == 30;
+return;
+</code></pre>
+
+<p>Note: In Eve it is not required to use empty parenthesis() to call a routine. Only functions require empty brackets. We will talk about functions later. This feature enable us to extend Eve using Eve scripts.</p>
+
+<h2><a id="parameters"></a>Parameters</h2>
+
+<p><b>Parameters</b>&nbsp; are defined in round brackets () separated by comma. Each parameter must have type and name. Parameters are optional. Eve offer a range of advanced features: optional arguments, default values, variable number of arguments and input/output arguments.</p>
+
+<h4>Parameter Syntax:</h4>
+
+<p>Mandatory parameters do not have initial values but only declared type. Optional parameters have initial value that is assign using operator "=" with explicit :type, or ":=" with type inference. Arguments can be pass by position or by name.</p>
+
+<ul>
+<li>parameter :Type</li>
+<li>parameter  = value :Type</li>
+<li>parameter := expression</li>
+</ul>
+
+<h4>Notes:</h4>
+
+<ol>
+<li>One routine can receive one or more parameters,</li>
+<li>Parameters having initial values are optional,</li>
+<li>Values used for parameters at runtime, are called "arguments",</li>
+<li>You can assign arguments by position using a list of values,</li>
+<li>You can assign arguments by name using <code>(name:value)</code> pairs;</li>
+</ol>
+
+<p><b>Vararg parameters</b></p>
+<p>One routine can receive multiple arguments of the same type into a single collection parameter. This can be a List, DataSet or HashMap, depending on declaration.</p>
+
+<ul>
+<li>First arguments can be captured using named parameters,</li>
+<li>The rest of arguments are captured into vararg parameter,</li>
+<li>A routine can have one single vararg parameter,</li>
+<li>The vararg parameter name is declared using prefix: "*",</li>
+<li>You can use any name but "*args" is the usual name for it.</li>
+</ul>
+
+<div class="alert alert-info">Note: Also driver and aspect can receive parameters. The same convention apply for aspects, drivers, functions and methods. Eve offer same features for all subprograms. The only difference are the call concentions.</div>
+
+<h4>Example:</h4>
+
+<p>Next driver can have a list of arguments. The arguments have no names, so it will just print all the arguments it has received. Drivers receive argument values from command line or REPL console using "start" command.</p>
+
+<pre><code class="language-eve"># print all arguments
+driver test(*args: ()String):
+
+** list all arguments
+process:
+  cycle:
+    new arg :String;
+  for arg in args loop
+    print arg;  -- expect 1,2,3
+  repeat;
+return;
+</code></pre>
+
+<pre><code class="output">
+eve:>start test.eve 1 2 3
+</code></pre>
+
+<h4>Output Parameters</h4>
+<p>To avoid overuse of global variables you must use input/output parameters. We prefix output parameters using symbol "@". Output parameters require a variable as argument, otherwise you will not be able to capture the output value. Compiler will complain if you do not send a valid reference to an output parameter.</p>
+
+<pre><code class="language-eve">
+#demo output parameters
+aspect output_params:
+
+** private subroutine
+routine add(p1 = 0, p2 = 1: Integer, @op: Integer):
+  let op := p1 + p2;
+return;
+
+process:
+  new result: Integer;
+
+  ** inpur/output argument require a variable
+  add(1,2, op:result);
+  print result;  -- expected value 3
+
+  ** negative test, will fail
+  add(1,2,4); -- error, "op" parameter require a variable
+return;
+</code></pre>
+ 
+<h4>Notes:</h4>
+<ul>
+<li>Output parameters are usually the last parameters;</li>
+<li>Output parameters are having "@" prefix;</li>
+<li>Routine invocation is done using name of routine as a statement;</li>
+</ul>
+
+<h2><a id="coroutines">Coroutines</a></h2>
+
+<p>A coroutine is a special routine that has a name and can start a secondary thread. A coroutine can be suspended in memory for a while and later can wake-up with a signal and  continue processing. The main thread will conntrol the coroutine life cycle.</p>
+
+<p>A coroutine is created using same keyword "routine" but the call convention is different. Unlike a simple routine you must use keyword "start" to initialize a coroutine. This keyword suggest that the routine start running but is not fully executed and will terminate later. The coroutine is controlled using "suspend", "resume" and "wait/all" keywords.</p>
+
+<!-- a regular diagram -->
+<div class="text-center">
+  <img src="/images/asynch.svg" alt="Asynchronous Execution"
+       width="640" class="img-fluid protect rounded shadow border" >
+  <p>Synchronous vs Asynchronous</p>
+</div>
+
+<h3><a id="shoulder-thread"></a>Shoulder Thread</h3>
+
+<p>In next example we demonstrate a thread that can generate a a bunch of numbers every time the main thred is yielding for it. When the buffer is full, you can routine the batch and then yield for a new.</p>
+
+<pre><code class="language-eve">
+driver shoulder_thread:
+
+** coroutine producer, make 100 numbers
+routine generator(cap:Integer, @result:()Float):
+  new count := 0;
+  loop
+    for i in (1..100) loop
+      let result += (0..1).random();
+    repeat;
+    suspend; -- continue the main thread    
+    let count += 1;
+  repeat if count < cap;
+return;
+
+routine:
+  new batch :()Float;
+  new total :Real;
+  ** initialize the generator and produce first batch
+  start generator(1000, result:batch):
+  while batch.count() > 0 loop
+    ** routine current batch
+    for x in batch loop
+       let total += x; 
+    repeat;
+    ** read the next batch
+    resume generator; -- resume generator
+  repeat;
+return;
+</code></pre>
+
+<p><b>Time-out:</b> Is easy to create a wrong shoulder thread that can runs forever. If a routine takes too much time you can set a time-out. If one routine time-out, the entire application crash. You can set $timeout system variable to control this time.</p>
+
+<h3><a id="multi-threading"></a>Multi Threading</h3>
+
+<p>This design pattern enable you do create two coroutines that wait for each other. It is common practice to use this pattern to create a multi-thread applications. The threads communicate using one or more channels.</p>
+
+<h4>Example</h4>
+
+<pre><code class="language-eve">
+routine producer(@pipeline: ()Integer, count = 1000: Integer):
+  for i in (1..count) loop
+    let pipeline += random(100);
+    if (i % 100) == 0 then
+      resume consumer;
+      suspend;
+    done;
+  repeat;
+return;
+
+routine consumer(@pipeline, @partials: ()Integer):
+  loop
+    for element in pipeline loop
+      let pipeline := pipeline -> element;
+      wait 10ms;
+      let partials += element; 
+    repeat;
+    resume producer;
+    suspend;
+  repeat if pipeline.count() > 0;
+return;
+
+process:
+  new pipeline: ()Integer;
+  new partials: ()Integer; 
+
+  start producer(pipeline, 10000);
+  for i in (1..32) loop
+    start consumer(pipeline, partials);
+    wait 3ms;
+  repeat;
+
+  wait all;  -- Wait for all routines to finish
+  
+  ** prepare the final result from partials
+  new result := sum(partials);
+  print result;
+return;
+</code></pre>
+
+<p><b>Notes: </b>a suspended routine is waiting for a wake-up signal. Another routine must send a signal for it to wake-up. If the coroutine receiving the signal and is not running, then it can't wake-up. In this case, the control is given back to the main process. If the main process is waiting it will resume.</p>
+
+<p>We can see in this example that "wait all" and "wait n" do different things. "wait n" should not be used for joining threads. We recommend to use "wait all". Also you can wait for a specific tread to finish: wait [routine_name] if necesary.
+
+<p>Control over number of threads can be dynamic. You can use configuration files and establish convention to calculate the number of threads depending on data size. It can be also hard coded using constants inside the driver. This give you flexibility to tune your process.</p>
+
+
+<!-- work in progress-->
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/functions/">Functions</a></p>
+
+<!-- Footer -->
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+</body>
+<script src="/sage.js"></script>
+</html>
