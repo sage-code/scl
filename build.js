@@ -406,6 +406,15 @@ function normalizeSharedBrandAssets(html, sourcePath) {
   return transformed;
 }
 
+function shouldRelativizeRootLinks(sourcePath) {
+  const normalized = sourcePath.replace(/\\/g, "/").toLowerCase();
+  if (normalized.includes("/public/roadmap/")) {
+    return false;
+  }
+
+  return true;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -920,7 +929,9 @@ function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   transformed = injectRoadmapProgressScripts(transformed);
   transformed = ensureReturnToRoadmapLink(transformed);
   transformed = rewriteAssetPaths(transformed);
-  transformed = relativizeInternalRootLinks(transformed, sourcePath);
+  if (shouldRelativizeRootLinks(sourcePath)) {
+    transformed = relativizeInternalRootLinks(transformed, sourcePath);
+  }
   transformed = normalizeSharedBrandAssets(transformed, sourcePath);
 
   // Enforce folder-style routes for top-level hubs.
