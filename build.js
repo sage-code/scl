@@ -472,6 +472,58 @@ function resolveSidebarJsonPath(publicHtmlPath) {
   return fs.existsSync(jsonPath) ? jsonPath : null;
 }
 
+function resolveRoadmapTopicContext(publicHtmlPath) {
+  const relativePath = path.relative(PUBLIC_DIR, publicHtmlPath);
+  if (!relativePath || relativePath.startsWith("..")) {
+    return null;
+  }
+
+  const publicPathParts = relativePath.split(path.sep);
+  if (publicPathParts.length < 3) {
+    return null;
+  }
+
+  const contentRootOffset = publicPathParts[0].toLowerCase() === "roadmap" ? 1 : 0;
+  if (publicPathParts.length < contentRootOffset + 2) {
+    return null;
+  }
+
+  const topLevelRoute = publicPathParts[contentRootOffset].toLowerCase();
+  const isRoadmapRoute = ROADMAP_BASE_FOLDERS.includes(topLevelRoute);
+  const isMappedLabRoute = Object.values(LAB_ROUTE_MAP).includes(topLevelRoute);
+  if (!isRoadmapRoute && !isMappedLabRoute) {
+    return null;
+  }
+
+  const fileName = publicPathParts[publicPathParts.length - 1] || "";
+  const topicId = path.basename(fileName, path.extname(fileName));
+  if (!topicId || topicId.toLowerCase() === "index") {
+    return null;
+  }
+
+  const sidebarJsonPath = resolveSidebarJsonPath(publicHtmlPath);
+  if (!sidebarJsonPath) {
+    return null;
+  }
+
+  return {
+    topLevelRoute,
+    topicId
+  };
+}
+
+function getLabIdFromRoute(route) {
+  if (route === "cse") {
+    return "engineering";
+  }
+
+  if (route === "csp") {
+    return "programming";
+  }
+
+  return route;
+}
+
 function renderSidebarItems(items, state = { index: 0 }, level = 0) {
   let html = "";
 
@@ -715,6 +767,99 @@ function injectRoadmapProgressScripts(html) {
   return html.replace(/<\/body>/i, `${scripts.join("\n")}\n</body>`);
 }
 
+function removeLegacySidebarRuntimeScript(html) {
+  return html.replace(/\s*<script\b[^>]*src=["'][^"']*sidebar\.js["'][^>]*><\/script>\s*/gi, "\n");
+}
+
+function hasTopicRuntimeMarker(html) {
+  return /<body\b[^>]*\bdata-topic-runtime-injected\s*=\s*["']true["']/i.test(html);
+}
+
+function addTopicRuntimeMarker(html) {
+  if (hasTopicRuntimeMarker(html)) {
+    return html;
+  }
+
+  return html.replace(/<body\b/i, '<body data-topic-runtime-injected="true"');
+}
+
+function ensureTopicConfigScript(html, sourcePath) {
+  if (hasTopicRuntimeMarker(html)) {
+    return html;
+  }
+
+  if (/window\.TOPIC_CONFIG\s*=/.test(html)) {
+    return html;
+  }
+
+  if (!/<ul[^>]*id=["']bookmark-list["']/i.test(html)) {
+    return html;
+  }
+
+  const context = resolveRoadmapTopicContext(sourcePath);
+  if (!context) {
+    return html;
+  }
+
+  const labId = getLabIdFromRoute(context.topLevelRoute);
+  const configScript = [
+    "<script>",
+    "  window.TOPIC_CONFIG = {",
+    `    labId: ${JSON.stringify(labId)},`,
+    `    topicId: ${JSON.stringify(context.topicId)},`,
+    "    homeLink: './index.html#topics',",
+    "    labHomeLink: './index.html',",
+    "    inlineContent: true",
+    "  };",
+    "</script>"
+  ].join("\n");
+
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${configScript}\n</body>`);
+  }
+
+  return `${html}\n${configScript}`;
+}
+
+function ensureTopicRuntimeScripts(html, sourcePath) {
+  const context = resolveRoadmapTopicContext(sourcePath);
+  if (!context) {
+    return html;
+  }
+
+  let transformed = removeLegacySidebarRuntimeScript(html);
+
+  if (hasTopicRuntimeMarker(transformed)) {
+    return transformed;
+  }
+
+  transformed = ensureTopicConfigScript(transformed, sourcePath);
+
+  const requiredScripts = [];
+  if (!/\bprogress\.js\b/i.test(transformed)) {
+    requiredScripts.push('<script src="/assets/js/progress.js" defer></script>');
+  }
+  if (!/\blab-progress-bridge\.js\b/i.test(transformed)) {
+    requiredScripts.push('<script src="/assets/js/lab-progress-bridge.js" defer></script>');
+  }
+  if (!/\btopic-loader\.js\b/i.test(transformed)) {
+    requiredScripts.push('<script src="/assets/js/topic-loader.js" defer></script>');
+  }
+
+  if (requiredScripts.length === 0) {
+    return addTopicRuntimeMarker(transformed);
+  }
+
+  const scriptsBlock = requiredScripts.join("\n");
+  if (/<\/body>/i.test(transformed)) {
+    transformed = transformed.replace(/<\/body>/i, `${scriptsBlock}\n</body>`);
+    return addTopicRuntimeMarker(transformed);
+  }
+
+  transformed = `${transformed}\n${scriptsBlock}`;
+  return addTopicRuntimeMarker(transformed);
+}
+
 function makeInlineScriptFileName(sourcePath, index, scriptBody) {
   const relativePath = path.relative(PUBLIC_DIR, sourcePath).replace(/\\/g, "/");
   const sourceStub = relativePath
@@ -771,6 +916,7 @@ function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   transformed = injectInlineHeader(transformed, headerTemplate);
   transformed = injectInlineFooter(transformed, footerTemplate, enforceCommonFooter);
   transformed = injectStaticSidebar(transformed, sourcePath);
+  transformed = ensureTopicRuntimeScripts(transformed, sourcePath);
   transformed = injectRoadmapProgressScripts(transformed);
   transformed = ensureReturnToRoadmapLink(transformed);
   transformed = rewriteAssetPaths(transformed);
