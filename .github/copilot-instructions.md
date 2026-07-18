@@ -58,6 +58,8 @@ package.json
 - Publish only required website artifacts; do not publish developer docs, scripts, or manual content.
 - Embed the navigation bar and footer directly in generated HTML during build.
 - Keep roadmap routes under `/roadmap/*` and project routes under `/projects/*`.
+- For roadmap index topic links, always use absolute canonical paths: `/roadmap/<track>/<topic>`.
+- Do not use relative topic links like `./topic` or root track links like `/cse/topic.html`.
 
 ## SEO and Semantics
 
