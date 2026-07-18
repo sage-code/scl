@@ -31,6 +31,17 @@
     anchor.textContent = value;
   }
 
+  function setButtonIcon(anchor, iconClass) {
+    if (!anchor) {
+      return;
+    }
+
+    var icon = anchor.querySelector("i");
+    if (icon) {
+      icon.className = iconClass;
+    }
+  }
+
   function setHref(element, value) {
     if (element) {
       element.setAttribute("href", value);
@@ -97,10 +108,19 @@
     }
 
     if (registerAction) {
-      setDisabledLink(registerAction, !!state.user);
-      setHref(registerAction, state.user ? "#roadmap-register-disabled" : "/roadmap/register.html");
-      registerAction.setAttribute("aria-label", state.user ? "Register is disabled while signed in" : "Register a roadmap account");
-      registerAction.setAttribute("title", state.user ? "Log out to register a new account" : "Create a new roadmap account");
+      if (state.user) {
+        setButtonLabel(registerAction, "REMOVE");
+        setButtonIcon(registerAction, "bi bi-person-dash");
+        setHref(registerAction, "/roadmap/unregister.html");
+        registerAction.setAttribute("aria-label", "Remove the current roadmap account");
+        registerAction.setAttribute("title", "Open the unregister form to delete this account");
+      } else {
+        setButtonLabel(registerAction, "REGISTER");
+        setButtonIcon(registerAction, "bi bi-person-plus");
+        setHref(registerAction, "/roadmap/register.html");
+        registerAction.setAttribute("aria-label", "Register a roadmap account");
+        registerAction.setAttribute("title", "Create a new roadmap account");
+      }
     }
   }
 
@@ -280,19 +300,7 @@
   }
 
   function wireRegisterLock() {
-    var registerAction = document.getElementById("roadmap-register-action");
-    if (!registerAction || registerAction.dataset.roadmapRegisterWired === "true") {
-      return;
-    }
-
-    registerAction.dataset.roadmapRegisterWired = "true";
-    registerAction.addEventListener("click", function (event) {
-      if (!state.user) {
-        return;
-      }
-
-      event.preventDefault();
-    });
+    return;
   }
 
   async function initialize(client) {

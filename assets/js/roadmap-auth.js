@@ -477,6 +477,62 @@
     }
   }
 
+  async function handleUnregister(form, client) {
+    var status = document.getElementById("auth-status");
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      var authState = await client.auth.getUser();
+      if (authState.error || !authState.data || !authState.data.user) {
+        setStatus(status, "Sign in first to remove your roadmap account.", "warning");
+        return;
+      }
+
+      var user = authState.data.user;
+      var password = form.elements.password ? form.elements.password.value : "";
+
+      if (!password) {
+        setStatus(status, "Enter your password to confirm account removal.", "warning");
+        return;
+      }
+
+      var verification = await client.auth.signInWithPassword({
+        email: user.email,
+        password: password
+      });
+
+      if (verification.error) {
+        setStatus(status, verification.error.message, "error");
+        return;
+      }
+
+      if (verification.data && verification.data.session) {
+        await client.auth.setSession({
+          access_token: verification.data.session.access_token,
+          refresh_token: verification.data.session.refresh_token
+        });
+      }
+
+      var removalResult = await client.rpc("delete_current_user_account");
+      if (removalResult.error) {
+        setStatus(status, removalResult.error.message, "error");
+        return;
+      }
+
+      if (form.elements.password) {
+        form.elements.password.value = "";
+      }
+
+      await client.auth.signOut();
+      setStatus(status, "Your roadmap account has been removed.", "success");
+
+      window.setTimeout(function () {
+        window.location.href = "/roadmap/";
+      }, 900);
+    });
+  }
+
   function wireEmailLockHelp() {
     var trigger = document.getElementById("profile-email-help");
     var note = document.getElementById("profile-email-lock-note");
@@ -565,6 +621,7 @@
     var loginForm = document.getElementById("roadmap-login-form");
     var profileForm = document.getElementById("roadmap-profile-form");
     var registerForm = document.getElementById("roadmap-register-form");
+    var unregisterForm = document.getElementById("roadmap-unregister-form");
 
     if (loginForm) {
       handleLogin(loginForm, client);
@@ -576,6 +633,10 @@
 
     if (registerForm) {
       handleRegister(registerForm, client);
+    }
+
+    if (unregisterForm) {
+      handleUnregister(unregisterForm, client);
     }
 
     configureResetPage(client);
