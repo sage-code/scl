@@ -4,10 +4,21 @@
  */
 
 document.addEventListener("DOMContentLoaded", function () {
+    normalizeRoadmapTrackRootPath();
     normalizeLocalPublicLinks();
     initDynamicHeader();
     wireHomeLogoTypewriterTrigger();
 });
+
+function normalizeRoadmapTrackRootPath() {
+    const path = window.location.pathname || '/';
+    const match = path.match(/^\/(public\/)?roadmap\/(cse|csp|dsa|dba|tek|sml|hpc|dsl|osd)$/i);
+    if (!match) return;
+
+    const normalizedPath = `${path}/`;
+    const suffix = `${window.location.search || ''}${window.location.hash || ''}`;
+    window.location.replace(`${normalizedPath}${suffix}`);
+}
 
 function initDynamicHeader() {
     const header = document.getElementById('dynamic-header');

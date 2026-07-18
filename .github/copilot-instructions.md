@@ -59,6 +59,7 @@ package.json
 - Embed the navigation bar and footer directly in generated HTML during build.
 - Keep roadmap routes under `/roadmap/*` and project routes under `/projects/*`.
 - For roadmap index topic links, always use absolute canonical paths: `/roadmap/<track>/<topic>`.
+- For roadmap index canonical URLs, use trailing-slash track roots: `/roadmap/<track>/`.
 - Do not use relative topic links like `./topic` or root track links like `/cse/topic.html`.
 
 ## SEO and Semantics
