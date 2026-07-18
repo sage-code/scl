@@ -1,7 +1,6 @@
 /**
- * Topic Loader — fills the sidebar from ./{topicId}.json, optional main fetch.
- * With TOPIC_CONFIG.inlineContent = true, article HTML stays in #main-content (no fetch).
- * Header is rendered by /sage.js into #dynamic-header.
+ * Topic Loader — fills the sidebar from ./{topicId}.json, optional main fetch,
+ * then upgrades the result into a real tree navigator bound to page headings.
  */
 
 class TopicLoader {
@@ -13,12 +12,15 @@ class TopicLoader {
         : this.getTopicFromUrl();
     this.homeLink = config.homeLink || './index.html#topics';
     this.labHomeLink = config.labHomeLink || './index.html';
-    /** When true, main article HTML is already in the page; do not fetch a fragment. */
     this.inlineContent = !!config.inlineContent;
-    /** Maps to roadmap table data-sage-roadmap (e.g. cse-main, go). */
     this.roadmapCourseId = config.roadmapCourseId;
     this.navStateStoragePrefix = 'sage_nav_state';
     this.lastReadStoragePrefix = 'sage_last_read';
+    this.bookmarkList = null;
+    this.treeNodes = [];
+    this.treeNodesById = new Map();
+    this.treeNodesBySection = new Map();
+    this.activeSectionId = '';
     this._navIdCounter = 0;
     this._lastVisibleSectionId = '';
     this._lastSavedSectionId = '';
@@ -27,26 +29,59 @@ class TopicLoader {
     this._observer = null;
   }
 
-  /**
-   * Get topic ID from URL parameter
-   */
   getTopicFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return params.get('topic') || 'overview';
   }
 
-  /**
-   * Format topic name for display
-   */
   formatTopicName(topicId) {
     return topicId.charAt(0).toUpperCase() + topicId.replace(/-/g, ' ').slice(1);
   }
 
-  /**
-   * Load and render sidebar from JSON
-   */
+  buildNodeId(sectionKey, path) {
+    return `node-${String(sectionKey).replace(/[^a-zA-Z0-9_-]/g, '_')}-${path}`;
+  }
+
+  createProgressControl(link, sectionKey) {
+    const progressControl = document.createElement('input');
+    progressControl.type = 'checkbox';
+    progressControl.className = 'nav-progress-checkbox';
+    progressControl.tabIndex = -1;
+    progressControl.setAttribute('aria-hidden', 'true');
+    progressControl.dataset.isTrackable = 'true';
+    progressControl.dataset.link = link;
+    progressControl.dataset.sectionKey = sectionKey;
+    this._navIdCounter += 1;
+    progressControl.id = `nav-${this.topicId}-${this._navIdCounter}`;
+    return progressControl;
+  }
+
+  createToggleButton(nodeId, expanded) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'nav-tree-toggle';
+    toggle.dataset.nodeId = nodeId;
+    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    toggle.setAttribute('aria-label', expanded ? 'Collapse topic folder' : 'Expand topic folder');
+    toggle.innerHTML = `<i class="bi ${expanded ? 'bi-folder2-open' : 'bi-folder2'}" aria-hidden="true"></i>`;
+    return toggle;
+  }
+
+  createFileIcon() {
+    const fileIcon = document.createElement('span');
+    fileIcon.className = 'nav-file-icon';
+    fileIcon.innerHTML = '<i class="bi bi-file-earmark-text" aria-hidden="true"></i>';
+    return fileIcon;
+  }
+
+  isTreeLevelExpandedByDefault(level) {
+    return level === 0;
+  }
+
   async loadSidebar() {
     const bookmarkList = document.getElementById('bookmark-list');
+    this.bookmarkList = bookmarkList;
+
     if (bookmarkList && bookmarkList.dataset.staticSidebar === 'true' && bookmarkList.children.length > 0) {
       this.normalizeSidebarTree(bookmarkList);
       this.decorateSidebarTree(bookmarkList);
@@ -56,35 +91,25 @@ class TopicLoader {
     }
 
     try {
-      // Build the correct path accounting for Vercel's cleanUrls and trailingSlash
-      // On Vercel: /engineering/concepts/ (no .html, with trailing slash)
-      // On local: /engineering/concepts.html (with .html extension)
       let basePath = window.location.pathname;
-      
-      // Remove trailing slash (added by trailingSlash: true on Vercel)
       if (basePath.endsWith('/')) {
         basePath = basePath.slice(0, -1);
       }
-      
-      // Remove .html extension if present (removed by cleanUrls on Vercel)
       if (basePath.endsWith('.html')) {
         basePath = basePath.slice(0, -5);
       }
-      
+
       const jsonFile = `${basePath}.json`;
-      
       const response = await fetch(jsonFile);
       if (!response.ok) throw new Error(`Failed to load ${jsonFile} (status: ${response.status})`);
-      
+
       const navItems = await response.json();
       bookmarkList.innerHTML = '';
-
       this._navIdCounter = 0;
       this.renderNavItems(navItems, bookmarkList, 0, 'root');
       this.decorateSidebarTree(bookmarkList);
       this.removeSidebarChrome();
       this.ensureReturnToRoadmapLink(bookmarkList);
-      
     } catch (error) {
       console.error('Error loading sidebar:', error);
       if (bookmarkList && bookmarkList.children.length === 0) {
@@ -93,18 +118,13 @@ class TopicLoader {
     }
   }
 
-  /**
-   * Render navigation items recursively
-   */
   renderNavItems(items, container, level = 0, path = 'root') {
     items.forEach((item, index) => {
-      const isAnchorLink = item.link && item.link.startsWith('#');
-      const hasChildren = item.children && Array.isArray(item.children) && item.children.length > 0;
+      const link = item.link || '';
+      const isAnchorLink = link.startsWith('#');
+      const hasChildren = Array.isArray(item.children) && item.children.length > 0;
       const nodePath = `${path}-${index + 1}`;
-      const sectionKey = isAnchorLink ? item.link.slice(1) : `node-${nodePath}`;
-      const nodeId = `node-${sectionKey.replace(/[^a-zA-Z0-9_-]/g, '_')}-${nodePath}`;
 
-      // Skip utility nodes (Back, Next, Learning Topics labels) and keep only actual tree entries.
       if (!isAnchorLink) {
         if (hasChildren) {
           this.renderNavItems(item.children, container, level, nodePath);
@@ -112,10 +132,15 @@ class TopicLoader {
         return;
       }
 
+      const sectionKey = link.slice(1);
+      const nodeId = this.buildNodeId(sectionKey, nodePath);
+      const expanded = hasChildren ? this.isTreeLevelExpandedByDefault(level) : false;
+
       const li = document.createElement('li');
       li.className = 'nav-item mb-2 nav-tree-item';
       li.dataset.nodeId = nodeId;
       li.dataset.sectionKey = sectionKey;
+      li.dataset.treeLevel = String(level);
       if (hasChildren) {
         li.dataset.hasChildren = 'true';
       }
@@ -123,62 +148,34 @@ class TopicLoader {
       const row = document.createElement('div');
       row.className = 'nav-node-row';
       row.dataset.nodeId = nodeId;
-
-      const progressControl = document.createElement('input');
-      progressControl.type = 'checkbox';
-      progressControl.className = 'nav-progress-checkbox';
-      progressControl.tabIndex = -1;
-      progressControl.setAttribute('aria-hidden', 'true');
-      progressControl.dataset.isTrackable = 'true';
-      progressControl.dataset.link = item.link;
-      progressControl.dataset.sectionKey = sectionKey;
-      this._navIdCounter += 1;
-      progressControl.id = `nav-${this.topicId}-${this._navIdCounter}`;
+      row.dataset.sectionKey = sectionKey;
 
       if (hasChildren) {
-        const toggle = document.createElement('button');
-        toggle.type = 'button';
-        toggle.className = 'nav-tree-toggle';
-        toggle.dataset.nodeId = nodeId;
-        toggle.setAttribute('aria-label', 'Expand topic folder');
-        toggle.setAttribute('aria-expanded', 'false');
-
-        const icon = document.createElement('i');
-        icon.className = 'bi bi-folder2';
-        icon.setAttribute('aria-hidden', 'true');
-
-        toggle.appendChild(icon);
-        row.appendChild(toggle);
+        row.appendChild(this.createToggleButton(nodeId, expanded));
       } else {
-        const fileIcon = document.createElement('span');
-        fileIcon.className = 'nav-file-icon';
-        fileIcon.innerHTML = '<i class="bi bi-file-earmark-text"></i>';
-        row.appendChild(fileIcon);
+        row.appendChild(this.createFileIcon());
       }
 
-      const link = document.createElement('a');
-      link.href = item.link;
-      link.className = 'nav-tree-link text-decoration-none';
-      link.textContent = item.title;
-      link.dataset.sectionKey = sectionKey;
+      row.appendChild(this.createProgressControl(link, sectionKey));
 
-      row.appendChild(progressControl);
-      row.appendChild(link);
+      const navLink = document.createElement('a');
+      navLink.href = link;
+      navLink.className = 'nav-tree-link text-decoration-none';
+      navLink.textContent = item.title || this.formatTopicName(sectionKey);
+      navLink.dataset.sectionKey = sectionKey;
+      navLink.setAttribute('role', 'treeitem');
+      navLink.setAttribute('aria-level', String(level + 1));
+      navLink.tabIndex = -1;
+      row.appendChild(navLink);
       li.appendChild(row);
 
-      link.addEventListener('click', () => {
-        if (!progressControl.checked) {
-          progressControl.checked = true;
-          progressControl.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-
       if (hasChildren) {
-        const nestedUl = document.createElement('ul');
-        nestedUl.className = 'list-unstyled mt-1 nav-tree-children is-collapsed';
-        nestedUl.dataset.parentNodeId = nodeId;
-        this.renderNavItems(item.children, nestedUl, level + 1, nodePath);
-        li.appendChild(nestedUl);
+        const childList = document.createElement('ul');
+        childList.className = `list-unstyled mt-1 nav-tree-children${expanded ? '' : ' is-collapsed'}`;
+        childList.dataset.parentNodeId = nodeId;
+        childList.setAttribute('role', 'group');
+        this.renderNavItems(item.children, childList, level + 1, nodePath);
+        li.appendChild(childList);
       }
 
       container.appendChild(li);
@@ -188,14 +185,12 @@ class TopicLoader {
   normalizeSidebarTree(bookmarkList) {
     if (!bookmarkList) return;
 
-    // Remove decorative separators inserted by older renderers.
     bookmarkList.querySelectorAll('div').forEach((node) => {
       if ((node.textContent || '').replace(/\s/g, '') === '•••') {
         node.remove();
       }
     });
 
-    // Keep only anchor-based entries and nested lists.
     bookmarkList.querySelectorAll('li').forEach((li) => {
       const link = li.querySelector('a[href^="#"]');
       if (!link && !li.classList.contains('return-roadmap-link')) {
@@ -204,15 +199,31 @@ class TopicLoader {
     });
   }
 
+  computeTreeLevel(li) {
+    let level = 0;
+    let current = li.parentElement;
+    while (current && current !== this.bookmarkList) {
+      if (current.matches('ul')) {
+        level += 1;
+      }
+      current = current.parentElement;
+    }
+    return Math.max(0, level);
+  }
+
   decorateSidebarTree(bookmarkList) {
     if (!bookmarkList) return;
 
-    const allItems = Array.from(bookmarkList.querySelectorAll('li')).filter((li) => !li.classList.contains('return-roadmap-link'));
+    const allItems = Array.from(bookmarkList.querySelectorAll('li')).filter(
+      (li) => !li.classList.contains('return-roadmap-link')
+    );
 
     allItems.forEach((li, index) => {
       li.classList.add('nav-tree-item');
       if (!li.dataset.nodeId) {
-        li.dataset.nodeId = `static-${index + 1}`;
+        const link = li.querySelector(':scope > a[href^="#"], :scope > .nav-node-row a[href^="#"]');
+        const sectionKey = link ? link.getAttribute('href').replace(/^#/, '') : `item-${index + 1}`;
+        li.dataset.nodeId = this.buildNodeId(sectionKey, `static-${index + 1}`);
       }
 
       let row = li.querySelector(':scope > .nav-node-row');
@@ -228,64 +239,116 @@ class TopicLoader {
         return;
       }
 
+      const level = Number.parseInt(li.dataset.treeLevel || String(this.computeTreeLevel(li)), 10) || 0;
       const sectionKey = directLink.getAttribute('href').replace(/^#/, '');
+      const hasChildren = !!li.querySelector(':scope > ul');
+      const expanded = hasChildren ? this.isTreeLevelExpandedByDefault(level) : false;
+
       li.dataset.sectionKey = sectionKey;
+      li.dataset.treeLevel = String(level);
+      row.dataset.nodeId = li.dataset.nodeId;
+      row.dataset.sectionKey = sectionKey;
 
       let hiddenProgress = row.querySelector('input[data-is-trackable="true"]');
       if (!hiddenProgress) {
-        hiddenProgress = document.createElement('input');
-        hiddenProgress.type = 'checkbox';
-        hiddenProgress.dataset.isTrackable = 'true';
-        hiddenProgress.dataset.link = `#${sectionKey}`;
-        hiddenProgress.dataset.sectionKey = sectionKey;
-        hiddenProgress.className = 'nav-progress-checkbox';
+        hiddenProgress = this.createProgressControl(`#${sectionKey}`, sectionKey);
         row.insertBefore(hiddenProgress, row.firstChild);
       } else {
-        hiddenProgress.classList.add('nav-progress-checkbox');
+        hiddenProgress.className = 'nav-progress-checkbox';
+        hiddenProgress.dataset.link = `#${sectionKey}`;
+        hiddenProgress.dataset.sectionKey = sectionKey;
       }
 
       const childList = li.querySelector(':scope > ul');
       if (childList) {
         li.dataset.hasChildren = 'true';
         childList.classList.add('nav-tree-children');
-        if (!childList.classList.contains('is-collapsed')) {
-          childList.classList.add('is-collapsed');
-        }
+        childList.dataset.parentNodeId = li.dataset.nodeId;
+        childList.setAttribute('role', 'group');
+        childList.classList.toggle('is-collapsed', !expanded);
 
         let toggle = row.querySelector('.nav-tree-toggle');
         if (!toggle) {
-          toggle = document.createElement('button');
-          toggle.type = 'button';
-          toggle.className = 'nav-tree-toggle';
-          toggle.dataset.nodeId = li.dataset.nodeId;
-          toggle.setAttribute('aria-expanded', 'false');
-          toggle.setAttribute('aria-label', 'Expand topic folder');
-          toggle.innerHTML = '<i class="bi bi-folder2" aria-hidden="true"></i>';
+          toggle = this.createToggleButton(li.dataset.nodeId, expanded);
           row.insertBefore(toggle, row.firstChild);
+        } else {
+          toggle.dataset.nodeId = li.dataset.nodeId;
+          toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+          toggle.setAttribute('aria-label', expanded ? 'Collapse topic folder' : 'Expand topic folder');
+          const icon = toggle.querySelector('i');
+          if (icon) {
+            icon.className = `bi ${expanded ? 'bi-folder2-open' : 'bi-folder2'}`;
+          }
         }
       } else {
         let fileIcon = row.querySelector('.nav-file-icon');
         if (!fileIcon) {
-          fileIcon = document.createElement('span');
-          fileIcon.className = 'nav-file-icon';
-          fileIcon.innerHTML = '<i class="bi bi-file-earmark-text"></i>';
+          fileIcon = this.createFileIcon();
           row.insertBefore(fileIcon, row.firstChild);
         }
       }
 
-      if (!directLink.classList.contains('nav-tree-link')) {
-        directLink.classList.add('nav-tree-link');
-      }
-
-      directLink.addEventListener('click', () => {
-        if (!hiddenProgress.checked) {
-          hiddenProgress.checked = true;
-          hiddenProgress.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
+      directLink.classList.add('nav-tree-link');
+      directLink.dataset.sectionKey = sectionKey;
+      directLink.setAttribute('role', 'treeitem');
+      directLink.setAttribute('aria-level', String(level + 1));
+      directLink.tabIndex = -1;
     });
 
+    this.initializeTreeModel(bookmarkList);
     this.bindTreeEvents(bookmarkList);
+  }
+
+  initializeTreeModel(bookmarkList) {
+    this.bookmarkList = bookmarkList;
+    this.bookmarkList.setAttribute('role', 'tree');
+    this.treeNodes = [];
+    this.treeNodesById.clear();
+    this.treeNodesBySection.clear();
+
+    const items = Array.from(bookmarkList.querySelectorAll('.nav-tree-item')).filter(
+      (li) => !li.classList.contains('return-roadmap-link')
+    );
+
+    items.forEach((li) => {
+      const row = li.querySelector(':scope > .nav-node-row');
+      const link = row ? row.querySelector('.nav-tree-link') : null;
+      if (!row || !link) {
+        return;
+      }
+
+      const nodeId = li.dataset.nodeId;
+      const sectionId = li.dataset.sectionKey || link.dataset.sectionKey || '';
+      const level = Number.parseInt(li.dataset.treeLevel || '0', 10) || 0;
+      const childList = li.querySelector(':scope > .nav-tree-children');
+      const toggle = row.querySelector('.nav-tree-toggle');
+      const progressControl = row.querySelector('.nav-progress-checkbox');
+      const parentList = li.parentElement;
+      const parentNodeId =
+        parentList && parentList !== bookmarkList
+          ? parentList.dataset.parentNodeId || (parentList.parentElement && parentList.parentElement.dataset.nodeId) || ''
+          : '';
+
+      const node = {
+        nodeId,
+        sectionId,
+        level,
+        li,
+        row,
+        link,
+        toggle,
+        childList,
+        progressControl,
+        parentNodeId,
+        hasChildren: !!childList
+      };
+
+      this.treeNodes.push(node);
+      this.treeNodesById.set(nodeId, node);
+      if (sectionId) {
+        this.treeNodesBySection.set(sectionId, node);
+      }
+    });
   }
 
   bindTreeEvents(bookmarkList) {
@@ -294,41 +357,216 @@ class TopicLoader {
 
     bookmarkList.addEventListener('click', (event) => {
       const toggle = event.target.closest('.nav-tree-toggle');
-      if (!toggle) {
+      if (toggle) {
+        event.preventDefault();
+        this.toggleNode(toggle.dataset.nodeId);
+        this.schedulePersistNavigationState();
         return;
       }
 
-      event.preventDefault();
-      const nodeId = toggle.dataset.nodeId;
-      if (!nodeId) {
+      const link = event.target.closest('.nav-tree-link');
+      if (!link) {
         return;
       }
 
-      this.toggleNode(nodeId);
-      this.schedulePersistNavigationState();
+      const sectionId = link.dataset.sectionKey || '';
+      this.activateSection(sectionId, { scrollPage: false, focusLink: false, persist: true });
+      const node = this.treeNodesBySection.get(sectionId);
+      if (node && node.progressControl && !node.progressControl.checked) {
+        node.progressControl.checked = true;
+        node.progressControl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    bookmarkList.addEventListener('keydown', (event) => {
+      const key = event.key;
+      if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', ' '].includes(key)) {
+        return;
+      }
+
+      const currentSectionId = this.getFocusedSectionId() || this.activeSectionId || this.getFirstVisibleSectionId();
+      const currentNode = currentSectionId ? this.treeNodesBySection.get(currentSectionId) : null;
+      const visibleNodes = this.getVisibleTreeNodes();
+      const currentIndex = currentNode ? visibleNodes.findIndex((node) => node.sectionId === currentNode.sectionId) : -1;
+
+      if (key === 'ArrowDown' || key === 'ArrowUp') {
+        if (visibleNodes.length === 0) return;
+        event.preventDefault();
+        const delta = key === 'ArrowDown' ? 1 : -1;
+        const fallbackIndex = currentIndex === -1 ? 0 : currentIndex;
+        const nextIndex = Math.min(Math.max(fallbackIndex + delta, 0), visibleNodes.length - 1);
+        this.activateSection(visibleNodes[nextIndex].sectionId, {
+          scrollPage: true,
+          focusLink: true,
+          persist: true
+        });
+        return;
+      }
+
+      if (key === 'Home' || key === 'End') {
+        if (visibleNodes.length === 0) return;
+        event.preventDefault();
+        const targetNode = key === 'Home' ? visibleNodes[0] : visibleNodes[visibleNodes.length - 1];
+        this.activateSection(targetNode.sectionId, { scrollPage: true, focusLink: true, persist: true });
+        return;
+      }
+
+      if (!currentNode) {
+        return;
+      }
+
+      if (key === 'ArrowRight') {
+        event.preventDefault();
+        if (currentNode.hasChildren && currentNode.childList && currentNode.childList.classList.contains('is-collapsed')) {
+          this.toggleNode(currentNode.nodeId, true);
+          this.schedulePersistNavigationState();
+          return;
+        }
+
+        const childNode = this.treeNodes.find((node) => node.parentNodeId === currentNode.nodeId);
+        if (childNode) {
+          this.activateSection(childNode.sectionId, { scrollPage: true, focusLink: true, persist: true });
+        }
+        return;
+      }
+
+      if (key === 'ArrowLeft') {
+        event.preventDefault();
+        if (currentNode.hasChildren && currentNode.childList && !currentNode.childList.classList.contains('is-collapsed')) {
+          this.toggleNode(currentNode.nodeId, false);
+          this.schedulePersistNavigationState();
+          return;
+        }
+
+        if (currentNode.parentNodeId) {
+          const parentNode = this.treeNodesById.get(currentNode.parentNodeId);
+          if (parentNode) {
+            this.activateSection(parentNode.sectionId, { scrollPage: true, focusLink: true, persist: true });
+          }
+        }
+        return;
+      }
+
+      if (key === 'Enter' || key === ' ') {
+        event.preventDefault();
+        this.activateSection(currentNode.sectionId, { scrollPage: true, focusLink: true, persist: true });
+      }
     });
   }
 
-  toggleNode(nodeId, forceExpanded) {
-    const row = document.querySelector(`.nav-node-row[data-node-id="${nodeId}"]`);
-    const children = document.querySelector(`.nav-tree-children[data-parent-node-id="${nodeId}"]`) ||
-      row?.parentElement?.querySelector(':scope > .nav-tree-children');
-    const toggle = row ? row.querySelector('.nav-tree-toggle') : null;
+  getFocusedSectionId() {
+    const active = document.activeElement;
+    if (!active || !this.bookmarkList || !this.bookmarkList.contains(active)) {
+      return '';
+    }
 
-    if (!children || !toggle) {
+    return active.dataset && active.dataset.sectionKey ? active.dataset.sectionKey : '';
+  }
+
+  getFirstVisibleSectionId() {
+    const first = this.getVisibleTreeNodes()[0];
+    return first ? first.sectionId : '';
+  }
+
+  isNodeVisible(node) {
+    let parent = node.li.parentElement;
+    while (parent && parent !== this.bookmarkList) {
+      if (parent.classList.contains('nav-tree-children') && parent.classList.contains('is-collapsed')) {
+        return false;
+      }
+      parent = parent.parentElement;
+    }
+    return true;
+  }
+
+  getVisibleTreeNodes() {
+    return this.treeNodes.filter((node) => this.isNodeVisible(node));
+  }
+
+  toggleNode(nodeId, forceExpanded) {
+    const node = this.treeNodesById.get(nodeId);
+    if (!node || !node.childList || !node.toggle) {
       return;
     }
 
-    const isCollapsed = children.classList.contains('is-collapsed');
-    const nextExpanded = typeof forceExpanded === 'boolean' ? forceExpanded : isCollapsed;
+    const currentlyCollapsed = node.childList.classList.contains('is-collapsed');
+    const nextExpanded = typeof forceExpanded === 'boolean' ? forceExpanded : currentlyCollapsed;
+    node.childList.classList.toggle('is-collapsed', !nextExpanded);
+    node.toggle.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
+    node.toggle.setAttribute('aria-label', nextExpanded ? 'Collapse topic folder' : 'Expand topic folder');
 
-    children.classList.toggle('is-collapsed', !nextExpanded);
-    toggle.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
-    toggle.setAttribute('aria-label', nextExpanded ? 'Collapse topic folder' : 'Expand topic folder');
-
-    const icon = toggle.querySelector('i');
+    const icon = node.toggle.querySelector('i');
     if (icon) {
-      icon.className = nextExpanded ? 'bi bi-folder2-open' : 'bi bi-folder2';
+      icon.className = `bi ${nextExpanded ? 'bi-folder2-open' : 'bi-folder2'}`;
+    }
+
+    if (!nextExpanded && this.activeSectionId) {
+      const activeNode = this.treeNodesBySection.get(this.activeSectionId);
+      let parentNodeId = activeNode ? activeNode.parentNodeId : '';
+      while (parentNodeId) {
+        if (parentNodeId === nodeId) {
+          this.activateSection(node.sectionId, { scrollPage: false, focusLink: false, persist: false });
+          break;
+        }
+        const parentNode = this.treeNodesById.get(parentNodeId);
+        parentNodeId = parentNode ? parentNode.parentNodeId : '';
+      }
+    }
+  }
+
+  ensureAncestorsExpanded(node) {
+    let parentNodeId = node ? node.parentNodeId : '';
+    while (parentNodeId) {
+      this.toggleNode(parentNodeId, true);
+      const parentNode = this.treeNodesById.get(parentNodeId);
+      parentNodeId = parentNode ? parentNode.parentNodeId : '';
+    }
+  }
+
+  ensureTreeItemVisible(node) {
+    if (!node || !node.row) return;
+    node.row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  activateSection(sectionId, options = {}) {
+    const { scrollPage = false, focusLink = false, persist = false } = options;
+    const node = this.treeNodesBySection.get(sectionId);
+    if (!node) {
+      return;
+    }
+
+    this.ensureAncestorsExpanded(node);
+
+    this.treeNodes.forEach((treeNode) => {
+      const isActive = treeNode.sectionId === sectionId;
+      treeNode.li.classList.toggle('is-active', isActive);
+      treeNode.row.classList.toggle('is-active', isActive);
+      treeNode.link.classList.toggle('is-active', isActive);
+      treeNode.link.tabIndex = isActive ? 0 : -1;
+      if (isActive) {
+        treeNode.link.setAttribute('aria-current', 'location');
+      } else {
+        treeNode.link.removeAttribute('aria-current');
+      }
+    });
+
+    this.activeSectionId = sectionId;
+    this._lastVisibleSectionId = sectionId;
+    this.ensureTreeItemVisible(node);
+
+    if (focusLink) {
+      node.link.focus({ preventScroll: true });
+    }
+
+    if (scrollPage) {
+      const target = document.getElementById(sectionId);
+      if (target) {
+        target.scrollIntoView({ block: 'start', behavior: 'auto' });
+      }
+    }
+
+    if (persist) {
+      this.schedulePersistNavigationState();
     }
   }
 
@@ -363,26 +601,26 @@ class TopicLoader {
   }
 
   getCollapsedNodeIds() {
-    return Array.from(document.querySelectorAll('#bookmark-list .nav-tree-item[data-has-children="true"]'))
-      .filter((li) => {
-        const child = li.querySelector(':scope > .nav-tree-children');
-        return child && child.classList.contains('is-collapsed');
-      })
-      .map((li) => li.dataset.nodeId)
+    return this.treeNodes
+      .filter((node) => node.hasChildren && node.childList && node.childList.classList.contains('is-collapsed'))
+      .map((node) => node.nodeId)
       .filter(Boolean);
   }
 
   getNavigationStateSnapshot() {
     return {
       collapsedNodeIds: this.getCollapsedNodeIds(),
-      lastReadSectionId: this._lastVisibleSectionId || ''
+      lastReadSectionId: this._lastVisibleSectionId || this.activeSectionId || ''
     };
   }
 
   saveLocalNavigationState(state) {
-    localStorage.setItem(this.getLocalNavStateKey(), JSON.stringify({
-      collapsedNodeIds: state.collapsedNodeIds || []
-    }));
+    localStorage.setItem(
+      this.getLocalNavStateKey(),
+      JSON.stringify({
+        collapsedNodeIds: state.collapsedNodeIds || []
+      })
+    );
 
     if (state.lastReadSectionId) {
       localStorage.setItem(this.getLocalLastReadKey(), state.lastReadSectionId);
@@ -402,7 +640,11 @@ class TopicLoader {
       this._lastSavedCollapsedSignature = collapsedSignature;
     }
 
-    if (state.lastReadSectionId && state.lastReadSectionId !== this._lastSavedSectionId && typeof sync.saveLastReadPosition === 'function') {
+    if (
+      state.lastReadSectionId &&
+      state.lastReadSectionId !== this._lastSavedSectionId &&
+      typeof sync.saveLastReadPosition === 'function'
+    ) {
       await sync.saveLastReadPosition(this.getCourseId(), this.topicId, state.lastReadSectionId);
       this._lastSavedSectionId = state.lastReadSectionId;
     }
@@ -415,13 +657,12 @@ class TopicLoader {
 
     this._persistTimer = setTimeout(() => {
       this.persistNavigationState();
-    }, 350);
+    }, 300);
   }
 
   async persistNavigationState() {
     const snapshot = this.getNavigationStateSnapshot();
     this.saveLocalNavigationState(snapshot);
-
     try {
       await this.syncNavigationStateToRemote(snapshot);
     } catch (error) {
@@ -429,50 +670,65 @@ class TopicLoader {
     }
   }
 
-  applyCollapsedNodeState(collapsedNodeIds) {
-    const collapsedSet = new Set(Array.isArray(collapsedNodeIds) ? collapsedNodeIds : []);
-
-    document.querySelectorAll('#bookmark-list .nav-tree-item[data-has-children="true"]').forEach((li) => {
-      const nodeId = li.dataset.nodeId;
-      if (!nodeId) {
+  applyDefaultExpansionState() {
+    this.treeNodes.forEach((node) => {
+      if (!node.hasChildren) {
         return;
       }
-
-      this.toggleNode(nodeId, !collapsedSet.has(nodeId));
+      this.toggleNode(node.nodeId, this.isTreeLevelExpandedByDefault(node.level));
     });
   }
 
-  scrollToLastReadSection(sectionId) {
+  applyCollapsedNodeState(collapsedNodeIds) {
+    const collapsedSet = new Set(Array.isArray(collapsedNodeIds) ? collapsedNodeIds : []);
+    this.treeNodes.forEach((node) => {
+      if (!node.hasChildren) {
+        return;
+      }
+      this.toggleNode(node.nodeId, !collapsedSet.has(node.nodeId));
+    });
+  }
+
+  restoreActiveSection(sectionId, shouldScroll) {
     if (!sectionId) {
       return;
     }
-
-    const target = document.getElementById(sectionId);
-    if (!target) {
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      target.scrollIntoView({ block: 'start', behavior: 'auto' });
+    this.activateSection(sectionId, {
+      scrollPage: !!shouldScroll,
+      focusLink: false,
+      persist: false
     });
   }
 
   async restoreNavigationState() {
     let localCollapsed = [];
     let localLastRead = '';
+    let hasLocalCollapsedState = false;
+
     try {
       const local = JSON.parse(localStorage.getItem(this.getLocalNavStateKey()) || '{}');
+      hasLocalCollapsedState = Object.prototype.hasOwnProperty.call(local, 'collapsedNodeIds');
       localCollapsed = Array.isArray(local.collapsedNodeIds) ? local.collapsedNodeIds : [];
       localLastRead = localStorage.getItem(this.getLocalLastReadKey()) || '';
     } catch {
       localCollapsed = [];
       localLastRead = '';
+      hasLocalCollapsedState = false;
     }
 
-    this.applyCollapsedNodeState(localCollapsed);
+    if (hasLocalCollapsedState) {
+      this.applyCollapsedNodeState(localCollapsed);
+    } else {
+      this.applyDefaultExpansionState();
+    }
+
     if (localLastRead) {
-      this._lastVisibleSectionId = localLastRead;
-      this.scrollToLastReadSection(localLastRead);
+      this.restoreActiveSection(localLastRead, true);
+    } else {
+      const rootNode = this.treeNodes.find((node) => node.level === 0);
+      if (rootNode) {
+        this.restoreActiveSection(rootNode.sectionId, false);
+      }
     }
 
     const sync = window.sageRoadmapProgressSync;
@@ -491,8 +747,7 @@ class TopicLoader {
       if (typeof sync.loadLastReadPosition === 'function') {
         const remoteLastRead = await sync.loadLastReadPosition(this.getCourseId(), this.topicId);
         if (remoteLastRead) {
-          this._lastVisibleSectionId = remoteLastRead;
-          this.scrollToLastReadSection(remoteLastRead);
+          this.restoreActiveSection(remoteLastRead, true);
         }
       }
     } catch (error) {
@@ -501,37 +756,42 @@ class TopicLoader {
   }
 
   startLastReadTracking() {
-    const headings = Array.from(document.querySelectorAll('#main-content [id]')).filter((el) => {
-      const id = el.getAttribute('id');
-      return !!id;
-    });
+    const headings = Array.from(
+      document.querySelectorAll('#main-content h1[id], #main-content h2[id], #main-content h3[id], #main-content h4[id], #main-content h5[id]')
+    );
 
     if (headings.length === 0) {
       return;
     }
 
     if ('IntersectionObserver' in window) {
-      this._observer = new IntersectionObserver((entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      this._observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
 
-        if (visible.length === 0) {
-          return;
+          if (visible.length === 0) {
+            return;
+          }
+
+          const nextId = visible[0].target.getAttribute('id');
+          if (!nextId || nextId === this.activeSectionId) {
+            return;
+          }
+
+          this.activateSection(nextId, {
+            scrollPage: false,
+            focusLink: false,
+            persist: true
+          });
+        },
+        {
+          root: null,
+          threshold: 0.45,
+          rootMargin: '-80px 0px -45% 0px'
         }
-
-        const nextId = visible[0].target.getAttribute('id');
-        if (!nextId || nextId === this._lastVisibleSectionId) {
-          return;
-        }
-
-        this._lastVisibleSectionId = nextId;
-        this.schedulePersistNavigationState();
-      }, {
-        root: null,
-        threshold: 0.55,
-        rootMargin: '-80px 0px -45% 0px'
-      });
+      );
 
       headings.forEach((heading) => {
         this._observer.observe(heading);
@@ -555,7 +815,9 @@ class TopicLoader {
       homeLink.remove();
     }
 
-    const progressWrap = document.querySelector('#study-sidebar .progress') || document.querySelector('.sidebar-content .progress');
+    const progressWrap =
+      document.querySelector('#study-sidebar .progress') ||
+      document.querySelector('.sidebar-content .progress');
     if (progressWrap) {
       progressWrap.remove();
     }
@@ -569,40 +831,27 @@ class TopicLoader {
     list.appendChild(returnItem);
   }
 
-  /**
-   * Load content HTML file
-   */
   async loadContent() {
     try {
-      // Build the correct path accounting for Vercel's cleanUrls and trailingSlash
-      // On Vercel: /engineering/concepts/ (no .html, with trailing slash)
-      // On local: /engineering/concepts.html (with .html extension)
       let basePath = window.location.pathname;
-      
-      // Remove trailing slash (added by trailingSlash: true on Vercel)
       if (basePath.endsWith('/')) {
         basePath = basePath.slice(0, -1);
       }
-      
-      // Remove .html extension if present (removed by cleanUrls on Vercel)
       if (basePath.endsWith('.html')) {
         basePath = basePath.slice(0, -5);
       }
-      
+
       const contentFile = `${basePath}.html`;
-      
       const response = await fetch(contentFile);
       if (!response.ok) throw new Error(`Failed to load ${contentFile}`);
-      
+
       const html = await response.text();
       const mainContent = document.getElementById('main-content');
       mainContent.innerHTML = html;
-      
-      // Re-highlight code blocks
+
       if (window.Prism) {
         Prism.highlightAllUnder(mainContent);
       }
-      
     } catch (error) {
       console.error('Error loading content:', error);
       const mainContent = document.getElementById('main-content');
@@ -616,57 +865,47 @@ class TopicLoader {
     }
   }
 
-  /**
-   * Update breadcrumb and title
-   */
   updatePageMetadata() {
     const topicName = this.formatTopicName(this.topicId);
     document.title = `${topicName} - ${this.labId.charAt(0).toUpperCase() + this.labId.slice(1)}`;
-    
+
     const breadcrumb = document.getElementById('current-topic');
     if (breadcrumb) {
       breadcrumb.textContent = topicName;
     }
 
-    // Update home link to point to #topics
     const homeLink = document.getElementById('home-link');
     if (homeLink) {
       homeLink.href = this.homeLink;
     }
   }
 
-  /**
-   * Initialize mobile toggle
-   */
   initializeMobileToggle() {
     const openBtn = document.getElementById('open-sidebar');
     const sidebar = document.querySelector('.side-bar');
     const mainContent = document.getElementById('main-content');
-    
-    if (!openBtn || !sidebar) return;
-    
+
+    if (!openBtn || !sidebar || !mainContent) return;
+
     openBtn.addEventListener('click', () => {
       sidebar.classList.toggle('active');
     });
-    
-    const links = sidebar.querySelectorAll('a');
-    links.forEach(link => {
+
+    sidebar.querySelectorAll('a').forEach((link) => {
       link.addEventListener('click', () => {
         sidebar.classList.remove('active');
       });
     });
-    
+
     mainContent.addEventListener('click', () => {
       sidebar.classList.remove('active');
     });
   }
 
-  /**
-   * Initialize loader - call from document.DOMContentLoaded
-   */
   async init() {
     this.updatePageMetadata();
     await this.loadSidebar();
+
     if (!this.inlineContent) {
       await this.loadContent();
     } else {
@@ -675,21 +914,26 @@ class TopicLoader {
         Prism.highlightAllUnder(mainContent);
       }
     }
-    if (typeof window.initializeProgressTracking === 'function') {
-      window.initializeProgressTracking({
+
+    if (typeof initializeProgressTracking === 'function') {
+      initializeProgressTracking({
         labId: this.labId,
         topicId: this.topicId,
         roadmapCourseId: this.roadmapCourseId,
         checkboxSelector: '#bookmark-list input[data-is-trackable="true"]'
       });
     }
+
     await this.restoreNavigationState();
     this.startLastReadTracking();
+
     window.addEventListener('roadmap-auth-changed', () => {
       this.restoreNavigationState();
       this.schedulePersistNavigationState();
     });
+
     this.initializeMobileToggle();
+
     if (window.sageStartTopicReadTracking) {
       window.sageStartTopicReadTracking({
         labId: this.labId,
@@ -700,7 +944,6 @@ class TopicLoader {
   }
 }
 
-// Auto-initialize if TOPIC_CONFIG is defined
 document.addEventListener('DOMContentLoaded', async () => {
   if (typeof window.TOPIC_CONFIG !== 'undefined') {
     const loader = new TopicLoader(window.TOPIC_CONFIG);
