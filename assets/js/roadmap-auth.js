@@ -524,6 +524,11 @@
       var removalResult = await client.rpc("delete_current_user_account");
       if (removalResult.error) {
         setSubmitting(false);
+        if ((removalResult.error.message || "").toLowerCase().indexOf("schema cache") !== -1) {
+          setStatus(status, "Supabase has not picked up the delete migration yet. Check that the GitHub Action ran, the SUPABASE_DB_URL secret is set, and the migration exists in supabase/migrations.", "error");
+          return;
+        }
+
         setStatus(status, removalResult.error.message, "error");
         return;
       }
