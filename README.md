@@ -69,6 +69,9 @@ npm install
 3. Run SQL scripts in Supabase SQL Editor:
 	- [database/001_user_profiles.sql](database/001_user_profiles.sql)
 	- [database/002_roadmap_progress.sql](database/002_roadmap_progress.sql)
+	- [database/003_delete_own_roadmap_account.sql](database/003_delete_own_roadmap_account.sql)
+
+For automatic deployment with Supabase CLI, use the mirrored migrations in [supabase/migrations](supabase/migrations).
 
 4. Build and deploy:
 
@@ -83,6 +86,7 @@ Roadmap pages wired for Supabase client usage:
 - [roadmap/login.html](roadmap/login.html)
 - [roadmap/profile.html](roadmap/profile.html)
 - [roadmap/register.html](roadmap/register.html)
+- [roadmap/unregister.html](roadmap/unregister.html)
 - [roadmap/reset-password.html](roadmap/reset-password.html)
 
 ### Validate locally

@@ -69,9 +69,16 @@ This contract keeps educational roadmap content and project showcases clearly se
 - Shared client bootstrap: `assets/js/supabase-client.js`.
 - Roadmap auth integration logic: `assets/js/roadmap-auth.js`.
 - Password recovery page: `roadmap/reset-password.html`.
+- Account removal page: `roadmap/unregister.html`.
 - SQL setup scripts:
   - `database/001_user_profiles.sql`
   - `database/002_roadmap_progress.sql`
+  - `database/003_delete_own_roadmap_account.sql`
+
+Auto-run Supabase migration mirror:
+- `supabase/migrations/20260718000100_user_profiles.sql`
+- `supabase/migrations/20260718000200_roadmap_progress.sql`
+- `supabase/migrations/20260718000300_delete_own_roadmap_account.sql`
 
 Run SQL scripts in order using Supabase SQL Editor before enabling connected roadmap mode.
 
