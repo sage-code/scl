@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Introduction to Eve Database API. A new programming language for Databases.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, EVE, SQL, database, API, CRUD, Insert, Update,Delete, Create">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- Website title -->
+  <title>Eve Databases/SQL</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/sage.css">
+  </head>
+<body>
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<h1>Eve Database/SQL</h1>
+<div class="alert alert-secondary shadow-sm">
+Eve has basic interaction with relational databases. We design Eve to connect to different third party databases. The purpose of Eve to be versatile. It enables DML operations and direct SQL but not DCL and DDL operations.</div>
+
+<p><b>Goals:</b></p>
+<ul>
+<li>Read and update tables in a database;</li>
+<li>Provide easy way to map data in ETL;</li>
+<li>Provide data reporting in file formating;</li>
+<li>Backup and archive data using compression;</li>
+<li>Transfer data & upload data in the cloud;</li>
+</ul>
+
+<p><b>Page bookmarks:</b></p>
+
+<p><b>definition</b></p>
+<ul>
+<li><a href="#models">Models</a></li>
+<li><a href="#databases">Databases</a></li>
+<li><a href="#sessions">Sessions</a></li>
+<li><a href="#direct-sql">Direct SQL</a></li>
+<li><a href="#procedures">Procedures</a></li>
+
+</ul>
+
+<h2><a id="models"></a>Models</h2>
+<p>Eve must read and update a database structure using an internal <em>data model</em>. A model is a map between Eve a relational data model and an object oriented model. This is called&nbsp; ORM = <em>Object Relational Model</em>. An ORM model is connecting to one or multiple databases using vendor specific database modules.</p>
+
+<h4>Importing</h4>
+
+<p>The model library must be imported using these statements:</p>
+
+<pre><code class="language-eve"># using Oracle library
+import
+   db $evelib/db/core;
+   orcl: $evelib/db/oracle;
+</code></pre>
+
+<h4>Connection</h4>
+<p>One application can connect to multiple databases simultaneously. A specific kind of application called&nbsp;<em>pipeline</em>&nbsp;can pull data from multiple sources to update one target database or, spread data from one database and push data into multiple other databases.</p>
+
+<p><b>pattern:</b></p>
+<pre><code class="language-eve">
+** create a database session
+class OracleSession = {user,password,name: String} &lt;: orcl.Database:
+  new _credentials: String;
+release
+  orcl.disconnect();
+return
+
+constructor OracleSession(location,user,password:String) => (@self db.Session): 
+  ** prepare credentials
+  let self.location = location;
+  let self.user = user;
+  let self.password = password;
+  ** prepare credentials
+  let self.connect(self._credentials);
+  orcl.connect();
+return;
+
+process:
+  ** create database connection
+  new demoDB =  set db := OracleSession(user:$user,password:$password,location:$location);
+  ...
+return;
+</code></pre>
+
+<p><b>Note:</b>&nbsp;Usually a database has a security protocol based on user-name and password. These credentials can not be encoded in the Eve scripts, they need to be received as input parameters by the driver or set using configuration files that are secret, safly stored on the server. Once a connection is established it can be used to manipulate data, using Eve statements.</p>
+
+<h2><a id="databases"></a>Database API</h2>
+
+<p>For each database kind we will create a library module. These modules will provide similar functionality for different databases. This basic functionality is created to make available a "Database Connector" in Eve scripts. We need this functions:</p>
+
+<h4>Functionality</h4>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>connect()</td>
+<td>Connect the database</td>
+</tr>
+<tr>
+<td>disconnect()</td>
+<td>Disconnect from database</td>
+</tr>
+<tr>
+<td>query()</td>
+<td>Direct SQL execution</td>
+</tr>
+<tr>
+<td>execute()</td>
+<td>Execute a stored procedure</td>
+</tr>
+<tr>
+<td>commit()</td>
+<td>Save all pending modifications</td>
+</tr>
+<tr>
+<td>rollback()</td>
+<td>Rollback all pending modifications</td>
+</tr>
+</tbody>
+</table>
+
+<h4>Targeted Databases</h4>
+<p>Eve should provide drivers for main-stream databases:</p>
+<ul>
+<li><a href="http://www.postgresql.org/" rel="nofollow">PostgreSQL</a>,</li>
+<li><a href="http://www.oracle.com/" rel="nofollow">Oracle</a>,</li>
+<li><a href="https://www.mysql.com/" rel="nofollow">MySQL</a></li>
+</ul>
+
+<h2>Concepts</h2>
+
+<p>One database provide a complex framework to organize data in tables and documents. An application can read database structure and map it to an internal memory model. Then we can perform operations on this model: {search, append, update, delete}. The opperations are mirrored automaticly in the database.</p>
+
+<ul>
+<li><a href="#mapping">Mapping</a></li>
+<li><a href="#tables">Tables</a></li>
+<li><a href="#records">Records</a></li>
+<li><a href="#structure">Structure</a></li>
+</ul>
+
+<h3><a id ="mapping"></a>Mapping</h3>
+
+<p>A database table has records. Eve strategy is to define one <em>memory table</em> as a collection of objects for each <em>database table</em>. The <em>memory table</em> is mapped to <em>database table</em>. Mapping is <em>one to one</em>. Field names are case sensitive.</p>
+
+<p>Data cashing. The memory table do not store all the database data. Instead, the memory table store a small buffer. On rare ocasions, user can store all data in memory tables for small crytical tables to improve performance when a table is used very often. Usually these tables are metadata tables.</p>
+
+<h3><a id="tables"></a>Tables</h3>
+<p>Internal <em>memory tables</em> are mixed collections of objects having same name as <em>database tables</em>. We can read a database table record by record on demand. A <em>memory table</em> can load one or multiple <em>records</em> in memory. Developer/user has full control over what data is stored in memory buffer, can refresh the buffer or can clear the buffer and load other data set with a different filter.</p>
+
+<h4>How to define a table:</h4>
+
+<p>A table is an smart class that knows it's bound to a database. Therefore we "inherit" a database table like it is a Eve class. EVE engine will bind the table to database. If the table in the database do not exist, EVE compiler will complain and will generate an error.</p>
+
+<pre><code class="language-eve">
+class TableName = {name: String} &lt: DB_Name.Table;
+</code></pre>
+
+<h3><a id="records"></a>Records</h3>
+<p>Records are <em>object instances</em> representing in memory table structure. A record has a <em>status</em> property that can be used in conditionals. One record is the current record. Several records are cached in memory for a table. A record id identified by a numeric id. Records are "bound" to database data. A record has information about it's origin.</p>
+
+<pre><code class="language-eve">
+class RecordName = {id: Integer} &lt;: Record;
+</code></pre>
+
+<h3><a id="structure"></a>Structure</h3>
+
+<p>Table structure is represented by <em>Records</em> structure. This can be flat or hierarchic. A <em>Table</em> is a collection of records. Tables can be related to each other. A record can contain a table of records. This is called nested table. Some databases have support for nested tables, some do not. In this case the nested table is just a relational table that has a foreign key to main table.</p>
+
+<p><b>Note:</b></p>
+<ul>
+<li>For record names is singular starting with uppercase like: "Person"</li>
+<li>For table name is good practice to use plural names like: "Persons"</li>
+</ul>
+
+<h2><a id="sessions"></a>Sessions</h2>
+<p>Data model can work with sessions. A session have a name. A session can involve one or more databases. After a set of modifications is done you can commit changes in a session. If transaction fail all the modifications in session are reset. You can customize the actions in case of error. After session ends, you can create a report.</p>
+
+<p><b>Operations</b></p>
+
+<p>Any of the following operations can be included in a session:</p>
+<ul>
+<li><a href="#append">Append</a></li>
+<li><a href="#update">Update</a></li>
+<li><a href="#delete">Delete</a></li>
+</ul>
+
+
+<h3><a id="Append"></a>Append</h3>
+<p>Eve can add new data records into one table using <em>append()</em> method of a table. This create new records.</p>
+
+<pre><code class="language-eve">
+routine update_tables(value1,value2 ...):
+  ** create empty records
+  new record1 := table_name1.append();
+  new record2 := table_name2.append();
+  ** populate records with values 
+  
+  update record1:
+    let field_name := value1;
+    ...
+  update record2:
+    let field_name := value2;
+    ... 
+  commit; 
+return;
+</code></pre>
+
+<h3><a id="update"/>Update</h3>
+<p>Eve can do single or multiple row updates in one transaction. The Update need to find the record to update before is able to modify these records.</p>
+
+<h4>Single record:</h4>
+
+<pre><code class="language-eve">** use search fields and values
+process
+  new record1 := table_name.find(field:value1, ...);
+  new record2 := table_name.find(field:value2, ...);
+  update record1:
+    let field_name := value;
+    ...
+  update record2:
+    let field_name := value;
+    ...
+  commit;
+return;
+</code></pre>
+
+<p><b>Note </b> A process or routine will start a new isolated transaction. In case of error, you can issue a rollback. The issue can be in the database, if you issue a rollback the database changes are not commited but the record remain modified in memory. You must refresh the record if you want the see the old values.</b>
+
+<h3><a id="delete"/>Delete</h3>
+<p>This statement will remove one or more records from a table.</p>
+
+<p><b>Syntax</b></p>
+<pre><code class="language-eve">
+** Find one or more records and delete them
+process
+  ** local variables
+  new deleted1 := table_name1.delete(field:value,...);
+  new deleted2 := table_name2.delete(field:value,...);
+  commit;
+finalize
+  ** check status
+  expect deleted1 >  0;
+  expect deleted2 >= 0;
+  ** print status
+  print (deleded1, "records deleted")
+  print (deleded2, "records deleted")
+return;
+</code></pre>
+
+<h4>Bulk Operations</h4>
+
+<p>For bulk operations there are 2 methods. Using Eve cycle or using direct SQL.</p>
+
+<pre><code class="language-eve">
+** using a loop to create a single session  
+routine delete_records(value):
+  ** delete current record using: loop
+  for record in table_name loop
+    record.delete() if record.field_name == value;
+  repeat;  
+  commit;
+return;
+</code></pre>
+
+
+<h2><a id="direct-sql"></a>Direct SQL</h2>
+<p>Sometimes we need to bypass the ORM and execute native SQL:</p>
+
+<pre><code class="language-eve">
+# execute query string and return a list of records
+  new query_result := db.query(query_template ? source)
+</code></pre>
+
+<p>Working with Direct SQL is not our purpose. Eve has enaugh power to enable developers handle processes. Using direct SQL is a backup, offered for special opperations Eve is not capable of. Examples will be provided for testing.</p>
+
+
+<h2><a id="procedures"/>Procedures</h2>
+
+<p>Some databases have support for stored procedures. It will be a challenge to engage these procedures from EVE. Since not all databases have stored procedures, these are extra features that we can implement in Eve. Most of the time, Eve scripts are self contained and depend only on database row data and do not use extra layers like views, snapshots or stored procedures to read data. However just in case data is not available in any other way we can call stored procedures to retrive data.</p>
+
+<pre><code class="language-eve">
+driver main:
+
+** prepare an object (not updatable)
+class Result = {
+      field_name1:Type ,
+      field_name2:Type ,
+      ...
+      } &lt;: Record;
+
+global
+  new buffer: ()Result; -- collection/table
+process
+  ** execute stored procedure and collect records in the buffer
+  let buffer <+ db.procedure_name(arguments);
+  ...
+return;
+</code></pre>
+
+
+<h2><a id="introspection"/>Introspection</h2>
+<p>For debugging the SQL, Eve will enable introspection.</p>
+<ul>
+<li>Before execution, statements are converted into SQL;</li>
+<li>We can visualize generated SQL by using $trace;</li>
+<li>We can use $query system variable to print last SQL;</li>
+</ul>
+<!-- work in progress-->
+<hr>
+
+<p><b>Read next:</b>
+<a href="/projects/eve/index.html#lang-index">Eve Tutorial</a></p>
+<!-- Footer -->
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js"></script>
+</body>
+</html>
