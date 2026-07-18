@@ -72,6 +72,7 @@ npm install
 	- [database/003_delete_own_roadmap_account.sql](database/003_delete_own_roadmap_account.sql)
 
 For automatic deployment with Supabase CLI, use the mirrored migrations in [supabase/migrations](supabase/migrations).
+Automated pushes run from [\.github/workflows/supabase-db-push.yml](.github/workflows/supabase-db-push.yml) when migration files change on `main`.
 
 4. Build and deploy:
 
