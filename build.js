@@ -681,6 +681,40 @@ function shouldEnforceCommonFooter(sourcePath) {
   return normalized.includes("/public/") && normalized.endsWith(".html");
 }
 
+function shouldInjectRoadmapProgressScripts(html) {
+  return /window\.TOPIC_CONFIG\s*=|data-sage-roadmap=/i.test(html);
+}
+
+function injectRoadmapProgressScripts(html) {
+  if (!shouldInjectRoadmapProgressScripts(html)) {
+    return html;
+  }
+
+  const needsAuthStack = !/supabase-client\.js/i.test(html) || !/roadmap-state\.js/i.test(html);
+  const needsProgressSync = !/roadmap-progress-sync\.js/i.test(html);
+
+  if (!needsAuthStack && !needsProgressSync) {
+    return html;
+  }
+
+  const scripts = [];
+
+  if (needsAuthStack) {
+    scripts.push(
+      '<script src="/assets/js/supabase-config.js"></script>',
+      '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>',
+      '<script src="/assets/js/supabase-client.js"></script>',
+      '<script src="/assets/js/roadmap-state.js"></script>'
+    );
+  }
+
+  if (needsProgressSync) {
+    scripts.push('<script src="/assets/js/roadmap-progress-sync.js"></script>');
+  }
+
+  return html.replace(/<\/body>/i, `${scripts.join("\n")}\n</body>`);
+}
+
 function makeInlineScriptFileName(sourcePath, index, scriptBody) {
   const relativePath = path.relative(PUBLIC_DIR, sourcePath).replace(/\\/g, "/");
   const sourceStub = relativePath
@@ -737,6 +771,7 @@ function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   transformed = injectInlineHeader(transformed, headerTemplate);
   transformed = injectInlineFooter(transformed, footerTemplate, enforceCommonFooter);
   transformed = injectStaticSidebar(transformed, sourcePath);
+  transformed = injectRoadmapProgressScripts(transformed);
   transformed = ensureReturnToRoadmapLink(transformed);
   transformed = rewriteAssetPaths(transformed);
   transformed = relativizeInternalRootLinks(transformed, sourcePath);
