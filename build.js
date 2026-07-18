@@ -919,6 +919,27 @@ function externalizeInlineScripts(html, sourcePath) {
   });
 }
 
+function canonicalizeRoadmapTrackIndexTopicLinks(html, sourcePath) {
+  const normalizedPath = sourcePath.replace(/\\/g, "/").toLowerCase();
+  const match = normalizedPath.match(/\/public\/roadmap\/([a-z0-9_-]+)\/index\.html$/i);
+  if (!match) {
+    return html;
+  }
+
+  const trackId = match[1].toLowerCase();
+  return html.replace(
+    /(<tr\b[^>]*\bdata-topic=["']([^"']+)["'][^>]*>[\s\S]*?<a\b[^>]*\bhref=["'])([^"']*)(["'])/gi,
+    (fullMatch, prefix, topicId, currentHref, suffix) => {
+      const normalizedTopicId = String(topicId || "").trim();
+      if (!normalizedTopicId) {
+        return fullMatch;
+      }
+
+      return `${prefix}/roadmap/${trackId}/${normalizedTopicId}.html${suffix}`;
+    }
+  );
+}
+
 function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   let transformed = html;
   const enforceCommonFooter = shouldEnforceCommonFooter(sourcePath);
@@ -933,6 +954,7 @@ function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
     transformed = relativizeInternalRootLinks(transformed, sourcePath);
   }
   transformed = normalizeSharedBrandAssets(transformed, sourcePath);
+  transformed = canonicalizeRoadmapTrackIndexTopicLinks(transformed, sourcePath);
 
   // Enforce folder-style routes for top-level hubs.
   transformed = transformed.replace(/\b(href|src)=(['"])([^"']*?)roadmap\.html\2/gi, "$1=$2$3roadmap/$2");
