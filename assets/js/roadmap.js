@@ -10,6 +10,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedProgress = readLocalProgress();
   let remoteProgress = {};
 
+  function resolveTrackId() {
+    const value = String(labId || '').toLowerCase();
+    if (value === 'engineering') return 'cse';
+    if (value === 'programming') return 'csp';
+    return value;
+  }
+
+  function canonicalizeTopicLinks() {
+    const trackId = resolveTrackId();
+    const canonicalTracks = new Set(['tek', 'dsa', 'dba', 'dsl', 'sml']);
+    if (!canonicalTracks.has(trackId)) {
+      return;
+    }
+
+    roadmapTable.querySelectorAll('tr[data-topic]').forEach((row) => {
+      const topicId = String(row.getAttribute('data-topic') || '').trim();
+      if (!topicId) return;
+
+      const anchor = row.querySelector('a[href]');
+      if (!anchor) return;
+
+      anchor.setAttribute('href', `/roadmap/${trackId}/${topicId}.html`);
+    });
+  }
+
+  canonicalizeTopicLinks();
+
   function getStorageKey() {
     if (sync && typeof sync.roadmapStorageKey === 'function') {
       return sync.roadmapStorageKey(courseId);
