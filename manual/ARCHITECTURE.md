@@ -58,9 +58,9 @@ This contract keeps educational roadmap content and project showcases clearly se
 ## Roadmap Progress TODO
 
 - Add anonymous mode: local-only progress tracking in browser storage.
-- Add connected mode: authenticated profile with remote progress sync.
-- Add migration flow: allow users to promote anonymous local progress to remote profile.
-- Add form handlers and validation for roadmap login/register/profile pages.
+- Connected mode is now active: signed-in users sync roadmap summaries and topic-section states to Supabase.
+- Anonymous mode remains localStorage-backed and is preserved as a fallback.
+- Anonymous progress is promoted into the signed-in storage namespace on first login when possible.
 
 ## Supabase Integration Baseline
 
@@ -68,6 +68,8 @@ This contract keeps educational roadmap content and project showcases clearly se
 - Build output can generate `public/assets/js/supabase-config.js` from Vercel env vars.
 - Shared client bootstrap: `assets/js/supabase-client.js`.
 - Roadmap auth integration logic: `assets/js/roadmap-auth.js`.
+- Shared progress sync helper: `assets/js/roadmap-progress-sync.js`.
+- Shared auth state events: `assets/js/roadmap-state.js` emits `roadmap-auth-changed` so progress pages can rehydrate when a session changes.
 - Password recovery page: `roadmap/reset-password.html`.
 - Account removal page: `roadmap/unregister.html`.
 - SQL setup scripts:
@@ -103,6 +105,13 @@ Supported env vars for build-time config generation:
 - Use a common action-button system for primary CTA rows (for example LOGIN, PROFILE, REGISTER).
 - Primary CTA row pattern: `first-page-nav` container with `first-page-nav-btn` variants.
 - Visual direction for CTA buttons: centered compact pill buttons (not stretched cards), with sage + purple accents aligned with Sage Laboratory brand identity.
+
+## Roadmap Progress Flow
+
+- Roadmap hub pages store completion by course/topic in `sage_progress_*` keys and mirror signed-in changes to `public.roadmap_progress`.
+- Topic pages store each checkbox state under a topic-scoped key and mirror section rows to Supabase with a `topicId::sectionKey` naming convention.
+- The hub progress bar now prefers remote percentages when a session is active, while anonymous users continue to use localStorage only.
+- Build-time script injection adds the Supabase client and progress sync helper to roadmap tables and topic pages automatically, so the source HTML stays minimal.
 
 ## Contribution Workflow
 
