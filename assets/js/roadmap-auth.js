@@ -437,6 +437,20 @@
           return;
         }
 
+        // Keep auth metadata aligned with profile casing so fallback identity paths
+        // never revert the username to an older lowercase value.
+        var metadataResult = await client.auth.updateUser({
+          data: {
+            handle: handle,
+            display_name: handle
+          }
+        });
+
+        if (metadataResult.error) {
+          setStatus(status, metadataResult.error.message, "error");
+          return;
+        }
+
         initialHandle = handle;
 
         if (passwordProvided) {
