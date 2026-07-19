@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { execSync } = require("node:child_process");
 
 const ROOT = process.cwd();
 const PUBLIC_DIR = path.join(ROOT, "public");
@@ -1220,7 +1221,31 @@ function writeBuildManifest(contentResult) {
   );
 }
 
+function generateRoadmapIndex() {
+  try {
+    // Detect Python executable (python, python3, or py)
+    let pythonCmd = "python";
+    try {
+      execSync(`${pythonCmd} --version`, { stdio: "pipe" });
+    } catch {
+      try {
+        pythonCmd = "python3";
+        execSync(`${pythonCmd} --version`, { stdio: "pipe" });
+      } catch {
+        pythonCmd = "py";
+        execSync(`${pythonCmd} --version`, { stdio: "pipe" });
+      }
+    }
+
+    // Run roadmap.py
+    execSync(`${pythonCmd} roadmap.py`, { stdio: "inherit" });
+  } catch (error) {
+    console.error("[WARN] Failed to generate roadmap index:", error.message);
+  }
+}
+
 function main() {
+  generateRoadmapIndex();
   cleanPublicDir();
   copyAssets();
   writeSupabaseConfigAsset();
