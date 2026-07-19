@@ -7,11 +7,11 @@ document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById("typewriter");
     const actions = document.getElementById("hero-actions");
     const fromRoadmapShortcut = window.location.hash === "#sage-code-roadmap";
-    const heroMessage = `Master Software Engineering & Architecture
- * Follow expert roadmaps: Effective guides.
- * Study for free, at your own pace without ads. 
- * Build real projects: Gain actual experience.
-Elite engineering: adapt, learn and prosper!
+    const heroMessage = `Systems Architecture & Engineering
+ * Deep dives into the stack. No fluff, just the path.
+ * Open access. No ads. No schedules. No hand-holding.
+ * Build actual systems. Write code that moves iron.
+Build, break, iterate. Team-up and master the craft!
 `;
 
     function toHtmlWithBreaks(text) {
