@@ -8,9 +8,10 @@ Run these scripts in Supabase SQL Editor in order:
 1. `001_user_profiles.sql`
 2. `002_roadmap_progress.sql`
 3. `003_delete_own_roadmap_account.sql`
+4. `004_roadmap_favorites.sql`
 
 Notes:
-- These scripts create profile and roadmap progress tables.
+- These scripts create profile, roadmap progress, and roadmap favorites tables.
 - Row Level Security (RLS) is enabled.
 - Policies are included for authenticated access.
 - A trigger keeps `public.user_profiles` in sync when a new auth user is created.
