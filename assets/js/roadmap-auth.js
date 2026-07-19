@@ -155,13 +155,13 @@
         return;
       }
 
-      var userHandler = getValue(form, "handle");
+      var userName = getValue(form, "handle");
       var email = getValue(form, "email");
       var password = form.elements.password ? form.elements.password.value : "";
       var confirmPassword = form.elements.confirm_password ? form.elements.confirm_password.value : "";
 
-      if (!userHandler || !email || !password) {
-        setStatus(status, "User handler, email, and password are required.", "warning");
+      if (!userName || !email || !password) {
+        setStatus(status, "Username, email, and password are required.", "warning");
         return;
       }
 
@@ -175,9 +175,9 @@
         return;
       }
 
-      var existingHandler = await getExistingHandler(client, userHandler, null);
+      var existingHandler = await getExistingHandler(client, userName, null);
       if (existingHandler) {
-        setStatus(status, "User handler already exist choose another.", "warning");
+        setStatus(status, "Username already exists. Choose another.", "warning");
         return;
       }
 
@@ -186,8 +186,8 @@
         password: password,
         options: {
           data: {
-            handle: userHandler,
-            display_name: userHandler
+            handle: userName,
+            display_name: userName
           }
         }
       });
@@ -297,7 +297,7 @@
     }
 
     function refreshActionButtons() {
-      var currentHandle = getValue(form, "handle").toLowerCase();
+      var currentHandle = getValue(form, "handle");
       var password = form.elements.password ? form.elements.password.value : "";
       var confirmPassword = form.elements.confirm_password ? form.elements.confirm_password.value : "";
       var handlerChanged = !!currentHandle && currentHandle !== initialHandle;
@@ -325,7 +325,7 @@
         (user.user_metadata && user.user_metadata.handle) ||
         (user.email ? user.email.split("@")[0] : "");
 
-      initialHandle = String(resolvedHandle || "").toLowerCase();
+      initialHandle = String(resolvedHandle || "").trim();
 
       if (form.elements.handle) {
         form.elements.handle.value = resolvedHandle || "";
@@ -378,12 +378,12 @@
         }
 
         var user = authState.data.user;
-        var handle = getValue(form, "handle").toLowerCase();
+        var handle = getValue(form, "handle");
         var password = form.elements.password ? form.elements.password.value : "";
         var confirmPassword = form.elements.confirm_password ? form.elements.confirm_password.value : "";
 
         if (!handle) {
-          setStatus(status, "Profile handle is required.", "warning");
+          setStatus(status, "Username is required.", "warning");
           return;
         }
 
@@ -415,7 +415,7 @@
         if (handlerChanged) {
           var existingHandler = await getExistingHandler(client, handle, user.id);
           if (existingHandler) {
-            setStatus(status, "User handler already exist choose another.", "warning");
+            setStatus(status, "Username already exists. Choose another.", "warning");
             return;
           }
         }
