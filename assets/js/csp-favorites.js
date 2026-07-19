@@ -148,7 +148,15 @@
   }
 
   function applyFilter(filterValue, cards, phases, favorites) {
+    var cardsShell = document.getElementById("csp-roadmap-cards");
+    var isFavoritesMode = filterValue === "favorites";
+    var showCategories = filterValue === "all";
     var anyVisible = false;
+
+    if (cardsShell) {
+      cardsShell.classList.toggle("csp-favorites-mode", isFavoritesMode);
+      cardsShell.classList.toggle("csp-hide-lane-titles", !showCategories);
+    }
 
     cards.forEach(function (card) {
       var topic = card.dataset.topic || "";
@@ -165,10 +173,25 @@
       }
 
       card.classList.toggle("d-none", !visible);
+
+      if (isFavoritesMode && visible) {
+        card.style.order = String(Math.floor(Math.random() * 100000));
+      } else {
+        card.style.removeProperty("order");
+      }
+
       if (visible) {
         anyVisible = true;
       }
     });
+
+    if (isFavoritesMode) {
+      phases.forEach(function (phase) {
+        phase.classList.remove("d-none");
+      });
+      setEmptyStateVisible(!anyVisible);
+      return;
+    }
 
     phases.forEach(function (phase) {
       var cardsInPhase = Array.from(phase.querySelectorAll(".csp-roadmap-card"));
