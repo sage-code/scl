@@ -28,6 +28,15 @@
     return "sage-csp-favorites-anonymous";
   }
 
+  function inProgressStorageKey() {
+    var userId = getUserId();
+    if (userId) {
+      return "sage-csp-in-progress-" + userId;
+    }
+
+    return "sage-csp-in-progress-anonymous";
+  }
+
   function anonymousFavoriteStorageKey() {
     return "sage-csp-favorites-anonymous";
   }
@@ -55,6 +64,14 @@
 
   function saveLocalFavorites(favorites) {
     localStorage.setItem(favoriteStorageKey(), JSON.stringify(Array.from(favorites)));
+  }
+
+  function readLocalInProgress() {
+    return safeParseArray(localStorage.getItem(inProgressStorageKey()));
+  }
+
+  function saveLocalInProgress(items) {
+    localStorage.setItem(inProgressStorageKey(), JSON.stringify(Array.from(items)));
   }
 
   function uniq(values) {
@@ -174,12 +191,6 @@
 
       card.classList.toggle("d-none", !visible);
 
-      if (isFavoritesMode && visible) {
-        card.style.order = String(Math.floor(Math.random() * 100000));
-      } else {
-        card.style.removeProperty("order");
-      }
-
       if (visible) {
         anyVisible = true;
       }
@@ -230,6 +241,233 @@
     localStorage.setItem(FILTER_STORAGE_KEY, value || "all");
   }
 
+  function applyInProgressVisual(toggle, active) {
+    if (!toggle) {
+      return;
+    }
+
+    toggle.classList.toggle("is-active", !!active);
+    toggle.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+
+  function getSync() {
+    return window.sageRoadmapProgressSync || null;
+  }
+
+  function topicAliases(topicKey) {
+    var key = String(topicKey || "").toLowerCase();
+    if (!key) {
+      return { courseIds: [], labIds: [] };
+    }
+
+    return {
+      courseIds: uniq([key, key + "-main", "csp-" + key + "-main"]),
+      labIds: uniq([key, "csp-" + key, "programming"])
+    };
+  }
+
+  function hasLocalProgressForAliases(aliases) {
+    var courseIds = aliases.courseIds || [];
+    var labIds = aliases.labIds || [];
+    var localKeys = [];
+
+    for (var i = 0; i < localStorage.length; i += 1) {
+      var k = localStorage.key(i);
+      if (k) {
+        localKeys.push(k);
+      }
+    }
+
+    return localKeys.some(function (keyName) {
+      var keyLower = String(keyName || "").toLowerCase();
+
+      return courseIds.some(function (courseId) {
+        var c = String(courseId || "").toLowerCase();
+        if (!c) {
+          return false;
+        }
+
+        if (keyLower === "sage_progress_" + c) return true;
+        if (keyLower === "sage_lab_complete_" + c) return true;
+        if (keyLower.indexOf("sage_progress-") === 0 && keyLower.endsWith("-" + c)) return true;
+        if (keyLower.indexOf("sage_read_ms_" + c + "_") === 0) return true;
+        if (keyLower.indexOf("sage_read_ms-" + c + "-") === 0) return true;
+        return false;
+      }) || labIds.some(function (labId) {
+        var l = String(labId || "").toLowerCase();
+        if (!l) {
+          return false;
+        }
+
+        if (keyLower.indexOf("progress-" + l + "-") === 0) return true;
+        if (keyLower.indexOf("progress-") === 0 && keyLower.indexOf("-" + l + "-") > -1) return true;
+        return false;
+      });
+    });
+  }
+
+  async function clearRemoteCourseProgress(courseId) {
+    var sync = getSync();
+    if (!sync || typeof sync.fetchCourseRows !== "function" || typeof sync.clearTopicProgress !== "function") {
+      return;
+    }
+
+    var rows = await sync.fetchCourseRows(courseId);
+    var seen = {};
+
+    (rows || []).forEach(function (row) {
+      var topicKey = row && row.topic_key ? String(row.topic_key) : "";
+      if (!topicKey) {
+        return;
+      }
+
+      var topicId = topicKey.split("::")[0];
+      if (!topicId || seen[topicId]) {
+        return;
+      }
+
+      seen[topicId] = true;
+    });
+
+    var topicIds = Object.keys(seen);
+    for (var i = 0; i < topicIds.length; i += 1) {
+      await sync.clearTopicProgress(courseId, topicIds[i]);
+    }
+  }
+
+  async function clearAllProgressForTopic(topicKey) {
+    var aliases = topicAliases(topicKey);
+    var courseIds = aliases.courseIds || [];
+    var labIds = aliases.labIds || [];
+    var keysToRemove = [];
+
+    for (var i = 0; i < localStorage.length; i += 1) {
+      var keyName = localStorage.key(i);
+      if (!keyName) {
+        continue;
+      }
+
+      var keyLower = String(keyName).toLowerCase();
+      var matches = courseIds.some(function (courseId) {
+        var c = String(courseId || "").toLowerCase();
+        if (!c) return false;
+        if (keyLower === "sage_progress_" + c) return true;
+        if (keyLower === "sage_lab_complete_" + c) return true;
+        if (keyLower.indexOf("sage_progress-") === 0 && keyLower.endsWith("-" + c)) return true;
+        if (keyLower.indexOf("sage_read_ms_" + c + "_") === 0) return true;
+        if (keyLower.indexOf("sage_read_ms-" + c + "-") === 0) return true;
+        return false;
+      }) || labIds.some(function (labId) {
+        var l = String(labId || "").toLowerCase();
+        if (!l) return false;
+        if (keyLower.indexOf("progress-" + l + "-") === 0) return true;
+        if (keyLower.indexOf("progress-") === 0 && keyLower.indexOf("-" + l + "-") > -1) return true;
+        return false;
+      });
+
+      if (matches) {
+        keysToRemove.push(keyName);
+      }
+    }
+
+    keysToRemove.forEach(function (k) {
+      localStorage.removeItem(k);
+    });
+
+    if (window.roadmapState && typeof window.roadmapState.getUser === "function" && window.roadmapState.getUser()) {
+      for (var j = 0; j < courseIds.length; j += 1) {
+        await clearRemoteCourseProgress(courseIds[j]);
+      }
+    }
+  }
+
+  function mergeInProgressFromActualProgress(cards, inProgressSet) {
+    cards.forEach(function (card) {
+      var topicKey = card.dataset.topic || "";
+      if (!topicKey) {
+        return;
+      }
+
+      if (hasLocalProgressForAliases(topicAliases(topicKey))) {
+        inProgressSet.add(topicKey);
+      }
+    });
+
+    saveLocalInProgress(inProgressSet);
+    return inProgressSet;
+  }
+
+  function ensureInProgressControls(cards) {
+    var inProgressSet = mergeInProgressFromActualProgress(cards, new Set(uniq(readLocalInProgress())));
+
+    cards.forEach(function (card) {
+      var topicKey = card.dataset.topic || "";
+      if (!topicKey) {
+        return;
+      }
+
+      var actionButton = card.querySelector("a.btn, button.btn");
+      if (!actionButton) {
+        return;
+      }
+
+      var actionsRow = card.querySelector(".csp-card-actions");
+      if (!actionsRow) {
+        actionsRow = document.createElement("div");
+        actionsRow.className = "csp-card-actions";
+        actionButton.parentNode.insertBefore(actionsRow, actionButton);
+        actionsRow.appendChild(actionButton);
+      }
+
+      var progressWrap = card.querySelector(".csp-progress-wrap");
+      if (!progressWrap) {
+        progressWrap = document.createElement("div");
+        progressWrap.className = "csp-progress-wrap";
+
+        var progressToggle = document.createElement("button");
+        progressToggle.type = "button";
+        progressToggle.className = "csp-progress-toggle";
+        progressToggle.setAttribute("aria-label", "Toggle in progress state");
+        progressToggle.setAttribute("data-topic", topicKey);
+
+        var progressText = document.createElement("span");
+        progressText.className = "csp-progress-text";
+        progressText.textContent = "In progress";
+
+        progressWrap.appendChild(progressToggle);
+        progressWrap.appendChild(progressText);
+        actionsRow.insertBefore(progressWrap, actionsRow.firstChild);
+      }
+
+      var toggle = progressWrap.querySelector(".csp-progress-toggle");
+      if (!toggle) {
+        return;
+      }
+
+      applyInProgressVisual(toggle, inProgressSet.has(topicKey));
+
+      if (toggle.dataset.cspProgressWired === "true") {
+        return;
+      }
+
+      toggle.dataset.cspProgressWired = "true";
+      toggle.addEventListener("click", async function () {
+        var currentSet = new Set(uniq(readLocalInProgress()));
+        var isActive = currentSet.has(topicKey);
+
+        if (isActive) {
+          await clearAllProgressForTopic(topicKey);
+          currentSet.delete(topicKey);
+        } else {
+          currentSet.add(topicKey);
+        }
+
+        saveLocalInProgress(currentSet);
+        applyInProgressVisual(toggle, !isActive);
+      });
+    });
+  }
+
   async function loadFavorites(client, topicMap) {
     var localFavorites = readLocalFavorites();
     var favoriteList = uniq(localFavorites);
@@ -273,6 +511,7 @@
     var client = getClient();
     var favorites = await loadFavorites(client, topicMap);
     syncFavoriteChecks(cards, favorites);
+    ensureInProgressControls(cards);
 
     var initialFilter = getSavedFilter();
     if (!filterSelect.querySelector('option[value="' + initialFilter + '"]')) {
