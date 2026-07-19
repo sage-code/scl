@@ -542,9 +542,10 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
     const link = item.link || (item.target ? `#${item.target}` : "#");
     const safeLink = escapeHtml(link);
     const isAnchorLink = link.startsWith("#");
+    const hasChildren = Array.isArray(item.children) && item.children.length > 0;
 
     if (!isAnchorLink) {
-      if (Array.isArray(item.children) && item.children.length > 0) {
+      if (hasChildren) {
         html += renderSidebarItems(item.children, state, level);
       }
       continue;
@@ -555,12 +556,15 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
 
     html += `<li class="nav-item mb-2" id="${itemId}" data-sidebar-level="${level}">`;
     html += `<div class="nav-node-row">`;
-    const checkboxId = `sidebar-check-${state.index}`;
-    html += `<input type="checkbox" class="form-check-input me-2" id="${checkboxId}" data-is-trackable="true" data-link="${safeLink}" data-section-key="${escapeHtml(link.slice(1))}">`;
+    
+    // Use folder icon for items with children, file icon for leaf items
+    const iconClass = hasChildren ? "bi-folder-fill" : "bi-file-text";
+    html += `<i class="bi ${iconClass} me-2" style="color: #d4af37; width: 16px; display: inline-block;"></i>`;
+    
     html += `<a href="${safeLink}" class="text-info text-decoration-none">${title}</a>`;
     html += `</div>`;
 
-    if (Array.isArray(item.children) && item.children.length > 0) {
+    if (hasChildren) {
       html += `<ul class="list-unstyled ms-4 mt-1" data-sidebar-group="children" data-sidebar-level="${level + 1}">`;
       html += renderSidebarItems(item.children, state, level + 1);
       html += "</ul>";
