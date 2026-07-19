@@ -82,11 +82,13 @@ This contract keeps educational roadmap content and project showcases clearly se
   - `database/001_user_profiles.sql`
   - `database/002_roadmap_progress.sql`
   - `database/003_delete_own_roadmap_account.sql`
+  - `database/004_roadmap_favorites.sql`
 
 Auto-run Supabase migration mirror:
 - `supabase/migrations/20260718000100_user_profiles.sql`
 - `supabase/migrations/20260718000200_roadmap_progress.sql`
 - `supabase/migrations/20260718000300_delete_own_roadmap_account.sql`
+- `supabase/migrations/20260719000400_roadmap_favorites.sql`
 
 Deployment automation:
 - GitHub Action: `.github/workflows/supabase-db-push.yml`
