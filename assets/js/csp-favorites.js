@@ -1,6 +1,14 @@
 (function () {
   var ROADMAP_CODE = "csp";
   var FILTER_STORAGE_KEY = "sage-csp-filter";
+  var STATUS_NOT_STARTED = "not_started";
+  var STATUS_IN_PROGRESS = "in_progress";
+  var STATUS_COMPLETED = "completed";
+
+  var STATUS_LABELS = {};
+  STATUS_LABELS[STATUS_NOT_STARTED] = "Not Started";
+  STATUS_LABELS[STATUS_IN_PROGRESS] = "In Progress";
+  STATUS_LABELS[STATUS_COMPLETED] = "Completed";
 
   function getClient() {
     if (!window.supabaseClient || typeof window.supabaseClient.from !== "function") {
@@ -54,6 +62,23 @@
     }
   }
 
+  function safeParseObject(raw) {
+    if (!raw) {
+      return {};
+    }
+
+    try {
+      var parsed = JSON.parse(raw);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        return {};
+      }
+
+      return parsed;
+    } catch (_error) {
+      return {};
+    }
+  }
+
   function readLocalFavorites() {
     return safeParseArray(localStorage.getItem(favoriteStorageKey()));
   }
@@ -66,12 +91,61 @@
     localStorage.setItem(favoriteStorageKey(), JSON.stringify(Array.from(favorites)));
   }
 
-  function readLocalInProgress() {
-    return safeParseArray(localStorage.getItem(inProgressStorageKey()));
+  function normalizeStatus(status) {
+    var value = String(status || "").toLowerCase();
+    if (value === STATUS_COMPLETED) {
+      return STATUS_COMPLETED;
+    }
+
+    if (value === STATUS_IN_PROGRESS) {
+      return STATUS_IN_PROGRESS;
+    }
+
+    return STATUS_NOT_STARTED;
   }
 
-  function saveLocalInProgress(items) {
-    localStorage.setItem(inProgressStorageKey(), JSON.stringify(Array.from(items)));
+  function nextStatus(currentStatus) {
+    if (currentStatus === STATUS_NOT_STARTED) {
+      return STATUS_IN_PROGRESS;
+    }
+
+    if (currentStatus === STATUS_IN_PROGRESS) {
+      return STATUS_COMPLETED;
+    }
+
+    return STATUS_NOT_STARTED;
+  }
+
+  function readLocalStatusMap() {
+    var raw = localStorage.getItem(inProgressStorageKey());
+    var legacyItems = uniq(safeParseArray(raw));
+    if (legacyItems.length > 0) {
+      var legacyMap = {};
+      legacyItems.forEach(function (key) {
+        legacyMap[key] = STATUS_IN_PROGRESS;
+      });
+      return legacyMap;
+    }
+
+    var parsed = safeParseObject(raw);
+    var map = {};
+
+    Object.keys(parsed).forEach(function (key) {
+      if (!key) {
+        return;
+      }
+
+      var normalized = normalizeStatus(parsed[key]);
+      if (normalized !== STATUS_NOT_STARTED) {
+        map[key] = normalized;
+      }
+    });
+
+    return map;
+  }
+
+  function saveLocalStatusMap(statusMap) {
+    localStorage.setItem(inProgressStorageKey(), JSON.stringify(statusMap || {}));
   }
 
   function uniq(values) {
@@ -241,13 +315,24 @@
     localStorage.setItem(FILTER_STORAGE_KEY, value || "all");
   }
 
-  function applyInProgressVisual(toggle, active) {
-    if (!toggle) {
+  function applyInProgressVisual(wrap, status) {
+    if (!wrap) {
       return;
     }
 
-    toggle.classList.toggle("is-active", !!active);
-    toggle.setAttribute("aria-pressed", active ? "true" : "false");
+    var toggle = wrap.querySelector(".csp-progress-toggle");
+    var label = wrap.querySelector(".csp-progress-text");
+    var normalized = normalizeStatus(status);
+
+    if (!toggle || !label) {
+      return;
+    }
+
+    toggle.classList.toggle("is-in-progress", normalized === STATUS_IN_PROGRESS);
+    toggle.classList.toggle("is-completed", normalized === STATUS_COMPLETED);
+    toggle.setAttribute("aria-label", "Roadmap panel status: " + STATUS_LABELS[normalized]);
+    toggle.dataset.status = normalized;
+    label.textContent = STATUS_LABELS[normalized];
   }
 
   function getSync() {
@@ -381,7 +466,7 @@
     }
   }
 
-  function mergeInProgressFromActualProgress(cards, inProgressSet) {
+  function mergeInProgressFromActualProgress(cards, statusMap) {
     cards.forEach(function (card) {
       var topicKey = card.dataset.topic || "";
       if (!topicKey) {
@@ -389,16 +474,41 @@
       }
 
       if (hasLocalProgressForAliases(topicAliases(topicKey))) {
-        inProgressSet.add(topicKey);
+        statusMap[topicKey] = STATUS_IN_PROGRESS;
       }
     });
 
-    saveLocalInProgress(inProgressSet);
-    return inProgressSet;
+    saveLocalStatusMap(statusMap);
+    return statusMap;
+  }
+
+  function normalizeStatusMap(statusMap) {
+    var map = statusMap || {};
+    var changed = false;
+
+    Object.keys(map).forEach(function (key) {
+      var normalized = normalizeStatus(map[key]);
+      if (normalized === STATUS_NOT_STARTED) {
+        delete map[key];
+        changed = true;
+        return;
+      }
+
+      if (map[key] !== normalized) {
+        map[key] = normalized;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      saveLocalStatusMap(map);
+    }
+
+    return map;
   }
 
   function ensureInProgressControls(cards) {
-    var inProgressSet = mergeInProgressFromActualProgress(cards, new Set(uniq(readLocalInProgress())));
+    var statusMap = mergeInProgressFromActualProgress(cards, normalizeStatusMap(readLocalStatusMap()));
 
     cards.forEach(function (card) {
       var topicKey = card.dataset.topic || "";
@@ -427,12 +537,12 @@
         var progressToggle = document.createElement("button");
         progressToggle.type = "button";
         progressToggle.className = "csp-progress-toggle";
-        progressToggle.setAttribute("aria-label", "Toggle in progress state");
+        progressToggle.setAttribute("aria-label", "Roadmap panel status: Not Started");
         progressToggle.setAttribute("data-topic", topicKey);
 
         var progressText = document.createElement("span");
         progressText.className = "csp-progress-text";
-        progressText.textContent = "In progress";
+        progressText.textContent = "Not Started";
 
         progressWrap.appendChild(progressToggle);
         progressWrap.appendChild(progressText);
@@ -444,7 +554,14 @@
         return;
       }
 
-      applyInProgressVisual(toggle, inProgressSet.has(topicKey));
+      var currentStatus = normalizeStatus(statusMap[topicKey]);
+      if (currentStatus === STATUS_NOT_STARTED) {
+        delete statusMap[topicKey];
+      } else {
+        statusMap[topicKey] = currentStatus;
+      }
+
+      applyInProgressVisual(progressWrap, currentStatus);
 
       if (toggle.dataset.cspProgressWired === "true") {
         return;
@@ -452,20 +569,28 @@
 
       toggle.dataset.cspProgressWired = "true";
       toggle.addEventListener("click", async function () {
-        var currentSet = new Set(uniq(readLocalInProgress()));
-        var isActive = currentSet.has(topicKey);
+        var currentMap = readLocalStatusMap();
+        var previous = normalizeStatus(currentMap[topicKey]);
+        var next = nextStatus(previous);
 
-        if (isActive) {
+        if (next === STATUS_NOT_STARTED) {
           await clearAllProgressForTopic(topicKey);
-          currentSet.delete(topicKey);
         } else {
-          currentSet.add(topicKey);
+          currentMap[topicKey] = next;
         }
 
-        saveLocalInProgress(currentSet);
-        applyInProgressVisual(toggle, !isActive);
+        if (next === STATUS_NOT_STARTED) {
+          delete currentMap[topicKey];
+        }
+
+        saveLocalStatusMap(currentMap);
+        applyInProgressVisual(progressWrap, next);
       });
     });
+  }
+
+  function persistStatusMap(statusMap) {
+    saveLocalStatusMap(normalizeStatusMap(statusMap));
   }
 
   async function loadFavorites(client, topicMap) {
@@ -512,6 +637,7 @@
     var favorites = await loadFavorites(client, topicMap);
     syncFavoriteChecks(cards, favorites);
     ensureInProgressControls(cards);
+    persistStatusMap(readLocalStatusMap());
 
     var initialFilter = getSavedFilter();
     if (!filterSelect.querySelector('option[value="' + initialFilter + '"]')) {
