@@ -17,6 +17,17 @@
     return "sage-roadmap-index-in-progress-anonymous";
   }
 
+  var STATUS_NOT_STARTED = "not_started";
+  var STATUS_IN_PROGRESS = "in_progress";
+  var STATUS_COMPLETED = "completed";
+
+  var STATUS_LABELS = {};
+  STATUS_LABELS[STATUS_NOT_STARTED] = "Not Started";
+  STATUS_LABELS[STATUS_IN_PROGRESS] = "In Progress";
+  STATUS_LABELS[STATUS_COMPLETED] = "Completed";
+
+  var LEGACY_STATUS_VALUE = "in_progress";
+
   function safeParseArray(raw) {
     if (!raw) {
       return [];
@@ -27,6 +38,23 @@
       return Array.isArray(parsed) ? parsed : [];
     } catch (_error) {
       return [];
+    }
+  }
+
+  function safeParseObject(raw) {
+    if (!raw) {
+      return {};
+    }
+
+    try {
+      var parsed = JSON.parse(raw);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        return {};
+      }
+
+      return parsed;
+    } catch (_error) {
+      return {};
     }
   }
 
@@ -168,12 +196,61 @@
     }
   }
 
-  function readInProgressSet() {
-    return new Set(uniq(safeParseArray(localStorage.getItem(storageKey()))));
+  function normalizeStatus(status) {
+    var value = String(status || "").toLowerCase();
+    if (value === STATUS_COMPLETED) {
+      return STATUS_COMPLETED;
+    }
+
+    if (value === STATUS_IN_PROGRESS || value === LEGACY_STATUS_VALUE) {
+      return STATUS_IN_PROGRESS;
+    }
+
+    return STATUS_NOT_STARTED;
   }
 
-  function writeInProgressSet(progressSet) {
-    localStorage.setItem(storageKey(), JSON.stringify(Array.from(progressSet)));
+  function nextStatus(currentStatus) {
+    if (currentStatus === STATUS_NOT_STARTED) {
+      return STATUS_IN_PROGRESS;
+    }
+
+    if (currentStatus === STATUS_IN_PROGRESS) {
+      return STATUS_COMPLETED;
+    }
+
+    return STATUS_NOT_STARTED;
+  }
+
+  function readStatusMap() {
+    var raw = localStorage.getItem(storageKey());
+    var legacyItems = uniq(safeParseArray(raw));
+    if (legacyItems.length > 0) {
+      var legacyMap = {};
+      legacyItems.forEach(function (key) {
+        legacyMap[key] = STATUS_IN_PROGRESS;
+      });
+      return legacyMap;
+    }
+
+    var parsed = safeParseObject(raw);
+    var map = {};
+
+    Object.keys(parsed).forEach(function (key) {
+      if (!key) {
+        return;
+      }
+
+      var normalized = normalizeStatus(parsed[key]);
+      if (normalized !== STATUS_NOT_STARTED) {
+        map[key] = normalized;
+      }
+    });
+
+    return map;
+  }
+
+  function writeStatusMap(statusMap) {
+    localStorage.setItem(storageKey(), JSON.stringify(statusMap || {}));
   }
 
   function topicKeyForCard(card) {
@@ -190,13 +267,24 @@
     return code ? String(code.textContent || "").trim().toLowerCase() : "";
   }
 
-  function applyVisual(toggle, active) {
-    if (!toggle) {
+  function applyVisual(wrap, status) {
+    if (!wrap) {
       return;
     }
 
-    toggle.classList.toggle("is-active", !!active);
-    toggle.setAttribute("aria-pressed", active ? "true" : "false");
+    var toggle = wrap.querySelector(".roadmap-progress-toggle");
+    var label = wrap.querySelector(".roadmap-progress-text");
+    var normalized = normalizeStatus(status);
+
+    if (!toggle || !label) {
+      return;
+    }
+
+    toggle.classList.toggle("is-in-progress", normalized === STATUS_IN_PROGRESS);
+    toggle.classList.toggle("is-completed", normalized === STATUS_COMPLETED);
+    toggle.setAttribute("aria-label", "Roadmap panel status: " + STATUS_LABELS[normalized]);
+    toggle.dataset.status = normalized;
+    label.textContent = STATUS_LABELS[normalized];
   }
 
   function ensureActionRow(card, actionButton) {
@@ -211,7 +299,7 @@
     return row;
   }
 
-  function enhanceCard(card, progressSet) {
+  function enhanceCard(card, statusMap) {
     var actionButton = card.querySelector("a.btn");
     if (!actionButton) {
       return;
@@ -233,11 +321,11 @@
       toggle.type = "button";
       toggle.className = "roadmap-progress-toggle";
       toggle.setAttribute("data-topic", key);
-      toggle.setAttribute("aria-label", "Toggle roadmap in progress state");
+      toggle.setAttribute("aria-label", "Roadmap panel status: Not Started");
 
       var label = document.createElement("span");
       label.className = "roadmap-progress-text";
-      label.textContent = "In progress";
+      label.textContent = "Not Started";
 
       wrap.appendChild(toggle);
       wrap.appendChild(label);
@@ -246,10 +334,18 @@
 
     var currentToggle = wrap.querySelector(".roadmap-progress-toggle");
     if (hasLocalProgressForAliases(aliasesForTrack(key))) {
-      progressSet.add(key);
-      writeInProgressSet(progressSet);
+      statusMap[key] = STATUS_IN_PROGRESS;
+      writeStatusMap(statusMap);
     }
-    applyVisual(currentToggle, progressSet.has(key));
+
+    var currentStatus = normalizeStatus(statusMap[key]);
+    if (currentStatus === STATUS_NOT_STARTED) {
+      delete statusMap[key];
+    } else {
+      statusMap[key] = currentStatus;
+    }
+
+    applyVisual(wrap, currentStatus);
 
     if (currentToggle.dataset.roadmapProgressWired === "true") {
       return;
@@ -257,19 +353,48 @@
 
     currentToggle.dataset.roadmapProgressWired = "true";
     currentToggle.addEventListener("click", async function () {
-      var nextSet = readInProgressSet();
-      var isActive = nextSet.has(key);
+      var nextMap = readStatusMap();
+      var previous = normalizeStatus(nextMap[key]);
+      var next = nextStatus(previous);
 
-      if (isActive) {
+      if (next === STATUS_NOT_STARTED) {
         await clearAllProgressForTrack(key);
-        nextSet.delete(key);
       } else {
-        nextSet.add(key);
+        nextMap[key] = next;
       }
 
-      writeInProgressSet(nextSet);
-      applyVisual(currentToggle, !isActive);
+      if (next === STATUS_NOT_STARTED) {
+        delete nextMap[key];
+      }
+
+      writeStatusMap(nextMap);
+      applyVisual(wrap, next);
     });
+  }
+
+  function normalizeStatusMap(statusMap) {
+    var map = statusMap || {};
+    var changed = false;
+
+    Object.keys(map).forEach(function (key) {
+      var normalized = normalizeStatus(map[key]);
+      if (normalized === STATUS_NOT_STARTED) {
+        delete map[key];
+        changed = true;
+        return;
+      }
+
+      if (map[key] !== normalized) {
+        map[key] = normalized;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      writeStatusMap(map);
+    }
+
+    return map;
   }
 
   function initialize() {
@@ -286,9 +411,9 @@
       return;
     }
 
-    var progressSet = readInProgressSet();
+    var statusMap = normalizeStatusMap(readStatusMap());
     cards.forEach(function (card) {
-      enhanceCard(card, progressSet);
+      enhanceCard(card, statusMap);
     });
   }
 
