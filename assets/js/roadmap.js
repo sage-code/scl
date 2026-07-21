@@ -10,6 +10,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedProgress = readLocalProgress();
   let remoteProgress = {};
 
+  function ensureProgressHeaderLayout(button) {
+    const heading = document.getElementById('topics');
+    if (!heading || !heading.parentNode) {
+      return false;
+    }
+
+    if (heading.parentNode.id === 'roadmap-progress-header-row') {
+      if (button.parentNode !== heading.parentNode) {
+        heading.parentNode.appendChild(button);
+      }
+      return true;
+    }
+
+    const row = document.createElement('div');
+    row.id = 'roadmap-progress-header-row';
+    row.className = 'd-flex justify-content-between align-items-center gap-2 flex-wrap';
+    heading.parentNode.insertBefore(row, heading);
+    row.appendChild(heading);
+    row.appendChild(button);
+    return true;
+  }
+
   function createResetButton() {
     if (!progressBar) return null;
     if (document.getElementById('roadmap-reset-progress')) {
@@ -19,9 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const button = document.createElement('button');
     button.type = 'button';
     button.id = 'roadmap-reset-progress';
-    button.className = 'btn btn-outline-warning btn-sm mb-2';
-    button.textContent = 'Reset';
+    button.className = 'btn btn-outline-warning btn-sm mb-2 ms-auto';
+    button.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i><span>Reset</span>';
     button.setAttribute('aria-label', 'Reset roadmap progress');
+
+    if (ensureProgressHeaderLayout(button)) {
+      return button;
+    }
 
     const progressWrapper = progressBar.closest('.progress') || progressBar.parentElement;
     if (!progressWrapper || !progressWrapper.parentNode) {
@@ -76,7 +102,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function persist() {
-    localStorage.setItem(getStorageKey(), JSON.stringify(savedProgress));
+    const keys = Object.keys(savedProgress).filter((topicId) => !!savedProgress[topicId]);
+    if (keys.length === 0) {
+      localStorage.removeItem(getStorageKey());
+      return;
+    }
+
+    const compact = {};
+    keys.forEach((topicId) => {
+      compact[topicId] = true;
+    });
+    localStorage.setItem(getStorageKey(), JSON.stringify(compact));
   }
 
   function getTopicId(check) {
@@ -276,7 +312,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.addEventListener('storage', (ev) => {
-    if (ev.key !== getStorageKey() || ev.newValue == null) return;
+    if (ev.key !== getStorageKey()) return;
+
+    if (ev.newValue == null) {
+      Object.keys(savedProgress).forEach((k) => delete savedProgress[k]);
+      remoteProgress = {};
+      applyRoadmapToDom({});
+      updateUI();
+      return;
+    }
+
     try {
       const next = JSON.parse(ev.newValue);
       Object.keys(savedProgress).forEach((k) => delete savedProgress[k]);
