@@ -10,6 +10,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedProgress = readLocalProgress();
   let remoteProgress = {};
 
+  function createResetButton() {
+    if (!progressBar) return null;
+    if (document.getElementById('roadmap-reset-progress')) {
+      return document.getElementById('roadmap-reset-progress');
+    }
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'roadmap-reset-progress';
+    button.className = 'btn btn-outline-warning btn-sm mb-2';
+    button.textContent = 'Reset';
+    button.setAttribute('aria-label', 'Reset roadmap progress');
+
+    const progressWrapper = progressBar.closest('.progress') || progressBar.parentElement;
+    if (!progressWrapper || !progressWrapper.parentNode) {
+      return null;
+    }
+
+    progressWrapper.parentNode.insertBefore(button, progressWrapper);
+    return button;
+  }
+
   function resolveTrackId() {
     const value = String(labId || '').toLowerCase();
     if (value === 'engineering') return 'cse';
@@ -112,6 +134,54 @@ document.addEventListener('DOMContentLoaded', () => {
       const on = !!(entry && entry.done);
       setRowState(check, on);
     });
+  }
+
+  async function clearRemoteRoadmap() {
+    if (!sync || !window.roadmapState || typeof window.roadmapState.getUser !== 'function' || !window.roadmapState.getUser()) {
+      return;
+    }
+
+    if (typeof sync.clearRoadmapProgress === 'function') {
+      await sync.clearRoadmapProgress(courseId);
+      return;
+    }
+
+    if (typeof sync.clearTopicProgress !== 'function') {
+      return;
+    }
+
+    const topicIds = [];
+    checkboxes.forEach((check) => {
+      const topicId = getTopicId(check);
+      if (topicId) {
+        topicIds.push(topicId);
+      }
+    });
+
+    await Promise.all(topicIds.map((topicId) => sync.clearTopicProgress(courseId, topicId)));
+  }
+
+  async function resetRoadmapProgress() {
+    Object.keys(savedProgress).forEach((k) => delete savedProgress[k]);
+    remoteProgress = {};
+
+    checkboxes.forEach((check) => {
+      const topicId = getTopicId(check);
+      setRowState(check, false);
+
+      if (topicId && window.sageClearTopicSubProgress) {
+        window.sageClearTopicSubProgress(courseId, labId, topicId);
+      }
+    });
+
+    persist();
+    updateUI();
+
+    try {
+      await clearRemoteRoadmap();
+    } catch (error) {
+      console.warn('Unable to reset remote roadmap progress:', error);
+    }
   }
 
   function restoreLocalRoadmap() {
@@ -222,6 +292,13 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('roadmap-auth-changed', () => {
     hydrateRemoteRoadmap();
   });
+
+  const resetButton = createResetButton();
+  if (resetButton) {
+    resetButton.addEventListener('click', () => {
+      resetRoadmapProgress();
+    });
+  }
 
   hydrateRemoteRoadmap();
 });

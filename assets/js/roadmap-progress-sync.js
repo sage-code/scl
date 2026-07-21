@@ -345,6 +345,25 @@
     return true;
   }
 
+  async function clearRoadmapProgress(courseId) {
+    var client = getClient();
+    if (!client || !getUser()) {
+      return false;
+    }
+
+    var result = await client
+      .from("roadmap_progress")
+      .delete()
+      .eq("roadmap_code", courseId);
+
+    if (result.error) {
+      console.warn("Unable to clear roadmap progress:", result.error.message || result.error);
+      return false;
+    }
+
+    return true;
+  }
+
   async function saveLastReadPosition(courseId, topicId, sectionId) {
     if (!sectionId) {
       return false;
@@ -442,6 +461,7 @@
     saveTopicProgress: saveTopicProgress,
     saveRoadmapTopic: saveRoadmapTopic,
     clearTopicProgress: clearTopicProgress,
+    clearRoadmapProgress: clearRoadmapProgress,
     saveLastReadPosition: saveLastReadPosition,
     loadLastReadPosition: loadLastReadPosition,
     saveCollapsedNodes: saveCollapsedNodes,
