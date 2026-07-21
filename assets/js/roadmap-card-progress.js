@@ -97,7 +97,7 @@
     };
   }
 
-  function hasLocalProgressForAliases(aliases) {
+  function detectLocalStatusForAliases(aliases) {
     var courseIds = aliases.courseIds || [];
     var labIds = aliases.labIds || [];
     var keys = [];
@@ -109,25 +109,71 @@
       }
     }
 
-    return keys.some(function (name) {
+    var hasCompleted = false;
+    var hasInProgress = false;
+
+    keys.forEach(function (name) {
       var n = String(name || "").toLowerCase();
-      return courseIds.some(function (courseId) {
+      var matchesCourse = courseIds.some(function (courseId) {
         var c = String(courseId || "").toLowerCase();
         if (!c) return false;
-        if (n === "sage_progress_" + c) return true;
-        if (n === "sage_lab_complete_" + c) return true;
-        if (n.indexOf("sage_progress-") === 0 && n.endsWith("-" + c)) return true;
-        if (n.indexOf("sage_read_ms_" + c + "_") === 0) return true;
-        if (n.indexOf("sage_read_ms-" + c + "-") === 0) return true;
-        return false;
-      }) || labIds.some(function (labId) {
-        var l = String(labId || "").toLowerCase();
-        if (!l) return false;
-        if (n.indexOf("progress-" + l + "-") === 0) return true;
-        if (n.indexOf("progress-") === 0 && n.indexOf("-" + l + "-") > -1) return true;
+        if (n === "sage_lab_complete_" + c) {
+          hasCompleted = true;
+          return true;
+        }
+        if (n === "sage_lab_complete-" + c) {
+          hasCompleted = true;
+          return true;
+        }
+        if (n.indexOf("sage_lab_complete-") === 0 && n.endsWith("-" + c)) {
+          hasCompleted = true;
+          return true;
+        }
+        if (n === "sage_progress_" + c) {
+          hasInProgress = true;
+          return true;
+        }
+        if (n.indexOf("sage_progress-") === 0 && n.endsWith("-" + c)) {
+          hasInProgress = true;
+          return true;
+        }
+        if (n.indexOf("sage_read_ms_" + c + "_") === 0) {
+          hasInProgress = true;
+          return true;
+        }
+        if (n.indexOf("sage_read_ms-") === 0 && n.endsWith("-" + c)) {
+          hasInProgress = true;
+          return true;
+        }
         return false;
       });
+
+      var matchesLab = labIds.some(function (labId) {
+        var l = String(labId || "").toLowerCase();
+        if (!l) return false;
+        if (n.indexOf("progress-" + l + "-") === 0) {
+          hasInProgress = true;
+          return true;
+        }
+        if (n.indexOf("progress-") === 0 && n.indexOf("-" + l + "-") > -1) {
+          hasInProgress = true;
+          return true;
+        }
+        return false;
+      });
+
+      return matchesCourse || matchesLab;
     });
+
+    if (hasCompleted) {
+      return STATUS_COMPLETED;
+    }
+
+    if (hasInProgress) {
+      return STATUS_IN_PROGRESS;
+    }
+
+    return STATUS_NOT_STARTED;
   }
 
   async function clearRemoteCourseProgress(courseId) {
@@ -333,8 +379,9 @@
     }
 
     var currentToggle = wrap.querySelector(".roadmap-progress-toggle");
-    if (hasLocalProgressForAliases(aliasesForTrack(key))) {
-      statusMap[key] = STATUS_IN_PROGRESS;
+    var inferredStatus = detectLocalStatusForAliases(aliasesForTrack(key));
+    if (inferredStatus !== STATUS_NOT_STARTED) {
+      statusMap[key] = inferredStatus;
       writeStatusMap(statusMap);
     }
 

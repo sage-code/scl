@@ -160,7 +160,7 @@
       if (!courseId) return;
 
       function syncFromStorage() {
-        el.checked = localStorage.getItem('sage_lab_complete_' + courseId) === '1';
+        el.checked = localStorage.getItem(labCompleteKey(courseId)) === '1';
       }
 
       syncFromStorage();
@@ -168,7 +168,7 @@
         if (ev.detail && ev.detail.courseId === courseId) syncFromStorage();
       });
       window.addEventListener('storage', function (ev) {
-        if (ev.key === 'sage_lab_complete_' + courseId) syncFromStorage();
+        if (ev.key === labCompleteKey(courseId)) syncFromStorage();
       });
 
       el.addEventListener('change', function () {
