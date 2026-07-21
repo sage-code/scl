@@ -119,6 +119,7 @@ Supported env vars for build-time config generation:
 - Roadmap hub pages store completion by course/topic in `sage_progress_*` keys and mirror signed-in changes to `public.roadmap_progress`.
 - Topic pages store each checkbox state under a topic-scoped key and mirror section rows to Supabase with a `topicId::sectionKey` naming convention.
 - The hub progress bar now prefers remote percentages when a session is active, while anonymous users continue to use localStorage only.
+- Roadmap index pages expose a `Reset` action above the progress bar that clears local topic checks, resets percentage to 0%, removes per-topic local detail progress, and clears the signed-in course snapshot from Supabase.
 - Build-time script injection adds the Supabase client and progress sync helper to roadmap tables and topic pages automatically, so the source HTML stays minimal.
 
 ## Contribution Workflow
