@@ -420,6 +420,8 @@
       statusMap[key] = currentStatus;
     }
 
+    card.setAttribute("data-progress-status", currentStatus);
+
     applyVisual(wrap, currentStatus);
 
     currentToggle.disabled = true;
@@ -488,6 +490,8 @@
       var key = topicKeyForCard(card);
       enhanceCard(card, statusMap, remoteStatsByTrack[key] || {}, localKeys);
     });
+
+    window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
   }
 
   document.addEventListener("DOMContentLoaded", function () {
