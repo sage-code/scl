@@ -38,23 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem(getHubStatusStorageKey(), JSON.stringify(map || {}));
   }
 
-  function getHubRoadmapStatus() {
-    const topicKey = String(labId || courseId || '').toLowerCase();
-    if (!topicKey) {
-      return 'not_started';
-    }
-
-    const map = readHubStatusMap();
-    const value = String(map[topicKey] || '').toLowerCase();
-    if (value === 'completed') {
-      return 'completed';
-    }
-    if (value === 'in_progress') {
-      return 'in_progress';
-    }
-    return 'not_started';
-  }
-
   function setHubRoadmapStatus(status) {
     const topicKey = String(labId || courseId || '').toLowerCase();
     if (!topicKey) {
@@ -138,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return 'in_progress';
     }
 
-    return getHubRoadmapStatus();
+    return 'not_started';
   }
 
   function resolveTrackId() {
@@ -243,9 +226,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (status === 'completed') {
       setHubRoadmapStatus('completed');
       if (window.sageNotifyLabFullyComplete) window.sageNotifyLabFullyComplete(courseId);
-    } else if (status === 'in_progress' && window.sageNotifyLabIncomplete) {
+    } else if (status === 'in_progress') {
       setHubRoadmapStatus('in_progress');
-      window.sageNotifyLabIncomplete(courseId);
+      if (window.sageNotifyLabIncomplete) window.sageNotifyLabIncomplete(courseId);
     } else {
       setHubRoadmapStatus('not_started');
     }
@@ -300,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     persist();
-    setHubRoadmapStatus('in_progress');
+    setHubRoadmapStatus('not_started');
     updateUI();
 
     try {
