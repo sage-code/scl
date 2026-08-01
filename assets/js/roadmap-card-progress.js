@@ -74,6 +74,9 @@
 
     var map = {
       cse: { courseIds: ["cse-main", "cse"], labIds: ["engineering", "cse"] },
+      go: { courseIds: ["go", "go-main"], labIds: ["go"] },
+      html: { courseIds: ["csp-html-main", "html-main", "html"], labIds: ["html"] },
+      hpc: { courseIds: ["HPC-main", "hpc-main", "hpc"], labIds: ["HPC", "hpc"] },
       pgp: { courseIds: ["pgp-main", "pgp"], labIds: ["pgp"] },
       csp: { courseIds: ["csp-main", "csp"], labIds: ["programming", "csp"] },
       dsa: { courseIds: ["dsa-main", "dsa"], labIds: ["dsa"] },
@@ -302,6 +305,11 @@
     return code ? String(code.textContent || "").trim().toLowerCase() : "";
   }
 
+  function canonicalCourseIdForTrack(trackKey) {
+    var aliases = aliasesForTrack(trackKey);
+    return aliases.courseIds && aliases.courseIds.length ? aliases.courseIds[0] : trackKey;
+  }
+
   function applyVisual(wrap, status) {
     if (!wrap) {
       return;
@@ -463,7 +471,7 @@
           }
 
           try {
-            remoteStatsByTrack[key] = await sync.loadRoadmapProgress(key);
+            remoteStatsByTrack[key] = await sync.loadRoadmapProgress(canonicalCourseIdForTrack(key));
           } catch (_error) {
             remoteStatsByTrack[key] = {};
           }

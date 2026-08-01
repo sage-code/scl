@@ -49,8 +49,24 @@
 
   function courseIdForLab(labId, explicitCourseId) {
     if (explicitCourseId) return explicitCourseId;
-    if (labId === 'engineering') return 'cse-main';
-    return labId;
+
+    var key = String(labId || '').toLowerCase();
+    var map = {
+      engineering: 'cse-main',
+      cse: 'cse-main',
+      dba: 'dba-main',
+      dsa: 'dsa-main',
+      dsl: 'dsl-main',
+      go: 'go',
+      hpc: 'HPC-main',
+      html: 'csp-html-main',
+      osd: 'osd-main',
+      pgp: 'pgp-main',
+      sml: 'sml-main',
+      tek: 'tek-main'
+    };
+
+    return map[key] || key;
   }
 
   window.sageCourseIdForLab = courseIdForLab;
