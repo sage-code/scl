@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
-"""
-Auto-discovery and indexing of roadmap content.
-Scans roadmap/ directory for topics and generates a comprehensive roadmap index.
-Runs during the build process to keep the roadmap catalog up-to-date.
-"""
+"""Generate roadmap/roadmap-index.json from top-level roadmap folders."""
 
-import os
 import json
 import re
 from pathlib import Path
@@ -15,11 +10,8 @@ ROOT = Path.cwd()
 ROADMAP_DIR = ROOT / "roadmap"
 OUTPUT_INDEX = ROADMAP_DIR / "roadmap-index.json"
 
-# Tracks defined in build.js
-ROADMAP_BASE_FOLDERS = ["cse", "csp", "csa", "dsa", "dsl", "hpc", "tek", "dba", "sml", "osd", "dsk"]
-
-# Files to exclude when discovering topics
-EXCLUDE_FILES = {"index.html", "login.html", "profile.html", "register.html", "reset-password.html", "unregister.html", "README.md"}
+ENGINEERING_TRACKS = {"cse", "dsa", "dsl", "hpc", "tek", "dba", "sml", "osd"}
+EXCLUDE_DIRS = {"assets", "labs"}
 
 
 def extract_title_from_html(html_content):
@@ -59,71 +51,44 @@ def extract_description_from_html(html_content):
     return None
 
 
-def discover_topics(track_path):
-    """Discover all topics in a track directory."""
-    topics = []
-    
-    if not track_path.exists():
-        return topics
-    
-    for entry in sorted(track_path.iterdir()):
+def discover_roadmaps():
+    """Discover all top-level roadmap folders that expose index.html."""
+    roadmaps = {}
+
+    for entry in sorted(ROADMAP_DIR.iterdir()):
         if not entry.is_dir():
             continue
-        
-        # Skip excluded entries
-        if entry.name in EXCLUDE_FILES or entry.name.startswith("."):
+
+        name = entry.name.strip().lower()
+        if not name or name.startswith(".") or name in EXCLUDE_DIRS:
             continue
-        
+
         index_file = entry / "index.html"
         if not index_file.exists():
             continue
-        
-        # Read the index.html file
+
         try:
-            with open(index_file, "r", encoding="utf-8") as f:
-                html_content = f.read()
-        except Exception as e:
-            print(f"[WARN] Could not read {index_file}: {e}")
+            with open(index_file, "r", encoding="utf-8") as file_handle:
+                html_content = file_handle.read()
+        except Exception as error:
+            print(f"[WARN] Could not read {index_file}: {error}")
             continue
-        
-        # Extract metadata
-        title = extract_title_from_html(html_content)
-        description = extract_description_from_html(html_content)
-        
-        if not title:
-            title = entry.name.replace("-", " ").title()
-        
-        topic = {
-            "name": entry.name,
+
+        title = extract_title_from_html(html_content) or name.replace("-", " ").title()
+        description = extract_description_from_html(html_content) or ""
+        kind = "engineering" if name in ENGINEERING_TRACKS else "language"
+
+        roadmaps[name] = {
+            "track": name,
+            "kind": kind,
             "title": title,
-            "description": description or "",
-            "path": f"/roadmap/{entry.parent.name}/{entry.name}/index.html",
-            "url": f"/roadmap/{entry.parent.name}/{entry.name}/"
+            "description": description,
+            "path": f"/roadmap/{name}/index.html",
+            "url": f"/roadmap/{name}/",
+            "topics": [],
+            "count": 1,
         }
-        
-        topics.append(topic)
-    
-    return topics
 
-
-def discover_roadmaps():
-    """Discover all roadmaps across all tracks."""
-    roadmaps = {}
-    
-    for track_name in ROADMAP_BASE_FOLDERS:
-        track_path = ROADMAP_DIR / track_name
-        if not track_path.exists():
-            continue
-        
-        topics = discover_topics(track_path)
-        if topics:
-            roadmaps[track_name] = {
-                "track": track_name,
-                "path": f"/roadmap/{track_name}/",
-                "topics": topics,
-                "count": len(topics)
-            }
-    
     return roadmaps
 
 

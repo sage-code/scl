@@ -47,7 +47,7 @@ URL_PATTERNS = {
     
     # Roadmap track hubs (learning paths) - high priority
     "/roadmap/cse/": {"priority": 0.9, "changefreq": "monthly"},
-    "/roadmap/csp/": {"priority": 0.9, "changefreq": "monthly"},
+    "/roadmap/": {"priority": 0.9, "changefreq": "monthly"},
     "/roadmap/dsa/": {"priority": 0.9, "changefreq": "monthly"},
     "/roadmap/dba/": {"priority": 0.9, "changefreq": "monthly"},
     "/roadmap/dsl/": {"priority": 0.9, "changefreq": "monthly"},
@@ -57,16 +57,16 @@ URL_PATTERNS = {
     "/roadmap/osd/": {"priority": 0.8, "changefreq": "quarterly"},
     
     # Popular programming languages (topics)
-    "/roadmap/csp/python/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/csp/javascript/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/csp/svelte/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/csp/react/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/csp/typescript/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/csp/rust/": {"priority": 0.85, "changefreq": "quarterly"},
-    "/roadmap/csp/go/": {"priority": 0.85, "changefreq": "quarterly"},
-    "/roadmap/csp/java/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/csp/cpp/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/csp/csharp/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/python/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/javascript/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/svelte/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/react/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/typescript/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/rust/": {"priority": 0.85, "changefreq": "quarterly"},
+    "/roadmap/go/": {"priority": 0.85, "changefreq": "quarterly"},
+    "/roadmap/java/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/cpp/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/csharp/": {"priority": 0.8, "changefreq": "quarterly"},
     
     # Core CSE topics
     "/roadmap/cse/": {"priority": 0.9, "changefreq": "monthly"},
@@ -80,10 +80,10 @@ URL_PATTERNS = {
     "/roadmap/osd/": {"priority": 0.8, "changefreq": "quarterly"},
     
     # Topic index pages - medium-high priority
-    "/roadmap/csp/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/csp/html/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/csp/css/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/csp/script/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/html/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/css/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/script/": {"priority": 0.8, "changefreq": "quarterly"},
     
     # Projects - medium priority
     "/projects/": {"priority": 0.8, "changefreq": "monthly"},
