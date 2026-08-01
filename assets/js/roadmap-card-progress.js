@@ -74,6 +74,7 @@
 
     var map = {
       cse: { courseIds: ["cse-main", "cse"], labIds: ["engineering", "cse"] },
+      pgp: { courseIds: ["pgp-main", "pgp"], labIds: ["pgp"] },
       csp: { courseIds: ["csp-main", "csp"], labIds: ["programming", "csp"] },
       dsa: { courseIds: ["dsa-main", "dsa"], labIds: ["dsa"] },
       tek: { courseIds: ["tek-main", "tek"], labIds: ["tek"] },
