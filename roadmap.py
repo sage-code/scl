@@ -10,7 +10,7 @@ ROOT = Path.cwd()
 ROADMAP_DIR = ROOT / "roadmap"
 OUTPUT_INDEX = ROADMAP_DIR / "roadmap-index.json"
 
-ENGINEERING_TRACKS = {"cse", "dsa", "dsl", "hpc", "tek", "dba", "sml", "osd"}
+ENGINEERING_TRACKS = {"cse", "dsa", "dsl", "hpc", "tek", "dba", "sml", "osd", "pgp"}
 EXCLUDE_DIRS = {"assets", "labs"}
 
 
