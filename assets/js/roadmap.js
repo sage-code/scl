@@ -168,6 +168,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${RESET_PENDING_STORAGE_PREFIX}:${courseId}`;
   }
 
+  function hasSignedInUser() {
+    if (!window.roadmapState || typeof window.roadmapState.getUser !== 'function') {
+      return false;
+    }
+
+    return !!window.roadmapState.getUser();
+  }
+
   function isResetPending() {
     return localStorage.getItem(getResetPendingKey()) === '1';
   }
@@ -307,7 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function resetRoadmapProgress() {
-    setResetPending(true);
+    const shouldSyncRemote = hasSignedInUser();
+    setResetPending(shouldSyncRemote);
     Object.keys(savedProgress).forEach((k) => delete savedProgress[k]);
     remoteProgress = {};
 
@@ -323,6 +332,10 @@ document.addEventListener('DOMContentLoaded', () => {
     persist();
     setHubRoadmapStatus('not_started');
     updateUI();
+
+    if (!shouldSyncRemote) {
+      return;
+    }
 
     try {
       const remoteCleared = await clearRemoteRoadmap();
@@ -351,6 +364,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isResetPending()) {
       remoteProgress = {};
       restoreLocalRoadmap();
+
+      if (!hasSignedInUser()) {
+        setResetPending(false);
+        return;
+      }
 
       try {
         const remoteCleared = await clearRemoteRoadmap();
