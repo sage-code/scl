@@ -38,6 +38,23 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem(getHubStatusStorageKey(), JSON.stringify(map || {}));
   }
 
+  function getHubRoadmapStatus() {
+    const topicKey = String(labId || courseId || '').toLowerCase();
+    if (!topicKey) {
+      return 'not_started';
+    }
+
+    const map = readHubStatusMap();
+    const value = String(map[topicKey] || '').toLowerCase();
+    if (value === 'completed') {
+      return 'completed';
+    }
+    if (value === 'in_progress') {
+      return 'in_progress';
+    }
+    return 'not_started';
+  }
+
   function setHubRoadmapStatus(status) {
     const topicKey = String(labId || courseId || '').toLowerCase();
     if (!topicKey) {
@@ -101,15 +118,27 @@ document.addEventListener('DOMContentLoaded', () => {
     return button;
   }
 
-  function updateResetButtonState(completed, total) {
+  function updateResetButtonState(status) {
     if (!resetButton) {
       return;
     }
 
-    const enabled = total > 0 && completed === total;
+    const enabled = status === 'in_progress' || status === 'completed';
     resetButton.disabled = !enabled;
     resetButton.setAttribute('aria-disabled', enabled ? 'false' : 'true');
     resetButton.classList.toggle('disabled', !enabled);
+  }
+
+  function deriveRoadmapStatus(completed, total, percent) {
+    if (total > 0 && completed === total) {
+      return 'completed';
+    }
+
+    if (completed > 0 || percent > 0) {
+      return 'in_progress';
+    }
+
+    return getHubRoadmapStatus();
   }
 
   function resolveTrackId() {
@@ -206,18 +235,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const total = checkboxes.length;
     const completed = roadmapTable.querySelectorAll('.topic-check:checked').length;
     const percent = computeBarPercent();
+    const status = deriveRoadmapStatus(completed, total, percent);
     progressBar.style.width = percent + '%';
     progressBar.textContent = percent + '% Complete';
-    updateResetButtonState(completed, total);
+    updateResetButtonState(status);
 
-    if (total > 0 && completed === total) {
+    if (status === 'completed') {
       setHubRoadmapStatus('completed');
       if (window.sageNotifyLabFullyComplete) window.sageNotifyLabFullyComplete(courseId);
-    } else if (window.sageNotifyLabIncomplete) {
-      if (completed > 0 || percent > 0) {
-        setHubRoadmapStatus('in_progress');
-      }
+    } else if (status === 'in_progress' && window.sageNotifyLabIncomplete) {
+      setHubRoadmapStatus('in_progress');
       window.sageNotifyLabIncomplete(courseId);
+    } else {
+      setHubRoadmapStatus('not_started');
     }
   }
 
@@ -270,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     persist();
-  setHubRoadmapStatus('in_progress');
+    setHubRoadmapStatus('in_progress');
     updateUI();
 
     try {
