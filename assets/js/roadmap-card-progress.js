@@ -256,18 +256,6 @@
     return STATUS_NOT_STARTED;
   }
 
-  function nextStatus(currentStatus) {
-    if (currentStatus === STATUS_NOT_STARTED) {
-      return STATUS_IN_PROGRESS;
-    }
-
-    if (currentStatus === STATUS_IN_PROGRESS) {
-      return STATUS_COMPLETED;
-    }
-
-    return STATUS_NOT_STARTED;
-  }
-
   function readStatusMap() {
     var raw = localStorage.getItem(storageKey());
     var legacyItems = uniq(safeParseArray(raw));
@@ -334,6 +322,21 @@
     label.textContent = STATUS_LABELS[normalized];
   }
 
+  function mergeStatuses(currentStatus, nextStatusValue) {
+    var current = normalizeStatus(currentStatus);
+    var next = normalizeStatus(nextStatusValue);
+
+    if (current === STATUS_COMPLETED || next === STATUS_COMPLETED) {
+      return STATUS_COMPLETED;
+    }
+
+    if (current === STATUS_IN_PROGRESS || next === STATUS_IN_PROGRESS) {
+      return STATUS_IN_PROGRESS;
+    }
+
+    return STATUS_NOT_STARTED;
+  }
+
   function ensureActionRow(card, actionButton) {
     var row = card.querySelector(".roadmap-card-actions");
     if (!row) {
@@ -346,7 +349,7 @@
     return row;
   }
 
-  function enhanceCard(card, statusMap) {
+  function enhanceCard(card, statusMap, remoteStats) {
     var actionButton = card.querySelector("a.btn");
     if (!actionButton) {
       return;
@@ -381,8 +384,20 @@
 
     var currentToggle = wrap.querySelector(".roadmap-progress-toggle");
     var inferredStatus = detectLocalStatusForAliases(aliasesForTrack(key));
-    if (inferredStatus !== STATUS_NOT_STARTED) {
-      statusMap[key] = inferredStatus;
+    var remoteStatus = STATUS_NOT_STARTED;
+    var remoteTopic = remoteStats && remoteStats[key];
+
+    if (remoteTopic) {
+      remoteStatus = remoteTopic.done || Number(remoteTopic.percent) >= 100
+        ? STATUS_COMPLETED
+        : (Number(remoteTopic.percent) > 0 ? STATUS_IN_PROGRESS : STATUS_NOT_STARTED);
+    }
+
+    var mergedStatus = mergeStatuses(statusMap[key], inferredStatus);
+    mergedStatus = mergeStatuses(mergedStatus, remoteStatus);
+
+    if (mergedStatus !== STATUS_NOT_STARTED) {
+      statusMap[key] = mergedStatus;
       writeStatusMap(statusMap);
     }
 
@@ -395,29 +410,9 @@
 
     applyVisual(wrap, currentStatus);
 
-    if (currentToggle.dataset.roadmapProgressWired === "true") {
-      return;
-    }
-
-    currentToggle.dataset.roadmapProgressWired = "true";
-    currentToggle.addEventListener("click", async function () {
-      var nextMap = readStatusMap();
-      var previous = normalizeStatus(nextMap[key]);
-      var next = nextStatus(previous);
-
-      if (next === STATUS_NOT_STARTED) {
-        await clearAllProgressForTrack(key);
-      } else {
-        nextMap[key] = next;
-      }
-
-      if (next === STATUS_NOT_STARTED) {
-        delete nextMap[key];
-      }
-
-      writeStatusMap(nextMap);
-      applyVisual(wrap, next);
-    });
+    currentToggle.disabled = true;
+    currentToggle.setAttribute("aria-disabled", "true");
+    currentToggle.setAttribute("title", "Roadmap status is updated automatically from progress.");
   }
 
   function normalizeStatusMap(statusMap) {
@@ -445,12 +440,8 @@
     return map;
   }
 
-  function initialize() {
-    if (!document.getElementById("rm-index")) {
-      return;
-    }
-
-    if (document.getElementById("csp-roadmap-cards")) {
+  async function initialize() {
+    if (!document.getElementById("roadmap-filter-select")) {
       return;
     }
 
@@ -460,8 +451,29 @@
     }
 
     var statusMap = normalizeStatusMap(readStatusMap());
+    var remoteStatsByTrack = {};
+
+    if (window.roadmapState && typeof window.roadmapState.getUser === "function" && window.roadmapState.getUser()) {
+      var sync = getSync();
+      if (sync && typeof sync.loadRoadmapProgress === "function") {
+        for (var i = 0; i < cards.length; i += 1) {
+          var key = topicKeyForCard(cards[i]);
+          if (!key || remoteStatsByTrack[key]) {
+            continue;
+          }
+
+          try {
+            remoteStatsByTrack[key] = await sync.loadRoadmapProgress(key);
+          } catch (_error) {
+            remoteStatsByTrack[key] = {};
+          }
+        }
+      }
+    }
+
     cards.forEach(function (card) {
-      enhanceCard(card, statusMap);
+      var key = topicKeyForCard(card);
+      enhanceCard(card, statusMap, remoteStatsByTrack[key] || {});
     });
   }
 
