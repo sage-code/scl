@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${HUB_STATUS_STORAGE_PREFIX}-anonymous`;
   }
 
+  function getHubTrackKey() {
+    return String(resolveTrackId() || labId || courseId || '').toLowerCase();
+  }
+
   function readHubStatusMap() {
     try {
       const parsed = JSON.parse(localStorage.getItem(getHubStatusStorageKey()));
@@ -39,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setHubRoadmapStatus(status) {
-    const topicKey = String(labId || courseId || '').toLowerCase();
+    const topicKey = getHubTrackKey();
     if (!topicKey) {
       return;
     }
