@@ -14,7 +14,35 @@ const LAYOUTS_DIR = path.join(ROOT, "layouts");
 const ASSETS_DIR = path.join(ROOT, "assets");
 
 const SYSTEM_RUNTIME_FILES = ["robots.txt", "sitemap.xml"];
-const ROADMAP_BASE_FOLDERS = ["cse", "csp", "csa", "dsa", "dsl", "hpc", "tek", "dba", "sml", "osd", "dsk"];
+const PROGRAMMING_TOPIC_FOLDERS = [
+  "ada",
+  "assembly",
+  "bash",
+  "c",
+  "carbon",
+  "cpp",
+  "csharp",
+  "css",
+  "dart",
+  "fortran",
+  "go",
+  "html",
+  "java",
+  "julia",
+  "nim",
+  "php",
+  "plsql",
+  "python",
+  "react",
+  "ruby",
+  "rust",
+  "scala",
+  "script",
+  "svelte",
+  "swift",
+  "tscript",
+  "zig"
+];
 
 const LAB_ROUTE_MAP = {
   engineering: "cse",
@@ -316,9 +344,9 @@ function rewriteAssetPaths(html) {
 
   // Normalize roadmap publish routes under /roadmap and standalone project routes under /projects.
   transformed = rewritePublishedRoutePrefix(transformed, "engineering", "roadmap/cse");
-  transformed = rewritePublishedRoutePrefix(transformed, "programming", "roadmap/csp");
+  transformed = rewritePublishedRoutePrefix(transformed, "programming", "roadmap");
   transformed = rewritePublishedRoutePrefix(transformed, "cse", "roadmap/cse");
-  transformed = rewritePublishedRoutePrefix(transformed, "csp", "roadmap/csp");
+  transformed = rewritePublishedRoutePrefix(transformed, "csp", "roadmap");
   transformed = rewritePublishedRoutePrefix(transformed, "csa", "roadmap/csa");
   transformed = rewritePublishedRoutePrefix(transformed, "dsa", "roadmap/dsa");
   transformed = rewritePublishedRoutePrefix(transformed, "itc", "roadmap/hpc");
@@ -466,11 +494,6 @@ function resolveSidebarJsonPath(publicHtmlPath) {
   }
 
   const topLevelRoute = publicPathParts[contentRootOffset].toLowerCase();
-  const isRoadmapRoute = ROADMAP_BASE_FOLDERS.includes(topLevelRoute);
-  const isMappedLabRoute = Object.values(LAB_ROUTE_MAP).includes(topLevelRoute);
-  if (!isRoadmapRoute && !isMappedLabRoute) {
-    return null;
-  }
 
   const contentRouteDir = resolveContentRouteSourceDir(topLevelRoute);
   if (!contentRouteDir) {
@@ -499,9 +522,7 @@ function resolveRoadmapTopicContext(publicHtmlPath) {
   }
 
   const topLevelRoute = publicPathParts[contentRootOffset].toLowerCase();
-  const isRoadmapRoute = ROADMAP_BASE_FOLDERS.includes(topLevelRoute);
-  const isMappedLabRoute = Object.values(LAB_ROUTE_MAP).includes(topLevelRoute);
-  if (!isRoadmapRoute && !isMappedLabRoute) {
+  if (!resolveContentRouteSourceDir(topLevelRoute)) {
     return null;
   }
 
@@ -528,6 +549,10 @@ function getLabIdFromRoute(route) {
   }
 
   if (route === "csp") {
+    return "programming";
+  }
+
+  if (PROGRAMMING_TOPIC_FOLDERS.includes(route)) {
     return "programming";
   }
 
@@ -976,9 +1001,9 @@ function copySystemRuntimeFiles() {
     if (fileName === "sitemap.xml" && fs.existsSync(source)) {
       let sitemap = readTextOrEmpty(source);
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/engineering\//gi, "https://sagecode.org/roadmap/cse/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/programming\//gi, "https://sagecode.org/roadmap/csp/");
+      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/programming\//gi, "https://sagecode.org/roadmap/");
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/cse\//gi, "https://sagecode.org/roadmap/cse/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csp\//gi, "https://sagecode.org/roadmap/csp/");
+      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csp\//gi, "https://sagecode.org/roadmap/");
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csa\//gi, "https://sagecode.org/roadmap/csa/");
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsa\//gi, "https://sagecode.org/roadmap/dsa/");
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/itc\//gi, "https://sagecode.org/roadmap/hpc/");
@@ -991,6 +1016,7 @@ function copySystemRuntimeFiles() {
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsk\//gi, "https://sagecode.org/roadmap/dsk/");
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/das\//gi, "https://sagecode.org/roadmap/sml/");
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csd\//gi, "https://sagecode.org/roadmap/sml/");
+      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/roadmap\/csp\//gi, "https://sagecode.org/roadmap/");
       sitemap = sitemap.replace(/https:\/\/sagecode\.org\/pro\//gi, "https://sagecode.org/projects/");
       ensureDir(path.dirname(destination));
       fs.writeFileSync(destination, sitemap, "utf8");
@@ -1101,23 +1127,27 @@ function copyProjectContent() {
   copyProjectStaticAssetsRecursive(PROJECTS_DIR, destinationDir);
 }
 
-function copyRoadmapBaseIndexes() {
-  for (const roadmap of ROADMAP_BASE_FOLDERS) {
-    const sourceDir = path.join(ROADMAP_DIR, roadmap);
-    if (!fs.existsSync(sourceDir)) {
+function copyRoadmapDirectories() {
+  if (!fs.existsSync(ROADMAP_DIR)) {
+    return;
+  }
+
+  const skipFolders = new Set(["labs"]);
+
+  for (const entry of fs.readdirSync(ROADMAP_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
       continue;
     }
 
-    const destinationDir = path.join(PUBLIC_DIR, "roadmap", roadmap);
+    const dirName = entry.name.toLowerCase();
+    if (skipFolders.has(dirName) || dirName.startsWith(".")) {
+      continue;
+    }
+
+    const sourceDir = path.join(ROADMAP_DIR, entry.name);
+    const destinationDir = path.join(PUBLIC_DIR, "roadmap", entry.name);
     copyHtmlOnlyRecursive(sourceDir, destinationDir);
     copyLabStaticAssetsRecursive(sourceDir, destinationDir);
-
-    const sourceIndex = path.join(sourceDir, "index.html");
-    if (fs.existsSync(sourceIndex)) {
-      const destinationIndex = path.join(destinationDir, "index.html");
-      ensureDir(path.dirname(destinationIndex));
-      fs.copyFileSync(sourceIndex, destinationIndex);
-    }
   }
 }
 
@@ -1254,7 +1284,7 @@ function main() {
   copyLabStaticAssets();
   copyProjectContent();
   copyCommunityContent();
-  copyRoadmapBaseIndexes();
+  copyRoadmapDirectories();
   copyRoadmapTopLevelPages();
   copyRoadmapLandingPage();
   const contentResult = buildContentPages();
