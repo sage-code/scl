@@ -101,17 +101,21 @@
     };
   }
 
-  function detectLocalStatusForAliases(aliases) {
-    var courseIds = aliases.courseIds || [];
-    var labIds = aliases.labIds || [];
+  function collectLocalStorageKeys() {
     var keys = [];
-
     for (var i = 0; i < localStorage.length; i += 1) {
       var key = localStorage.key(i);
       if (key) {
         keys.push(key);
       }
     }
+    return keys;
+  }
+
+  function detectLocalStatusForAliases(aliases, localKeys) {
+    var courseIds = aliases.courseIds || [];
+    var labIds = aliases.labIds || [];
+    var keys = Array.isArray(localKeys) ? localKeys : collectLocalStorageKeys();
 
     var hasCompleted = false;
     var hasInProgress = false;
@@ -357,7 +361,7 @@
     return row;
   }
 
-  function enhanceCard(card, statusMap, remoteStats) {
+  function enhanceCard(card, statusMap, remoteStats, localKeys) {
     var actionButton = card.querySelector("a.btn");
     if (!actionButton) {
       return;
@@ -391,7 +395,7 @@
     }
 
     var currentToggle = wrap.querySelector(".roadmap-progress-toggle");
-    var inferredStatus = detectLocalStatusForAliases(aliasesForTrack(key));
+    var inferredStatus = detectLocalStatusForAliases(aliasesForTrack(key), localKeys);
     var remoteStatus = STATUS_NOT_STARTED;
     var remoteTopic = remoteStats && remoteStats[key];
 
@@ -460,6 +464,7 @@
 
     var statusMap = normalizeStatusMap(readStatusMap());
     var remoteStatsByTrack = {};
+    var localKeys = collectLocalStorageKeys();
 
     if (window.roadmapState && typeof window.roadmapState.getUser === "function" && window.roadmapState.getUser()) {
       var sync = getSync();
@@ -481,7 +486,7 @@
 
     cards.forEach(function (card) {
       var key = topicKeyForCard(card);
-      enhanceCard(card, statusMap, remoteStatsByTrack[key] || {});
+      enhanceCard(card, statusMap, remoteStatsByTrack[key] || {}, localKeys);
     });
   }
 
