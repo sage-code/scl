@@ -9,6 +9,48 @@ document.addEventListener('DOMContentLoaded', () => {
   const progressBar = document.getElementById('roadmap-progress');
   const savedProgress = readLocalProgress();
   let remoteProgress = {};
+  const HUB_STATUS_STORAGE_PREFIX = 'sage-roadmap-index-in-progress';
+
+  function getHubStatusStorageKey() {
+    if (!window.roadmapState || typeof window.roadmapState.getUser !== 'function') {
+      return `${HUB_STATUS_STORAGE_PREFIX}-anonymous`;
+    }
+
+    const user = window.roadmapState.getUser();
+    if (user && user.id) {
+      return `${HUB_STATUS_STORAGE_PREFIX}-${String(user.id)}`;
+    }
+
+    return `${HUB_STATUS_STORAGE_PREFIX}-anonymous`;
+  }
+
+  function readHubStatusMap() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(getHubStatusStorageKey()));
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writeHubStatusMap(map) {
+    localStorage.setItem(getHubStatusStorageKey(), JSON.stringify(map || {}));
+  }
+
+  function setHubRoadmapStatus(status) {
+    const topicKey = String(labId || courseId || '').toLowerCase();
+    if (!topicKey) {
+      return;
+    }
+
+    const map = readHubStatusMap();
+    if (!status || status === 'not_started') {
+      delete map[topicKey];
+    } else {
+      map[topicKey] = status;
+    }
+    writeHubStatusMap(map);
+  }
 
   function ensureProgressHeaderLayout(button) {
     const heading = document.getElementById('topics');
@@ -156,8 +198,12 @@ document.addEventListener('DOMContentLoaded', () => {
     progressBar.textContent = percent + '% Complete';
 
     if (total > 0 && completed === total) {
+      setHubRoadmapStatus('completed');
       if (window.sageNotifyLabFullyComplete) window.sageNotifyLabFullyComplete(courseId);
     } else if (window.sageNotifyLabIncomplete) {
+      if (completed > 0 || percent > 0) {
+        setHubRoadmapStatus('in_progress');
+      }
       window.sageNotifyLabIncomplete(courseId);
     }
   }
@@ -211,6 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     persist();
+  setHubRoadmapStatus('in_progress');
     updateUI();
 
     try {
