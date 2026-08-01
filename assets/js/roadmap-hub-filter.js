@@ -10,6 +10,11 @@
     localStorage.setItem(FILTER_STORAGE_KEY, value || "all");
   }
 
+  function resolveCardDomain(card) {
+    var category = String(card.getAttribute("data-category") || "").trim().toLowerCase();
+    return category.indexOf("se-") === 0 ? "engineering" : "programming";
+  }
+
   function hasVisibleCard(lane) {
     var cards = Array.from(lane.querySelectorAll(".roadmap-filter-card"));
     if (cards.length === 0) {
@@ -27,7 +32,12 @@
 
     cards.forEach(function (card) {
       var category = String(card.getAttribute("data-category") || "").trim().toLowerCase();
-      var visible = active === "all" || category === active;
+      var domain = resolveCardDomain(card);
+      var visible =
+        active === "all" ||
+        active === category ||
+        (active === "engineering" && domain === "engineering") ||
+        (active === "programming" && domain === "programming");
       card.classList.toggle("d-none", !visible);
       if (visible) {
         visibleCount += 1;
