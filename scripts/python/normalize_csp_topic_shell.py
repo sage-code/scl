@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Normalize CSP topic pages to the shared sidebar template shell.
+"""Normalize language topic pages to the shared sidebar template shell.
 
 Scope:
-- Targets roadmap/csp/**/*.html topic pages.
+- Targets roadmap/<language>/**/*.html topic pages.
 - Skips index/topic/template pages.
 - Skips demo and snippet directories (*/demo/*, */files/*).
 
@@ -22,7 +22,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CSP_DIR = ROOT / "roadmap" / "csp"
+ROADMAP_DIR = ROOT / "roadmap"
+PROGRAMMING_TOPIC_DIRS = {
+    "ada", "assembly", "bash", "c", "carbon", "cpp", "csharp", "css", "dart",
+    "fortran", "go", "html", "java", "julia", "nim", "php", "plsql", "python",
+    "react", "ruby", "rust", "scala", "script", "svelte", "swift", "tscript", "zig"
+}
 SKIP_FILES = {"index.html", "template.html", "topic.html"}
 SKIP_PATH_PARTS = {"demo", "files"}
 
@@ -39,13 +44,18 @@ DUP_MAIN_CLOSE_RE = re.compile(r"(?is)(</main>\s*</div>\s*</div>\s*<hr>\s*){2,}"
 
 def discover_pages() -> list[Path]:
     pages: list[Path] = []
-    for path in sorted(CSP_DIR.rglob("*.html")):
-        if path.name.lower() in SKIP_FILES:
+    for topic_dir in sorted(PROGRAMMING_TOPIC_DIRS):
+        root = ROADMAP_DIR / topic_dir
+        if not root.exists() or not root.is_dir():
             continue
-        rel_parts = {p.lower() for p in path.relative_to(CSP_DIR).parts}
-        if rel_parts & SKIP_PATH_PARTS:
-            continue
-        pages.append(path)
+
+        for path in sorted(root.rglob("*.html")):
+            if path.name.lower() in SKIP_FILES:
+                continue
+            rel_parts = {p.lower() for p in path.relative_to(root).parts}
+            if rel_parts & SKIP_PATH_PARTS:
+                continue
+            pages.append(path)
     return pages
 
 
@@ -223,8 +233,8 @@ def process_file(path: Path, dry_run: bool) -> Result:
     # Ensure bootstrap icons in head section.
     head_and_prefix = ensure_bootstrap_icons(head_and_prefix)
 
-    rel = path.relative_to(CSP_DIR)
-    lab_id = rel.parts[0]
+    rel = path.relative_to(ROADMAP_DIR)
+    lab_id = "programming"
     topic_id = path.stem
 
     normalized_body = normalize_body(body, lab_id=lab_id, topic_id=topic_id)
@@ -242,7 +252,7 @@ def process_file(path: Path, dry_run: bool) -> Result:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Normalize CSP topic pages to sidebar shell")
+    parser = argparse.ArgumentParser(description="Normalize language topic pages to sidebar shell")
     parser.add_argument("--dry-run", action="store_true", help="Only report changes")
     args = parser.parse_args()
 
