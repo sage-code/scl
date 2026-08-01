@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedProgress = readLocalProgress();
   let remoteProgress = {};
   const HUB_STATUS_STORAGE_PREFIX = 'sage-roadmap-index-in-progress';
+  const RESET_PENDING_STORAGE_PREFIX = 'sage_roadmap_reset_pending';
   let resetButton = null;
 
   function getHubStatusStorageKey() {
@@ -163,6 +164,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return `sage_progress_${courseId}`;
   }
 
+  function getResetPendingKey() {
+    return `${RESET_PENDING_STORAGE_PREFIX}:${courseId}`;
+  }
+
+  function isResetPending() {
+    return localStorage.getItem(getResetPendingKey()) === '1';
+  }
+
+  function setResetPending(pending) {
+    if (pending) {
+      localStorage.setItem(getResetPendingKey(), '1');
+      return;
+    }
+
+    localStorage.removeItem(getResetPendingKey());
+  }
+
   function readLocalProgress() {
     try {
       return JSON.parse(localStorage.getItem(getStorageKey())) || {};
@@ -249,17 +267,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function clearRemoteRoadmap() {
-    if (!sync || !window.roadmapState || typeof window.roadmapState.getUser !== 'function' || !window.roadmapState.getUser()) {
-      return;
+    if (!sync || !window.roadmapState || typeof window.roadmapState.getUser !== 'function') {
+      return false;
+    }
+
+    let user = window.roadmapState.getUser();
+    if (!user && typeof window.roadmapState.refresh === 'function') {
+      try {
+        await window.roadmapState.refresh();
+      } catch (_) {
+        /* ignore refresh errors and continue with local reset */
+      }
+      user = window.roadmapState.getUser();
+    }
+
+    if (!user) {
+      return false;
     }
 
     if (typeof sync.clearRoadmapProgress === 'function') {
       await sync.clearRoadmapProgress(courseId);
-      return;
+      return true;
     }
 
     if (typeof sync.clearTopicProgress !== 'function') {
-      return;
+      return false;
     }
 
     const topicIds = [];
@@ -271,9 +303,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     await Promise.all(topicIds.map((topicId) => sync.clearTopicProgress(courseId, topicId)));
+    return true;
   }
 
   async function resetRoadmapProgress() {
+    setResetPending(true);
     Object.keys(savedProgress).forEach((k) => delete savedProgress[k]);
     remoteProgress = {};
 
@@ -291,7 +325,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUI();
 
     try {
-      await clearRemoteRoadmap();
+      const remoteCleared = await clearRemoteRoadmap();
+      if (remoteCleared) {
+        setResetPending(false);
+      }
     } catch (error) {
       console.warn('Unable to reset remote roadmap progress:', error);
     }
@@ -308,6 +345,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function hydrateRemoteRoadmap() {
     if (!sync || typeof sync.loadRoadmapProgress !== 'function' || !window.roadmapState || typeof window.roadmapState.getUser !== 'function') {
+      return;
+    }
+
+    if (isResetPending()) {
+      remoteProgress = {};
+      restoreLocalRoadmap();
+
+      try {
+        const remoteCleared = await clearRemoteRoadmap();
+        if (remoteCleared) {
+          setResetPending(false);
+        }
+      } catch (error) {
+        console.warn('Unable to finalize reset during hydrate:', error);
+      }
+
       return;
     }
 
