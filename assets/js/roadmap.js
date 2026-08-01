@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedProgress = readLocalProgress();
   let remoteProgress = {};
   const HUB_STATUS_STORAGE_PREFIX = 'sage-roadmap-index-in-progress';
+  let resetButton = null;
 
   function getHubStatusStorageKey() {
     if (!window.roadmapState || typeof window.roadmapState.getUser !== 'function') {
@@ -98,6 +99,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     progressWrapper.parentNode.insertBefore(button, progressWrapper);
     return button;
+  }
+
+  function updateResetButtonState(completed, total) {
+    if (!resetButton) {
+      return;
+    }
+
+    const enabled = total > 0 && completed === total;
+    resetButton.disabled = !enabled;
+    resetButton.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    resetButton.classList.toggle('disabled', !enabled);
   }
 
   function resolveTrackId() {
@@ -196,6 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const percent = computeBarPercent();
     progressBar.style.width = percent + '%';
     progressBar.textContent = percent + '% Complete';
+    updateResetButtonState(completed, total);
 
     if (total > 0 && completed === total) {
       setHubRoadmapStatus('completed');
@@ -385,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hydrateRemoteRoadmap();
   });
 
-  const resetButton = createResetButton();
+  resetButton = createResetButton();
   if (resetButton) {
     resetButton.addEventListener('click', () => {
       resetRoadmapProgress();
