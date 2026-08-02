@@ -57,29 +57,20 @@
     return clampDiamonds(registeredBonus + completedRoadmaps);
   }
 
-  function buildDiamondIcons(count) {
+  function buildDiamondString(count) {
     var safeCount = clampDiamonds(count);
-    var icons = [];
-
-    for (var i = 0; i < MAX_DIAMONDS; i += 1) {
-      var iconClass = i < safeCount ? "bi bi-diamond-fill" : "bi bi-diamond";
-      icons.push('<i class="' + iconClass + '" aria-hidden="true"></i>');
-    }
-
-    return icons.join("");
+    return "💎".repeat(safeCount);
   }
 
   function renderDiamonds(count) {
     var control = document.getElementById("roadmap-diamond-control");
-    var countElement = document.getElementById("roadmap-diamond-count");
     var gemsElement = document.getElementById("roadmap-diamond-gems");
-    if (!control || !countElement || !gemsElement) {
+    if (!control || !gemsElement) {
       return;
     }
 
     var safeCount = clampDiamonds(count);
-    countElement.textContent = safeCount + "/" + MAX_DIAMONDS;
-    gemsElement.innerHTML = buildDiamondIcons(safeCount);
+    gemsElement.textContent = buildDiamondString(safeCount);
     control.setAttribute("title", "Diamonds earned from completed roadmaps plus registered bonus. Max 12.");
   }
 
