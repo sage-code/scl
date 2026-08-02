@@ -76,6 +76,7 @@
       cse: { courseIds: ["cse-main", "cse"], labIds: ["engineering", "cse"] },
       go: { courseIds: ["go", "go-main"], labIds: ["go"] },
       html: { courseIds: ["csp-html-main", "html-main", "html"], labIds: ["html"] },
+      vue: { courseIds: ["vue-main", "vue", "csp-vue-main"], labIds: ["vue"] },
       hpc: { courseIds: ["HPC-main", "hpc-main", "hpc"], labIds: ["HPC", "hpc"] },
       pgp: { courseIds: ["pgp-main", "pgp"], labIds: ["pgp"] },
       csp: { courseIds: ["csp-main", "csp"], labIds: ["programming", "csp"] },
