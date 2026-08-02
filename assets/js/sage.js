@@ -6,6 +6,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     normalizeLocalPublicLinks();
     initDynamicHeader();
+    initHeroVisibilityToggle();
     wireHomeLogoTypewriterTrigger();
 });
 
@@ -45,7 +46,20 @@ function initDynamicHeader() {
         
         <div class="row g-0 mt-0 p-0">
             <div class="col ps-0">
-                <nav class="breadcrumb-nav">${generateBreadcrumbs()}</nav>
+                <div class="breadcrumb-row">
+                    <nav class="breadcrumb-nav" id="breadcrumb-nav" aria-label="Breadcrumb">${generateBreadcrumbs()}</nav>
+                    <button
+                        id="hero-visibility-toggle"
+                        class="hero-visibility-toggle"
+                        type="button"
+                        aria-label="Hide hero section"
+                        aria-controls="sage-hero-section"
+                        aria-expanded="true"
+                        title="Toggle hero section"
+                    >
+                        <i class="bi bi-caret-up-fill" aria-hidden="true"></i>
+                    </button>
+                </div>
             </div>
         </div>`;
 
@@ -193,5 +207,58 @@ function wireHomeLogoTypewriterTrigger() {
                 // Ignore storage failures in private browsing or restricted environments.
             }
         });
+    });
+}
+
+function initHeroVisibilityToggle() {
+    const toggleButton = document.getElementById("hero-visibility-toggle");
+    if (!toggleButton) {
+        return;
+    }
+
+    const heroSection = document.querySelector(".hero-blackboard");
+    if (!heroSection) {
+        toggleButton.classList.add("d-none");
+        return;
+    }
+
+    if (!heroSection.id) {
+        heroSection.id = "sage-hero-section";
+    }
+
+    toggleButton.setAttribute("aria-controls", heroSection.id);
+
+    const storageKey = "sage.hero.visible";
+    let heroVisible = true;
+
+    try {
+        const saved = window.localStorage.getItem(storageKey);
+        if (saved === "0") {
+            heroVisible = false;
+        }
+    } catch (e) {
+        heroVisible = true;
+    }
+
+    function applyState(visible) {
+        heroVisible = !!visible;
+        heroSection.classList.toggle("is-collapsed", !heroVisible);
+        toggleButton.setAttribute("aria-expanded", heroVisible ? "true" : "false");
+        toggleButton.setAttribute("aria-label", heroVisible ? "Hide hero section" : "Show hero section");
+        toggleButton.title = heroVisible ? "Hide hero section" : "Show hero section";
+        toggleButton.innerHTML = heroVisible
+            ? '<i class="bi bi-caret-up-fill" aria-hidden="true"></i>'
+            : '<i class="bi bi-caret-down-fill" aria-hidden="true"></i>';
+    }
+
+    applyState(heroVisible);
+
+    toggleButton.addEventListener("click", function () {
+        applyState(!heroVisible);
+        try {
+            window.localStorage.setItem(storageKey, heroVisible ? "1" : "0");
+        } catch (e) {
+            /* Ignore storage failures in restricted environments. */
+        }
     });
 }
