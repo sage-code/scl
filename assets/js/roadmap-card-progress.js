@@ -77,6 +77,8 @@
       go: { courseIds: ["go", "go-main"], labIds: ["go"] },
       html: { courseIds: ["csp-html-main", "html-main", "html"], labIds: ["html"] },
       vue: { courseIds: ["vue-main", "vue", "csp-vue-main"], labIds: ["vue"] },
+      flutter: { courseIds: ["flutter-main", "flutter", "csp-flutter-main"], labIds: ["flutter"] },
+      wasm: { courseIds: ["wasm-main", "wasm", "csp-wasm-main"], labIds: ["wasm"] },
       hpc: { courseIds: ["HPC-main", "hpc-main", "hpc"], labIds: ["HPC", "hpc"] },
       pgp: { courseIds: ["pgp-main", "pgp"], labIds: ["pgp"] },
       csp: { courseIds: ["csp-main", "csp"], labIds: ["programming", "csp"] },
