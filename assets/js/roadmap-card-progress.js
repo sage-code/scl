@@ -408,19 +408,19 @@
         : (Number(remoteTopic.percent) > 0 ? STATUS_IN_PROGRESS : STATUS_NOT_STARTED);
     }
 
-    var mergedStatus = mergeStatuses(statusMap[key], inferredStatus);
-    mergedStatus = mergeStatuses(mergedStatus, remoteStatus);
+    // Compute current card status from live local/remote signals only.
+    // This prevents stale cached map values from keeping a card in "Completed"
+    // after reset cleared progress.
+    var currentStatus = mergeStatuses(inferredStatus, remoteStatus);
 
-    if (mergedStatus !== STATUS_NOT_STARTED) {
-      statusMap[key] = mergedStatus;
-      writeStatusMap(statusMap);
-    }
-
-    var currentStatus = normalizeStatus(statusMap[key]);
     if (currentStatus === STATUS_NOT_STARTED) {
-      delete statusMap[key];
+      if (statusMap[key]) {
+        delete statusMap[key];
+        writeStatusMap(statusMap);
+      }
     } else {
       statusMap[key] = currentStatus;
+      writeStatusMap(statusMap);
     }
 
     card.setAttribute("data-progress-status", currentStatus);
