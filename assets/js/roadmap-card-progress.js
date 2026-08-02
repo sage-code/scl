@@ -352,6 +352,19 @@
     return STATUS_NOT_STARTED;
   }
 
+  function cycleStatus(status) {
+    var current = normalizeStatus(status);
+    if (current === STATUS_NOT_STARTED) {
+      return STATUS_IN_PROGRESS;
+    }
+
+    if (current === STATUS_IN_PROGRESS) {
+      return STATUS_COMPLETED;
+    }
+
+    return STATUS_NOT_STARTED;
+  }
+
   function ensureActionRow(card, actionButton) {
     var row = card.querySelector(".roadmap-card-actions");
     if (!row) {
@@ -408,28 +421,36 @@
         : (Number(remoteTopic.percent) > 0 ? STATUS_IN_PROGRESS : STATUS_NOT_STARTED);
     }
 
-    // Compute current card status from live local/remote signals only.
-    // This prevents stale cached map values from keeping a card in "Completed"
-    // after reset cleared progress.
-    var currentStatus = mergeStatuses(inferredStatus, remoteStatus);
-
-    if (currentStatus === STATUS_NOT_STARTED) {
-      if (statusMap[key]) {
-        delete statusMap[key];
-        writeStatusMap(statusMap);
-      }
-    } else {
-      statusMap[key] = currentStatus;
-      writeStatusMap(statusMap);
-    }
+    // Auto status still derives from live signals, but user can override manually.
+    var autoStatus = mergeStatuses(inferredStatus, remoteStatus);
+    var manualStatus = normalizeStatus(statusMap[key]);
+    var currentStatus = manualStatus !== STATUS_NOT_STARTED ? manualStatus : autoStatus;
 
     card.setAttribute("data-progress-status", currentStatus);
 
     applyVisual(wrap, currentStatus);
 
-    currentToggle.disabled = true;
-    currentToggle.setAttribute("aria-disabled", "true");
-    currentToggle.setAttribute("title", "Roadmap status is updated automatically from progress.");
+    currentToggle.disabled = false;
+    currentToggle.setAttribute("aria-disabled", "false");
+    currentToggle.setAttribute("title", "Click to set status manually. Auto status still updates when no manual override exists.");
+
+    if (currentToggle.dataset.manualStatusWired !== "true") {
+      currentToggle.dataset.manualStatusWired = "true";
+      currentToggle.addEventListener("click", function () {
+        var nextStatus = cycleStatus(normalizeStatus(card.getAttribute("data-progress-status")));
+
+        if (nextStatus === STATUS_NOT_STARTED) {
+          delete statusMap[key];
+        } else {
+          statusMap[key] = nextStatus;
+        }
+
+        writeStatusMap(statusMap);
+        card.setAttribute("data-progress-status", nextStatus);
+        applyVisual(wrap, nextStatus);
+        window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
+      });
+    }
   }
 
   function normalizeStatusMap(statusMap) {
