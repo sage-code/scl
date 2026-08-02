@@ -86,7 +86,12 @@
       return;
     }
 
-    setText(title, "User: " + formatIdentity());
+    if (state.user) {
+      setText(title, "M=" + formatIdentity());
+      return;
+    }
+
+    setText(title, "User: Anonymous");
   }
 
   function renderRoadmapActions() {
