@@ -261,6 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.sageNotifyLabIncomplete) window.sageNotifyLabIncomplete(courseId);
     } else {
       setHubRoadmapStatus('not_started');
+      if (window.sageNotifyLabIncomplete) window.sageNotifyLabIncomplete(courseId);
     }
   }
 
