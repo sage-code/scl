@@ -24,6 +24,7 @@ const PROGRAMMING_TOPIC_FOLDERS = [
   "csharp",
   "css",
   "dart",
+  "flutter",
   "fortran",
   "go",
   "html",
@@ -40,6 +41,7 @@ const PROGRAMMING_TOPIC_FOLDERS = [
   "script",
   "svelte",
   "swift",
+  "wasm",
   "tscript",
   "zig"
 ];
