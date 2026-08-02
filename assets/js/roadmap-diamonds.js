@@ -52,9 +52,8 @@
   }
 
   function computeDiamondCount() {
-    var registeredBonus = getUserId() ? 1 : 0;
     var completedRoadmaps = countCompletedRoadmaps();
-    return clampDiamonds(registeredBonus + completedRoadmaps);
+    return clampDiamonds(completedRoadmaps);
   }
 
   function buildDiamondString(count) {
@@ -71,7 +70,7 @@
 
     var safeCount = clampDiamonds(count);
     gemsElement.textContent = buildDiamondString(safeCount);
-    control.setAttribute("title", "Diamonds earned from completed roadmaps plus registered bonus. Max 12.");
+    control.setAttribute("title", "Diamonds earned from completed roadmaps. Max 12.");
   }
 
   function refreshDiamonds() {
