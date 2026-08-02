@@ -218,9 +218,17 @@ function initHeroVisibilityToggle() {
 
     const heroSection = document.querySelector(".hero-blackboard");
     if (!heroSection) {
-        toggleButton.classList.add("d-none");
+        toggleButton.disabled = true;
+        toggleButton.setAttribute("aria-disabled", "true");
+        toggleButton.setAttribute("aria-expanded", "false");
+        toggleButton.setAttribute("aria-label", "Hero section is not available on this page");
+        toggleButton.title = "Hero section is not available on this page";
+        toggleButton.innerHTML = '<i class="bi bi-caret-down-fill" aria-hidden="true"></i>';
         return;
     }
+
+    toggleButton.disabled = false;
+    toggleButton.setAttribute("aria-disabled", "false");
 
     if (!heroSection.id) {
         heroSection.id = "sage-hero-section";
@@ -228,7 +236,9 @@ function initHeroVisibilityToggle() {
 
     toggleButton.setAttribute("aria-controls", heroSection.id);
 
-    const storageKey = "sage.hero.visible";
+    const pagePath = window.location.pathname || "/";
+    const pageQuery = window.location.search || "";
+    const storageKey = `sage.hero.visible:${pagePath}${pageQuery}`;
     let heroVisible = true;
 
     try {
