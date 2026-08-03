@@ -64,6 +64,13 @@
     }
   }
 
+  function getProfileRedirectUrl() {
+    var inPublicPreview = (window.location.pathname || "").indexOf("/public/") === 0;
+    var loginPath = inPublicPreview ? "/public/roadmap/login.html" : "/roadmap/login.html";
+    var profilePath = inPublicPreview ? "/public/roadmap/profile.html" : "/roadmap/profile.html";
+    return loginPath + "?next=" + encodeURIComponent(profilePath);
+  }
+
   function formatIdentity() {
     if (!state.user) {
       return "Anonymous";
@@ -101,10 +108,10 @@
     }
 
     if (profileAction) {
-      setDisabledLink(profileAction, !state.user);
-      setHref(profileAction, state.user ? "/roadmap/profile.html" : "#roadmap-profile-disabled");
-      profileAction.setAttribute("aria-label", state.user ? "Open current roadmap profile" : "Profile is available after sign in");
-      profileAction.setAttribute("title", state.user ? ("Signed in as " + formatIdentity()) : "Sign in to unlock profile");
+      setDisabledLink(profileAction, false);
+      setHref(profileAction, state.user ? "/roadmap/profile.html" : getProfileRedirectUrl());
+      profileAction.setAttribute("aria-label", state.user ? "Open current roadmap profile" : "Sign in to open roadmap profile update page");
+      profileAction.setAttribute("title", state.user ? ("Signed in as " + formatIdentity()) : "Sign in first, then continue to update profile");
     }
 
     if (registerAction) {
@@ -307,6 +314,7 @@
       }
 
       event.preventDefault();
+      window.location.href = getProfileRedirectUrl();
     });
   }
 

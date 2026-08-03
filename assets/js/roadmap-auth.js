@@ -38,6 +38,26 @@
     return "/roadmap/";
   }
 
+  function getPostLoginRedirectUrl() {
+    var params = new URLSearchParams(window.location.search || "");
+    var next = params.get("next");
+    if (!next) {
+      return getRoadmapIndexUrl();
+    }
+
+    var decoded = String(next || "").trim();
+    if (!decoded.startsWith("/")) {
+      return getRoadmapIndexUrl();
+    }
+
+    var isRoadmapPath = decoded.indexOf("/roadmap/") === 0 || decoded.indexOf("/public/roadmap/") === 0;
+    if (!isRoadmapPath) {
+      return getRoadmapIndexUrl();
+    }
+
+    return decoded;
+  }
+
   function hasValidPasswordLength(password) {
     return String(password || "").length > 4;
   }
@@ -139,7 +159,7 @@
       }
 
       window.setTimeout(function () {
-        window.location.href = getRoadmapIndexUrl();
+        window.location.href = getPostLoginRedirectUrl();
       }, 600);
     });
   }
