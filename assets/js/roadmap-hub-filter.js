@@ -130,6 +130,10 @@
 
   function resolveCardDomain(card) {
     var category = String(card.getAttribute("data-category") || "").trim().toLowerCase();
+    if (category === "communication") {
+      return "communication";
+    }
+
     return category.indexOf("se-") === 0 ? "engineering" : "programming";
   }
 
@@ -156,6 +160,7 @@
       var categoryVisible =
         activeCategory === "all" ||
         activeCategory === category ||
+        (activeCategory === "communication" && domain === "communication") ||
         (activeCategory === "engineering" && domain === "engineering") ||
         (activeCategory === "programming" && domain === "programming");
       var statusVisible = activeStatus === "all" || cardStatus === activeStatus;

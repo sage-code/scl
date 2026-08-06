@@ -7,11 +7,11 @@ document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById("typewriter");
     const actions = document.getElementById("hero-actions");
     const fromRoadmapShortcut = window.location.hash === "#sage-code-roadmap";
-    const heroMessage = `Systems Architecture & Engineering
+    const heroMessage = `Communication & Software Engineering 
  * Deep dives into the stack. No fluff, just the path.
  * Open access. No ads. No schedules. No hand-holding.
  * Build actual systems. Write code that moves iron.
-Build, break, iterate. Team-up and master the craft!
+Learn, build, break, iterate. Team-up and master the craft!
 `;
 
     function toHtmlWithBreaks(text) {
