@@ -81,14 +81,16 @@ package.json
 
 ## AI Curriculum Authoring Standard
 
-- Treat Sage-Code as an A-to-Z professional curriculum platform, not a superficial tutorial site.
+- Treat Sage-Code as an A-to-Z engineering curriculum platform, not a superficial tutorial site.
 - For roadmap content, assume learners may start with zero background unless the page explicitly states prerequisites.
 - Default writing mode: deep technical instruction with step-by-step progression from fundamentals to production engineering.
 - Explain language mechanics precisely: syntax, symbols, statements, operators, control flow, typing/modeling rules, and runtime behavior.
-- Prefer professional clarity over motivational filler; avoid vague claims like "easy" or "simple" without explanation.
+- Prefer direct technical clarity over motivational filler; avoid vague claims like "easy" or "simple" without explanation.
 - Keep page titles, section titles, and sidebar labels short. Put detail in body text, not in long headings.
 - Prefer compact H1/H2/H3 labels that scan well in sidebars and navigation. Example: use `Flutter Core Concepts` instead of `Flutter Core Concepts: Widgets, Layout, and Rendering`.
 - Keep reference pages separate when learners need official docs, tutorials, and further reading. Do not hide the deep-dive reference map inside an operations or tooling lesson.
+- Assume every lab is serious by default. Do not add framing like `Professional`, `Complete`, `Ultimate`, or similar promotional adjectives to titles, badges, hero copy, or section labels unless the user explicitly asks for that tone.
+- Prefer spartan titles and design language. Keep labels factual, compact, and neutral.
 
 For each roadmap topic page, include:
 
@@ -96,7 +98,7 @@ For each roadmap topic page, include:
 2. Detailed explanation of constructs and syntax used.
 3. Multiple executable examples (basic, intermediate, production-oriented).
 4. Common mistakes and how to avoid them.
-5. Professional tips and trade-offs (performance, maintainability, refactor safety).
+5. Engineering tips and trade-offs (performance, maintainability, refactor safety).
 6. A step-by-step practice sequence or mini-lab task.
 
 Depth expectations:
@@ -108,7 +110,7 @@ Depth expectations:
 
 Quality bar for AI-generated educational content:
 
-- Write for professional engineering outcomes: reliability, readability, scalability, and collaboration.
+- Write for engineering outcomes: reliability, readability, scalability, and collaboration.
 - Include tips and tricks that experienced developers use (debug loops, contract validation, migration strategy, review checklists).
 - Avoid copying the same skeleton across topics; tailor each page to the specific subject.
 - If content quality is uncertain, improve depth before finalizing edits.
