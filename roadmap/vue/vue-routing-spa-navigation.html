@@ -55,7 +55,47 @@
         </div>
 
         <h2 id="overview">Overview</h2>
-        <p class="text-secondary">Build route systems that scale with product complexity.</p>
+        <p class="text-secondary">Routing is architecture. A strong route system aligns URL semantics, authorization, layout composition, and data loading behavior.</p>
+
+        <h2 id="route-design">Route Design Strategy</h2>
+        <h3 id="url-as-contract">URL as a product contract</h3>
+        <ul>
+          <li>Use stable route names and path patterns tied to business concepts.</li>
+          <li>Avoid exposing internal implementation terms in route segments.</li>
+          <li>Model hierarchy with nested routes for dashboards, settings, and details pages.</li>
+        </ul>
+
+        <h3 id="nested-layouts">Nested layouts</h3>
+        <pre><code class="language-javascript">const routes = [
+  {
+    path: '/billing',
+    component: BillingLayout,
+    children: [
+      { path: '', component: BillingOverview },
+      { path: 'invoices/:invoiceId', component: InvoiceDetails }
+    ]
+  }
+]</code></pre>
+
+        <h2 id="route-guards">Route Guards and Access Control</h2>
+        <h3 id="before-each-guard">Global guard pattern</h3>
+        <pre><code class="language-javascript">router.beforeEach((to) =&gt; {
+  const auth = useAuthStore()
+  if (to.meta.requiresAuth &amp;&amp; !auth.isLoggedIn) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+})</code></pre>
+
+        <h3 id="authorization-model">Authorization model</h3>
+        <p>Authentication verifies identity. Authorization verifies permission. Keep both explicit in route metadata and backend policy checks.</p>
+
+        <h2 id="url-state-sync">URL and UI State Synchronization</h2>
+        <h3 id="query-state">Query param state</h3>
+        <pre><code class="language-javascript">router.push({
+  name: 'users',
+  query: { page: String(page.value), filter: filter.value }
+})</code></pre>
+        <p class="text-secondary">Persist list filters, sorting, and pagination in URL for shareable and restorable navigation.</p>
 
         <h2 id="learning-objectives">Learning Objectives</h2>
         <ul>
@@ -63,6 +103,16 @@
           <li>Apply route guards for auth and role access.</li>
           <li>Keep URL state and UI state synchronized.</li>
         </ul>
+
+        <h2 id="common-mistakes">Common Mistakes</h2>
+        <ul>
+          <li>Hardcoding authorization checks in components instead of route/meta + backend policy layers.</li>
+          <li>Not handling redirect-after-login flows for protected routes.</li>
+          <li>Treating route names and path formats as disposable, creating broken bookmarks and docs.</li>
+        </ul>
+
+        <h2 id="engineering-notes">Engineering Notes</h2>
+        <p class="text-secondary">Create a route catalog document with path, purpose, auth requirements, owner team, and analytics event mapping.</p>
 
         <h2 id="practice-scope">Practice Scope</h2>
         <p class="text-secondary">Deliver one production-style mini-feature, include implementation notes, and record one performance, reliability, or maintainability trade-off in your commit summary.</p>
