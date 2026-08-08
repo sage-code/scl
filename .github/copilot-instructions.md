@@ -78,6 +78,37 @@ package.json
 - For new homepage cards/CTAs, keep iconography meaningful and aligned with existing typography and spacing conventions.
 - Ensure responsive behavior on desktop and mobile for every UI change.
 
+## AI Curriculum Authoring Standard
+
+- Treat Sage-Code as an A-to-Z professional curriculum platform, not a superficial tutorial site.
+- For roadmap content, assume learners may start with zero background unless the page explicitly states prerequisites.
+- Default writing mode: deep technical instruction with step-by-step progression from fundamentals to production engineering.
+- Explain language mechanics precisely: syntax, symbols, statements, operators, control flow, typing/modeling rules, and runtime behavior.
+- Prefer professional clarity over motivational filler; avoid vague claims like "easy" or "simple" without explanation.
+
+For each roadmap topic page, include:
+
+1. Concept overview and why it matters in real engineering.
+2. Detailed explanation of constructs and syntax used.
+3. Multiple executable examples (basic, intermediate, production-oriented).
+4. Common mistakes and how to avoid them.
+5. Professional tips and trade-offs (performance, maintainability, refactor safety).
+6. A step-by-step practice sequence or mini-lab task.
+
+Depth expectations:
+
+- Do not publish placeholder sections or one-paragraph summaries for core topics.
+- Prefer concrete examples with typed contracts, realistic naming, and edge cases.
+- When a concept is abstract (for example, type systems, architecture boundaries), add a structured diagram or flow explanation where practical.
+- Keep topic progression coherent across the track: fundamentals first, then composition/reuse, then production/enterprise concerns.
+
+Quality bar for AI-generated educational content:
+
+- Write for professional engineering outcomes: reliability, readability, scalability, and collaboration.
+- Include tips and tricks that experienced developers use (debug loops, contract validation, migration strategy, review checklists).
+- Avoid copying the same skeleton across topics; tailor each page to the specific subject.
+- If content quality is uncertain, improve depth before finalizing edits.
+
 ## Documentation Policy
 
 - Explain why in comments, not obvious mechanics.
