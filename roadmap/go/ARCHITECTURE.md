@@ -12,8 +12,7 @@ This document describes the improved architecture for the Go Programming Laborat
 ├── topic.html              # Topic Viewer - Loads topic-specific content
 ├── topics.json             # Master list of 12 topics for index.html
 ├── {topic_name}.html       # Content for each topic (12 files)
-├── {topic_name}.json       # Sidebar navigation for each topic (12 files)
-└── template.html           # (DEPRECATED - replaced by topic.html)
+└── {topic_name}.json       # Sidebar navigation for each topic (12 files)
 ```
 
 ### Key Components
@@ -122,7 +121,7 @@ User starts at:
 
 ### Key Differences from Previous Architecture
 
-| Aspect | Old (template.html) | New (topic.html) |
+| Aspect | Old (legacy template flow) | New (topic.html) |
 |--------|-----------------|-------------------|
 | Sidebar Navigation | Global `sidebar.json` for all 12 topics | Per-topic `{topic_name}.json` |
 | Index Layer | Card-based hub (not tracked) | Progress table with checkboxes |
@@ -190,7 +189,7 @@ To replicate this pattern to other programming languages (Julia, Dart, Python, e
 ### Files Created for Prototype
 
 ✅ `/roadmap/go/index.html` - Lab hub with progress table (NEW)
-✅ `/roadmap/go/topic.html` - Topic viewer template (NEW - replaces template.html)
+✅ `/roadmap/go/topic.html` - Topic viewer template (NEW)
 ✅ `/roadmap/go/topics.json` - Master topics list (NEW)
 ✅ `/roadmap/go/{topic_name}.json` - Per-topic sidebars (12 files, NEW/UPDATED)
 ✨ `/roadmap/go/{topic_name}.html` - Content (existing, reused)
