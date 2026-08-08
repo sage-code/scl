@@ -55,7 +55,50 @@
         </div>
 
         <h2 id="overview">Overview</h2>
-        <p class="text-secondary">Integrate APIs safely using repeatable fetch and error patterns.</p>
+        <p class="text-secondary">Reliable Vue applications treat API integration as a first-class architecture concern: contracts, retries, loading behavior, and failure states are designed upfront.</p>
+
+        <h2 id="fetch-architecture">Fetch Architecture</h2>
+        <h3 id="service-and-composable">Service + composable split</h3>
+        <pre><code class="language-javascript">// services/usersApi.js
+export async function listUsers(params) {
+  const response = await fetch(`/api/users?page=${params.page}`)
+  if (!response.ok) throw new Error('users_fetch_failed')
+  return response.json()
+}
+
+// composables/useUsers.js
+export function useUsers() {
+  const users = ref([])
+  const loading = ref(false)
+  const error = ref('')
+  return { users, loading, error }
+}</code></pre>
+
+        <h3 id="state-triad">Loading/success/error triad</h3>
+        <p>Every async feature should define explicit render states so users never see ambiguous UI.</p>
+
+        <h2 id="resilience-patterns">Resilience Patterns</h2>
+        <h3 id="retry-timeout">Retries and timeout strategy</h3>
+        <ul>
+          <li>Retry idempotent GET requests with capped backoff.</li>
+          <li>Avoid blind retries for writes without idempotency keys.</li>
+          <li>Fail fast for unauthorized or invalid payload errors.</li>
+        </ul>
+
+        <h3 id="optimistic-pattern">Optimistic update workflow</h3>
+        <pre><code class="language-javascript">const previous = [...items.value]
+items.value.unshift(newItem)
+try {
+  await api.createItem(newItem)
+} catch (e) {
+  items.value = previous
+}</code></pre>
+
+        <h2 id="contract-discipline">Contract Discipline</h2>
+        <h3 id="typed-contracts">Typed DTO boundaries</h3>
+        <p>Define request/response contracts near API services. Do not spread raw backend payload assumptions across components.</p>
+        <h3 id="error-taxonomy">Error taxonomy</h3>
+        <p>Map backend errors to user-facing categories: validation, authorization, conflict, and transient infrastructure failures.</p>
 
         <h2 id="learning-objectives">Learning Objectives</h2>
         <ul>
@@ -63,6 +106,16 @@
           <li>Use optimistic updates when latency is high.</li>
           <li>Design fallback UI for partial failures.</li>
         </ul>
+
+        <h2 id="common-mistakes">Common Mistakes</h2>
+        <ul>
+          <li>Scattering fetch calls directly inside multiple view components.</li>
+          <li>Assuming success shape and skipping response validation checks.</li>
+          <li>Showing generic "Something went wrong" without actionable recovery.</li>
+        </ul>
+
+        <h2 id="engineering-notes">Engineering Notes</h2>
+        <p class="text-secondary">Document endpoint ownership, error semantics, and retry policies so frontend and backend teams share one integration language.</p>
 
         <h2 id="practice-scope">Practice Scope</h2>
         <p class="text-secondary">Deliver one production-style mini-feature, include implementation notes, and record one performance, reliability, or maintainability trade-off in your commit summary.</p>
