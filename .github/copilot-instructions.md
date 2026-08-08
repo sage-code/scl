@@ -85,6 +85,8 @@ package.json
 - Default writing mode: deep technical instruction with step-by-step progression from fundamentals to production engineering.
 - Explain language mechanics precisely: syntax, symbols, statements, operators, control flow, typing/modeling rules, and runtime behavior.
 - Prefer professional clarity over motivational filler; avoid vague claims like "easy" or "simple" without explanation.
+- Keep page titles, section titles, and sidebar labels short. Put detail in body text, not in long headings.
+- Prefer compact H1/H2/H3 labels that scan well in sidebars and navigation. Example: use `Flutter Core Concepts` instead of `Flutter Core Concepts: Widgets, Layout, and Rendering`.
 
 For each roadmap topic page, include:
 
