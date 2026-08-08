@@ -27,6 +27,10 @@ class TopicLoader {
     this._lastSavedCollapsedSignature = '';
     this._persistTimer = null;
     this._observer = null;
+    this._selectionLockSectionId = '';
+    this._selectionLockArmed = false;
+    this._selectionLockUserIntent = false;
+    this._lastWindowScrollY = window.scrollY || 0;
   }
 
   getTopicFromUrl() {
@@ -370,6 +374,7 @@ class TopicLoader {
       }
 
       const sectionId = link.dataset.sectionKey || '';
+      this.lockSectionSelection(sectionId);
       this.activateSection(sectionId, { scrollPage: false, focusLink: false, persist: true });
       const node = this.treeNodesBySection.get(sectionId);
       if (node && node.progressControl && !node.progressControl.checked) {
@@ -452,6 +457,79 @@ class TopicLoader {
         this.activateSection(currentNode.sectionId, { scrollPage: true, focusLink: true, persist: true });
       }
     });
+  }
+
+  lockSectionSelection(sectionId) {
+    this._selectionLockSectionId = sectionId || '';
+    this._selectionLockArmed = false;
+    this._selectionLockUserIntent = false;
+    this._lastWindowScrollY = window.scrollY || 0;
+
+    // Let hash-jump scrolling complete before we consider unlocking from user scroll.
+    window.setTimeout(() => {
+      this._selectionLockArmed = true;
+      this._lastWindowScrollY = window.scrollY || 0;
+    }, 0);
+  }
+
+  clearSectionSelectionLock() {
+    this._selectionLockSectionId = '';
+    this._selectionLockArmed = false;
+    this._selectionLockUserIntent = false;
+  }
+
+  setupSelectionLockReleaseTracking() {
+    const markUserIntent = () => {
+      if (!this._selectionLockSectionId) {
+        return;
+      }
+      this._selectionLockUserIntent = true;
+    };
+
+    window.addEventListener('wheel', markUserIntent, { passive: true });
+    window.addEventListener('touchmove', markUserIntent, { passive: true });
+    window.addEventListener('pointermove', (event) => {
+      if (!this._selectionLockSectionId) {
+        return;
+      }
+      if (event.pointerType === 'touch') {
+        this._selectionLockUserIntent = true;
+      }
+    }, { passive: true });
+    window.addEventListener('keydown', (event) => {
+      if (!this._selectionLockSectionId) {
+        return;
+      }
+
+      const keysThatScroll = new Set([
+        'ArrowDown',
+        'PageDown',
+        ' ',
+        'Spacebar',
+        'j'
+      ]);
+
+      if (keysThatScroll.has(event.key)) {
+        this._selectionLockUserIntent = true;
+      }
+    });
+
+    window.addEventListener(
+      'scroll',
+      () => {
+        const currentY = window.scrollY || 0;
+
+        if (this._selectionLockSectionId && this._selectionLockArmed && this._selectionLockUserIntent) {
+          const isScrollingDown = currentY > this._lastWindowScrollY;
+          if (isScrollingDown) {
+            this.clearSectionSelectionLock();
+          }
+        }
+
+        this._lastWindowScrollY = currentY;
+      },
+      { passive: true }
+    );
   }
 
   getFocusedSectionId() {
@@ -780,6 +858,10 @@ class TopicLoader {
             return;
           }
 
+          if (this._selectionLockSectionId && nextId !== this._selectionLockSectionId) {
+            return;
+          }
+
           this.activateSection(nextId, {
             scrollPage: false,
             focusLink: false,
@@ -925,6 +1007,7 @@ class TopicLoader {
     }
 
     await this.restoreNavigationState();
+    this.setupSelectionLockReleaseTracking();
     this.startLastReadTracking();
 
     window.addEventListener('roadmap-auth-changed', () => {
