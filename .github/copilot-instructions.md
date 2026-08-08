@@ -68,6 +68,7 @@ package.json
 - Keep metadata and document titles accurate.
 - Avoid inline styles and inline script blocks for executable code.
 - Keep SEO structured data scripts (application/ld+json) in-page when needed.
+- For external links that open in a new tab, always use `target="_blank"` with `rel="noopener noreferrer nofollow"` to reduce reverse-tabnabbing risk and avoid passing ranking trust to third-party references.
 
 ## Frontend Design Strategy
 
@@ -87,6 +88,7 @@ package.json
 - Prefer professional clarity over motivational filler; avoid vague claims like "easy" or "simple" without explanation.
 - Keep page titles, section titles, and sidebar labels short. Put detail in body text, not in long headings.
 - Prefer compact H1/H2/H3 labels that scan well in sidebars and navigation. Example: use `Flutter Core Concepts` instead of `Flutter Core Concepts: Widgets, Layout, and Rendering`.
+- Keep reference pages separate when learners need official docs, tutorials, and further reading. Do not hide the deep-dive reference map inside an operations or tooling lesson.
 
 For each roadmap topic page, include:
 
