@@ -26,11 +26,6 @@ class TopicLoader {
     this._lastSavedSectionId = '';
     this._lastSavedCollapsedSignature = '';
     this._persistTimer = null;
-    this._observer = null;
-    this._selectionLockSectionId = '';
-    this._selectionLockArmed = false;
-    this._selectionLockUserIntent = false;
-    this._lastWindowScrollY = window.scrollY || 0;
   }
 
   getTopicFromUrl() {
@@ -374,7 +369,6 @@ class TopicLoader {
       }
 
       const sectionId = link.dataset.sectionKey || '';
-      this.lockSectionSelection(sectionId);
       this.activateSection(sectionId, { scrollPage: false, focusLink: false, persist: true });
       const node = this.treeNodesBySection.get(sectionId);
       if (node && node.progressControl && !node.progressControl.checked) {
@@ -457,79 +451,6 @@ class TopicLoader {
         this.activateSection(currentNode.sectionId, { scrollPage: true, focusLink: true, persist: true });
       }
     });
-  }
-
-  lockSectionSelection(sectionId) {
-    this._selectionLockSectionId = sectionId || '';
-    this._selectionLockArmed = false;
-    this._selectionLockUserIntent = false;
-    this._lastWindowScrollY = window.scrollY || 0;
-
-    // Let hash-jump scrolling complete before we consider unlocking from user scroll.
-    window.setTimeout(() => {
-      this._selectionLockArmed = true;
-      this._lastWindowScrollY = window.scrollY || 0;
-    }, 0);
-  }
-
-  clearSectionSelectionLock() {
-    this._selectionLockSectionId = '';
-    this._selectionLockArmed = false;
-    this._selectionLockUserIntent = false;
-  }
-
-  setupSelectionLockReleaseTracking() {
-    const markUserIntent = () => {
-      if (!this._selectionLockSectionId) {
-        return;
-      }
-      this._selectionLockUserIntent = true;
-    };
-
-    window.addEventListener('wheel', markUserIntent, { passive: true });
-    window.addEventListener('touchmove', markUserIntent, { passive: true });
-    window.addEventListener('pointermove', (event) => {
-      if (!this._selectionLockSectionId) {
-        return;
-      }
-      if (event.pointerType === 'touch') {
-        this._selectionLockUserIntent = true;
-      }
-    }, { passive: true });
-    window.addEventListener('keydown', (event) => {
-      if (!this._selectionLockSectionId) {
-        return;
-      }
-
-      const keysThatScroll = new Set([
-        'ArrowDown',
-        'PageDown',
-        ' ',
-        'Spacebar',
-        'j'
-      ]);
-
-      if (keysThatScroll.has(event.key)) {
-        this._selectionLockUserIntent = true;
-      }
-    });
-
-    window.addEventListener(
-      'scroll',
-      () => {
-        const currentY = window.scrollY || 0;
-
-        if (this._selectionLockSectionId && this._selectionLockArmed && this._selectionLockUserIntent) {
-          const isScrollingDown = currentY > this._lastWindowScrollY;
-          if (isScrollingDown) {
-            this.clearSectionSelectionLock();
-          }
-        }
-
-        this._lastWindowScrollY = currentY;
-      },
-      { passive: true }
-    );
   }
 
   getFocusedSectionId() {
@@ -834,52 +755,6 @@ class TopicLoader {
   }
 
   startLastReadTracking() {
-    const headings = Array.from(
-      document.querySelectorAll('#main-content h1[id], #main-content h2[id], #main-content h3[id], #main-content h4[id], #main-content h5[id]')
-    );
-
-    if (headings.length === 0) {
-      return;
-    }
-
-    if ('IntersectionObserver' in window) {
-      this._observer = new IntersectionObserver(
-        (entries) => {
-          const visible = entries
-            .filter((entry) => entry.isIntersecting)
-            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-
-          if (visible.length === 0) {
-            return;
-          }
-
-          const nextId = visible[0].target.getAttribute('id');
-          if (!nextId || nextId === this.activeSectionId) {
-            return;
-          }
-
-          if (this._selectionLockSectionId && nextId !== this._selectionLockSectionId) {
-            return;
-          }
-
-          this.activateSection(nextId, {
-            scrollPage: false,
-            focusLink: false,
-            persist: true
-          });
-        },
-        {
-          root: null,
-          threshold: 0.45,
-          rootMargin: '-80px 0px -45% 0px'
-        }
-      );
-
-      headings.forEach((heading) => {
-        this._observer.observe(heading);
-      });
-    }
-
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
         this.persistNavigationState();
@@ -1007,7 +882,6 @@ class TopicLoader {
     }
 
     await this.restoreNavigationState();
-    this.setupSelectionLockReleaseTracking();
     this.startLastReadTracking();
 
     window.addEventListener('roadmap-auth-changed', () => {
