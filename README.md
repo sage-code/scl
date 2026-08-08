@@ -113,7 +113,7 @@ All maintained developer docs are under [manual](manual).
 - Build metadata report: [manual/build-manifest.json](manual/build-manifest.json)
 
 Notes:
-- Runtime JavaScript artifacts in `manual/*.js` are source references for migration/compatibility work and are not deploy docs.
+- Generated reports are written under `manual/` (for example build and migration status metadata).
 - Deploy artifacts are always generated into `public`.
 
 ## Contribution Guide
