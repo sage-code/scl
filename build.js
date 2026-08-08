@@ -5,6 +5,8 @@ const { execSync } = require("node:child_process");
 
 const ROOT = process.cwd();
 const PUBLIC_DIR = path.join(ROOT, "public");
+const BUILD_CACHE_PATH = path.join(ROOT, "manual", "build-cache.json");
+const BUILD_CACHE_VERSION = 1;
 const ROOT_PAGES_DIR = ROOT;
 const ROADMAP_LABS_DIR = path.join(ROOT, "roadmap", "labs");
 const ROADMAP_DIR = path.join(ROOT, "roadmap");
@@ -138,6 +140,127 @@ const ASSET_PATH_REWRITES = [
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function isPathInside(filePath, directoryPath) {
+  const relative = path.relative(directoryPath, filePath);
+  return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function hashFileContent(filePath) {
+  return crypto.createHash("sha1").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function collectFilesRecursive(dir, result = []) {
+  if (!fs.existsSync(dir)) {
+    return result;
+  }
+
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      collectFilesRecursive(fullPath, result);
+    } else if (entry.isFile()) {
+      result.push(fullPath);
+    }
+  }
+
+  return result;
+}
+
+function collectBuildInputFiles() {
+  const sourceFiles = new Set();
+
+  for (const fileName of SYSTEM_RUNTIME_FILES) {
+    const filePath = path.join(ROOT, fileName);
+    if (fs.existsSync(filePath)) {
+      sourceFiles.add(filePath);
+    }
+  }
+
+  for (const htmlPath of collectTopLevelHtmlFiles(ROOT_PAGES_DIR)) {
+    sourceFiles.add(htmlPath);
+  }
+
+  for (const filePath of collectFilesRecursive(LAYOUTS_DIR)) {
+    sourceFiles.add(filePath);
+  }
+
+  for (const filePath of collectFilesRecursive(ASSETS_DIR)) {
+    sourceFiles.add(filePath);
+  }
+
+  for (const filePath of collectFilesRecursive(ROADMAP_DIR)) {
+    sourceFiles.add(filePath);
+  }
+
+  for (const filePath of collectFilesRecursive(PROJECTS_DIR)) {
+    sourceFiles.add(filePath);
+  }
+
+  for (const filePath of collectFilesRecursive(COMMUNITY_DIR)) {
+    sourceFiles.add(filePath);
+  }
+
+  return Array.from(sourceFiles).sort();
+}
+
+function createSourceHashMap(files) {
+  const hashes = {};
+  for (const filePath of files) {
+    hashes[filePath] = hashFileContent(filePath);
+  }
+  return hashes;
+}
+
+function loadBuildCache() {
+  if (!fs.existsSync(BUILD_CACHE_PATH)) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(readTextOrEmpty(BUILD_CACHE_PATH));
+    if (!parsed || parsed.version !== BUILD_CACHE_VERSION || typeof parsed.sourceHashes !== "object") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveBuildCache(sourceHashes, mode) {
+  const payload = {
+    version: BUILD_CACHE_VERSION,
+    generatedAtUtc: new Date().toISOString(),
+    mode,
+    sourceHashes
+  };
+
+  ensureDir(path.dirname(BUILD_CACHE_PATH));
+  fs.writeFileSync(BUILD_CACHE_PATH, JSON.stringify(payload, null, 2), "utf8");
+}
+
+function diffSourceHashes(previousHashes, currentHashes) {
+  const changed = [];
+  const deleted = [];
+
+  const previous = previousHashes || {};
+  const current = currentHashes || {};
+
+  for (const [filePath, currentHash] of Object.entries(current)) {
+    if (!Object.prototype.hasOwnProperty.call(previous, filePath) || previous[filePath] !== currentHash) {
+      changed.push(filePath);
+    }
+  }
+
+  for (const filePath of Object.keys(previous)) {
+    if (!Object.prototype.hasOwnProperty.call(current, filePath)) {
+      deleted.push(filePath);
+    }
+  }
+
+  return { changed, deleted };
 }
 
 function cleanPublicDir() {
@@ -998,35 +1121,44 @@ function copyAssets() {
 
 function copySystemRuntimeFiles() {
   for (const fileName of SYSTEM_RUNTIME_FILES) {
-    const source = path.join(ROOT, fileName);
-    const destination = path.join(PUBLIC_DIR, fileName);
-    if (fileName === "sitemap.xml" && fs.existsSync(source)) {
-      let sitemap = readTextOrEmpty(source);
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/engineering\//gi, "https://sagecode.org/roadmap/cse/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/programming\//gi, "https://sagecode.org/roadmap/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/cse\//gi, "https://sagecode.org/roadmap/cse/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csp\//gi, "https://sagecode.org/roadmap/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csa\//gi, "https://sagecode.org/roadmap/csa/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsa\//gi, "https://sagecode.org/roadmap/dsa/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/itc\//gi, "https://sagecode.org/roadmap/hpc/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/hpc\//gi, "https://sagecode.org/roadmap/hpc/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/tek\//gi, "https://sagecode.org/roadmap/tek/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/ops\//gi, "https://sagecode.org/roadmap/tek/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dba\//gi, "https://sagecode.org/roadmap/dba/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/sml\//gi, "https://sagecode.org/roadmap/sml/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/osd\//gi, "https://sagecode.org/roadmap/osd/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsk\//gi, "https://sagecode.org/roadmap/dsk/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/das\//gi, "https://sagecode.org/roadmap/sml/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csd\//gi, "https://sagecode.org/roadmap/sml/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/roadmap\/csp\//gi, "https://sagecode.org/roadmap/");
-      sitemap = sitemap.replace(/https:\/\/sagecode\.org\/pro\//gi, "https://sagecode.org/projects/");
-      ensureDir(path.dirname(destination));
-      fs.writeFileSync(destination, sitemap, "utf8");
-      continue;
-    }
-
-    copyRecursive(source, destination);
+    publishSystemRuntimeFile(fileName);
   }
+}
+
+function publishSystemRuntimeFile(fileName) {
+  const source = path.join(ROOT, fileName);
+  const destination = path.join(PUBLIC_DIR, fileName);
+
+  if (!fs.existsSync(source)) {
+    return;
+  }
+
+  if (fileName === "sitemap.xml") {
+    let sitemap = readTextOrEmpty(source);
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/engineering\//gi, "https://sagecode.org/roadmap/cse/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/programming\//gi, "https://sagecode.org/roadmap/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/cse\//gi, "https://sagecode.org/roadmap/cse/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csp\//gi, "https://sagecode.org/roadmap/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csa\//gi, "https://sagecode.org/roadmap/csa/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsa\//gi, "https://sagecode.org/roadmap/dsa/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/itc\//gi, "https://sagecode.org/roadmap/hpc/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/hpc\//gi, "https://sagecode.org/roadmap/hpc/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/tek\//gi, "https://sagecode.org/roadmap/tek/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/ops\//gi, "https://sagecode.org/roadmap/tek/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dba\//gi, "https://sagecode.org/roadmap/dba/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/sml\//gi, "https://sagecode.org/roadmap/sml/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/osd\//gi, "https://sagecode.org/roadmap/osd/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsk\//gi, "https://sagecode.org/roadmap/dsk/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/das\//gi, "https://sagecode.org/roadmap/sml/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csd\//gi, "https://sagecode.org/roadmap/sml/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/roadmap\/csp\//gi, "https://sagecode.org/roadmap/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/pro\//gi, "https://sagecode.org/projects/");
+    ensureDir(path.dirname(destination));
+    fs.writeFileSync(destination, sitemap, "utf8");
+    return;
+  }
+
+  copyRecursive(source, destination);
 }
 
 function copyLabHtml() {
@@ -1224,6 +1356,183 @@ function buildContentPages() {
   };
 }
 
+function sourcePathToPublishedPath(sourcePath) {
+  if (isPathInside(sourcePath, ASSETS_DIR)) {
+    return path.join(PUBLIC_DIR, "assets", path.relative(ASSETS_DIR, sourcePath));
+  }
+
+  if (isPathInside(sourcePath, PROJECTS_DIR)) {
+    return path.join(PUBLIC_DIR, "projects", path.relative(PROJECTS_DIR, sourcePath));
+  }
+
+  if (isPathInside(sourcePath, COMMUNITY_DIR)) {
+    return path.join(PUBLIC_DIR, "community", path.relative(COMMUNITY_DIR, sourcePath));
+  }
+
+  if (isPathInside(sourcePath, ROADMAP_LABS_DIR)) {
+    const relative = path.relative(ROADMAP_LABS_DIR, sourcePath);
+    const parts = relative.split(path.sep);
+    const sourceRoute = parts.shift();
+    const publishedRoute = LAB_ROUTE_MAP[sourceRoute];
+    if (!publishedRoute) {
+      return null;
+    }
+    return path.join(PUBLIC_DIR, publishedRoute, ...parts);
+  }
+
+  if (isPathInside(sourcePath, ROADMAP_DIR)) {
+    const relative = path.relative(ROADMAP_DIR, sourcePath);
+    const parts = relative.split(path.sep);
+    if (!parts.length) {
+      return null;
+    }
+
+    if (parts[0].toLowerCase() === "labs") {
+      return null;
+    }
+
+    if (parts.length === 1) {
+      const fileName = parts[0];
+      if (fileName.toLowerCase() === "index.html") {
+        return path.join(PUBLIC_DIR, "roadmap", "index.html");
+      }
+      return path.join(PUBLIC_DIR, "roadmap", fileName);
+    }
+
+    return path.join(PUBLIC_DIR, "roadmap", ...parts);
+  }
+
+  return null;
+}
+
+function isRootRuntimeSourceFile(sourcePath) {
+  const fileName = path.basename(sourcePath);
+  return path.dirname(sourcePath) === ROOT && SYSTEM_RUNTIME_FILES.includes(fileName);
+}
+
+function isRootContentHtmlFile(sourcePath) {
+  if (path.dirname(sourcePath) !== ROOT) {
+    return false;
+  }
+
+  const lower = sourcePath.toLowerCase();
+  return lower.endsWith(".html");
+}
+
+function shouldPublishSourceAsset(sourcePath) {
+  const ext = path.extname(sourcePath).toLowerCase();
+
+  if (isPathInside(sourcePath, PROJECTS_DIR) || isPathInside(sourcePath, COMMUNITY_DIR)) {
+    return shouldCopyProjectStaticAsset(sourcePath);
+  }
+
+  if (isPathInside(sourcePath, ROADMAP_DIR) || isPathInside(sourcePath, ROADMAP_LABS_DIR) || isPathInside(sourcePath, ASSETS_DIR)) {
+    return shouldCopyLabStaticAsset(sourcePath);
+  }
+
+  return false;
+}
+
+function shouldPublishHtmlFromSource(sourcePath) {
+  const lower = sourcePath.toLowerCase();
+  if (!lower.endsWith(".html")) {
+    return false;
+  }
+
+  if (path.basename(lower) === "template.html") {
+    return false;
+  }
+
+  if (isRootContentHtmlFile(sourcePath)) {
+    return false;
+  }
+
+  return true;
+}
+
+function publishChangedSourceFile(sourcePath, optimizedHtmlTargets) {
+  if (isRootRuntimeSourceFile(sourcePath)) {
+    publishSystemRuntimeFile(path.basename(sourcePath));
+    return;
+  }
+
+  if (isRootContentHtmlFile(sourcePath)) {
+    return;
+  }
+
+  if (isPathInside(sourcePath, LAYOUTS_DIR)) {
+    return;
+  }
+
+  const destinationPath = sourcePathToPublishedPath(sourcePath);
+  if (!destinationPath) {
+    return;
+  }
+
+  if (shouldPublishHtmlFromSource(sourcePath)) {
+    ensureDir(path.dirname(destinationPath));
+    fs.copyFileSync(sourcePath, destinationPath);
+    optimizedHtmlTargets.add(destinationPath);
+    return;
+  }
+
+  if (shouldPublishSourceAsset(sourcePath)) {
+    ensureDir(path.dirname(destinationPath));
+    fs.copyFileSync(sourcePath, destinationPath);
+    return;
+  }
+
+  if (sourcePath.toLowerCase().endsWith(".json") && isPathInside(sourcePath, ROADMAP_DIR)) {
+    const siblingHtmlSource = sourcePath.replace(/\.json$/i, ".html");
+    const siblingPublishedPath = sourcePathToPublishedPath(siblingHtmlSource);
+    if (siblingPublishedPath && fs.existsSync(siblingPublishedPath)) {
+      optimizedHtmlTargets.add(siblingPublishedPath);
+    }
+  }
+}
+
+function deletePublishedSourceTarget(sourcePath) {
+  if (isRootRuntimeSourceFile(sourcePath)) {
+    const destination = path.join(PUBLIC_DIR, path.basename(sourcePath));
+    if (fs.existsSync(destination)) {
+      fs.rmSync(destination, { force: true });
+    }
+    return;
+  }
+
+  if (isRootContentHtmlFile(sourcePath) || isPathInside(sourcePath, LAYOUTS_DIR)) {
+    return;
+  }
+
+  const destinationPath = sourcePathToPublishedPath(sourcePath);
+  if (!destinationPath || !fs.existsSync(destinationPath)) {
+    return;
+  }
+
+  fs.rmSync(destinationPath, { force: true });
+}
+
+function optimizePublishedHtmlTargets(targetPaths) {
+  if (!targetPaths || targetPaths.size === 0) {
+    return;
+  }
+
+  const headerTemplate = readTextOrEmpty(path.join(LAYOUTS_DIR, "header.html"));
+  const footerTemplate = readTextOrEmpty(path.join(LAYOUTS_DIR, "footer.html"));
+
+  for (const filePath of targetPaths) {
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+
+    const current = readTextOrEmpty(filePath);
+    const transformed = optimizeHtmlOutput(current, headerTemplate, footerTemplate, filePath);
+    if (transformed !== current) {
+      fs.writeFileSync(filePath, transformed, "utf8");
+    }
+  }
+}
+
 function optimizePublishedHtmlFiles() {
   const headerTemplate = readTextOrEmpty(path.join(LAYOUTS_DIR, "header.html"));
   const footerTemplate = readTextOrEmpty(path.join(LAYOUTS_DIR, "footer.html"));
@@ -1276,8 +1585,7 @@ function generateRoadmapIndex() {
   }
 }
 
-function main() {
-  generateRoadmapIndex();
+function runFullBuild() {
   cleanPublicDir();
   copyAssets();
   writeSupabaseConfigAsset();
@@ -1291,9 +1599,71 @@ function main() {
   copyRoadmapLandingPage();
   const contentResult = buildContentPages();
   optimizePublishedHtmlFiles();
-  writeBuildManifest(contentResult);
+  return contentResult;
+}
 
-  console.log(`Build complete. Rendered ${contentResult.pageCount} page(s) from roadmap root.`);
+function runIncrementalBuild(changedFiles, deletedFiles, options = {}) {
+  ensureDir(PUBLIC_DIR);
+  writeSupabaseConfigAsset();
+
+  const optimizedHtmlTargets = new Set();
+
+  for (const sourcePath of deletedFiles) {
+    deletePublishedSourceTarget(sourcePath);
+  }
+
+  for (const sourcePath of changedFiles) {
+    publishChangedSourceFile(sourcePath, optimizedHtmlTargets);
+  }
+
+  const contentResult = buildContentPages();
+
+  if (options.forceGlobalHtmlOptimization) {
+    optimizePublishedHtmlFiles();
+  } else {
+    optimizePublishedHtmlTargets(optimizedHtmlTargets);
+  }
+
+  return contentResult;
+}
+
+function main() {
+  generateRoadmapIndex();
+
+  const previousCache = loadBuildCache();
+  const sourceFiles = collectBuildInputFiles();
+  const currentHashes = createSourceHashMap(sourceFiles);
+  const diff = diffSourceHashes(previousCache ? previousCache.sourceHashes : {}, currentHashes);
+
+  const baseTemplatePath = path.join(LAYOUTS_DIR, "base.html");
+  const headerPath = path.join(LAYOUTS_DIR, "header.html");
+  const footerPath = path.join(LAYOUTS_DIR, "footer.html");
+  const forceFullBuild = (process.env.BUILD_MODE || "").toLowerCase() === "full";
+  const hasCache = Boolean(previousCache);
+  const publicReady = fs.existsSync(PUBLIC_DIR);
+  const baseTemplateChanged =
+    diff.changed.includes(baseTemplatePath) || diff.deleted.includes(baseTemplatePath);
+  const headerOrFooterChanged =
+    diff.changed.includes(headerPath) ||
+    diff.changed.includes(footerPath) ||
+    diff.deleted.includes(headerPath) ||
+    diff.deleted.includes(footerPath);
+
+  const requiresFullBuild = forceFullBuild || !hasCache || !publicReady || baseTemplateChanged;
+
+  const contentResult = requiresFullBuild
+    ? runFullBuild()
+    : runIncrementalBuild(diff.changed, diff.deleted, {
+        forceGlobalHtmlOptimization: headerOrFooterChanged
+      });
+
+  const modeLabel = requiresFullBuild ? "full" : "differential";
+  writeBuildManifest(contentResult);
+  saveBuildCache(currentHashes, modeLabel);
+
+  console.log(
+    `Build complete (${modeLabel}). Rendered ${contentResult.pageCount} page(s) from roadmap root.`
+  );
 }
 
 main();

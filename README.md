@@ -46,6 +46,16 @@ npm install
 npm run build
 ```
 
+`npm run build` now uses automatic differential mode when possible:
+- Runs a full build when `layouts/base.html` changes, no previous cache exists, or `public/` is missing.
+- Otherwise publishes only changed sources and related optimized HTML.
+
+To force a full build manually:
+
+```powershell
+npm run build:full
+```
+
 ## Supabase Setup
 
 This repository includes browser-side Supabase client wiring for roadmap auth pages.
