@@ -220,7 +220,7 @@ localStorage['go-topic-syntax'] = {
 
 ### ❌ Before → ✅ After
 
-| Problem | Before (template.html) | After (topic.html + index.html) |
+| Problem | Before (legacy template flow) | After (topic.html + index.html) |
 |---------|----------------------|--------------------------------|
 | **No progress tracking** | Hub showed cards with no completion status | ✅ Hub table with checkboxes + % bar |
 | **Global sidebar for all topics** | One sidebar.json loaded for any topic | ✅ Each topic has own {topic}.json |
@@ -270,7 +270,7 @@ concurrency.html, examples.html
 ### DEPRECATED/OBSOLETE
 
 ```
-template.html              [REPLACED by topic.html]
+per-track template.html    [REMOVED from roadmap tracks]
 sidebar-data.js            [FUNCTIONALITY MERGED into topic.html]
 sidebar.json               [REPLACED by per-topic {name}.json files]
 ```

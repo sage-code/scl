@@ -61,7 +61,7 @@ All 12 topic HTML content files remain unchanged:
 
 ### DEPRECATED FILE
 
-- `template.html` → Replaced by `topic.html` (same functionality, smarter configuration)
+- Per-track `template.html` files → Removed from roadmap tracks; shared templates now live in `assets/`
 - `sidebar-data.js` → Functionality now inline in `topic.html` for simplicity
 
 ## Key Improvements Over Previous Design
