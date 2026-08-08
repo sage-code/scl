@@ -27,6 +27,13 @@ build.js             # Main build orchestrator
 vercel.json          # Hosting config
 ```
 
+## Template Policy
+
+- Shared authoring templates live only in `assets/`.
+- Canonical shared templates are `assets/roadmap_template.html` and `assets/topic_template.html`.
+- Do not keep `template.html` files inside individual `roadmap/<track>/` folders.
+- Roadmap track pages should use concrete source pages (`index.html`, topic pages, and optional `topic.html`) instead of per-track template files.
+
 ## Build Pipeline (Actual)
 
 `npm run build` runs `node build.js` and performs the following:
