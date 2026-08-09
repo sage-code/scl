@@ -26,6 +26,12 @@ Before editing content at scale, verify these generated outputs after build:
 2. public pages include footer markup in final HTML.
 3. public/assets/js/inline contains extracted script files from any inline executable JavaScript.
 
+Before creating or updating roadmap topic pages, verify sidebar navigation shape:
+
+1. Each topic page has one `h1`, multiple `h2`, and multiple `h3` under every `h2`.
+2. Matching `roadmap/<track>/<topic>.json` is hierarchical, not flat: each `h2` item must include a `children` array of `h3` anchors.
+3. Do not publish flat JSON lists for topic sidebars; flat lists break tree navigation semantics in `assets/js/topic-loader.js`.
+
 ## Architecture Rules
 
 - Use only vanilla HTML5, CSS3, ES6+ JavaScript, and Bootstrap where already established.
