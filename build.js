@@ -544,9 +544,9 @@ function relativizeInternalRootLinks(html, sourcePath) {
 }
 
 function normalizeSharedBrandAssets(html, sourcePath) {
-  const prefix = getRelativeRootPrefix(sourcePath);
-  const logoPath = `${prefix}assets/images/sage-logo.svg`;
-  const faviconPath = `${prefix}assets/images/favicon.ico`;
+  // Keep shared brand assets rooted at /assets so they resolve on clean-url routes.
+  const logoPath = `/assets/images/sage-logo.svg`;
+  const faviconPath = `/assets/images/favicon.ico`;
 
   let transformed = html;
   transformed = transformed.replace(/\bsrc=(['"])(?:[^"']*\/)?sage-logo\.svg\1/gi, (match, quote) => {
