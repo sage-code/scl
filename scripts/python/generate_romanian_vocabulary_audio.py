@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Generate feminine Romanian TTS audio files and attach inline play buttons.
+"""Generate feminine Romanian TTS audio files and attach reusable table controls.
 
 This script scans roadmap/romanian/vocabulary.html, extracts the first column text
 from each vocabulary table row, generates MP3 files with Edge TTS, and rewrites rows
-so the first column keeps plain Romanian text while the second column includes a play
-button that plays audio inline.
+to include a dedicated play-button column plus a table-level play-all header button.
 """
 
 from __future__ import annotations
@@ -54,78 +53,115 @@ def rel_audio_href(file_name: str) -> str:
     return f"/roadmap/romanian/audio/vocabulary/{file_name}"
 
 
-def ensure_inline_player_script(soup: BeautifulSoup) -> None:
-    script_id = "vocab-inline-audio-player"
-    existing = soup.find("script", attrs={"id": script_id})
-    if existing is not None:
-        existing.decompose()
+def ensure_external_player_script(soup: BeautifulSoup) -> None:
+    legacy_inline = soup.find("script", attrs={"id": "vocab-inline-audio-player"})
+    if legacy_inline is not None:
+        legacy_inline.decompose()
 
-    script_tag = soup.new_tag("script", id=script_id)
-    script_tag.string = (
-        "(function(){"
-        "const sharedAudio=new Audio();"
-        "document.addEventListener('click',function(event){"
-        "const btn=event.target.closest('.row-audio-btn');"
-        "if(!btn){return;}"
-        "event.preventDefault();"
-        "const src=btn.getAttribute('data-audio');"
-        "if(!src){return;}"
-        "if(sharedAudio.src.endsWith(src)&&!sharedAudio.paused){sharedAudio.pause();sharedAudio.currentTime=0;btn.setAttribute('aria-pressed','false');return;}"
-        "document.querySelectorAll('.row-audio-btn[aria-pressed=\"true\"]').forEach(function(b){b.setAttribute('aria-pressed','false');});"
-        "sharedAudio.src=src;"
-        "sharedAudio.play().then(function(){btn.setAttribute('aria-pressed','true');}).catch(function(){});"
-        "});"
-        "sharedAudio.addEventListener('ended',function(){document.querySelectorAll('.row-audio-btn[aria-pressed=\"true\"]').forEach(function(b){b.setAttribute('aria-pressed','false');});});"
-        "})();"
+    if soup.find("script", attrs={"src": "/assets/js/AutoPlayVocabulary.js"}) is None:
+        script_tag = soup.new_tag("script", src="/assets/js/AutoPlayVocabulary.js")
+        script_tag["defer"] = ""
+        body_tag = soup.body
+        if body_tag is not None:
+            body_tag.append(script_tag)
+
+
+def ensure_table_header_button(table, soup: BeautifulSoup) -> None:
+    header_row = table.select_one("thead tr")
+    if header_row is None:
+        return
+
+    header_cells = header_row.find_all("th", recursive=False)
+    if not header_cells:
+        return
+
+    if len(header_cells) > 1 and "row-audio-head" in (header_cells[1].get("class") or []):
+        header_button_cell = header_cells[1]
+        header_button_cell.clear()
+    else:
+        header_button_cell = soup.new_tag("th", **{"class": "text-center row-audio-head", "scope": "col"})
+        header_cells[0].insert_after(header_button_cell)
+
+    button = soup.new_tag(
+        "button",
+        type="button",
+        **{
+            "class": "btn btn-sm btn-info table-play-all-btn",
+            "title": "Play all rows in loop",
+            "aria-label": "Play all rows in loop",
+            "aria-pressed": "false",
+        },
     )
-
-    body_tag = soup.body
-    if body_tag is not None:
-        body_tag.append(script_tag)
+    icon = soup.new_tag("i", **{"class": "bi bi-play-circle-fill me-1"})
+    button.append(icon)
+    button.append("Play all")
+    header_button_cell.append(button)
 
 
 def link_terms_in_html(soup: BeautifulSoup, term_to_file: dict[str, str]) -> int:
     updated = 0
+    for table in soup.select("main table"):
+        ensure_table_header_button(table, soup)
+
     for row in soup.select("main table tbody tr"):
         columns = row.find_all("td")
         if len(columns) < 2:
             continue
+
         first_col = columns[0]
-        second_col = columns[1]
 
         term = first_col.get_text(" ", strip=True)
         if term not in term_to_file:
             continue
 
         href = rel_audio_href(term_to_file[term])
-        english_text = second_col.get_text(" ", strip=True)
+        button_col_exists = len(columns) > 1 and "row-audio-cell" in (columns[1].get("class") or [])
+
+        if button_col_exists:
+            button_col = columns[1]
+            english_col = columns[2] if len(columns) > 2 else None
+        else:
+            button_col = None
+            english_col = columns[1]
+
+        if english_col is None:
+            continue
+
+        if english_col.find("span", class_="align-middle") is not None:
+            english_text = english_col.find("span", class_="align-middle").get_text(" ", strip=True)
+        else:
+            english_text = english_col.get_text(" ", strip=True)
 
         first_col.clear()
         first_col.string = term
 
-        second_col.clear()
+        if button_col is None:
+            button_col = soup.new_tag("td", **{"class": "text-center row-audio-cell"})
+            english_col.insert_before(button_col)
+        else:
+            button_col.clear()
+            button_col["class"] = "text-center row-audio-cell"
+
         btn_tag = soup.new_tag(
             "button",
             type="button",
             **{
-                "class": "btn btn-sm btn-outline-info row-audio-btn align-middle me-2",
+                "class": "btn btn-sm btn-outline-info row-audio-btn align-middle",
                 "data-audio": href,
                 "title": f"Play audio for '{term}'",
                 "aria-label": f"Play audio for {term}",
                 "aria-pressed": "false",
             },
         )
-        icon_tag = soup.new_tag("i", **{"class": "bi bi-play-circle-fill"})
+        icon_tag = soup.new_tag("i", **{"class": "bi bi-play-fill"})
         btn_tag.append(icon_tag)
 
-        text_span = soup.new_tag("span", **{"class": "align-middle"})
-        text_span.string = english_text
-
-        second_col.append(btn_tag)
-        second_col.append(text_span)
+        button_col.append(btn_tag)
+        english_col.clear()
+        english_col.string = english_text
         updated += 1
 
-    ensure_inline_player_script(soup)
+    ensure_external_player_script(soup)
     return updated
 
 
