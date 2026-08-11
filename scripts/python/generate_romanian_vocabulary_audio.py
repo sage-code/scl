@@ -87,14 +87,12 @@ def ensure_table_header_button(table, soup: BeautifulSoup) -> None:
         type="button",
         **{
             "class": "btn btn-sm btn-info table-play-all-btn",
-            "title": "Play all rows in loop",
             "aria-label": "Play all rows in loop",
             "aria-pressed": "false",
         },
     )
     icon = soup.new_tag("i", **{"class": "bi bi-play-circle-fill me-1"})
     button.append(icon)
-    button.append("Play all")
     header_button_cell.append(button)
 
 
@@ -148,7 +146,6 @@ def link_terms_in_html(soup: BeautifulSoup, term_to_file: dict[str, str]) -> int
             **{
                 "class": "btn btn-sm btn-outline-info row-audio-btn align-middle",
                 "data-audio": href,
-                "title": f"Play audio for '{term}'",
                 "aria-label": f"Play audio for {term}",
                 "aria-pressed": "false",
             },
