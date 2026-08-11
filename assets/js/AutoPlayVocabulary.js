@@ -17,7 +17,7 @@
     const style = document.createElement("style");
     style.id = "vocab-audio-highlight-style";
     style.textContent =
-      ".row-audio-active > td{background-color:rgba(13,202,240,0.30)!important;box-shadow:inset 0 0 0 1px rgba(13,202,240,0.35);}" +
+      ".row-audio-active > td{background-color:rgba(90,60,30,0.88)!important;color:#f7e7d3!important;box-shadow:inset 0 0 0 1px rgba(167,126,76,0.70);}" +
       ".row-audio-btn." + ACTIVE_BUTTON_CLASS + "{background-color:#0dcaf0!important;color:#081016!important;border-color:#0dcaf0!important;}";
     document.head.appendChild(style);
   }
