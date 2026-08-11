@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Generate feminine Romanian TTS audio files and link each Romanian row term.
+"""Generate feminine Romanian TTS audio files and attach inline play buttons.
 
 This script scans roadmap/romanian/vocabulary.html, extracts the first column text
-from each vocabulary table row, generates MP3 files with Edge TTS, and rewrites the
-first column so every term links to its audio file.
+from each vocabulary table row, generates MP3 files with Edge TTS, and rewrites rows
+so the first column keeps plain Romanian text while the second column includes a play
+button that plays audio inline.
 """
 
 from __future__ import annotations
@@ -53,50 +54,78 @@ def rel_audio_href(file_name: str) -> str:
     return f"/roadmap/romanian/audio/vocabulary/{file_name}"
 
 
+def ensure_inline_player_script(soup: BeautifulSoup) -> None:
+    script_id = "vocab-inline-audio-player"
+    existing = soup.find("script", attrs={"id": script_id})
+    if existing is not None:
+        existing.decompose()
+
+    script_tag = soup.new_tag("script", id=script_id)
+    script_tag.string = (
+        "(function(){"
+        "const sharedAudio=new Audio();"
+        "document.addEventListener('click',function(event){"
+        "const btn=event.target.closest('.row-audio-btn');"
+        "if(!btn){return;}"
+        "event.preventDefault();"
+        "const src=btn.getAttribute('data-audio');"
+        "if(!src){return;}"
+        "if(sharedAudio.src.endsWith(src)&&!sharedAudio.paused){sharedAudio.pause();sharedAudio.currentTime=0;btn.setAttribute('aria-pressed','false');return;}"
+        "document.querySelectorAll('.row-audio-btn[aria-pressed=\"true\"]').forEach(function(b){b.setAttribute('aria-pressed','false');});"
+        "sharedAudio.src=src;"
+        "sharedAudio.play().then(function(){btn.setAttribute('aria-pressed','true');}).catch(function(){});"
+        "});"
+        "sharedAudio.addEventListener('ended',function(){document.querySelectorAll('.row-audio-btn[aria-pressed=\"true\"]').forEach(function(b){b.setAttribute('aria-pressed','false');});});"
+        "})();"
+    )
+
+    body_tag = soup.body
+    if body_tag is not None:
+        body_tag.append(script_tag)
+
+
 def link_terms_in_html(soup: BeautifulSoup, term_to_file: dict[str, str]) -> int:
     updated = 0
     for row in soup.select("main table tbody tr"):
-        first_col = row.find("td")
-        if first_col is None:
+        columns = row.find_all("td")
+        if len(columns) < 2:
             continue
+        first_col = columns[0]
+        second_col = columns[1]
+
         term = first_col.get_text(" ", strip=True)
         if term not in term_to_file:
             continue
 
         href = rel_audio_href(term_to_file[term])
+        english_text = second_col.get_text(" ", strip=True)
+
         first_col.clear()
+        first_col.string = term
 
-        a_tag = soup.new_tag(
-            "a",
-            href=href,
+        second_col.clear()
+        btn_tag = soup.new_tag(
+            "button",
+            type="button",
             **{
-                "class": "word-audio-link fw-semibold text-decoration-none",
-                "target": "_blank",
-                "rel": "noopener noreferrer",
-                "title": f"Open audio for '{term}'",
-                "aria-label": f"Open audio for {term}",
-            },
-        )
-        a_tag.string = term
-
-        icon_tag = soup.new_tag(
-            "a",
-            href=href,
-            **{
-                "class": "ms-2 text-info",
-                "target": "_blank",
-                "rel": "noopener noreferrer",
+                "class": "btn btn-sm btn-outline-info row-audio-btn align-middle me-2",
+                "data-audio": href,
                 "title": f"Play audio for '{term}'",
                 "aria-label": f"Play audio for {term}",
+                "aria-pressed": "false",
             },
         )
-        i_tag = soup.new_tag("i", **{"class": "bi bi-volume-up-fill"})
-        icon_tag.append(i_tag)
+        icon_tag = soup.new_tag("i", **{"class": "bi bi-play-circle-fill"})
+        btn_tag.append(icon_tag)
 
-        first_col.append(a_tag)
-        first_col.append(icon_tag)
+        text_span = soup.new_tag("span", **{"class": "align-middle"})
+        text_span.string = english_text
+
+        second_col.append(btn_tag)
+        second_col.append(text_span)
         updated += 1
 
+    ensure_inline_player_script(soup)
     return updated
 
 
