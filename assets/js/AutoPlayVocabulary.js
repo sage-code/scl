@@ -1,5 +1,6 @@
 (function () {
   const ACTIVE_ROW_CLASS = "row-audio-active";
+  const ACTIVE_BUTTON_CLASS = "row-audio-btn-active";
   const audio = new Audio();
 
   let loopEnabled = false;
@@ -15,7 +16,9 @@
 
     const style = document.createElement("style");
     style.id = "vocab-audio-highlight-style";
-    style.textContent = ".row-audio-active > td{background-color:rgba(13,202,240,0.18)!important;}";
+    style.textContent =
+      ".row-audio-active > td{background-color:rgba(13,202,240,0.30)!important;box-shadow:inset 0 0 0 1px rgba(13,202,240,0.35);}" +
+      ".row-audio-btn." + ACTIVE_BUTTON_CLASS + "{background-color:#0dcaf0!important;color:#081016!important;border-color:#0dcaf0!important;}";
     document.head.appendChild(style);
   }
 
@@ -26,6 +29,7 @@
   function setActiveRowButton(button) {
     if (activeRowButton && activeRowButton !== button) {
       activeRowButton.setAttribute("aria-pressed", "false");
+      activeRowButton.classList.remove(ACTIVE_BUTTON_CLASS);
     }
     activeRowButton = button;
 
@@ -35,10 +39,12 @@
     }
 
     button.setAttribute("aria-pressed", "true");
+    button.classList.add(ACTIVE_BUTTON_CLASS);
     clearRowHighlight();
     const row = button.closest("tr");
     if (row) {
       row.classList.add(ACTIVE_ROW_CLASS);
+      row.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
   }
 
@@ -64,6 +70,7 @@
 
     if (activeRowButton) {
       activeRowButton.setAttribute("aria-pressed", "false");
+      activeRowButton.classList.remove(ACTIVE_BUTTON_CLASS);
       activeRowButton = null;
     }
 
@@ -81,6 +88,7 @@
     audio.src = src;
     audio.play().catch(function () {
       button.setAttribute("aria-pressed", "false");
+      button.classList.remove(ACTIVE_BUTTON_CLASS);
       clearRowHighlight();
     });
   }
@@ -122,6 +130,7 @@
   audio.addEventListener("ended", function () {
     if (activeRowButton) {
       activeRowButton.setAttribute("aria-pressed", "false");
+      activeRowButton.classList.remove(ACTIVE_BUTTON_CLASS);
     }
 
     if (loopEnabled) {
@@ -141,6 +150,7 @@
 
     if (activeRowButton) {
       activeRowButton.setAttribute("aria-pressed", "false");
+      activeRowButton.classList.remove(ACTIVE_BUTTON_CLASS);
       activeRowButton = null;
     }
     clearRowHighlight();
