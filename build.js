@@ -566,6 +566,16 @@ function shouldRelativizeRootLinks(sourcePath) {
     return false;
   }
 
+  // Vercel's cleanUrls + trailingSlash config serves top-level pages like
+  // /legal.html and /manifesto.html at a virtual /legal/ and /manifesto/
+  // route (one directory level deeper than the file actually sits in
+  // /public). Page-relative "./assets/..." links resolve incorrectly under
+  // that virtual route, so keep root-absolute links for every top-level
+  // page except index.html, whose clean route is "/" itself.
+  if (path.dirname(sourcePath) === PUBLIC_DIR && path.basename(sourcePath).toLowerCase() !== "index.html") {
+    return false;
+  }
+
   return true;
 }
 
