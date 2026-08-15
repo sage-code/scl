@@ -171,6 +171,8 @@ function collectFilesRecursive(dir, result = []) {
 function collectBuildInputFiles() {
   const sourceFiles = new Set();
 
+  sourceFiles.add(__filename);
+
   for (const fileName of SYSTEM_RUNTIME_FILES) {
     const filePath = path.join(ROOT, fileName);
     if (fs.existsSync(filePath)) {
@@ -563,6 +565,13 @@ function normalizeSharedBrandAssets(html, sourcePath) {
 function shouldRelativizeRootLinks(sourcePath) {
   const normalized = sourcePath.replace(/\\/g, "/").toLowerCase();
   if (normalized.includes("/public/roadmap/")) {
+    return false;
+  }
+
+  // Project subpages are served by Vercel as clean directory URLs (for
+  // example, /projects/bee/features/). Their virtual route depth differs
+  // from the published .html path, so page-relative shared asset URLs break.
+  if (normalized.includes("/public/projects/")) {
     return false;
   }
 
@@ -1648,6 +1657,7 @@ function main() {
   const baseTemplatePath = path.join(LAYOUTS_DIR, "base.html");
   const headerPath = path.join(LAYOUTS_DIR, "header.html");
   const footerPath = path.join(LAYOUTS_DIR, "footer.html");
+  const buildScriptChanged = diff.changed.includes(__filename) || diff.deleted.includes(__filename);
   const forceFullBuild = (process.env.BUILD_MODE || "").toLowerCase() === "full";
   const hasCache = Boolean(previousCache);
   const publicReady = fs.existsSync(PUBLIC_DIR);
@@ -1659,7 +1669,7 @@ function main() {
     diff.deleted.includes(headerPath) ||
     diff.deleted.includes(footerPath);
 
-  const requiresFullBuild = forceFullBuild || !hasCache || !publicReady || baseTemplateChanged;
+  const requiresFullBuild = forceFullBuild || !hasCache || !publicReady || baseTemplateChanged || buildScriptChanged;
 
   const contentResult = requiresFullBuild
     ? runFullBuild()
