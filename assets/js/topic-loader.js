@@ -10,8 +10,8 @@ class TopicLoader {
       config.topicId !== undefined && config.topicId !== null && String(config.topicId).length
         ? config.topicId
         : this.getTopicFromUrl();
-    this.homeLink = config.homeLink || './index.html#topics';
-    this.labHomeLink = config.labHomeLink || './index.html';
+    this.homeLink = this.resolveTrackLink(config.homeLink, '#topics');
+    this.labHomeLink = this.resolveTrackLink(config.labHomeLink, `#topic-${this.topicId}`);
     this.inlineContent = !!config.inlineContent;
     this.roadmapCourseId = config.roadmapCourseId;
     this.navStateStoragePrefix = 'sage_nav_state';
@@ -31,6 +31,22 @@ class TopicLoader {
   getTopicFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return params.get('topic') || 'overview';
+  }
+
+  // Clean-url routes serve a topic from a virtual directory, so relative "./index.html"
+  // links configured in the page would resolve back onto the topic itself.
+  resolveTrackLink(configuredLink, hash) {
+    if (configuredLink && (configuredLink.startsWith('/') || /^[a-z]+:/i.test(configuredLink))) {
+      return configuredLink;
+    }
+
+    const segments = window.location.pathname.split('/').filter(Boolean);
+    if (segments.length > 0) {
+      segments.pop();
+    }
+
+    const trackRoot = segments.length > 0 ? `/${segments.join('/')}/` : '/';
+    return `${trackRoot}${hash}`;
   }
 
   formatTopicName(topicId) {
