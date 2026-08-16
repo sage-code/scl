@@ -741,8 +741,26 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
   return html;
 }
 
-function renderReturnToRoadmapItem() {
-  return `<li class="nav-item mb-2 return-roadmap-link"><a href="./index.html" class="text-info text-decoration-none">Return to Roadmap</a></li>`;
+// Clean URLs + trailing slashes serve topic pages from a virtual directory, so a
+// relative "./index.html" resolves back onto the current page instead of the track index.
+function resolveReturnToRoadmapHref(sourcePath) {
+  const context = resolveRoadmapTopicContext(sourcePath);
+  if (context) {
+    return `/roadmap/${context.topLevelRoute}/#topic-${context.topicId}`;
+  }
+
+  const parentRoute = path
+    .relative(PUBLIC_DIR, path.dirname(sourcePath))
+    .split(path.sep)
+    .filter(Boolean)
+    .join("/");
+
+  return parentRoute ? `/${parentRoute}/` : "/";
+}
+
+function renderReturnToRoadmapItem(sourcePath) {
+  const href = escapeHtml(resolveReturnToRoadmapHref(sourcePath));
+  return `<li class="nav-item mb-2 return-roadmap-link"><a href="${href}" class="text-info text-decoration-none">Return to Roadmap</a></li>`;
 }
 
 function findBookmarkListBounds(html) {
@@ -789,7 +807,7 @@ function markBookmarkListAsStatic(openTag) {
   return openTag.replace(/>$/, ' data-static-sidebar="true">');
 }
 
-function ensureReturnToRoadmapLink(html) {
+function ensureReturnToRoadmapLink(html, sourcePath) {
   const bounds = findBookmarkListBounds(html);
   if (!bounds) {
     return html;
@@ -802,7 +820,7 @@ function ensureReturnToRoadmapLink(html) {
 
   const trimmedInner = inner.trimEnd();
   const separator = trimmedInner.length > 0 ? "\n" : "";
-  const updatedInner = `${trimmedInner}${separator}${renderReturnToRoadmapItem()}\n`;
+  const updatedInner = `${trimmedInner}${separator}${renderReturnToRoadmapItem(sourcePath)}\n`;
 
   return `${html.slice(0, bounds.openEnd)}${updatedInner}${html.slice(bounds.closeStart)}`;
 }
@@ -845,7 +863,7 @@ function injectStaticSidebar(html, sourcePath) {
   }
 
   const staticOpenTag = markBookmarkListAsStatic(refreshedBounds.openTag);
-  const renderedList = `${renderSidebarItems(navItems)}\n${renderReturnToRoadmapItem()}`;
+  const renderedList = `${renderSidebarItems(navItems)}\n${renderReturnToRoadmapItem(sourcePath)}`;
   transformed =
     `${transformed.slice(0, refreshedBounds.openStart)}` +
     `${staticOpenTag}\n${renderedList}\n` +
@@ -986,8 +1004,8 @@ function ensureTopicConfigScript(html, sourcePath) {
     "  window.TOPIC_CONFIG = {",
     `    labId: ${JSON.stringify(labId)},`,
     `    topicId: ${JSON.stringify(context.topicId)},`,
-    "    homeLink: './index.html#topics',",
-    "    labHomeLink: './index.html',",
+    `    homeLink: ${JSON.stringify(`/roadmap/${context.topLevelRoute}/#topics`)},`,
+    `    labHomeLink: ${JSON.stringify(resolveReturnToRoadmapHref(sourcePath))},`,
     "    inlineContent: true",
     "  };",
     "</script>"
@@ -1110,6 +1128,44 @@ function canonicalizeRoadmapTrackIndexTopicLinks(html, sourcePath) {
   );
 }
 
+// Gives each track index row a stable anchor so topic pages can scroll back to their row.
+function addRoadmapTrackIndexTopicAnchors(html, sourcePath) {
+  const normalizedPath = sourcePath.replace(/\\/g, "/").toLowerCase();
+  const match = normalizedPath.match(/\/public\/roadmap\/([a-z0-9_-]+)\/index\.html$/i);
+  if (!match) {
+    return html;
+  }
+
+  const trackId = match[1].toLowerCase();
+  const topicHrefRegex = new RegExp(`href=["'][^"']*/roadmap/${trackId}/([a-z0-9_-]+)(?:\\.html|/)`, "i");
+
+  const addAnchor = (rowMarkup, tagName, attributes, rowInner) => {
+    if (/\bid\s*=/i.test(attributes)) {
+      return rowMarkup;
+    }
+
+    const dataTopicMatch = attributes.match(/\bdata-topic=["']([^"']+)["']/i);
+    const topicId = dataTopicMatch ? dataTopicMatch[1] : (rowInner.match(topicHrefRegex) || [])[1];
+
+    const anchorId = String(topicId || "").trim().replace(/[^a-zA-Z0-9_-]/g, "-");
+    if (!anchorId || anchorId.toLowerCase() === "index") {
+      return rowMarkup;
+    }
+
+    return `<${tagName} id="topic-${anchorId}"${attributes}>${rowInner}</${tagName}>`;
+  };
+
+  let transformed = html.replace(/<tr\b([^>]*)>([\s\S]*?)<\/tr>/gi, (rowMarkup, attributes, rowInner) =>
+    addAnchor(rowMarkup, "tr", attributes, rowInner)
+  );
+
+  transformed = transformed.replace(/<li\b([^>]*)>((?:(?!<li\b)[\s\S])*?)<\/li>/gi, (rowMarkup, attributes, rowInner) =>
+    addAnchor(rowMarkup, "li", attributes, rowInner)
+  );
+
+  return transformed;
+}
+
 function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   let transformed = html;
   const enforceCommonFooter = shouldEnforceCommonFooter(sourcePath);
@@ -1118,13 +1174,14 @@ function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   transformed = injectStaticSidebar(transformed, sourcePath);
   transformed = ensureTopicRuntimeScripts(transformed, sourcePath);
   transformed = injectRoadmapProgressScripts(transformed);
-  transformed = ensureReturnToRoadmapLink(transformed);
+  transformed = ensureReturnToRoadmapLink(transformed, sourcePath);
   transformed = rewriteAssetPaths(transformed);
   if (shouldRelativizeRootLinks(sourcePath)) {
     transformed = relativizeInternalRootLinks(transformed, sourcePath);
   }
   transformed = normalizeSharedBrandAssets(transformed, sourcePath);
   transformed = canonicalizeRoadmapTrackIndexTopicLinks(transformed, sourcePath);
+  transformed = addRoadmapTrackIndexTopicAnchors(transformed, sourcePath);
 
   // Enforce folder-style routes for top-level hubs.
   transformed = transformed.replace(/\b(href|src)=(['"])([^"']*?)roadmap\.html\2/gi, "$1=$2$3roadmap/$2");
