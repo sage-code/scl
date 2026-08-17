@@ -667,17 +667,20 @@ function resolveRoadmapTopicContext(publicHtmlPath) {
   }
 
   const publicPathParts = relativePath.split(path.sep);
-  if (publicPathParts.length < 3) {
+  const rootNamespace = (publicPathParts[0] || "").toLowerCase();
+  const isProjectTopic = rootNamespace === "projects";
+  if (publicPathParts.length < (isProjectTopic ? 3 : 3)) {
     return null;
   }
 
-  const contentRootOffset = publicPathParts[0].toLowerCase() === "roadmap" ? 1 : 0;
+  const contentRootOffset = rootNamespace === "roadmap" || isProjectTopic ? 1 : 0;
   if (publicPathParts.length < contentRootOffset + 2) {
     return null;
   }
 
   const topLevelRoute = publicPathParts[contentRootOffset].toLowerCase();
-  if (!resolveContentRouteSourceDir(topLevelRoute)) {
+  const hasProjectRoute = isProjectTopic && fs.existsSync(path.join(PROJECTS_DIR, topLevelRoute));
+  if (!hasProjectRoute && !resolveContentRouteSourceDir(topLevelRoute)) {
     return null;
   }
 
@@ -693,6 +696,7 @@ function resolveRoadmapTopicContext(publicHtmlPath) {
   }
 
   return {
+    namespace: isProjectTopic ? "projects" : "roadmap",
     topLevelRoute,
     topicId
   };
@@ -757,6 +761,10 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
 function resolveReturnToRoadmapHref(sourcePath) {
   const context = resolveRoadmapTopicContext(sourcePath);
   if (context) {
+    if (context.namespace === "projects") {
+      return `/projects/${context.topLevelRoute}/#topics`;
+    }
+
     return `/roadmap/${context.topLevelRoute}/#topic-${context.topicId}`;
   }
 
@@ -1010,13 +1018,19 @@ function ensureTopicConfigScript(html, sourcePath) {
   }
 
   const labId = getLabIdFromRoute(context.topLevelRoute);
+  const homeLink = context.namespace === "projects"
+    ? `/projects/${context.topLevelRoute}/#topics`
+    : `/roadmap/${context.topLevelRoute}/#topics`;
+  const labHomeLink = context.namespace === "projects"
+    ? `/projects/${context.topLevelRoute}/`
+    : resolveReturnToRoadmapHref(sourcePath);
   const configScript = [
     "<script>",
     "  window.TOPIC_CONFIG = {",
     `    labId: ${JSON.stringify(labId)},`,
     `    topicId: ${JSON.stringify(context.topicId)},`,
-    `    homeLink: ${JSON.stringify(`/roadmap/${context.topLevelRoute}/#topics`)},`,
-    `    labHomeLink: ${JSON.stringify(resolveReturnToRoadmapHref(sourcePath))},`,
+    `    homeLink: ${JSON.stringify(homeLink)},`,
+    `    labHomeLink: ${JSON.stringify(labHomeLink)},`,
     "    inlineContent: true",
     "  };",
     "</script>"
