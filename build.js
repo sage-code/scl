@@ -768,7 +768,7 @@ function resolveReturnToRoadmapHref(sourcePath) {
   const context = resolveRoadmapTopicContext(sourcePath);
   if (context) {
     if (context.namespace === "projects") {
-      return `/projects/${context.topLevelRoute}/#topics`;
+      return `/projects/${context.topLevelRoute}/#topic-${context.topicId}`;
     }
 
     return `/roadmap/${context.topLevelRoute}/#topic-${context.topicId}`;
@@ -948,6 +948,19 @@ function injectInlineFooter(html, footerTemplate, enforceCommonFooter = false) {
   }
 
   return `${html}\n${normalizedFooter}`;
+}
+
+function ensureBootstrapIconsForTopic(html) {
+  if (!/<ul[^>]*id=["']bookmark-list["']/i.test(html) || /bootstrap-icons/i.test(html)) {
+    return html;
+  }
+
+  const iconStylesheet = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">';
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `${iconStylesheet}\n</head>`);
+  }
+
+  return html;
 }
 
 function shouldEnforceCommonFooter(sourcePath) {
@@ -1197,9 +1210,35 @@ function addRoadmapTrackIndexTopicAnchors(html, sourcePath) {
   return transformed;
 }
 
+function addProjectIndexTopicAnchors(html, sourcePath) {
+  const normalizedPath = sourcePath.replace(/\\/g, "/").toLowerCase();
+  const match = normalizedPath.match(/\/public\/projects\/([a-z0-9_-]+)\/index\.html$/i);
+  if (!match) {
+    return html;
+  }
+
+  const addAnchor = (rowMarkup, attributes) => {
+    if (/\bid\s*=\s*/i.test(attributes)) {
+      return rowMarkup;
+    }
+
+    const topicMatch = attributes.match(/\bdata-topic=["']([^"']+)["']/i);
+    const topicId = topicMatch ? topicMatch[1].trim() : "";
+    if (!topicId || topicId.toLowerCase() === "index") {
+      return rowMarkup;
+    }
+
+    const anchorId = topicId.replace(/[^a-zA-Z0-9_-]/g, "-");
+    return rowMarkup.replace(/^(<tr\b)([^>]*)>/i, `$1$2 id="topic-${anchorId}">`);
+  };
+
+  return html.replace(/<tr\b([^>]*)>/gi, (rowMarkup, attributes) => addAnchor(rowMarkup, attributes));
+}
+
 function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   let transformed = html;
   const enforceCommonFooter = shouldEnforceCommonFooter(sourcePath);
+  transformed = ensureBootstrapIconsForTopic(transformed);
   transformed = injectInlineHeader(transformed, headerTemplate);
   transformed = injectInlineFooter(transformed, footerTemplate, enforceCommonFooter);
   transformed = injectStaticSidebar(transformed, sourcePath);
@@ -1213,6 +1252,7 @@ function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   transformed = normalizeSharedBrandAssets(transformed, sourcePath);
   transformed = canonicalizeRoadmapTrackIndexTopicLinks(transformed, sourcePath);
   transformed = addRoadmapTrackIndexTopicAnchors(transformed, sourcePath);
+  transformed = addProjectIndexTopicAnchors(transformed, sourcePath);
 
   // Enforce folder-style routes for top-level hubs.
   transformed = transformed.replace(/\b(href|src)=(['"])([^"']*?)roadmap\.html\2/gi, "$1=$2$3roadmap/$2");
