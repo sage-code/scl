@@ -628,6 +628,17 @@ function resolveSidebarJsonPath(publicHtmlPath) {
   }
 
   const publicPathParts = relativePath.split(path.sep);
+  if (publicPathParts[0].toLowerCase() === "projects") {
+    if (publicPathParts.length < 3) {
+      return null;
+    }
+
+    const projectDir = path.join(PROJECTS_DIR, publicPathParts[1]);
+    const relativeJsonPath = publicPathParts.slice(2).join(path.sep).replace(/\.html$/i, ".json");
+    const jsonPath = path.join(projectDir, relativeJsonPath);
+    return fs.existsSync(jsonPath) ? jsonPath : null;
+  }
+
   if (publicPathParts.length < 2) {
     return null;
   }
