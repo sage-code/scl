@@ -17,11 +17,22 @@ HEADER_RE = re.compile(r"<header\b[\s\S]*?</header>", re.IGNORECASE)
 FOOTER_RE = re.compile(r"<footer\b[\s\S]*?</footer>", re.IGNORECASE)
 ANCHOR_RE = re.compile(r"<a\s+([^>]*?)\bid\s*=\s*([\"'])([^\"']+)\2[^>]*>(?:\s*</a>)?", re.IGNORECASE)
 ID_RE = re.compile(r"\bid\s*=\s*([\"'])([^\"']+)\1", re.IGNORECASE)
+CODE_BLOCK_RE = re.compile(r"(<pre\b[^>]*>\s*<code\b[^>]*>)([\s\S]*?)(</code>\s*</pre>)", re.IGNORECASE)
 
 
 def text_only(value: str) -> str:
     value = re.sub(r"<[^>]+>", " ", value)
     return re.sub(r"\s+", " ", html.unescape(value)).strip()
+
+
+def escape_code_markup(source: str) -> str:
+    def escape_block(match: re.Match[str]) -> str:
+        content = match.group(2).replace('&lt;<span class="eve-token">:</span>', '&lt;&#58;')
+        content = content.replace('<', '&lt;')
+        content = content.replace('&lt;:', '&lt;&#58;')
+        return f"{match.group(1)}{content}{match.group(3)}"
+
+    return CODE_BLOCK_RE.sub(escape_block, source)
 
 
 def slugify(value: str) -> str:
@@ -116,6 +127,7 @@ def standardize_shell(source: str) -> str:
 def process(path: Path, dry_run: bool) -> bool:
     source = path.read_text(encoding="utf-8", errors="ignore")
     normalized, headings = normalize_headings(source)
+    normalized = escape_code_markup(normalized)
     normalized = standardize_shell(normalized)
     sidebar = build_sidebar(headings)
     json_path = path.with_suffix(".json")
