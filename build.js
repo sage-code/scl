@@ -736,16 +736,22 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
 
     const itemId = `sidebar-item-${state.index}`;
     state.index += 1;
+    const sectionKey = escapeHtml(link.slice(1));
+    const nodeId = `node-${sectionKey}-static-${state.index}`;
+    const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+    const icon = hasChildren
+      ? `<button type="button" class="nav-tree-toggle" data-node-id="${nodeId}" aria-expanded="${level === 0 ? "true" : "false"}" aria-label="${level === 0 ? "Collapse topic folder" : "Expand topic folder"}"><i class="bi ${level === 0 ? "bi-folder2-open" : "bi-folder2"}" aria-hidden="true"></i></button>`
+      : '<span class="nav-file-icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>';
 
-    html += `<li class="nav-item mb-2" id="${itemId}" data-sidebar-level="${level}">`;
-    html += `<div class="nav-node-row">`;
-    const checkboxId = `sidebar-check-${state.index}`;
-    html += `<input type="checkbox" class="form-check-input me-2" id="${checkboxId}" data-is-trackable="true" data-link="${safeLink}" data-section-key="${escapeHtml(link.slice(1))}">`;
-    html += `<a href="${safeLink}" class="text-info text-decoration-none">${title}</a>`;
+    html += `<li class="nav-item mb-2 nav-tree-item" id="${itemId}" data-sidebar-level="${level}" data-tree-level="${level}" data-node-id="${nodeId}" data-section-key="${sectionKey}"${hasChildren ? ' data-has-children="true"' : ""}>`;
+    html += `<div class="nav-node-row" data-node-id="${nodeId}" data-section-key="${sectionKey}">`;
+    const checkboxId = `nav-progress-${state.index}`;
+    html += `${icon}<input type="checkbox" class="nav-progress-checkbox" id="${checkboxId}" data-is-trackable="true" data-link="${safeLink}" data-section-key="${sectionKey}" tabindex="-1" aria-hidden="true">`;
+    html += `<a href="${safeLink}" class="nav-tree-link text-decoration-none" data-section-key="${sectionKey}" role="treeitem" aria-level="${level + 1}" tabindex="-1">${title}</a>`;
     html += `</div>`;
 
-    if (Array.isArray(item.children) && item.children.length > 0) {
-      html += `<ul class="list-unstyled ms-4 mt-1" data-sidebar-group="children" data-sidebar-level="${level + 1}">`;
+    if (hasChildren) {
+      html += `<ul class="list-unstyled ms-4 mt-1 nav-tree-children${level === 0 ? "" : " is-collapsed"}" data-sidebar-group="children" data-sidebar-level="${level + 1}" data-parent-node-id="${nodeId}" role="group">`;
       html += renderSidebarItems(item.children, state, level + 1);
       html += "</ul>";
     }
