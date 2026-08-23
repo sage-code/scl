@@ -157,12 +157,12 @@ function bee_render() {
                     //check if start with comments
                     if (line.trim().substr(0,2)=="\+\-" || start_comments) {
                         start_comments = true
-                        line = comments(line)
+                        line = blockComment(line)
                     } else if (line.trim().substr(0,1)=="#") {
                         line = title(line)
                         start_comments = false
                     } else if (line.trim().substr(0,2)=="**") {
-                        line = preserveIndentation(line, subtitle)
+                        line = preserveIndentation(line, docComment)
                         start_comments = false
                     } else {
                         //split away end comments //
@@ -191,7 +191,7 @@ function bee_render() {
                         }
                         //reattach comments
                         if (comment!="") {
-                            line = line + comments(comment)
+                            line = line + inlineComment(comment)
                         }
                     }
                     //add new line if required
@@ -228,6 +228,10 @@ function subtitle(str) {
     return "<span class=\"subtitle\">"+ str + "</span>"
 }
 
+function docComment(str) {
+    return "<span class=\"comment-doc\">" + str + "</span>"
+}
+
 function preserveIndentation(str, formatter) {
     const match = str.match(/^\s*/)
     const indent = match ? match[0] : ""
@@ -237,6 +241,14 @@ function preserveIndentation(str, formatter) {
 
 function comments(str) {
     return "<span class=\"comment\">" + str + "</span>"
+}
+
+function blockComment(str) {
+    return "<span class=\"comment-block\">" + str + "</span>"
+}
+
+function inlineComment(str) {
+    return "<span class=\"comment-inline\">" + str + "</span>"
 }
 
 function keyword(str) {
