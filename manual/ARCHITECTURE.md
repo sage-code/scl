@@ -103,4 +103,5 @@ Build-time env support:
 ## Documentation Scope
 
 - `manual/ARCHITECTURE.md` is the canonical architecture reference.
+- `manual/PROJECTS-ARCHITECTURE.md` defines the shared topic-page contract for `/projects/*` namespaces.
 - `manual/build-manifest.json` and `manual/migration-status.json` are generated reports.
