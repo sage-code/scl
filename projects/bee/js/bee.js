@@ -162,7 +162,7 @@ function bee_render() {
                         line = title(line)
                         start_comments = false
                     } else if (line.trim().substr(0,2)=="**") {
-                        line = subtitle(line)
+                        line = preserveIndentation(line, subtitle)
                         start_comments = false
                     } else {
                         //split away end comments //
@@ -226,6 +226,13 @@ function title(str) {
 
 function subtitle(str) {
     return "<span class=\"subtitle\">"+ str + "</span>"
+}
+
+function preserveIndentation(str, formatter) {
+    const match = str.match(/^\s*/)
+    const indent = match ? match[0] : ""
+    const body = str.slice(indent.length)
+    return indent + formatter(body)
 }
 
 function comments(str) {
