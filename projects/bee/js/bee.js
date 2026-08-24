@@ -175,7 +175,7 @@ function bee_render() {
                     } else if (trimmed.startsWith("#")) {
                         line = title(line)
                         start_comments = false
-                    } else if (trimmed.startsWith("**")) {
+                    } else if (trimmed.startsWith("**") || trimmed.startsWith("--")) {
                         line = preserveIndentation(line, docComment)
                         start_comments = false
                     } else {
