@@ -172,10 +172,7 @@ function bee_render() {
                     if (trimmed.startsWith("+-") || start_comments) {
                         start_comments = true
                         line = blockComment(line)
-                    } else if (trimmed.startsWith("#")) {
-                        line = title(line)
-                        start_comments = false
-                    } else if (trimmed.startsWith("**") || trimmed.startsWith("--")) {
+                    } else if (trimmed.startsWith("--")) {
                         line = preserveIndentation(line, docComment)
                         start_comments = false
                     } else {
@@ -233,14 +230,6 @@ function bee_render() {
 
 function line_span(str) {
     return "<span class=\"line\">"+ str + "</span>\n"
-}
-
-function title(str) {
-    return "<span class=\"title\">"+ str + "</span>"
-}
-
-function subtitle(str) {
-    return "<span class=\"subtitle\">"+ str + "</span>"
 }
 
 function docComment(str) {
