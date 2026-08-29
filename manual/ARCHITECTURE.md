@@ -24,8 +24,28 @@ This repository is a static-site source workspace. The build pipeline assembles 
 /database            # Supabase SQL setup scripts
 /scripts             # Local tooling (Node, Python, PowerShell)
 build.js             # Main build orchestrator
+run.sh               # Project maintenance CLI wrapper
 vercel.json          # Hosting config
 ```
+
+## Project Maintenance CLI
+
+The `run.sh` script provides a unified command-line interface for managing the local environment, build process, and git workflows.
+
+### Usage
+```bash
+./run.sh [command] [options]
+```
+
+### Supported Commands
+- `clean`     : Cleans build artifacts (`npm run clean`).
+- `build`     : Builds the static website (`npm run build`).
+- `test`      : Runs local validation tests (`npm run test:local`).
+- `commit`    : Stages all changes and commits. 
+                Usage: `run commit "your message"` (or use `run` alias if configured).
+- `-h, --help`: Displays usage documentation.
+
+*Note: For convenience, an alias `run` is configured in `~/.bashrc` pointing to `./run.sh`.*
 
 ## Template Policy
 
@@ -96,8 +116,8 @@ Build-time env support:
 
 ## Validation Workflow
 
-1. Run `npm run build`.
-2. Run `npm run test:local`.
+1. Use `run clean` and `run build` (or via `./run.sh`).
+2. Run `run test` (wraps `npm run test:local`).
 3. Verify generated output under `public/`.
 
 ## Documentation Scope
