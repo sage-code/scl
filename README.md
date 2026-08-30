@@ -20,7 +20,7 @@ It is built with vanilla HTML/CSS/JavaScript and assembled into deploy-ready out
 /public           # Generated deploy output
 /manual           # Developer documentation and generated reports
 /database         # Supabase SQL setup scripts (profiles + roadmap progress)
-/scripts          # Local tooling (PowerShell/Python/Node)
+/scripts          # Local tooling (Python/Node)
 /config           # Build and mapping configuration
 build.js          # Static site build pipeline
 package.json      # Scripts and dependencies
@@ -32,17 +32,16 @@ package.json      # Scripts and dependencies
 
 - Node.js 20+
 - Python 3.10+
-- PowerShell 5.1+
 
 ### Install
 
-```powershell
+```bash
 npm install
 ```
 
 ### Build
 
-```powershell
+```bash
 npm run build
 ```
 
@@ -52,7 +51,7 @@ npm run build
 
 To force a full build manually:
 
-```powershell
+```bash
 npm run build:full
 ```
 
@@ -62,7 +61,7 @@ This repository includes browser-side Supabase client wiring for roadmap auth pa
 
 1. Install dependencies:
 
-```powershell
+```bash
 npm install
 ```
 
@@ -87,7 +86,7 @@ Automated pushes run from [\.github/workflows/supabase-db-push.yml](.github/work
 
 4. Build and deploy:
 
-```powershell
+```bash
 npm run build
 ```
 
@@ -103,13 +102,13 @@ Roadmap pages wired for Supabase client usage:
 
 ### Validate locally
 
-```powershell
+```bash
 npm run test:local
 ```
 
 ### Run local static server
 
-```powershell
+```bash
 npm run dev
 ```
 

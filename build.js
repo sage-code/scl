@@ -347,7 +347,8 @@ function shouldCopyLabStaticAsset(fileName) {
     ".woff2",
     ".ttf",
     ".otf",
-    ".eot"
+    ".eot",
+    ".json"
   ]);
 
   return staticAssetExtensions.has(ext);
