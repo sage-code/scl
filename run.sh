@@ -8,6 +8,7 @@ show_help() {
     echo "Commands:"
     echo "  clean      Clean build artifacts (npm run clean)"
     echo "  build      Build static website (npm run build)"
+    echo "  rebuild    Clean and perform a full build (npm run clean && npm run build:full)"
     echo "  test       Run local tests (npm run test:local)"
     echo "  commit     Stage changes and commit with message"
     echo "             Usage: ./run.sh commit \"your commit message\""
@@ -20,6 +21,10 @@ case "$1" in
         ;;
     build)
         npm run build
+        ;;
+    rebuild)
+        npm run clean
+        npm run build:full
         ;;
     test)
         npm run test:local
