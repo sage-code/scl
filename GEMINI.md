@@ -5,7 +5,15 @@ This repository builds the static-first vanilla website for Sage-Code. Gemini ag
 
 ---
 
-## 1. Token Efficiency & TPM Management (Free Quota Optimization)
+## 1. Automation & Performance Rule: Python Scripts vs AI File-by-File Processing
+
+- **Prefer Python Scripts for Bulk/Mechanical Tasks**: Whenever a task (such as find-and-replace, refactoring patterns, text transformation, or normalization) is more efficient via scripting, **generate and execute a Python script** using regular expressions (`re`) and create diffs (or dry-run reports) rather than processing files file-by-file through AI generations.
+- **Diff Generation & Validation**: Python automation scripts must output clear diffs or validation summaries before writing changes to disk, ensuring full transparency and regression safety.
+- **Reserve AI for Complex Thinking**: If conversion or refactoring is highly complex and requires deep reasoning, semantic understanding, or architecture design, use AI. For mechanical find-and-replace or bulk updates across multiple files, always write and run a Python script.
+
+---
+
+## 2. Token Efficiency & TPM Management (Free Quota Optimization)
 
 To operate smoothly within free-tier quota limits (strict TPM/RPM constraints):
 
@@ -86,7 +94,7 @@ When writing or updating roadmap content:
 
 ## 7. Bulk Changes & Validation Workflow
 
-- Use deterministic Python/PowerShell scripts for bulk refactors.
+- Use deterministic Python scripts for bulk refactors.
 - Always execute `npm run build` after changes and verify:
   - `public/index.html` has embedded navigation header and footer markup.
   - Extracted inline scripts exist in `public/assets/js/inline/`.
