@@ -114,20 +114,23 @@ class TopicLoader {
         basePath = basePath.slice(0, -5);
       }
 
-      const jsonFile = `${basePath}.json`;
-      console.log(`[DEBUG] Attempting to fetch primary JSON: ${jsonFile}`);
-      let response = await fetch(jsonFile);
+      // New Logic: Always look in the 'data/' subdirectory
+      const lastSlash = basePath.lastIndexOf('/');
+      if (lastSlash === -1) {
+        console.log(`[DEBUG] Cannot determine data path for: ${basePath}`);
+        return; // No data path possible
+      }
+
+      const dir = basePath.slice(0, lastSlash);
+      const file = basePath.slice(lastSlash + 1);
+      const dataJsonFile = `${dir}/data/${file}.json`;
       
-      // Fallback: If not found, try looking in the 'data/' subdirectory
+      console.log(`[DEBUG] Attempting to fetch sidebar JSON: ${dataJsonFile}`);
+      const response = await fetch(dataJsonFile);
+      
       if (!response.ok) {
-        const lastSlash = basePath.lastIndexOf('/');
-        if (lastSlash !== -1) {
-          const dir = basePath.slice(0, lastSlash);
-          const file = basePath.slice(lastSlash + 1);
-          const dataJsonFile = `${dir}/data/${file}.json`;
-          console.log(`[DEBUG] Primary JSON failed, attempting fallback: ${dataJsonFile}`);
-          response = await fetch(dataJsonFile);
-        }
+        console.log(`[DEBUG] Sidebar JSON not found at: ${dataJsonFile}`);
+        return; // Do nothing if not found
       }
 
       if (!response || !response.ok) throw new Error(`Failed to load JSON for ${basePath} (status: ${response ? response.status : 'N/A'})`);
