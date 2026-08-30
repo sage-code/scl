@@ -1,7 +1,7 @@
 # Sage-Code SCL Website
 
 ## Metadata
-Version: 1.0.0
+Version: 1.0.1
 
 Sage-Code SCL is a static educational website for roadmaps, labs, and project showcases.
 It is built with vanilla HTML/CSS/JavaScript and assembled into deploy-ready output for Vercel.
@@ -47,6 +47,15 @@ npm install
 
 ```bash
 npm run build
+```
+
+
+### Versioning and Publishing
+
+To increment the version, commit, and push changes:
+
+```bash
+./run.sh publish
 ```
 
 `npm run build` now uses automatic differential mode when possible:
