@@ -14,6 +14,7 @@ It is built with vanilla HTML/CSS/JavaScript and assembled into deploy-ready out
 
 ```text
 /assets           # Global CSS, JS, fonts, images
+/agents           # AI agent configurations and instructions
 /roadmap          # Main source pages and roadmap content
 /projects         # Standalone project sites (bee, eve, maj)
 /layouts          # Reusable HTML wrappers/fragments
