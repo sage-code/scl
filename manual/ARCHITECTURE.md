@@ -124,4 +124,44 @@ Build-time env support:
 
 - `manual/ARCHITECTURE.md` is the canonical architecture reference.
 - `manual/PROJECTS-ARCHITECTURE.md` defines the shared topic-page contract for `/projects/*` namespaces.
+
+### Syntax Highlighting Strategy
+
+We utilize a **Dynamic Language Loading** strategy for syntax highlighting to ensure optimal performance as our roadmap expands.
+
+- **Core Assets**: The core Prism engine (`assets/prism.js`) and base styles (`assets/prism.css`) are loaded globally.
+- **Dynamic Language Loading**:
+  - Language-specific components are stored in `assets/js/prism/` (e.g., `prism-dart.min.js`).
+  - Pages specify the primary language via a `data-lang` attribute on the `<body>` element.
+  - The `assets/js/prism-loader.js` script detects this attribute and asynchronously loads the required language component on page load.
+- **Adding New Languages**:
+  - Download the required Prism component file (e.g., `prism-zig.min.js`) from the official Prism repository or CDN.
+  - Place the file in `assets/js/prism/`.
+  - Add `data-lang="<lang>"` to the body of the roadmap pages using that language.
+- **Benefits**:
+  - **Performance**: Minimizes initial page weight by only loading necessary language syntax.
+  - **Scalability**: Decouples language support from the global core, allowing unlimited expansion without performance degradation.
+
+
+## Demo Example Pages
+
+Every roadmap track should include a standard "Demo Example" page (`demo_examples.html`) to facilitate hands-on learning.
+
+### Structure and Implementation
+
+- **Standard Lab Template**: The page must utilize the canonical lab topic layout, which includes the shared header/footer, study sidebar (`#study-sidebar`), and a main content area.
+- **`window.TOPIC_CONFIG`**: Each demo page must define the `TOPIC_CONFIG` object, setting the `topicId` to `demo_examples` and `labId` to the appropriate track ID (e.g., `dart`).
+- **Integration**:
+  - The page serves as a lab topic.
+  - Sidebar topics are populated via the standard `topic-loader.js`.
+- **Code Viewer Reference**:
+  - Use the unified `roadmap/code-viewer.html` for viewing source code.
+  - Link structure: `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<filename>.ext`
+- **Formatting**:
+  - Use standard tables to list examples by category.
+  - Ensure all examples are runnable, documented with comments, and follow the consistent code structure defined in the lab topic.
+- **Language Support**:
+  - Verify that the global `prism.js` includes the necessary language highlighting for the roadmap track. If not, the global `prism.js` (and CSS) will be updated centrally.
+
+
 - `manual/build-manifest.json` and `manual/migration-status.json` are generated reports.
