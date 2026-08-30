@@ -373,8 +373,11 @@ function copyLabStaticAssetsRecursive(src, dest) {
       continue;
     }
 
+    // Allow any file within a "demo" directory to be copied
+    const isInDemoDir = sourcePath.split(path.sep).includes("demo");
+
     // Always copy .json files in roadmap/labs or roadmap/*/data
-    if (!shouldCopyLabStaticAsset(entry.name) && path.extname(entry.name) !== ".json") {
+    if (!isInDemoDir && !shouldCopyLabStaticAsset(entry.name) && path.extname(entry.name) !== ".json") {
       continue;
     }
 
