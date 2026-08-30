@@ -22,7 +22,7 @@ This repository is a static-site source workspace. The build pipeline assembles 
 /public              # Generated deploy/runtime output
 /manual              # Developer docs and generated reports
 /database            # Supabase SQL setup scripts
-/scripts             # Local tooling (Node, Python, PowerShell)
+/scripts             # Local tooling (Node, Python)
 build.js             # Main build orchestrator
 run.sh               # Project maintenance CLI wrapper
 vercel.json          # Hosting config

@@ -131,7 +131,7 @@ Quality bar for AI-generated educational content:
 ## Execution Policy for Bulk Changes
 
 - Use Python scripts for repeatable bulk refactors and content operations.
-- Use PowerShell scripts for local environment orchestration on Windows.
+- Use Shell/Python scripts for local environment orchestration.
 - Prefer deterministic scripts over ad-hoc manual edits.
 
 ## Validation Policy
