@@ -1,5 +1,8 @@
 # Sage-Code SCL Website
 
+## Metadata
+Version: 1.0.0
+
 Sage-Code SCL is a static educational website for roadmaps, labs, and project showcases.
 It is built with vanilla HTML/CSS/JavaScript and assembled into deploy-ready output for Vercel.
 
@@ -154,8 +157,6 @@ Notes:
 - Deploy source: generated `public` output.
 - Keep `public` free of internal developer notes.
 
----
-Copyright (c) Sage-Code 2026
 
 ## Code Examples
 We use a unified viewer to display source code. To link to any code file in the repository, use the following URL structure:
@@ -168,15 +169,5 @@ We use a unified viewer to display source code. To link to any code file in the 
 - Ensure the file is accessible in the public directory or project root.
 - The viewer automatically detects the language based on the file extension (`.py`, `.js`, etc.).
 
-
-## Code Examples
-We use a unified viewer to display source code. To link to any code file in the repository, use the following URL structure:
-
-`/layouts/code-viewer.html?file=/path/to/your/file.ext`
-
-**Example:**
-[View Python Script](/layouts/code-viewer.html?file=/scripts/tools/roadmap.py)
-
-- Ensure the file is accessible in the public directory or project root.
-- The viewer automatically detects the language based on the file extension (`.py`, `.js`, etc.).
-
+---
+Copyright (c) Sage-Code 2026
