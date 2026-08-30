@@ -364,6 +364,7 @@ function copyLabStaticAssetsRecursive(src, dest) {
     const targetPath = path.join(dest, entry.name);
 
     if (entry.isDirectory()) {
+      // Allow recursion into subdirectories like 'data'
       copyLabStaticAssetsRecursive(sourcePath, targetPath);
       continue;
     }
@@ -372,7 +373,8 @@ function copyLabStaticAssetsRecursive(src, dest) {
       continue;
     }
 
-    if (!shouldCopyLabStaticAsset(entry.name)) {
+    // Always copy .json files in roadmap/labs or roadmap/*/data
+    if (!shouldCopyLabStaticAsset(entry.name) && path.extname(entry.name) !== ".json") {
       continue;
     }
 
