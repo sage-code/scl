@@ -90,6 +90,12 @@ When writing or updating roadmap content:
   5. Performance and maintainability trade-offs.
   6. Practical mini-lab / practice sequence.
 
+
+## 9. Roadmap Architecture Standard
+- All roadmap index files must use a table-based layout.
+- Category rows: <tr class="roadmap-phase-row"><th colspan="4" class="roadmap-phase">PHASE X: NAME</th></tr>
+- Topic rows: <tr data-topic="id"><td class="text-center"><input type="checkbox" class="topic-check"></td><td>ID</td><td><a href="url">Title</a></td><td class="small text-secondary">Description</td></tr>
+
 ---
 
 ## 8. Bulk Changes & Validation Workflow
