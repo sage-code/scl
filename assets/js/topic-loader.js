@@ -115,6 +115,7 @@ class TopicLoader {
       }
 
       const jsonFile = `${basePath}.json`;
+      console.log(`[DEBUG] Attempting to fetch primary JSON: ${jsonFile}`);
       let response = await fetch(jsonFile);
       
       // Fallback: If not found, try looking in the 'data/' subdirectory
@@ -124,6 +125,7 @@ class TopicLoader {
           const dir = basePath.slice(0, lastSlash);
           const file = basePath.slice(lastSlash + 1);
           const dataJsonFile = `${dir}/data/${file}.json`;
+          console.log(`[DEBUG] Primary JSON failed, attempting fallback: ${dataJsonFile}`);
           response = await fetch(dataJsonFile);
         }
       }
