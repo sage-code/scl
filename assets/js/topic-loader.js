@@ -115,8 +115,20 @@ class TopicLoader {
       }
 
       const jsonFile = `${basePath}.json`;
-      const response = await fetch(jsonFile);
-      if (!response.ok) throw new Error(`Failed to load ${jsonFile} (status: ${response.status})`);
+      let response = await fetch(jsonFile);
+      
+      // Fallback: If not found, try looking in the 'data/' subdirectory
+      if (!response.ok) {
+        const lastSlash = basePath.lastIndexOf('/');
+        if (lastSlash !== -1) {
+          const dir = basePath.slice(0, lastSlash);
+          const file = basePath.slice(lastSlash + 1);
+          const dataJsonFile = `${dir}/data/${file}.json`;
+          response = await fetch(dataJsonFile);
+        }
+      }
+
+      if (!response || !response.ok) throw new Error(`Failed to load JSON for ${basePath} (status: ${response ? response.status : 'N/A'})`);
 
       const navItems = await response.json();
       bookmarkList.innerHTML = '';
