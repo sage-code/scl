@@ -1729,7 +1729,8 @@ function generateRoadmapIndex() {
     }
 
     // Run roadmap.py
-    execSync(`${pythonCmd} roadmap.py`, { stdio: "inherit" });
+    execSync(`${pythonCmd} scripts/tools/roadmap.py`, { stdio: "inherit" });
+
   } catch (error) {
     console.error("[WARN] Failed to generate roadmap index:", error.message);
   }
