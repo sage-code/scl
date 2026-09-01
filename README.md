@@ -3,15 +3,14 @@
 ## Metadata
 Version: 1.0.11
 
-Sage-Code SCL is a static educational website for roadmaps, labs, and project showcases.
-It is built with vanilla HTML/CSS/JavaScript and assembled into deploy-ready output for Vercel.
+Sage-Code SCL is a static educational website for learning and open source projects. It is built with vanilla HTML/CSS/JavaScript and assembled into deploy-ready output for Vercel. We use AI to verify, improve and optimize content for maximum clarity and effectivness.
 
 ## Quick Links
 
-- Website: https://sagecode.org
-- Main docs: [manual/ARCHITECTURE.md](manual/ARCHITECTURE.md)
-- Source homepage: [roadmap/index.html](roadmap/index.html)
-- Source roadmap hub: [roadmap/roadmap.html](roadmap/roadmap.html)
+- Home website: [sagecode.org](https://sagecode.org)
+- Architecture: [manual/ARCHITECTURE.md](manual/ARCHITECTURE.md)
+- Roadmap home: [roadmap/index.html](roadmap/index.html)
+- Project home: [projects/index.html](projects/index.html)
 
 ## Project Structure
 
@@ -21,13 +20,14 @@ It is built with vanilla HTML/CSS/JavaScript and assembled into deploy-ready out
 /roadmap          # Main source pages and roadmap content
 /projects         # Standalone project sites (bee, eve, maj)
 /layouts          # Reusable HTML wrappers/fragments
-/public           # Generated deploy output
+/public           # Generated deploy output (excluded)
 /manual           # Developer documentation and generated reports
 /database         # Supabase SQL setup scripts (profiles + roadmap progress)
 /scripts          # Local tooling (Python/Node)
 /config           # Build and mapping configuration
 build.js          # Static site build pipeline
 package.json      # Scripts and dependencies
+run.sh            # Lifecycle maintenance script
 ```
 
 ## Local Development
@@ -48,7 +48,6 @@ npm install
 ```bash
 npm run build
 ```
-
 
 ### Versioning and Publishing
 
@@ -160,23 +159,27 @@ Notes:
 3. Verify changed pages under `public` render correctly.
 4. Update [manual/ARCHITECTURE.md](manual/ARCHITECTURE.md) if architecture or workflow changed.
 
-## Deployment
+## Deployment commands
 
 - Target platform: Vercel static hosting.
 - Deploy source: generated `public` output.
 - Keep `public` free of internal developer notes.
 
+In git command terminal you can use run.sh to manage project operations. After you edit you can: test, commit, build, rebuild, publish. The run.sh command accept one flag: -h or --help that display available options.
 
-## Code Examples
-We use a unified viewer to display source code. To link to any code file in the repository, use the following URL structure:
+```
+  run --help
+```
+
+## Code Viewer
+We use a unified viewer to display demo source code snippets. This tool has a download button and you can scroll large block of code. Code display in syntax color and font can be set larger or smaller. To link any code example file in the repository, developer create links like the following URL structure:
 
 `/roadmap/code-viewer.html?file=/path/to/your/file.ext`
 
-**Example:**
-[View Python Script](/roadmap/code-viewer.html?file=/scripts/tools/roadmap.py)
+**Notes:**
 
-- Ensure the file is accessible in the public directory or project root.
-- The viewer automatically detects the language based on the file extension (`.py`, `.js`, etc.).
+- Ensure examples are located in demo folder. This folder is used for examples.
+- The viewer detects the language based on the file extension (`.py`, `.js`, etc.).
 
 ---
 Copyright (c) Sage-Code 2026

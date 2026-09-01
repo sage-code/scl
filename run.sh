@@ -13,6 +13,8 @@ show_help() {
     echo "  commit     Stage changes and commit with message"
     echo "             Usage: ./run.sh commit \"your commit message\""
     echo "  publish    Increment version, commit and push changes"
+    echo "  audit      Run CSS/Audit on public folder"
+    echo "             Usage: ./run.sh audit [folder]"
     echo "  -h, --help Show this help message"
 }
 
@@ -30,6 +32,12 @@ case "$1" in
     test)
         npm run test:local
         ;;
+    audit)
+        shift
+        folder="${1:-public}"
+        node scripts/audit.js "$folder"
+        ;;
+
     commit)
         shift
         msg="${1:-chore: update project build artifacts and content}"
