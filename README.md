@@ -1,7 +1,7 @@
 # Sage-Code SCL Website
 
 ## Metadata
-Version: 1.0.11
+Version: 1.0.12
 
 Sage-Code SCL is a static educational website for learning and open source projects. It is built with vanilla HTML/CSS/JavaScript and assembled into deploy-ready output for Vercel. We use AI to verify, improve and optimize content for maximum clarity and effectivness.
 
