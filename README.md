@@ -126,6 +126,15 @@ npm run dev
 
 The local site is served from `public` at `http://localhost:4173`.
 
+### Live preview (VS Code)
+
+The [Live Server](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer) extension (recommended via `.vscode/extensions.json`) serves the generated `public/` folder as the site root at `http://localhost:5500`. Because `public/` is build output, rebuild after editing sources:
+
+- `npm run build` — or the default VS Code build task (Ctrl+Shift+B), defined in `.vscode/tasks.json`.
+- `npm run dev` — full build + serve loop at `http://localhost:4173`.
+
+Live Server does not run the build pipeline; it only serves the last built state of `public/`.
+
 ## Documentation Location
 
 All maintained developer docs are under [manual](manual).
