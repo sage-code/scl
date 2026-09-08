@@ -4,8 +4,8 @@
 
 Shared configuration for the low-cost **worker models** running on Fireworks serverless inference. This file is the single source of truth for Fireworks-specific details and is referenced by:
 
-- `agents/deepseek/README.md` — DeepSeek agent instructions
-- `agents/glm/README.md` — GLM agent instructions
+- `agents/deepseek/README.md` — DeepSeek agent instructions (architect/dispatcher)
+- `agents/glm/README.md` — GLM agent instructions (worker/executor)
 
 Keep API/pricing/caching details here. Keep model-behavior instructions in the per-model files.
 
@@ -142,7 +142,32 @@ Additional checks for structured output:
 
 ---
 
-## 8. References
+## 8. Shared Project Rules (Worker Models)
+
+- **Vanilla stack:** HTML5 / CSS3 / ES6+ / Bootstrap only; no React/Vue runtimes.
+- **Static-first assembly:** nav, footers, and layouts are injected at build time, never client-side fetched. Generated artifacts land only in `public/` via the build — never hand-edited.
+- **Inline script extraction:** all inline executable JS must be extracted to `public/assets/js/inline` during build.
+- **Directory layout:** `scripts/tools/` utility scripts; `roadmap/` tracks + metadata; `projects/` project sites; `layouts/` template wrappers; `assets/css|js/` global styles/logic (legacy `/common` deprecated); `public/` build output only.
+- **Topic page shape:** exactly one `h1`; multiple `h2`; `h3` under every `h2`. Matching `roadmap/<track>/<topic>.json` must be strictly hierarchical (each `h2` entry has a `children` array of `h3` anchors); flat lists break `assets/js/topic-loader.js`.
+- **Canonical URLs:** topic pages `/roadmap/<track>/<topic>.html`; track roots `/roadmap/<track>/` (trailing slash). Never relative (`./topic`) or root-track (`/cse/topic.html`) links.
+- **External links:** always `target="_blank" rel="noopener noreferrer nofollow"`.
+- **Curriculum tone:** step-by-step engineering instruction; no promotional adjectives (*Ultimate, Complete, Professional, Easy, Simple*); compact factual headings. Topic structure: 1) overview & engineering significance 2) syntax mechanics 3) progressive code examples 4) pitfalls & mitigations 5) performance/maintainability trade-offs 6) mini-lab.
+- **Roadmap index tables:** category rows `<tr class="roadmap-phase-row"><th colspan="4" class="roadmap-phase">PHASE X: NAME</th></tr>`; topic rows `<tr data-topic="id"><td class="text-center"><input type="checkbox" class="topic-check"></td><td>ID</td><td><a href="url">Title</a></td><td class="small text-secondary">Description</td></tr>`.
+- **Validation commands:** `npm run build` (generate `public/`), `npm run test` (verify sources), `npm run check` (verify generated `public/`).
+
+---
+
+## 9. Scripts & Cleanup Policy
+
+- **Automation allowed:** worker models may create Python automation scripts for mechanical/bulk work; run with `python3` in a POSIX shell (Git Bash on Windows; never PowerShell).
+- **Reusable scripts** → `scripts/tools/` (committed, project-quality; must print a diff or dry-run summary before writing).
+- **Scratch/temp files** → `scripts/tmp/` only.
+- **Mandatory cleanup:** as soon as a task passes its `ACCEPT` criteria and the §7 validation gate, delete all temp/scratch files (`rm` or `Path.unlink`). Never leave scratch behind.
+- The dispatcher (DeepSeek) must verify GLM's cleanup before accepting a task as complete.
+
+---
+
+## 10. References
 
 - Model library: https://fireworks.ai/models
 - Serverless overview (billing, caching, headers): https://docs.fireworks.ai/serverless/overview.md
