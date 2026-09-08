@@ -91,10 +91,11 @@ The Bee track now follows this architecture:
 
 After topic edits:
 
-1. Run npm run build.
-2. Verify each topic under public/projects/<project-id>/:
-- sidebar renders
-- Return to Roadmap link appears
-- topic anchors navigate correctly
-- progress checkboxes display and persist
-3. Run npm run test when changing shared runtime behavior.
+1. Run `npm run test` — verifies source files (originals): JSON/JS/Python syntax and sidebar hierarchy.
+2. Run `npm run build` — generates `public/` (generation only, no validation).
+3. Run `npm run check` — verifies the generated output in `public/`.
+4. Verify each topic under `public/projects/<project-id>/`:
+   - sidebar renders
+   - Return to Roadmap link appears
+   - topic anchors navigate correctly
+   - progress checkboxes display and persist
