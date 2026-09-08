@@ -9,7 +9,8 @@ show_help() {
     echo "  clean      Clean build artifacts (npm run clean)"
     echo "  build      Build static website (npm run build)"
     echo "  rebuild    Clean and perform a full build (npm run clean && npm run build:full)"
-    echo "  test       Run local tests (npm run test:local)"
+    echo "  test       Verify source files (originals) (npm run test)"
+    echo "  check      Verify generated public/ output (npm run check)"
     echo "  commit     Stage changes and commit with message"
     echo "             Usage: ./run.sh commit \"your commit message\""
     echo "  publish    Increment version, commit and push changes"
@@ -30,7 +31,10 @@ case "$1" in
         npm run build:full
         ;;
     test)
-        npm run test:local
+        npm run test
+        ;;
+    check)
+        npm run check
         ;;
     audit)
         shift

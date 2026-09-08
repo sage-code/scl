@@ -40,7 +40,7 @@ When initiating work:
   - `vercel.json`
 - Essential validation commands:
   - `npm run build`
-  - `npm run test:local`
+  - `npm run test`
 
 ---
 

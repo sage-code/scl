@@ -129,8 +129,9 @@ Cheap workers must fail fast, not burn tokens:
 All worker-model output must pass deterministic validation **before acceptance**:
 
 ```bash
-npm run build        # rebuild and validate generated output
-npm run test:local   # local validation suite
+npm run build    # generate public/ (no validation)
+npm run test     # verify source files (originals)
+npm run check    # verify generated public/ output
 ```
 
 Additional checks for structured output:

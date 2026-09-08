@@ -40,7 +40,8 @@ The `run.sh` script provides a unified command-line interface for managing the l
 ### Supported Commands
 - `clean`     : Cleans build artifacts (`npm run clean`).
 - `build`     : Builds the static website (`npm run build`).
-- `test`      : Runs local validation tests (`npm run test:local`).
+- `test`      : Verifies source files — the originals (`npm run test`).
+- `check`     : Verifies generated output in `public/` (`npm run check`).
 - `commit`    : Stages all changes and commits. 
                 Usage: `run commit "your message"` (or use `run` alias if configured).
 - `-h, --help`: Displays usage documentation.
@@ -117,7 +118,7 @@ Build-time env support:
 ## Validation Workflow
 
 1. Use `run clean` and `run build` (or via `./run.sh`).
-2. Run `run test` (wraps `npm run test:local`).
+2. Run `run test` (wraps `npm run test`).
 3. Verify generated output under `public/`.
 
 ## Documentation Scope
