@@ -42,7 +42,7 @@ Output tokens cost 2–3× input on this tier; generated output is the dominant 
 When initiating work:
 - Check `git status` and `git diff` to understand current modifications.
 - Reference core architecture files if needed: `build.js`, `manual/ARCHITECTURE.md`, `vercel.json`.
-- Essential validation commands: `npm run build`, `npm run test:local`.
+- Essential commands: `npm run build` (generate public/), `npm run test` (verify source files), `npm run check` (verify generated public/).
 
 ---
 ## 6. Architecture & Static Generation Rules
@@ -88,7 +88,7 @@ When writing or updating roadmap content:
 ## 10. Bulk Changes & Validation Workflow
 - Use deterministic Python scripts for bulk refactors, placed in `scripts/tools/`.
 - All worker output must pass the validation gate (`fireworks.md` §7) **before acceptance**:
-  - `npm run build` and `npm run test:local` succeed.
+  - `npm run build` and `npm run check` succeed.
   - JSON metadata parses and is strictly hierarchical.
   - `public/index.html` has embedded navigation header and footer markup; extracted inline scripts exist in `public/assets/js/inline/`.
 - 2 failed passes → escalate per `fireworks.md` §6. Do not retry a third time.

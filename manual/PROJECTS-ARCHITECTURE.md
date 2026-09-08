@@ -97,4 +97,4 @@ After topic edits:
 - Return to Roadmap link appears
 - topic anchors navigate correctly
 - progress checkboxes display and persist
-3. Run npm run test:local when changing shared runtime behavior.
+3. Run npm run test when changing shared runtime behavior.

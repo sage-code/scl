@@ -115,7 +115,14 @@ Roadmap pages wired for Supabase client usage:
 ### Validate locally
 
 ```bash
-npm run test:local
+npm run test    # verify source files (originals)
+```
+
+After a build, verify the generated output in `public/`:
+
+```bash
+npm run build    # generate public/ (no validation)
+npm run check    # verify generated output
 ```
 
 ### Run local static server
@@ -164,7 +171,7 @@ Notes:
 ### Before opening a PR
 
 1. Run `npm run build`.
-2. Run `npm run test:local`.
+2. Run `npm run test`.
 3. Verify changed pages under `public` render correctly.
 4. Update [manual/ARCHITECTURE.md](manual/ARCHITECTURE.md) if architecture or workflow changed.
 

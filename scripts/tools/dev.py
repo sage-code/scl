@@ -3,10 +3,8 @@ import sys
 import os
 
 def run_dev(port=4173):
-    # node build.js
+    # node build.js — generation only; validations live in `npm run check`
     subprocess.run(["node", "build.js"], check=True)
-    # python scripts/python/validate_site.py
-    subprocess.run([sys.executable, "scripts/python/validate_site.py"], check=True)
     # python -m http.server $Port --directory public
     print(f"Serving ./public on http://localhost:{port}")
     

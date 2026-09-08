@@ -1819,22 +1819,10 @@ function main() {
   console.log(
     `Build complete (${modeLabel}). Rendered ${contentResult.pageCount} page(s) from roadmap root.`
   );
-  runCssValidation();
+  console.log(
+    "Validation is a separate step: run `npm run check` (or `./run.sh check`) to verify the generated public/ folder."
+  );
 }
 
 main();
-
-
-// Run CSS Validation after build
-function runCssValidation() {
-    console.log("Running CSS Validation...");
-    try {
-        const { execSync } = require("node:child_process");
-        execSync("node scripts/validate-css.js", { stdio: "inherit" });
-        console.log("CSS Validation passed.");
-    } catch (error) {
-        console.error("CSS Validation failed!");
-        process.exit(1);
-    }
-}
 

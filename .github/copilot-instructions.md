@@ -18,7 +18,7 @@ When starting a task, read these files first:
 Then run:
 
 1. npm run build
-2. npm run test:local
+2. npm run test
 
 Before editing content at scale, verify these generated outputs after build:
 
