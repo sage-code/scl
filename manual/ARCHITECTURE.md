@@ -39,11 +39,14 @@ The `run.sh` script provides a unified command-line interface for managing the l
 
 ### Supported Commands
 - `clean`     : Cleans build artifacts (`npm run clean`).
-- `build`     : Builds the static website (`npm run build`).
-- `test`      : Verifies source files — the originals (`npm run test`).
-- `check`     : Verifies generated output in `public/` (`npm run check`).
-- `commit`    : Stages all changes and commits. 
+- `build`     : Generates the static website into `public/` — generation only, no validation (`npm run build`).
+- `rebuild`   : Cleans and performs a full build (`npm run clean && npm run build:full`).
+- `test`      : Verifies source files — the originals: JSON/JS/Python syntax and roadmap sidebar hierarchy (`npm run test`).
+- `check`     : Verifies generated output in `public/` — footer injection, page closure, JSON hierarchy; CSS findings advisory (`npm run check`).
+- `audit`     : Browser audit of generated pages via Puppeteer (`node scripts/audit.js <folder>`).
+- `commit`    : Stages all changes and commits.
                 Usage: `run commit "your message"` (or use `run` alias if configured).
+- `publish`   : Bumps the patch version, commits, and pushes (`./run.sh publish`).
 - `-h, --help`: Displays usage documentation.
 
 *Note: For convenience, an alias `run` is configured in `~/.bashrc` pointing to `./run.sh`.*
@@ -77,6 +80,8 @@ The `run.sh` script provides a unified command-line interface for managing the l
    - rewrites and normalizes asset paths
    - externalizes executable inline scripts to `public/assets/js/inline/*.js`
 9. Writes build metadata to `manual/build-manifest.json`.
+
+Build does not run validations; verification is a separate step (`run test` for source files, `run check` for generated output).
 
 ## Route Contract
 
@@ -117,9 +122,10 @@ Build-time env support:
 
 ## Validation Workflow
 
-1. Use `run clean` and `run build` (or via `./run.sh`).
-2. Run `run test` (wraps `npm run test`).
-3. Verify generated output under `public/`.
+1. `run test` — verify source files (originals): JSON/JS/Python syntax and roadmap sidebar hierarchy.
+2. `run build` — generate `public/` (generation only, no validation).
+3. `run check` — verify the generated output in `public/` (footer injection, page closure, JSON hierarchy; CSS findings advisory).
+4. `run audit` — optional browser-level audit of generated pages.
 
 ## Documentation Scope
 
