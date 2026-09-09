@@ -101,7 +101,6 @@ function writeSupabaseConfigAsset() {
 }
 
 const ASSET_PATH_REWRITES = [
-  { pattern: /(["'])\/(sage\.css)\1/g, replacement: "$1/assets/css/sage.css$1" },
   { pattern: /(["'])\/(carousel\.css)\1/g, replacement: "$1/assets/css/carousel.css$1" },
   { pattern: /(["'])\/(manifesto\.css)\1/g, replacement: "$1/assets/css/manifesto.css$1" },
   { pattern: /(["'])\/(prism\.css)\1/g, replacement: "$1/assets/css/prism.css$1" },
@@ -120,10 +119,6 @@ const ASSET_PATH_REWRITES = [
   { pattern: /(["'])\.\.\/images\//g, replacement: "$1/assets/images/" },
   { pattern: /(["'])\.\/images\//g, replacement: "$1/assets/images/" },
   { pattern: /(["'])images\//g, replacement: "$1/assets/images/" },
-  { pattern: /(["'])\.\.\/\.\.\/sage\.css\1/g, replacement: "$1/assets/css/sage.css$1" },
-  { pattern: /(["'])\.\.\/sage\.css\1/g, replacement: "$1/assets/css/sage.css$1" },
-  { pattern: /(["'])\.\/sage\.css\1/g, replacement: "$1/assets/css/sage.css$1" },
-  { pattern: /(["'])sage\.css\1/g, replacement: "$1/assets/css/sage.css$1" },
   { pattern: /(["'])\.\.\/\.\.\/prism\.css\1/g, replacement: "$1/assets/css/prism.css$1" },
   { pattern: /(["'])\.\.\/prism\.css\1/g, replacement: "$1/assets/css/prism.css$1" },
   { pattern: /(["'])\.\/prism\.css\1/g, replacement: "$1/assets/css/prism.css$1" },

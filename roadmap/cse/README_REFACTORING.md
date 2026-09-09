@@ -124,7 +124,7 @@ Visit: **`/cse/index.html`**
 It will automatically:
 1. Load sidebar structure from `concepts.json`
 2. Load main content from `concepts-content.html`
-3. Apply styling from `sage.css`
+3. Apply styling from `sage-common.css` and the `content-*.css` modules
 4. Initialize progress tracking with key "concepts"
 
 ### To Create a New Course
