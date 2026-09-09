@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="../prism.css">
   <script src="../prism.js"></script>
   <!-- custom css -->
-  <link rel="stylesheet" href="../sage.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
   </head>
 <body>
 

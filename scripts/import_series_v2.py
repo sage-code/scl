@@ -72,7 +72,9 @@ def generate_roadmap(series_name, language_key, articles):
     <meta charset="utf-8">
     <title>{article['title']}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/sage.css">
+    <link rel="stylesheet" href="/assets/css/sage-common.css">
+    <link rel="stylesheet" href="/assets/css/content-topic.css">
+    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
 </head>
 <body>
 <div class="container">

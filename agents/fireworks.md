@@ -22,7 +22,7 @@ Fireworks exposes an **OpenAI-compatible API**. Any OpenAI SDK or tool that acce
 ### curl
 
 ```bash
-curl https://api.fireworks.ai/inference/v1/chat/completions \
+curl [https://api.fireworks.ai/inference/v1/chat/completions](https://api.fireworks.ai/inference/v1/chat/completions) \
   -H "Authorization: Bearer $FIREWORKS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -32,7 +32,7 @@ curl https://api.fireworks.ai/inference/v1/chat/completions \
   }'
 ```
 
-### Python (OpenAI SDK)
+### Python (OpenAI SDK with Caching Alignment)
 
 ```python
 import os
@@ -40,12 +40,18 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key=os.environ["FIREWORKS_API_KEY"],
-    base_url="https://api.fireworks.ai/inference/v1",
+    base_url="[https://api.fireworks.ai/inference/v1](https://api.fireworks.ai/inference/v1)",
 )
+
+# Route to static replica via x-session-affinity header
 response = client.chat.completions.create(
     model="accounts/fireworks/models/deepseek-v4-flash-0731",
-    messages=[{"role": "user", "content": "Summarize the diff below..."}],
-    max_tokens=512,
+    messages=[
+        {"role": "system", "content": FROZEN_SYSTEM_PREFIX},
+        {"role": "user", "content": f"{STABLE_CONTEXT}\n\n{VARIABLE_TASK}"},
+    ],
+    extra_headers={"x-session-affinity": "sage-code-build-session"},
+    max_tokens=1024,
 )
 print(response.choices[0].message.content)
 print(response.usage)  # source of truth for billed tokens
@@ -114,65 +120,23 @@ Output-token guardrails by task type (set as `max_tokens`):
 
 ---
 
-## 6. Escalation Protocol
+## 6. Escalation Protocol & Status Tokens
 
-Cheap workers must fail fast, not burn tokens:
+Workers must fail fast to preserve token budgets:
 
-1. After **2 failed validation passes** on the same task, stop and escalate to the premium model (Gemini/Claude) with a summary of what failed.
-2. If a task requires deep architectural reasoning, ambiguous-requirement resolution, or cross-system design → delegate to the premium model directly. Do not attempt it in-session.
-3. Escalation summaries must include: task, files touched, failure reason, tokens spent.
+1. **Status Tokens:**
+   - `REJECT: AMBIGUOUS_SPEC` -> DeepSeek clarifies spec context and retries once.
+   - `ESCALATE: VALIDATION_FAILED` -> Escalates immediately upon 2 consecutive validation failures.
+2. After **2 failed validation passes** on the same task, stop worker retries and escalate to the premium model (Gemini/Claude) with a summary: `TASK`, `FILES_TOUCHED`, `FAILURE_REASON`, `TOKENS_SPENT`.
+3. If a task requires deep architectural reasoning, ambiguous-requirement resolution, or cross-system design -> delegate to the premium model directly. Do not attempt it in-session.
 
 ---
 
 ## 7. Validation Gate
 
-All worker-model output must pass deterministic validation **before acceptance**:
+All worker-model output must pass deterministic validation in exact sequence before acceptance:
 
 ```bash
-npm run build    # generate public/ (no validation)
-npm run test     # verify source files (originals)
-npm run check    # verify generated public/ output
-```
-
-Additional checks for structured output:
-
-- JSON metadata: strict parse + hierarchy validation (each `h2` entry contains a `children` array of `h3` anchors; flat lists are rejected).
-- Topic pages: exactly one `h1`, multiple `h2`, `h3` under every `h2`.
-- Generated artifacts land only in `public/` via the build — never hand-edited.
-
----
-
-## 8. Shared Project Rules (Worker Models)
-
-- **Vanilla stack:** HTML5 / CSS3 / ES6+ / Bootstrap only; no React/Vue runtimes.
-- **Static-first assembly:** nav, footers, and layouts are injected at build time, never client-side fetched. Generated artifacts land only in `public/` via the build — never hand-edited.
-- **Inline script extraction:** all inline executable JS must be extracted to `public/assets/js/inline` during build.
-- **Directory layout:** `scripts/tools/` utility scripts; `roadmap/` tracks + metadata; `projects/` project sites; `layouts/` template wrappers; `assets/css|js/` global styles/logic (legacy `/common` deprecated); `public/` build output only.
-- **Topic page shape:** exactly one `h1`; multiple `h2`; `h3` under every `h2`. Matching `roadmap/<track>/<topic>.json` must be strictly hierarchical (each `h2` entry has a `children` array of `h3` anchors); flat lists break `assets/js/topic-loader.js`.
-- **Canonical URLs:** topic pages `/roadmap/<track>/<topic>.html`; track roots `/roadmap/<track>/` (trailing slash). Never relative (`./topic`) or root-track (`/cse/topic.html`) links.
-- **External links:** always `target="_blank" rel="noopener noreferrer nofollow"`.
-- **Curriculum tone:** step-by-step engineering instruction; no promotional adjectives (*Ultimate, Complete, Professional, Easy, Simple*); compact factual headings. Topic structure: 1) overview & engineering significance 2) syntax mechanics 3) progressive code examples 4) pitfalls & mitigations 5) performance/maintainability trade-offs 6) mini-lab.
-- **Roadmap index tables:** category rows `<tr class="roadmap-phase-row"><th colspan="4" class="roadmap-phase">PHASE X: NAME</th></tr>`; topic rows `<tr data-topic="id"><td class="text-center"><input type="checkbox" class="topic-check"></td><td>ID</td><td><a href="url">Title</a></td><td class="small text-secondary">Description</td></tr>`.
-- **Validation commands:** `npm run build` (generate `public/`), `npm run test` (verify sources), `npm run check` (verify generated `public/`).
-
----
-
-## 9. Scripts & Cleanup Policy
-
-- **Automation allowed:** worker models may create Python automation scripts for mechanical/bulk work; run with `python3` in a POSIX shell (Git Bash on Windows; never PowerShell).
-- **Reusable scripts** → `scripts/tools/` (committed, project-quality; must print a diff or dry-run summary before writing).
-- **Scratch/temp files** → `scripts/tmp/` only.
-- **Mandatory cleanup:** as soon as a task passes its `ACCEPT` criteria and the §7 validation gate, delete all temp/scratch files (`rm` or `Path.unlink`). Never leave scratch behind.
-- The dispatcher (DeepSeek) must verify GLM's cleanup before accepting a task as complete.
-
----
-
-## 10. References
-
-- Model library: https://fireworks.ai/models
-- Serverless overview (billing, caching, headers): https://docs.fireworks.ai/serverless/overview.md
-- Prompt caching guide: https://docs.fireworks.ai/guides/prompt-caching
-- Batch inference: https://docs.fireworks.ai/guides/batch-inference
-- OpenAI compatibility: https://docs.fireworks.ai/tools-sdks/openai-compatibility.md
-- Recommended models (migration guide): https://docs.fireworks.ai/guides/recommended-models.md
-
+npm run test     # 1. Verify source file syntax, schema integrity, and links
+npm run build    # 2. Assemble static site artifacts into public/
+npm run check    # 3. Audit compiled public/ output and inline script extractions
