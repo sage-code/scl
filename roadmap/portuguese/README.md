@@ -1,1 +1,0 @@
-Learning Portuguese from scratch.

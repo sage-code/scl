@@ -1,1 +1,0 @@
-Learning Romanian from scratch.

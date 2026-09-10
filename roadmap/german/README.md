@@ -1,1 +1,0 @@
-Learning German from scratch.

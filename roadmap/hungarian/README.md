@@ -1,1 +1,0 @@
-Learning Hungarian from scratch.
