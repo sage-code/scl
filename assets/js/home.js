@@ -7,12 +7,11 @@ document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById("typewriter");
     const actions = document.getElementById("hero-actions");
     const fromRoadmapShortcut = window.location.hash === "#sage-code-roadmap";
-    const heroMessage = `Write Code That Moves Iron!
-Master software engineering through open-access roadmaps. 
-Zero tracking, zero obligation.
-* <span class="chalk-red">Deep Dives: </span>Pure signal, direct execution.
-* <span class="chalk-red">Open Access: </span>Anonymous, unrestricted access.
-* <span class="chalk-red">Open Source: </span>Build, break, and iterate.
+    const heroMessage = `Write Code That Moves Iron - Master software engineering through open-access roadmaps. 
+* Low commitment: Zero tracking, zero obligation.
+* Deep Dives: Pure signal, direct execution.
+* Open Access: No gates, unrestricted access.
+* Open Source: Build, break, and iterate.
 `;
 
     function toHtmlWithBreaks(text) {
