@@ -1,1 +1,0 @@
-Learning English from scratch.

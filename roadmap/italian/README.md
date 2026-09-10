@@ -1,1 +1,0 @@
-Learning Italian from scratch.

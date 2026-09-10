@@ -7,12 +7,5 @@
 ## Language Data Cleanup
 - [ ] ada/ (Empty data/ folder)
 - [ ] csharp/ (Empty data/ folder)
-- [ ] french/ (Empty data/ folder)
-- [ ] german/ (Empty data/ folder)
-- [ ] hungarian/ (Empty data/ folder)
-- [ ] italian/ (Empty data/ folder)
-- [ ] portuguese/ (Empty data/ folder)
-- [ ] russian/ (Empty data/ folder)
-- [ ] spanish/ (Empty data/ folder)
 - [ ] zig/ (Empty data/ folder)
 
