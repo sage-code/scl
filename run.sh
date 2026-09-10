@@ -45,8 +45,30 @@ case "$1" in
     commit)
         shift
         msg="${1:-chore: update project build artifacts and content}"
-        git add .
+
+        # Guard: ./run.sh commit must be executed from the project root.
+        # git resolves the repository from the current folder, so running
+        # from any other directory would stage/commit a different repo.
+        case "$(git rev-parse --show-toplevel 2>/dev/null)" in
+            */sage-code/scl) ;;
+            *)
+                echo "error: ./run.sh commit must run from the scl repository root"
+                echo "       (current folder is $PWD)"
+                exit 1
+                ;;
+        esac
+
+        git add -A
+        if git diff --cached --quiet; then
+            echo "Nothing to commit - working tree clean."
+            exit 0
+        fi
+
+        echo "Staging:"
+        git status --short
+        echo
         git commit -m "$msg"
+        echo "Committed $(git rev-parse --short HEAD)"
         ;;
     publish)
         VERSION_FILE="README.md"
