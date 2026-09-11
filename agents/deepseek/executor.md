@@ -49,7 +49,7 @@ Beyond correctness, author as a HIGHLY TRAINED MENTOR, PROFESSOR, and ENGINEER. 
 - **Good for everyone:** assume the learner can start from zero (define terms, short sentences, concrete examples that non-native readers can follow), and still satisfy advanced developers through gradual progression (fundamentals → production).
 - **Visual mode (SVG diagrams):** when a concept is spatial or relational — control flow, memory layout, type/class hierarchy, async timelines, build pipelines — include a GENERATED DIAGRAM. Convention:
   - Author a self-contained SVG: declare `viewBox`, set responsive `width:100%`, use dark-theme-friendly colors, keep it minimal and technical (never decorative).
-  - Shared diagrams go to `assets/images/<name>.svg`; track-specific to `roadmap/<track>/img/<name>.svg`.
+  - Shared diagrams go to `assets/images/<name>.svg`; track-specific to `roadmap/<track>/img/<name>.svg`. Prefer the track copy: shared SVGs are language-agnostic primitives and must faithfully match the language's construct, otherwise a NEW SVG is authored locally.
   - Embed with `<img src="/images/<name>.svg" alt="...">` (or `/roadmap/<track>/img/<name>.svg`) and add a one-line caption paragraph.
   - Draw.io sources live in `assets/draw/` and are exported to `.svg`; hand-authored inline SVG markup is also acceptable.
 
@@ -57,7 +57,7 @@ Beyond correctness, author as a HIGHLY TRAINED MENTOR, PROFESSOR, and ENGINEER. 
 
 The C# track (`roadmap/csharp/`) is the reference implementation. Before creating or improving a track, consult it for structure, phases, and page inventory.
 
-- **Asset first, author second:** check `assets/images/*.svg` and `roadmap/<track>/img/` before creating a diagram. Reuse the shared inventory (control flow: `decision`, `switch`, `classic-for`, `for-loop`, `while`, `do-while`; HPC: `parallel_system`, `asynch`, `processes`); author a new SVG only when no existing asset fits.
+- **Asset first, author second:** check `assets/images/*.svg` and `roadmap/<track>/img/` before creating a diagram. Reuse the shared inventory (control flow: `decision`, `switch`, `classic-for`, `for-loop`, `while`, `do-while`; HPC: `parallel_system`, `asynch`, `processes`) ONLY when it faithfully represents this language's construct; author a NEW track-specific SVG (`roadmap/<track>/img/<name>.svg`) whenever it does not. Never copy a shared SVG into the track.
 - **Page inventory:** model new tracks on `roadmap/csharp/`: index (phases dashboard) → lessons → `demo_examples.html` + `samples.html` → `references.html`.
 - **Numbering:** topic rows are sequential (`01..NN`). Inserting or moving a topic renumbers every later row; inserting a phase renumbers later phase headers — update both in `index.html`.
 - **References policy:** never add a trailing References section to a topic page. Reference lists live only on the track index and the dedicated `references.html` page.

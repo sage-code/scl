@@ -23,7 +23,7 @@ Static-first vanilla website generator. Deployed to Vercel from `public/`. Supab
 
 - Model new/improved tracks on `roadmap/csharp/`: phases dashboard index, numbered topic rows (`01..NN`), `demo_examples.html`, `samples.html`, and a dedicated `references.html` (final phase).
 - References live only on the track index and the references page — never a per-topic References section.
-- Reuse shared diagrams from `assets/images/*.svg` (`/images/<name>.svg` in source) before authoring; track-specific go to `roadmap/<track>/img/`.
+- Diagrams must fit the language. `assets/images/*.svg` are language-agnostic primitives only (generic control flow / HPC shapes; `/images/<name>.svg` in source). Never copy a shared SVG into a track. When no shared diagram faithfully depicts the language's construct, author a NEW track-specific SVG at `roadmap/<track>/img/<name>.svg` (`projects/<project>/img/` for projects). Not all languages are the same.
 
 ## Links & security
 - Canonical topic links: `/roadmap/<track>/<topic>.html`. Track roots: `/roadmap/<track>/`.

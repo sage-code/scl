@@ -34,7 +34,7 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Author as a highly trained mentor, professor, and engineer: WHY first (mentor), principles stated (professor), production reality (engineer).
 - Engaging, not boring: vary prose/code/tables/diagrams; short paragraphs; guided practice; no promotional adjectives or filler.
 - Good for everyone: define terms on first use; short clear sentences; fundamentals first, production later.
-- Visual mode: when a concept is spatial/relational, produce an SVG diagram — `assets/images/<name>.svg` (shared) or `roadmap/<track>/img/<name>.svg` (track), embedded as `<img src="/images/<name>.svg" alt="...">` with a one-line caption.
+- Visual mode: when a concept is spatial/relational, produce an SVG diagram that fits the language — prefer `roadmap/<track>/img/<name>.svg` (track); reuse shared `assets/images/<name>.svg` only when it faithfully matches the language's construct. Embed as `<img src="/images/<name>.svg" alt="...">` or `<img src="/roadmap/<track>/img/<name>.svg" alt="...">` with a one-line caption.
 
 ## Practice & Demo (required for every track)
 - Single-file demos live in `roadmap/<track>/demo/NN_name.<ext>`, numbered and grouped by category.
@@ -47,7 +47,7 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Model the track on `roadmap/csharp/` (reference implementation): index phases dashboard, lessons, `demo_examples.html`, `samples.html`, dedicated `references.html`.
 - Register every new/moved topic in `index.html` under the right phase; topic numbers stay sequential — inserting renumbers later rows and phase headers.
 - References list only on the track index and `references.html`; never add a per-page References section.
-- Reuse shared diagrams (`assets/images/*.svg`, source path `/images/<name>.svg`) before authoring; track-specific go to `roadmap/<track>/img/`.
+- Diagrams are language-specific: reuse a shared `assets/images/*.svg` (source path `/images/<name>.svg`) only as a language-agnostic primitive that faithfully matches this language. Otherwise author a NEW SVG in `roadmap/<track>/img/<name>.svg` (or `projects/<project>/img/`). Never copy a shared SVG into the track.
 - After content work, regenerate tracking (`trace.sh python tracking/generate_roadmaps_status.py`) and cross-check sidebar links ↔ heading IDs.
 
 ## Validate before done
