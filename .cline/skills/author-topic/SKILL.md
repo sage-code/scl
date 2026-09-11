@@ -12,6 +12,7 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Semantic skeleton: `header#dynamic-header`, `aside#study-sidebar` (or `aside.side-bar`), `main#main-content`, footer.
 - Boot `window.TOPIC_CONFIG` (topicId, labId) and include `/assets/js/topic-loader.js`.
 - No inline executable JS/styles in source (build extracts to `public/assets/js/inline/`).
+- Prism: link the single bundle `/assets/prism.css` + `/assets/prism.js`; code blocks use `language-<lang> line-numbers`. Always `content-code.css` + `content-sidebar.css`; `content-tables.css` only when the page has tables. No `prism-loader.js` / `data-lang`.
 - External links: `target="_blank" rel="noopener noreferrer nofollow"`.
 - Canonical topic link: `/roadmap/<track>/<topic>.html`; track root `/roadmap/<track>/`. Never relative links or `/cse/...` style roots.
 
@@ -29,11 +30,25 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Didactic comments in every example: intent, edge cases, why — teaching proper commenting.
 - NEVER trim tutorial content to save tokens; completeness wins over token economy on learner-facing pages.
 
+## Persona & Pedagogy (mandatory)
+- Author as a highly trained mentor, professor, and engineer: WHY first (mentor), principles stated (professor), production reality (engineer).
+- Engaging, not boring: vary prose/code/tables/diagrams; short paragraphs; guided practice; no promotional adjectives or filler.
+- Good for everyone: define terms on first use; short clear sentences; fundamentals first, production later.
+- Visual mode: when a concept is spatial/relational, produce an SVG diagram — `assets/images/<name>.svg` (shared) or `roadmap/<track>/img/<name>.svg` (track), embedded as `<img src="/images/<name>.svg" alt="...">` with a one-line caption.
+
 ## Practice & Demo (required for every track)
 - Single-file demos live in `roadmap/<track>/demo/NN_name.<ext>`, numbered and grouped by category.
 - Create `demo_examples.html` + `data/demo_examples.json` (flat TITLED entries) listing demos by category, each linked to `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<file>`.
 - Add a `demo_examples` row to the track `index.html` under a "Practice & Demo" phase.
 - New languages: extend `assets/js/code-viewer.js` `langMap` + add the Prism component in `roadmap/code-viewer.html`.
+
+## Track blueprint & asset reuse
+
+- Model the track on `roadmap/csharp/` (reference implementation): index phases dashboard, lessons, `demo_examples.html`, `samples.html`, dedicated `references.html`.
+- Register every new/moved topic in `index.html` under the right phase; topic numbers stay sequential — inserting renumbers later rows and phase headers.
+- References list only on the track index and `references.html`; never add a per-page References section.
+- Reuse shared diagrams (`assets/images/*.svg`, source path `/images/<name>.svg`) before authoring; track-specific go to `roadmap/<track>/img/`.
+- After content work, regenerate tracking (`trace.sh python tracking/generate_roadmaps_status.py`) and cross-check sidebar links ↔ heading IDs.
 
 ## Validate before done
 Through `trace.sh`: `npm run test` → `npm run build` → `npm run check`. Then write `.temp/task-<id>.md` report and stop — switch back to Plan.

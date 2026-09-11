@@ -132,24 +132,54 @@ Build-time env support:
 - `manual/ARCHITECTURE.md` is the canonical architecture reference.
 - `manual/PROJECTS-ARCHITECTURE.md` defines the shared topic-page contract for `/projects/*` namespaces.
 
-### Syntax Highlighting Strategy
+### Syntax Highlighting — One Prism Bundle
 
-We utilize a **Dynamic Language Loading** strategy for syntax highlighting to ensure optimal performance as our roadmap expands.
+All roadmap code is rendered by a **single Prism bundle** that supports every language on the site:
 
-- **Core Assets**: The core Prism engine (`assets/prism.js`) and base styles (`assets/prism.css`) are loaded globally.
-- **Dynamic Language Loading**:
-  - Language-specific components are stored in `assets/js/prism/` (e.g., `prism-dart.min.js`).
-  - Pages specify the primary language via a `data-lang` attribute on the `<body>` element.
-  - The `assets/js/prism-loader.js` script detects this attribute and asynchronously loads the required language component on page load.
-- **Adding New Languages**:
-  - Download the required Prism component file (e.g., `prism-zig.min.js`) from the official Prism repository or CDN.
-  - Place the file in `assets/js/prism/`.
-  - Add `data-lang="<lang>"` to the body of the roadmap pages using that language.
-- **Benefits**:
-  - **Performance**: Minimizes initial page weight by only loading necessary language syntax.
-  - **Scalability**: Decouples language support from the global core, allowing unlimited expansion without performance degradation.
+- **Assets**: `assets/prism.css` (theme) + `assets/prism.js` (grammars + line-numbers plugin). The owner registers new languages centrally inside that bundle — the download link in the header of `assets/prism.js` lists the included languages.
+- **Loading (topic pages)** — exactly two tags, no `data-lang`, no `prism-loader.js`:
+  - `<link rel="stylesheet" href="/assets/prism.css">`
+  - `<script src="/assets/prism.js"></script>`
+- **Code blocks**: `<pre><code class="language-<lang> line-numbers">…</code></pre>` — Prism auto-highlights on page load.
+- **CSS requirement (topic pages)**:
+  - Always: `content-code.css` (pre/code styling) and `content-sidebar.css` (left navigation).
+  - Only when the page contains a table: `content-tables.css`.
+  - Track index pages (`roadmap/<track>/index.html`) use `roadmap-index.css`, not the content-* set.
 
 
+## Diagrams (SVG)
+
+Roadmap pages may include **hand-authored SVG diagrams** to explain spatial or relational concepts (control flow, memory layout, type/class hierarchy, async timelines, build pipelines).
+
+- File convention: shared diagrams go to `assets/images/<name>.svg` and are embedded as `<img src="/images/<name>.svg" alt="...">`; track-specific diagrams go to `roadmap/<track>/img/<name>.svg` and are embedded as `/roadmap/<track>/img/<name>.svg`.
+- Editable sources for tool-made diagrams live in `assets/draw/*.drawio` (draw.io), exported to `.svg`.
+- SVG requirements: declare `viewBox`, responsive `width:100%`, dark-theme-friendly colors, minimal and technical (never decorative); add a one-line caption paragraph under the image.
+
+
+## Roadmap Blueprint — the C# reference pattern
+
+`roadmap/csharp/` (14 topics, 6 phases) is the reference implementation for track structure. A new or improved roadmap that follows it passes test/build/check and matches the site standard.
+
+### Track inventory (insertion order)
+
+1. `index.html` — phase dashboard: progress bar + roadmap.js, `data-sage-roadmap`/`data-lab-id` table, `roadmap-phase-row` headers, one `data-topic` row per topic numbered sequentially `01..NN`.
+2. Lesson pages `<track>/<topic>.html` + matching `data/<topic>.json` sidebar — a topic page without its sidebar JSON is flagged by `tracking/generate_roadmaps_status.py`.
+3. `demo/` single-file examples `NN_name.<ext>` + `demo_examples.html` + `data/demo_examples.json`.
+4. `samples.html` — study-projects wrap-up page.
+5. `references.html` — the dedicated categorized references page, final section of the track.
+
+### Phase pattern (proven on C#)
+
+PHASE 1: LANGUAGE FOUNDATIONS · PHASE 2: PROGRAMMING · PHASE 3: PRECOMPILATION & RELIABILITY · PHASE 4: advanced chapter (C#: HIGH PERFORMANCE COMPUTING) · PHASE 5: PRACTICE & DEMO · PHASE 6: REFERENCE.
+Topic numbers are sequential across the whole track; inserting a topic renumbers every later row; inserting a phase renumbers later phase headers.
+
+### References policy
+
+Reference lists live ONLY in two places: the track `index.html` "Free References" block and the dedicated `references.html` page. Topic pages never carry a trailing References section — link canonical docs inline where relevant. `references.html` uses categorized tables (name | what it is | best for): online playgrounds/compilers (no install), official documentation, free courses, open-source samples.
+
+### Diagrams
+
+Reuse shared assets first: `assets/images/<name>.svg` is referenced in SOURCE as `/images/<name>.svg` (the build rewrites it to `/assets/images/<name>.svg` in `public/`). Known shared inventory: control flow — `decision`, `switch`, `classic-for`, `for-loop`, `while`, `do-while`; HPC — `parallel_system`, `asynch`, `processes`. Track-specific diagrams: `roadmap/<track>/img/<name>.svg`. Embed pattern: `<div class="text-center"><img src="..." width="..." class="img-fluid protect rounded shadow border"><p>caption</p></div>`.
 ## Demo Example Pages (required for every roadmap)
 
 Every roadmap track MUST include a **practice & demo** section.
