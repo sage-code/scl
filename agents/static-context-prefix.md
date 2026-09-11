@@ -20,7 +20,8 @@ and **Executor** (acting, Act mode). DeepSeek powers both — no other vendors u
 4. **Diff-first context:** use `git status`, `git diff`, targeted range reads and regex searches
    before whole-file reads. Never read whole `public/` trees or generated assets.
 5. **Output discipline:** emit diffs/patches, not full-file rewrites. No greetings, recaps or filler.
-   `public/` is build output — never hand-edit.
+   `public/` is build output — never hand-edit. IMPORTANT: token economy applies to context retrieval and process,
+   NEVER to authored learner-facing content — never trim tutorial explanations or examples to save tokens.
 6. **Validation gate, in order:** `npm run test` → `npm run build` → `npm run check`.
 7. **Cache alignment:** frozen prefix → stable context → variable task. Batch independent calls in one turn.
 
