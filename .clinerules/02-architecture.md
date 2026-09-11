@@ -4,7 +4,7 @@ Static-first vanilla website generator. Deployed to Vercel from `public/`. Supab
 
 ## Layout
 - `assets/` — shared CSS/JS/fonts/images; templates `assets/roadmap_template.html`, `assets/topic_template.html`.
-- `roadmap/` — learning tracks: source pages + `roadmap/<track>/data/<topic>.json` sidebars.
+- `roadmap/` — learning tracks: source pages + `roadmap/<track>/data/<topic>.json` sidebars; each track has `demo/` single-file demos and a `demo_examples.html` index page (see manual/ARCHITECTURE.md §Demo Example Pages).
 - `projects/` — standalone project sites (topic contract in `manual/PROJECTS-ARCHITECTURE.md`).
 - `layouts/` — header/footer/base wrappers injected at build time (never runtime DOM assembly).
 - `public/` — generated deploy output. Never hand-edit.

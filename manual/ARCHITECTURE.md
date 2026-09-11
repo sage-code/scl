@@ -150,25 +150,34 @@ We utilize a **Dynamic Language Loading** strategy for syntax highlighting to en
   - **Scalability**: Decouples language support from the global core, allowing unlimited expansion without performance degradation.
 
 
-## Demo Example Pages
+## Demo Example Pages (required for every roadmap)
 
-Every roadmap track should include a standard "Demo Example" page (`demo_examples.html`) to facilitate hands-on learning.
+Every roadmap track MUST include a **practice & demo** section.
 
-### Structure and Implementation
+### 1. Demo Source Files — `roadmap/<track>/demo/`
+- Store one runnable example per file inside the track's `demo/` folder: `roadmap/<track>/demo/NN_name.<ext>`.
+- Number files sequentially (`01`, `02`, ...) and group them by lesson category (the demo page groups them).
+- Keep files single-file, commented, consistent with the track's tutorial style, and runnable with the language's standard tooling (e.g. `dotnet run` for C#).
+- Demo folders are part of the published `roadmap/**` namespace, so the build copies them to `public/` unchanged.
 
-- **Standard Lab Template**: The page must utilize the canonical lab topic layout, which includes the shared header/footer, study sidebar (`#study-sidebar`), and a main content area.
-- **`window.TOPIC_CONFIG`**: Each demo page must define the `TOPIC_CONFIG` object, setting the `topicId` to `demo_examples` and `labId` to the appropriate track ID (e.g., `dart`).
-- **Integration**:
-  - The page serves as a lab topic.
-  - Sidebar topics are populated via the standard `topic-loader.js`.
-- **Code Viewer Reference**:
-  - Use the unified `roadmap/code-viewer.html` for viewing source code.
-  - Link structure: `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<filename>.ext`
-- **Formatting**:
-  - Use standard tables to list examples by category.
-  - Ensure all examples are runnable, documented with comments, and follow the consistent code structure defined in the lab topic.
-- **Language Support**:
-  - Verify that the global `prism.js` includes the necessary language highlighting for the roadmap track. If not, the global `prism.js` (and CSS) will be updated centrally.
+### 2. Demo Page — `roadmap/<track>/demo_examples.html`
+- Standard lab topic page: `topicId: 'demo_examples'`, `labId: <track>`, powered by `assets/js/topic-loader.js`.
+- Exactly one `h1`; one `h2` per category; each category lists its demos in a table: `# | Description | Link`.
+- The Link column opens the unified code viewer:
+  `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<filename>`
+- The code viewer highlights by file extension (`assets/js/code-viewer.js` `langMap`). When a new
+  language is introduced, add its extension mapping there and its Prism component to
+  `roadmap/code-viewer.html` (plus verify it is bundled in `assets/prism.js` for topic pages).
+
+### 3. Sidebar JSON — `roadmap/<track>/data/demo_examples.json`
+- Flat, titled entries, one per category:
+  `[ { "title": "Foundations", "link": "#foundations" }, ... ]`
+- Entries MUST include `title` (the legacy Dart classic omitted titles and triggers
+  `missing 'title'` warnings in `npm run check`).
+
+### 4. Track Index Link
+- `roadmap/<track>/index.html` must list a `demo_examples` row — under a
+  *Practice & Demo* phase — linking to `/roadmap/<track>/demo_examples.html`.
 
 
 - `manual/build-manifest.json` and `manual/migration-status.json` are generated reports.

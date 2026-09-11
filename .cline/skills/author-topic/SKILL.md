@@ -23,5 +23,11 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Step-by-step fundamentals → production; progressive executable examples; common pitfalls; trade-offs; mini-lab practice.
 - No promotional adjectives (Ultimate/Complete/Professional/Easy).
 
+## Practice & Demo (required for every track)
+- Single-file demos live in `roadmap/<track>/demo/NN_name.<ext>`, numbered and grouped by category.
+- Create `demo_examples.html` + `data/demo_examples.json` (flat TITLED entries) listing demos by category, each linked to `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<file>`.
+- Add a `demo_examples` row to the track `index.html` under a "Practice & Demo" phase.
+- New languages: extend `assets/js/code-viewer.js` `langMap` + add the Prism component in `roadmap/code-viewer.html`.
+
 ## Validate before done
 Through `trace.sh`: `npm run test` → `npm run build` → `npm run check`. Then write `.temp/task-<id>.md` report and stop — switch back to Plan.
