@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         'dart': 'dart',
         'cs': 'csharp',
         'csharp': 'csharp',
+        'c': 'c',
+        'h': 'c',
         'zig': 'zig'
     };
     

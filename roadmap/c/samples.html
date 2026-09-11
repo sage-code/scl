@@ -1,0 +1,241 @@
+    <!DOCTYPE html>
+    <html lang="en" data-bs-theme="dark">
+    <head>
+      <meta charset="utf-8">
+      <meta name="description" content="C study projects: a dynamic string builder, a linked list with deletion, and a word-frequency counter combining files, hashing, and sorting.">
+      <meta name="author" content="Elucian Moise">
+      <meta name="keywords" content="sage, code, c, projects, string builder, linked list, hash table, word frequency, algorithms">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <title>C Study Projects</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+      <link rel="stylesheet" href="/assets/prism.css">
+      <script src="/assets/prism.js"></script>
+      <link rel="stylesheet" href="/assets/css/sage-common.css">
+      <link rel="stylesheet" href="/assets/css/content-topic.css">
+      <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+      <link rel="stylesheet" href="/assets/css/content-code.css">
+      <link rel="stylesheet" href="/assets/css/code-viewer.css">
+      <link rel="stylesheet" href="/assets/css/forms-controls.css">
+      <style>
+        .side-bar { order: 1; }
+        #main-content { order: 2; }
+        @media (max-width: 991px) {
+          .side-bar { display: none; }
+          .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+        }
+      </style>
+    </head>
+    <body>
+    <div class="container">
+      <header id="dynamic-header" class="container-fluid pb-2"></header>
+      <div class="container-fluid px-0">
+        <div class="row g-0">
+          <aside class="side-bar col-lg-3 col-12">
+            <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lab Topics</h5>
+              </div>
+              <hr>
+              <ul id="bookmark-list" class="list-unstyled"></ul>
+            </div>
+          </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="c-samples">Study Projects</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Three small projects pull the whole track together. Type each one yourself — do not copy-paste — then break it on purpose and repair it. These are the kinds of programs that teach more than any reading: a string builder, a linked list with deletion, and a word-frequency counter that combines files, hashing, and sorting.
+        </div>
+
+        <h2 id="string-builder">Project 1 — Dynamic String Builder</h2>
+        <p>Every real program that assembles text needs a growable string. This builder owns a heap buffer, appends by doubling capacity, and always keeps a valid NUL terminator — three lessons from the <a href="/roadmap/c/strings.html">strings</a> and <a href="/roadmap/c/memory.html">memory</a> pages in one small type.</p>
+        <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+typedef struct {
+    char  *data;      // heap buffer, always NUL-terminated
+    size_t len;       // current length (excluding the NUL)
+    size_t cap;       // allocated capacity (including room for the NUL)
+} Str;
+
+// build an empty builder
+Str str_new(void) {
+    Str s = {0};
+    s.cap = 16;
+    s.data = malloc(s.cap);          // data[0] will stay '\0' while empty
+    if (s.data) s.data[0] = '\0';
+    return s;
+}
+
+// append text, growing by doubling when needed
+int str_append(Str *s, const char *text) {
+    size_t need = s-&gt;len + strlen(text) + 1;      // +1 for the terminator
+    if (need &gt; s-&gt;cap) {
+        while (s-&gt;cap &lt; need) s-&gt;cap *= 2;        // geometric growth: O(1)/append
+        char *grown = realloc(s-&gt;data, s-&gt;cap);
+        if (grown == NULL) return -1;             // failure: old buffer intact
+        s-&gt;data = grown;
+    }
+    strcpy(s-&gt;data + s-&gt;len, text);               // append at the current end
+    s-&gt;len += strlen(text);
+    return 0;
+}
+
+void str_free(Str *s) { free(s-&gt;data); s-&gt;data = NULL; s-&gt;len = s-&gt;cap = 0; }
+
+int main(void) {
+    Str s = str_new();
+    if (!s.data) return 1;
+    str_append(&amp;s, "Hello, ");
+    str_append(&amp;s, "C study projects!");
+    printf("%s\n", s.data);                        // "Hello, C study projects!"
+    str_free(&amp;s);
+    return 0;
+}
+</code></pre>
+        <h3 id="str-challenge">Challenge</h3>
+        <p>Add <code>str_append_char</code> and <code>str_trim</code>, then test the builder under <code>-fsanitize=address</code> with 10,000 appends. Sanitizers cannot lie: leaks and overflows will be reported the moment they happen.</p>
+
+        <h2 id="linked-list-project">Project 2 — Linked List with Deletion</h2>
+        <p>The <a href="/roadmap/c/collections.html">collections page</a> built a list with push and print. Deletion is where the pointer discipline really bites: removing a node requires its <em>predecessor</em>, which you chase from the head. This version also deletes by value and frees everything on exit.</p>
+        <pre><code class="language-c line_numbers">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+typedef struct Node Node;
+struct Node { int value; Node *next; };
+
+// remove the FIRST node whose value equals v; return the (possibly new) head
+Node *list_remove(Node *head, int v) {
+    Node *cur = head, *prev = NULL;
+    while (cur != NULL &amp;&amp; cur-&gt;value != v) {   // walk until found or tail
+        prev = cur;
+        cur = cur-&gt;next;
+    }
+    if (cur == NULL) return head;               // not found: nothing changes
+    if (prev == NULL) head = cur-&gt;next;         // removing the head itself
+    else              prev-&gt;next = cur-&gt;next;   // unlink from the middle
+    free(cur);                                  // release the node's memory
+    return head;
+}
+
+void list_free(Node *head) {
+    while (head) { Node *n = head-&gt;next; free(head); head = n; }
+}
+
+int main(void) {
+    Node *head = NULL;
+    for (int v = 1; v &lt;= 5; v++) {
+        Node *n = malloc(sizeof(Node));
+        if (!n) { list_free(head); return 1; }
+        n-&gt;value = v; n-&gt;next = head;          // push front
+        head = n;
+    }
+    head = list_remove(head, 3);                // 5 4 3 2 1 -> 5 4 2 1
+    for (Node *c = head; c; c = c-&gt;next) printf("%d ", c-&gt;value);
+    printf("\n");
+    list_free(head);
+    return 0;
+}
+</code></pre>
+        <h3 id="list-challenge">Challenge</h3>
+        <p>Extend it to a <strong>doubly linked list</strong> (add a <code>prev</code> pointer) so deletion no longer needs a predecessor walk — and confirm deletion becomes O(1) with a node pointer in hand.</p>
+        <h2 id="word-frequency">Project 3 — Word-Frequency Counter</h2>
+        <p>The capstone: read a text file, count how often each word appears, and print the words sorted by frequency. It touches file I/O (<a href="/roadmap/c/input.html">input page</a>), the hash table (<a href="/roadmap/c/collections.html">collections page</a>), and sorting with callbacks (<a href="/roadmap/c/algorithms.html">algorithms page</a>). Every piece is already familiar — assembled, they become a real tool.</p>
+        <pre><code class="language-c line_numbers">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+#define BUCKETS 256
+
+typedef struct Entry Entry;
+struct Entry { char word[64]; int count; Entry *next; };
+
+static unsigned long hash_str(const char *s) {   // djb2 hash (see collections)
+    unsigned long h = 5381;
+    while (*s) h = h * 33 + (unsigned char)*s++;
+    return h;
+}
+
+// find-or-create the bucket chain entry for a word
+static Entry *entry_for(Entry *table[], const char *word) {
+    Entry **slot = &amp;table[hash_str(word) % BUCKETS];
+    for (Entry *e = *slot; e; e = e-&gt;next)
+        if (strcmp(e-&gt;word, word) == 0) return e;       // already counted
+    Entry *e = calloc(1, sizeof(Entry));                // new word: create
+    if (!e) return NULL;
+    snprintf(e-&gt;word, sizeof(e-&gt;word), "%s", word);
+    e-&gt;next = *slot; *slot = e;                         // chain it into the bucket
+    return e;
+}
+
+// comparator for qsort: most frequent first
+static int cmp_count(const void *a, const void *b) {
+    const Entry *ea = *(const Entry *const *)a;
+    const Entry *eb = *(const Entry *const *)b;
+    return (eb-&gt;count &gt; ea-&gt;count) - (eb-&gt;count &lt; ea-&gt;count);
+}
+
+int main(void) {
+    Entry *table[BUCKETS] = {0};
+    FILE *f = fopen("text.txt", "r");
+    if (f == NULL) { perror("text.txt"); return 1; }
+    char word[64];
+    // fscanf with a width bound: reads at most 63 chars — overflow-proof
+    while (fscanf(f, "%63s", word) == 1) {
+        Entry *e = entry_for(table, word);
+        if (e) e-&gt;count++;
+    }
+    fclose(f);
+
+    // flatten the chains into one array for sorting
+    size_t n = 0, cap = 16;
+    Entry **all = malloc(cap * sizeof(*all));
+    for (size_t b = 0; b &lt; BUCKETS; b++)
+        for (Entry *e = table[b]; e; e = e-&gt;next) {
+            if (n == cap) all = realloc(all, (cap *= 2) * sizeof(*all));
+            all[n++] = e;
+        }
+    qsort(all, n, sizeof(*all), cmp_count);
+
+    for (size_t i = 0; i &lt; n &amp;&amp; i &lt; 10; i++)
+        printf("%4d  %s\n", all[i]-&gt;count, all[i]-&gt;word);
+    free(all);
+    return 0;
+}
+</code></pre>
+        <h3 id="freq-challenge">Challenge</h3>
+        <p>Make the word list stop ignoring punctuation (strip <code>.,;:!?</code> before counting) and add an <code>--top N</code> command-line argument instead of the hard-coded 10. Both features reuse only what this roadmap taught — that is the point.</p>
+
+        <div class="alert alert-warning shadow-sm">
+          <strong>Next challenge:</strong> pick one of the repositories on the <a href="/roadmap/c/references.html">references page</a> — <code>redis</code>, <code>curl</code>, or <code>TheAlgorithms/C</code> — and read a single file end to end, tracing every pointer and buffer. When you can explain the file to someone else, you have graduated from this track.
+        </div>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'c',
+    topicId: 'samples',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
+

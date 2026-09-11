@@ -34,7 +34,7 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Author as a highly trained mentor, professor, and engineer: WHY first (mentor), principles stated (professor), production reality (engineer).
 - Engaging, not boring: vary prose/code/tables/diagrams; short paragraphs; guided practice; no promotional adjectives or filler.
 - Good for everyone: define terms on first use; short clear sentences; fundamentals first, production later.
-- Visual mode: when a concept is spatial/relational, produce an SVG diagram that fits the language — prefer `roadmap/<track>/img/<name>.svg` (track); reuse shared `assets/images/<name>.svg` only when it faithfully matches the language's construct. Embed as `<img src="/images/<name>.svg" alt="...">` or `<img src="/roadmap/<track>/img/<name>.svg" alt="...">` with a one-line caption.
+- Visual mode: when a concept is spatial/relational, produce an SVG diagram that fits the language — prefer `roadmap/<track>/img/<name>.svg` (track); reuse shared `assets/images/<name>.svg` only when it faithfully matches the language's construct. Embed as `<img src="/images/<name>.svg" alt="...">` or `<img src="/roadmap/<track>/img/<name>.svg" alt="...">` with a one-line caption. Follow the dark-theme SVG style spec in `manual/ARCHITECTURE.md` §Diagrams: solid non-transparent canvas and boxes, light-on-dark contrast (dark writing only inside light highlight boxes), UML/logic shapes, shapes aligned with gaps — never touching.
 
 ## Practice & Demo (required for every track)
 - Single-file demos live in `roadmap/<track>/demo/NN_name.<ext>`, numbered and grouped by category.

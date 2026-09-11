@@ -1,0 +1,167 @@
+    <!DOCTYPE html>
+    <html lang="en" data-bs-theme="dark">
+    <head>
+      <meta charset="utf-8">
+      <meta name="description" content="C GPU computing: the host and device model, kernel execution, memory transfers, and CUDA, OpenCL, and SYCL frameworks for thousand-core processing.">
+      <meta name="author" content="Elucian Moise">
+      <meta name="keywords" content="sage, code, c, gpu, cuda, opencl, sycl, kernel, device, heterogeneous, many-core, nvcc">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <title>C — GPU Computing</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+      <link rel="stylesheet" href="/assets/prism.css">
+      <script src="/assets/prism.js"></script>
+      <link rel="stylesheet" href="/assets/css/sage-common.css">
+      <link rel="stylesheet" href="/assets/css/content-topic.css">
+      <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+      <link rel="stylesheet" href="/assets/css/content-code.css">
+      <link rel="stylesheet" href="/assets/css/content-tables.css">
+      <style>
+        .side-bar { order: 1; }
+        #main-content { order: 2; }
+        @media (max-width: 991px) {
+          .side-bar { display: none; }
+          .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+        }
+      </style>
+    </head>
+    <body>
+    <div class="container">
+      <header id="dynamic-header" class="container-fluid pb-2"></header>
+      <div class="container-fluid px-0">
+        <div class="row g-0">
+          <aside class="side-bar col-lg-3 col-12">
+            <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lab Topics</h5>
+              </div>
+              <hr>
+              <ul id="bookmark-list" class="list-unstyled"></ul>
+            </div>
+          </aside>
+          <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+    <h1 id="c-gpu">GPU Computing</h1>
+
+    <div class="alert alert-secondary shadow-sm">
+      A GPU is a thousand-core co-processor with its own memory, driven by the CPU as host. While the <a href="/roadmap/c/parallel.html">multicore lab</a> used the CPU's handful of powerful cores, this lab uses the GPU's thousands of small cores: the host + device model, kernel execution, the memory-transfer bottleneck, and the three frameworks — CUDA, OpenCL, and SYCL — that make C the host language of GPUs.
+    </div>
+
+    <h2 id="why-gpu">Why a GPU</h2>
+    <p>A GPU trades single-thread speed for <em>throughput</em>: it runs thousands of lightweight threads at once, each doing a small slice of a huge, uniform workload. Problems with millions of independent elements — matrix math, image filters, machine-learning inference — map naturally onto that shape; problems with long dependency chains do not.</p>
+
+    <h3 id="multicore-vs-manycore">Multicore vs Many-Core</h3>
+    <p>The CPU is <strong>multicore</strong>: 4–64 fast cores optimized for latency and complex control flow. The GPU is <strong>many-core</strong>: thousands of simple cores optimized for throughput and data-parallel math. A CPU core can branch, speculate, and cache; a GPU core wins when every thread executes the <em>same</em> instruction on <em>different</em> data — the SIMT (single instruction, multiple threads) model. If your hot loop has data-dependent branches everywhere, it belongs on the CPU; if it is a uniform transform, it belongs on the GPU.</p>
+
+    <h2 id="host-device">The Host + Device Model</h2>
+    <p>Every GPU program is a <strong>heterogeneous</strong> program: the CPU (host) runs ordinary C, owns the data, and the GPU (device) runs <strong>kernels</strong>. The two have separate memories — a key difference from the shared-memory tools of the multicore lab — so data must be copied across an explicit boundary before and after each kernel.</p>
+    <div class="text-center">
+      <img src="/roadmap/c/img/c-cpu-gpu.svg" alt="CPU host and GPU device with a PCIe link for transfers" width="640" class="img-fluid protect rounded shadow border">
+      <p class="text-secondary small">Figure 1 — multicore CPU (host) plus GPU (device): kernels run on the GPU, data crosses the PCIe link as explicit copies.</p>
+    </div>
+
+    <h3 id="kernel-execution">Kernel Execution</h3>
+    <p>A <strong>kernel</strong> is a function that runs on the device. When you launch it, the hardware instantiates it as a <em>grid</em> of blocks, each block a group of threads; every thread runs the same code on its own element index. The launch syntax <code>kernel&lt;&lt;&lt;blocks, threads&gt;&gt;&gt;(...)</code> is CUDA's way of saying "make <code>blocks × threads</code> copies". Inside the kernel, the thread asks the runtime who it is (<code>blockIdx</code>, <code>blockDim</code>, <code>threadIdx</code>) and indexes its private slice of the work.</p>
+
+    <h3 id="memory-transfers">Memory Transfers — The Bottleneck</h3>
+    <p>Host and device memory are different address spaces: <code>cudaMemcpy(..., cudaMemcpyHostToDevice)</code> ships the input over the PCIe bus, the kernel runs, then <code>cudaMemcpy(..., cudaMemcpyDeviceToHost)</code> brings results back. That copy is the classic bottleneck — a fast kernel can be starved by a slow transfer. The rules: copy once, batch small transfers, overlap transfers with kernel execution (streams), and keep kernels long enough to amortize the cost.</p>
+
+    <h2 id="frameworks">Frameworks</h2>
+    <p>Three frameworks dominate, and all three treat C/C++ as the host language. The choice is mostly about vendor support and portability:</p>
+
+    <h3 id="cuda">CUDA — NVIDIA's Native Framework</h3>
+    <p><strong>CUDA</strong> extends C with kernel syntax (<code>__global__</code> functions, the <code>&lt;&lt;&lt;grid, block&gt;&gt;&gt;</code> launch operator) and the <code>cudaMemcpy</code> API. It is the fastest path to NVIDIA hardware, the best tooling, and the most documentation — but it is NVIDIA-only. Kernels are compiled ahead of time by <code>nvcc</code>.</p>
+
+    <h3 id="opencl">OpenCL — The Portable Standard</h3>
+    <p><strong>OpenCL</strong> is an open standard that runs on GPUs, CPUs, FPGAs, and DSPs from every vendor. The model is the same (host + kernels), but kernels are written as source strings compiled <em>at runtime</em>, and the host code is a verbose API (<code>clCreateContext</code>, <code>clBuildProgram</code>...). Portability comes at the cost of boilerplate and runtime compilation.</p>
+
+    <h3 id="sycl">SYCL — Single-Source, C++-Based</h3>
+    <p><strong>SYCL</strong> keeps the host and kernel in one C++ source file, describing device work as command groups; an implementation (e.g. Intel's oneAPI DPC++) compiles for CPU, GPU, and FPGA from the same code. It is the modern choice when you want CUDA-like productivity without locking onto one vendor.</p>
+
+    <h2 id="first-kernel">A First Kernel</h2>
+    <p>Every GPU program is the same skeleton: allocate device memory, copy in, launch a kernel whose threads each own one element, copy the result back. The vector-add below is that skeleton in its smallest correct form — study the <em>shape</em>, not the arithmetic.</p>
+
+    <h3 id="vector-add">Vector Add (CUDA)</h3>
+    <pre><code class="language-c line-numbers">// kernel.cu — CUDA kernel + host code (C-like; built with nvcc).
+#include &lt;stdio.h&gt;
+
+#define N 1024
+
+// __global__ marks a function that runs ON the device, in every thread
+__global__ void add_kernel(int *c, const int *a, const int *b, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;   // global thread id
+    if (i &lt; n) {
+        c[i] = a[i] + b[i];   // each thread owns one element — no races
+    }
+}
+
+int main(void) {
+    int a[N], b[N], c[N];
+    int *a_dev, *b_dev, *c_dev;
+    for (int i = 0; i &lt; N; i++) { a[i] = i; b[i] = i; }
+
+    // 1) allocate device memory
+    cudaMalloc(&amp;a_dev, N * sizeof(int));
+    cudaMalloc(&amp;b_dev, N * sizeof(int));
+    cudaMalloc(&amp;c_dev, N * sizeof(int));
+
+    // 2) copy inputs host -> device
+    cudaMemcpy(a_dev, a, N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(b_dev, b, N * sizeof(int), cudaMemcpyHostToDevice);
+
+    // 3) launch: 1 block x 1024 threads, all running add_kernel
+    add_kernel&lt;&lt;&lt;1, N&gt;&gt;&gt;(c_dev, a_dev, b_dev, N);
+
+    // 4) copy the result device -> host
+    cudaMemcpy(c, c_dev, N * sizeof(int), cudaMemcpyDeviceToHost);
+
+    // 5) verify one element and clean up
+    printf("c[512] = %d (want %d)\n", c[512], 2 * 512);
+    cudaFree(a_dev); cudaFree(b_dev); cudaFree(c_dev);
+    return 0;
+}
+</code></pre>
+    <p>The guard <code>if (i &lt; n)</code> matters: real grids rarely divide the work evenly, so a full-size launch must clamp the index instead of writing out of bounds. Real kernels scale the launch to e.g. <code>&lt;&lt;&lt;(N + 255) / 256, 256&gt;&gt;&gt;</code> — the ceiling division computes enough blocks to cover any N.</p>
+
+    <h3 id="nvcc-build">Building with nvcc</h3>
+    <p>CUDA source compiles with NVIDIA's compiler driver, which splits host code (C) from device code (kernels):</p>
+    <pre><code class="language-bash line-numbers">nvcc -std=c++11 -O2 kernel.cu -o kernel   # note: host side is C++; kernels C-like
+./kernel
+</code></pre>
+    <p>OpenCL programs instead ship the kernel as a string (<code>clBuildProgram</code> compiles it when the program starts); SYCL/DPC++ again compiles ahead of time. Whichever framework you pick, the host language remains C-ish and the memory model is the one taught here.</p>
+
+    <h2 id="when-gpu-wins">When the GPU Wins</h2>
+    <p>The GPU is not a faster CPU; it is a different <em>shape</em> of computer. It wins when:</p>
+    <ul>
+      <li>The workload has <strong>massive data-level parallelism</strong> — millions of independent elements.</li>
+      <li>It is <strong>compute-bound</strong> math (matrix products, convolutions, simulations), not I/O or branchy logic.</li>
+      <li>Data transfer is <strong>amortized</strong> — the kernel runs long and infrequently compared with the copies.</li>
+    </ul>
+    <p>It loses when the problem is small (copy overhead dominates), serial (a long dependency chain), or latency-critical (the driver overhead is microseconds). The engineering rule from the <a href="/roadmap/c/parallel.html">multicore lab</a> still applies: profile first, GPU second. When you do commit, the profiling tools — NVIDIA <code>nsight</code>, <code>ncu</code> — will show you exactly where the memory-transfer tax is being paid.</p>
+    <p>Next lab: <a href="/roadmap/c/abi-asm.html">ABI &amp; assembly</a> — the machine-level contract beneath every function call.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'c',
+    topicId: 'gpu',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

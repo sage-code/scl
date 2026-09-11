@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Install a C toolchain (GCC, Clang, or MSVC), learn the compile-lint-run cycle, and write a safe first C program with warnings and sanitizers enabled.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, c, setup, gcc, clang, msys2, compile, sanitizer, warnings">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>C — Toolchain &amp; First Program</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="c-setup">Toolchain &amp; First Program</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          C source code is only text; a <strong>compiler</strong> turns it into machine code. This page installs your toolchain, explains the compile-lint-run cycle, and shows a first program compiled with the habits that keep C safe: loud warnings and sanitizers.
+        </div>
+
+        <h2 id="compilers">Choosing a Compiler</h2>
+        <p>You need exactly one C compiler. The three mainstream options all implement the ISO C standard; pick whichever matches your environment.</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Compiler</th><th>Where it shines</th><th>Install (Windows)</th><th>Install (Linux/macOS)</th></tr></thead>
+          <tbody>
+            <tr><td><strong>GCC</strong></td><td>Default on Linux; best ecosystem compatibility</td><td>MSYS2: <code>pacman -S mingw-w64-ucrt-x86_64-gcc</code></td><td><code>sudo apt install gcc</code> / <code>brew install gcc</code></td></tr>
+            <tr><td><strong>Clang</strong></td><td>Fast, precise diagnostics, great IDE support</td><td><code>winget install LLVM</code></td><td><code>sudo apt install clang</code> / <code>brew install llvm</code></td></tr>
+            <tr><td><strong>MSVC</strong></td><td>Native Windows toolchain, Visual Studio</td><td>Visual Studio Build Tools (Desktop C++ workload)</td><td>—</td></tr>
+          </tbody>
+        </table>
+        <h2 id="compile-cycle">The Compile–Lint–Run Cycle</h2>
+        <p>Compiling is a pipeline: the <strong>preprocessor</strong> expands <code>#include</code> and macros, the <strong>compiler</strong> translates to assembly, the <strong>assembler</strong> produces object code, and the <strong>linker</strong> combines objects with libraries into an executable. You drive all of it with one command:</p>
+        <pre><code class="language-bash line-numbers">gcc -std=c11 -Wall -Wextra -Wpedantic -Werror hello.c -o hello
+./hello          # run on Linux/macOS
+./hello.exe      # run on Windows (Git Bash)
+</code></pre>
+        <ul>
+          <li><code>-std=c11</code> — demand the C11 standard (C17 and C23 also exist; C11 is supported everywhere).</li>
+          <li><code>-Wall -Wextra -Wpedantic</code> — enable the warning families. A warning in C is the compiler confessing it noticed a trap.</li>
+          <li><code>-Werror</code> — promote every warning to an error. Painful at first, lifesaving later.</li>
+          <li><code>-o hello</code> — name the output executable; without it you get <code>a.out</code>.</li>
+        </ul>
+
+        <h3 id="error-types">Compile Errors vs Link Errors</h3>
+        <p>Bad syntax or a type misuse makes the <em>compiler</em> refuse (compile error). Valid code that refers to a function the <em>linker</em> cannot find — a missing library or a misspelled function name — makes the linker refuse (link error). Read the first line of any diagnostic: it names file, line, and severity. Fix errors top-down; one error at the top often cascades into fake errors below it.</p>
+
+        <h2 id="first-program">Your First Program</h2>
+        <p>Every C program has exactly one <code>main</code> function — the entry point. This version is honest and complete: it announces itself, uses a variable, and returns an exit status. Read the comments; they explain <em>why</em>, not just <em>what</em>.</p>
+        <pre><code class="language-c line-numbers">// hello.c — first program, compiled with warnings-as-errors.
+#include &lt;stdio.h&gt;   // declares printf(): formatted console output
+
+int main(void) {     // "void": main takes no arguments; returns int
+    printf("Hello, C!\n");       // \n moves the cursor to a new line
+
+    int answer = 42;             // C requires a declared type for every name
+    printf("The answer is %d\n", answer);   // %d prints an int value
+    return 0;                    // exit status 0 = success for the shell
+}
+</code></pre>
+        <p>Compile it with the loud flags above and run it. Then <strong>break it on purpose</strong>: delete the <code>return</code>, change <code>%d</code> to <code>%s</code>, remove <code>&lt;stdio.h&gt;</code>. Each break teaches you a diagnostic you will meet again for real.</p>
+
+        <h2 id="sanitizers">Sanitizers — C's Debugging Superpower</h2>
+        <p>Modern compilers can instrument your program at runtime and catch the memory bugs that compile-time warnings cannot: out-of-bounds access, use-after-free, leaks, and signed overflow. Two sanitizers matter most:</p>
+        <pre><code class="language-bash line-numbers">gcc -std=c11 -Wall -Wextra -fsanitize=address,undefined hello.c -o hello
+./hello    # now: any memory error aborts with a precise stack trace
+</code></pre>
+        <ul>
+          <li><code>-fsanitize=address</code> — AddressSanitizer: catches buffer overflows, use-after-free, and double-free, and reports the exact allocation site.</li>
+          <li><code>-fsanitize=undefined</code> — UndefinedBehaviorSanitizer: catches signed overflow, misaligned access, and other UB with pinpoint messages.</li>
+        </ul>
+        <p>Make this your default compile recipe for every exercise in this roadmap. Debugging with sanitizers is faster and more precise than staring at crashes — this is the single best habit you can learn here.</p>
+
+        <h2 id="build-script">A Minimal Build Script</h2>
+        <p>For one-file programs the shell command is enough. When a project grows, capture the recipe in a tiny script so every future compile uses identical, safe flags. Save this as <code>build.sh</code> and run <code>bash build.sh</code>:</p>
+        <pre><code class="language-bash line-numbers">#!/usr/bin/env bash
+# build.sh — compile every source file in the current directory with safe flags
+# then run the resulting executable with sanitizers active.
+set -euo pipefail                              # fail fast on any error
+CC="${CC:-gcc}"                                # respect an overridden CC
+FLAGS="-std=c11 -Wall -Wextra -Wpedantic -Werror"
+FLAGS="$FLAGS -fsanitize=address,undefined"    # catch memory bugs at runtime
+for src in *.c; do                             # compile each source file
+    echo "compiling $src"
+    "$CC" $FLAGS "$src" -o "${src%.c}"
+done
+echo "build ok — run: ./hello"
+</code></pre>
+        <p>Now every example in this roadmap compiles with the same discipline. Next, learn the <a href="/roadmap/c/syntax.html">lexical structure of the language</a>: punctuation, keywords, and how a statement is assembled.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'c',
+    topicId: 'setup',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

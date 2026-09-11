@@ -1,0 +1,200 @@
+    <!DOCTYPE html>
+    <html lang="en" data-bs-theme="dark">
+    <head>
+      <meta charset="utf-8">
+      <meta name="description" content="Advanced C: function pointers and callbacks, vtables, bit manipulation, endianness, restrict and volatile, and type punning.">
+      <meta name="author" content="Elucian Moise">
+      <meta name="keywords" content="sage, code, c, advanced, function pointer, callback, vtable, bit manipulation, endianness, restrict, volatile, type punning">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <title>C — Advanced C</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+      <link rel="stylesheet" href="/assets/prism.css">
+      <script src="/assets/prism.js"></script>
+      <link rel="stylesheet" href="/assets/css/sage-common.css">
+      <link rel="stylesheet" href="/assets/css/content-topic.css">
+      <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+      <link rel="stylesheet" href="/assets/css/content-code.css">
+      <style>
+        .side-bar { order: 1; }
+        #main-content { order: 2; }
+        @media (max-width: 991px) {
+          .side-bar { display: none; }
+          .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+        }
+      </style>
+    </head>
+    <body>
+    <div class="container">
+      <header id="dynamic-header" class="container-fluid pb-2"></header>
+      <div class="container-fluid px-0">
+        <div class="row g-0">
+          <aside class="side-bar col-lg-3 col-12">
+            <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lab Topics</h5>
+              </div>
+              <hr>
+              <ul id="bookmark-list" class="list-unstyled"></ul>
+            </div>
+          </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+    <h1 id="c-advanced">Advanced C</h1>
+
+    <div class="alert alert-secondary shadow-sm">
+      Everything before this page was the everyday 90%. This chapter opens the door to the idioms that real C systems use daily: callbacks for late binding, bit manipulation for flags and protocols, endianness for networking, and the compiler contracts <code>restrict</code>, <code>volatile</code>, and type punning. These are the tools that make C irreplaceable — and the last things beginners learn.
+    </div>
+
+    <h2 id="function-pointers">Function Pointers &amp; Callbacks</h2>
+    <p>A function pointer stores <em>which</em> function to call, decided at runtime. The declaration reads right-to-left from the name: <code>int (*cmp)(const void*, const void*)</code> is "cmp is a pointer to a function returning int". You already used one — <code>qsort</code>'s comparator on the <a href="/roadmap/c/algorithms.html">algorithms page</a>. Pattern: a library function receives a callback it cannot know about, letting <em>your</em> code run inside <em>its</em> loops.</p>
+    <pre><code class="language-c line_numbers">#include &lt;stdio.h&gt;
+
+typedef int (*Matcher)(int);    // "pointer to function(int) -> int"
+
+// a generic scanner: apply the callback to every element
+int scan(const int a[], size_t n, Matcher m) {
+    for (size_t i = 0; i &lt; n; i++) {
+        int r = m(a[i]);        // call through the pointer
+        if (r != 0) return r;   // callback says stop? return its verdict
+    }
+    return 0;
+}
+
+static int is_odd(int v)  { return v % 2; }          // callback candidates
+static int is_even(int v) { return !(v % 2); }
+
+int main(void) {
+    int a[] = {2, 4, 5, 8};
+    printf("first odd:  %d\n", scan(a, 4, is_odd));   // 5
+    printf("first even: %d\n", scan(a, 4, is_even));  // 2 — same loop, new policy
+    return 0;
+}
+</code></pre>
+
+    <h3 id="dispatch">Dynamic Dispatch — a VTable in C</h3>
+    <p>Object-oriented dispatch is, mechanically, a struct of function pointers. C can build the same table — a <em>vtable</em> — and choose the table at runtime. This is how C drivers and VFS layers implement "interfaces": the caller holds a struct of operations and invokes them by name.</p>
+    <pre><code class="language-c line_numbers">#include &lt;stdio.h&gt;
+
+// a shape interface: two operations, implemented by different "classes"
+typedef struct {
+    double (*area)(double);       // method pointers
+    double (*perimeter)(double);
+} ShapeOps;
+
+static double circle_area(double r) { return 3.14159 * r * r; }
+static double circle_perimeter(double r) { return 2 * 3.14159 * r; }
+static double square_area(double s) { return s * s; }
+static double square_perimeter(double s) { return 4 * s; }
+
+int main(void) {
+    ShapeOps circle = {circle_area, circle_perimeter};   // "instance" tables
+    ShapeOps square = {square_area, square_perimeter};
+    double side = 3.0;
+    printf("circle: A=%.2f P=%.2f\n", circle.area(side), circle.perimeter(side));
+    printf("square: A=%.2f P=%.2f\n", square.area(side), square.perimeter(side));
+    return 0;
+}
+</code></pre>
+    <h2 id="bit-manipulation">Bit Manipulation</h2>
+    <p>C treats integers as bit fields, and systems code lives in the bits: flags-packed registers, protocol headers, and compact sets. The four canonical operations — set, clear, toggle, test — are one expression each:</p>
+    <pre><code class="language-c line_numbers">#include &lt;stdio.h&gt;
+
+#define FLAG_A (1u &lt;&lt; 0)   // bit 0 = 0b0001
+#define FLAG_B (1u &lt;&lt; 1)   // bit 1 = 0b0010
+#define FLAG_C (1u &lt;&lt; 2)   // bit 2 = 0b0100
+
+int main(void) {
+    unsigned flags = 0;
+    flags |= FLAG_A;            // set: OR the bit on
+    flags |= FLAG_C;
+    flags &amp;= ~FLAG_A;           // clear: AND with the inverted bit
+    flags ^= FLAG_B;            // toggle: XOR flips the bit
+    printf("flags = 0x%x\n", flags);              // 0x6 (bits B and C)
+    if (flags &amp; FLAG_C) {        // test: AND, nonzero means set
+        printf("FLAG_C is set\n");
+    }
+    return 0;
+}
+</code></pre>
+    <p>Read them aloud and they stop being magic: <em>set</em> = OR, <em>clear</em> = AND-NOT, <em>toggle</em> = XOR, <em>test</em> = AND. Shifts also implement fast multiply/divide by powers of two (<code>x &lt;&lt; 3</code> = x·8) — but write the intent; compilers emit the same code from <code>* 8</code>.</p>
+
+    <h2 id="endianness">Endianness</h2>
+    <p>Endianness is the byte order of a multi-byte integer in memory. Little-endian (x86, most ARM) stores the least-significant byte first; big-endian (network protocols, older CPUs) stores the most-significant first. Two machines exchanging integers must convert to <em>network byte order</em> (big-endian) or they will read scrambled values.</p>
+    <pre><code class="language-c line_numbers">#include &lt;stdio.h&gt;
+#include &lt;stdint.h&gt;
+
+// detect this machine's byte order at runtime
+const char *byte_order(void) {
+    uint32_t probe = 1;
+    return *(uint8_t *)&amp;probe ? "little-endian" : "big-endian";
+}
+
+int main(void) {
+    printf("this machine is %s\n", byte_order());
+    printf("49 in memory: ");              // 0x31 = 49 decimal
+    uint32_t v = 49;
+    uint8_t *b = (uint8_t *)&amp;v;
+    for (int i = 0; i &lt; 4; i++) printf("%02x ", b[i]);  // 31 00 00 00 on LE
+    printf("\n");
+    return 0;
+}
+</code></pre>
+    <p>In networking code, use <code>htonl</code>/<code>ntohl</code> (and the 16-bit variants) rather than rolling your own — the standard library functions convert correctly on every platform.</p>
+
+    <h2 id="restrict-volatile">restrict &amp; volatile</h2>
+    <p>Two qualifiers are compiler contracts. <code>restrict</code> (pointers) promises the pointed-to memory is accessed only through this pointer for the block's lifetime — that promise enables aggressive vectorization, and breaking it is undefined behavior. <code>volatile</code> tells the compiler a variable may change outside the program (hardware registers, signals), forbidding it from caching the value in a register across reads.</p>
+    <pre><code class="language-c line_numbers">// restrict: only dst and only src alias their memory — compiler may vectorize
+void copy_array(int *restrict dst, const int *restrict src, size_t n) {
+    for (size_t i = 0; i &lt; n; i++) dst[i] = src[i];
+}
+
+volatile unsigned int timer_reg;   // memory-mapped hardware counter
+</code></pre>
+    <p>Use <code>restrict</code> in hot library functions after proving no aliasing; use <code>volatile</code> only for memory the program does not control. Everywhere else, both are wrong.</p>
+
+    <h2 id="type-punning">Type Punning</h2>
+    <p>Reinterpreting the same bytes as another type is <em>type punning</em>. The strict-aliasing rule forbids most of it (the compiler may assume different types do not alias), but two legal routes exist: <code>memcpy</code> (the portable way) and, in practice, <code>union</code> members. Use this power for reading binary files and protocols — understand that it sacrifices safety for control, which is the C bargain in miniature.</p>
+    <pre><code class="language-c line_numbers">#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;   // memcpy
+
+int main(void) {
+    double d = 1.5;
+    uint64_t bits;
+    memcpy(&amp;bits, &amp;d, sizeof(bits));   // bit pattern of the double
+    printf("1.5 as bits: %016llx\n", (unsigned long long)bits);
+    return 0;
+}
+</code></pre>
+    <p>This one trick — reading the exact bit pattern of a float — is how every modern libc implements functions like <code>sqrt</code> and <code>log</code> fast, and how you will decode protocol headers byte by byte.</p>
+
+    <h2 id="beyond">Next Lessons</h2>
+    <p>From here the track goes deeper into systems C. <a href="/roadmap/c/parallel.html">Parallel &amp; multicore</a> processing puts threads, atomics, and OpenMP to work; <a href="/roadmap/c/gpu.html">GPU computing</a> then moves the hot loops to thousands of cores. <a href="/roadmap/c/abi-asm.html">ABI &amp; assembly</a> closes the lessons by showing what the machine really does at every function boundary. The <a href="/roadmap/c/demo_examples.html">lab examples</a> and <a href="/roadmap/c/samples.html">study projects</a> turn it all into practice, and <a href="/roadmap/c/references.html">references &amp; compilers</a> points you onward.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'c',
+    topicId: 'advanced',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
+
