@@ -39,11 +39,6 @@ NOTES = {
         'Most topic pages are bare "Work In Progress" stubs; data/ has '
         "sidebar JSONs but content is not written."
     ),
-    "csharp": (
-        "Scaffold only: single index.html, empty data/ folder; index links to "
-        "topic pages that do not exist (syntax, types, composite, functions, "
-        "control, input, directives, errors, casting, strings)."
-    ),
     "swift": (
         'All topic pages are "Work in progress!" / "Template page for '
         "tutorials\" placeholders (about 3.6 KB each); track index lacks a "

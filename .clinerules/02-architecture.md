@@ -17,6 +17,13 @@ Static-first vanilla website generator. Deployed to Vercel from `public/`. Supab
 - Exactly one `h1`, multiple `h2`, and `h3` under each `h2`. Keep heading IDs stable.
 - Sidebar JSON must be hierarchical: each `h2` has a `children` array of `h3` anchors (flat lists break `topic-loader.js`).
 - Topic pages boot `window.TOPIC_CONFIG` (topicId, labId) and load `/assets/js/topic-loader.js`.
+- Prism: link the single bundle `/assets/prism.css` + `/assets/prism.js` (no prism-loader/data-lang); always `content-code.css` + `content-sidebar.css`; `content-tables.css` only when the page has tables.
+
+## Roadmap structure (C# reference)
+
+- Model new/improved tracks on `roadmap/csharp/`: phases dashboard index, numbered topic rows (`01..NN`), `demo_examples.html`, `samples.html`, and a dedicated `references.html` (final phase).
+- References live only on the track index and the references page — never a per-topic References section.
+- Reuse shared diagrams from `assets/images/*.svg` (`/images/<name>.svg` in source) before authoring; track-specific go to `roadmap/<track>/img/`.
 
 ## Links & security
 - Canonical topic links: `/roadmap/<track>/<topic>.html`. Track roots: `/roadmap/<track>/`.

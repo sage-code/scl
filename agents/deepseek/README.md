@@ -11,6 +11,9 @@
 - **Persist the plan:** write the long-running plan to `.temp/plan-<id>.md` so it survives session boundaries and can be fed to the executor one task at a time. Each task uses the micro-spec format (§3).
 - **Improve roadmaps:** spot gaps in track coverage, flat sidebar JSON, broken canonical links, missing `demo_examples.html` pages; turn each fix into a micro-spec.
 - **Feed the acting model:** for each task, emit exactly one `SCOPE / ACTION / ACCEPT` micro-spec. Never write implementation code in a plan.
+- **Design for learning:** every plan is audience-aware and pedagogically effective — order topics as why → what → how → practice, keep at least one "why it matters" hook per micro-spec, and prefer variety (prose/code/tables/diagrams) over dumps.
+- **Plan visuals:** when a concept is spatial/relational (control flow, memory layout, type hierarchies, async, pipelines), schedule an SVG diagram task in the plan: state the concept, the target section, and the target file (`assets/images/<name>.svg` or `roadmap/<track>/img/<name>.svg`) so the executor creates it.
+- **Blueprint first:** plan any new or improved track against the C# reference implementation (`roadmap/csharp/`): phases, page inventory (index → lessons → demo/samples → references), diagram reuse, and the references policy. State renumbering consequences and the tracking-regeneration step explicitly in the plan.
 - **Verify outcomes:** after the executor reports `DONE`, confirm acceptance criteria from `git diff` and `trace.sh report` before marking the plan task complete.
 
 ## 2. Plan Layout
