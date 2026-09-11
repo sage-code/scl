@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig allocators and memory management: explicit allocator parameters, the std.heap family, arenas, leak detection, and ownership.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, allocators, memory, gpa, arena, std.heap, leaks, ownership">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Allocators &amp; Memory</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-memory">Allocators &amp; Memory</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Zig performs no hidden allocation: any memory your program uses above the stack comes from an <em>allocator</em> you chose and passed in. This lesson turns that slogan into reflexes — which allocator for which job, who frees what, and how the compiler helps you find leaks.
+        </div>
+        <h2 id="allocators">Allocators</h2>
+        <p>An allocator in Zig is an interface over memory strategies. Passing one around changes nothing about <em>what</em> you allocate — it changes <em>where</em> the memory lives and <em>who</em> must eventually hand it back.</p>
+        <h3 id="role">The Allocator Role</h3>
+        <pre><code class="language-zig line-numbers">const std = @import("std");
+
+// The signature says it all: this function needs memory.
+fn buildGreeting(allocator: std.mem.Allocator, name: []const u8) ![]u8 {
+    return std.fmt.allocPrint(allocator, "Hello, {s}!", .{name});
+}
+</code></pre>
+        <h3 id="family">The std.heap Family</h3>
+        <table class="table table-bordered table-striped table-dark">
+          <tr><th>Allocator</th><th>Behavior</th><th>Best for</th></tr>
+          <tr><td><code>std.heap.page_allocator</code></td><td>Fresh pages from the OS each time</td><td>Prototypes, few allocations</td></tr>
+          <tr><td><code>std.heap.c_allocator</code></td><td>Wraps malloc/free</td><td>Interop with C libraries</td></tr>
+          <tr><td><code>std.heap.GeneralPurposeAllocator</code></td><td>Arena + safety + leak detection</td><td>Application heap (GPA)</td></tr>
+          <tr><td><code>std.heap.ArenaAllocator</code></td><td>Allocations freed all at once</td><td>Request handlers, compilers</td></tr>
+          <tr><td><code>std.heap.FixedBufferAllocator</code></td><td>Serves from a preallocated buffer</td><td>Embedded, zero-alloc paths</td></tr>
+          <tr><td><code>std.testing.allocator</code></td><td>GPA that fails tests on leaks</td><td>Unit tests</td></tr>
+        </table>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> in other languages the heap is an invisible god that never says no. In Zig you choose the policy per function call and the policy is enforced: page_allocator will fail on exotic requests, FixedBufferAllocator will fail when its buffer runs out, and the GPA will tell you about every byte you forgot to free.
+        </div>
+        <h2 id="gpa">General-Purpose Allocator</h2>
+        <p>The GPA is the production workhorse. Create it, grab its allocator, and let <code>deinit</code> verify that everything was freed.</p>
+        <h3 id="gpa-basics">Setup and Leak Checking</h3>
+        <pre><code class="language-zig line-numbers">var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+defer _ = gpa.deinit();  // returns true if leaks were found
+const allocator = gpa.allocator();
+
+const list = try allocator.alloc(u32, 8);
+defer allocator.free(list); // without this, deinit reports a leak
+</code></pre>
+        <h2 id="arena">ArenaAllocator</h2>
+        <p>An arena hands out memory quickly and frees everything when it dies. It is the classic fit for per-request work: build a tree of objects, process it, drop the arena.</p>
+        <h3 id="arena-basics">Batch Allocation</h3>
+        <pre><code class="language-zig line-numbers">var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+defer arena.deinit(); // all arena memory returns at once
+const alloc = arena.allocator();
+
+const a = try alloc.alloc(u8, 64);
+const b = try alloc.alloc(u8, 64);
+// no individual frees — the arena owns everything
+</code></pre>
+        <div class="text-center">
+          <img src="/roadmap/zig/img/allocator-arena.svg" width="480" class="img-fluid protect rounded shadow border" alt="arena allocation lifetime">
+          <p class="text-secondary small">Figure 1 — the arena grows by allocation and releases everything at deinit; individual frees are unnecessary.</p>
+        </div>
+        <h2 id="alloc">Allocating and Freeing</h2>
+        <p>Four operations cover nearly all practice: <code>alloc</code>, <code>free</code>, <code>realloc</code>, and <code>dupe</code>. Each has a <code>signed</code>-free twin; the naming makes the free contract visible.</p>
+        <h3 id="alloc-free">alloc and free</h3>
+        <pre><code class="language-zig line-numbers">const buf = try allocator.alloc(u32, 4); // 4 uninitialized u32
+buf[0] = 7;
+std.debug.print("{d}\n", .{buf[0]});
+// every alloc has a matching free — or a defer, or an arena
+allocator.free(buf);
+</code></pre>
+        <h3 id="alloc-print">allocPrint — Building Strings</h3>
+        <pre><code class="language-zig line-numbers">const title = try std.fmt.allocPrint(allocator, "Chapter {d}: {s}", .{ 3, "Memory" });
+defer allocator.free(title);
+</code></pre>
+        <h3 id="arraylist">std.ArrayList — Growable Memory</h3>
+        <p>The dynamic array replaces hand-rolled realloc loops. It holds its own allocator, so the ownership contract is one line: <code>deinit</code>.</p>
+        <pre><code class="language-zig line-numbers">var names = std.ArrayList([]const u8).init(allocator);
+defer names.deinit();
+try names.append("Ada");
+try names.append("Linus");
+for (names.items) |name| std.debug.print("{s}\n", .{name});
+</code></pre>
+        <h2 id="ownership">Ownership Rules</h2>
+        <p>No runtime borrow checker, but the convention is taught by every stdlib signature: the function that receives an allocator and returns allocated memory transfers ownership; the function that receives plain slices claims nothing.</p>
+        <h3 id="who-frees">Who Frees?</h3>
+        <ul>
+          <li><strong>You allocate, you free.</strong> Match every <code>alloc</code> with <code>free</code>, <code>defer</code>, or an arena.</li>
+          <li><strong>Returned memory transfers.</strong> The caller owns it and must document the frees.</li>
+          <li><strong>Slices are views.</strong> Passing <code>[]const u8</code> borrows; never free borrowed memory.</li>
+        </ul>
+        <h3 id="errdefer-pattern">The errdefer Pattern</h3>
+        <p>The failure path is where leaks hide. Allocate, <code>errdefer free</code>, do fallible work, then return success — one pattern, every layer.</p>
+        <pre><code class="language-zig line-numbers">fn loadName(allocator: std.mem.Allocator) ![]const u8 {
+    const name = try allocator.dupe(u8, "Sage");
+    errdefer allocator.free(name); // leak-free on every error path
+    const meta = try fetchMeta();  // may fail
+    return name;                   // success: caller owns name
+}
+</code></pre>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-leak">Leaking Memory</h3>
+        <p>With the GPA, a leak is not silent: <code>deinit</code> reports it and tests fail. Free in a mirror order (LIFO) and use <code>defer</code> so early returns cannot skip cleanup.</p>
+        <h3 id="pitfall-double-free">Double Free</h3>
+        <p>Freeing the same memory twice corrupts the allocator. Once ownership transfers, delete the old pointer — the GPA detects the double free, but only if you still have the pointer around.</p>
+        <h3 id="pitfall-arena-lifetime">Arena Lifetime Too Long</h3>
+        <p>An arena held for a whole server run grows without bound. Bound arena lifetimes to requests or transactions, not to the process.</p>
+        <p>Next: <a href="/roadmap/zig/strings.html">Strings, Formatting &amp; Files</a> — text, output, and files through allocator eyes.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "memory",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

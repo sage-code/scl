@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Install the Zig toolchain, run your first program, learn the essential zig commands, the four build modes, and the standard project layout.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, install, toolchain, build modes, zig build, zig run, setup">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Toolchain &amp; Environment</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-setup">Toolchain &amp; Environment</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Everything you need is one small binary: the Zig compiler, standard library, and build system ship together and cross-compile out of the box. This lesson installs Zig, runs a first program, and explains the four build modes that drive every decision about speed versus safety.
+        </div>
+
+        <h2 id="install">Install Zig</h2>
+        <p>Zig publishes a single tarball/zip per platform from <a href="https://ziglang.org/download/" target="_blank" rel="noopener noreferrer nofollow">ziglang.org/download</a>. There is no dependency to install first: the tarball contains the compiler and its standard library, and it works from any folder.</p>
+
+        <h3 id="download">Download and Verify</h3>
+        <p>Pick the archive for your operating system (for example <code>zig-x86_64-windows.zip</code> on 64-bit Windows), extract it anywhere, and place the folder on your <code>PATH</code>. Package managers also work where you prefer them:</p>
+        <pre><code class="language-bash line-numbers"># Linux (Snap)
+sudo snap install zig --classic --beta
+
+# macOS (Homebrew)
+brew install zig
+
+# Windows (winget)
+winget install zig.zig
+</code></pre>
+        <p>After installation, open a terminal and confirm the toolchain responds. Zig is careful about backward compatibility, but each release can still adjust details, so know your version:</p>
+        <pre><code class="language-bash line-numbers">zig version   # e.g. 0.15.2
+zig env       # compiler paths, target, and library dirs
+</code></pre>
+
+        <h3 id="path">Add to PATH</h3>
+        <p>On Windows, extracting the zip does not put <code>zig.exe</code> on the command path. Open <em>System Properties → Environment Variables</em>, append the folder that contains <code>zig.exe</code> to <code>Path</code>, then open a fresh terminal. On Linux and macOS the package managers handle this for you.</p>
+        <p>Verify by typing <code>zig</code> alone — you should see the usage summary with subcommands like <code>build</code>, <code>run</code>, <code>test</code>, and <code>fmt</code>.</p>
+
+        <h2 id="first-program">First Program</h2>
+        <p>C-family programmers expect an entry point named <code>main</code>. Zig keeps that tradition, with one Zig-specific twist: <code>main</code> can return an error union, so the runtime prints any unhandled failure with a stack trace instead of silently exiting.</p>
+
+        <h3 id="hello">Hello, World</h3>
+        <p><code>std.debug.print</code> is the simplest output function. Its format string works like C's <code>printf</code>, but the arguments travel in a tuple (<code>.{...}</code>) so the compiler checks the count and types for you.</p>
+        <pre><code class="language-zig line-numbers">const std = @import("std");
+
+// !void means "void, or an error" — errors bubble up to the runtime.
+pub fn main() !void {
+    // {s} is the placeholder for a string argument.
+    std.debug.print("Hello, World!\n", .{});
+    std.debug.print("The year is {d}\n", .{2026});
+}
+</code></pre>
+
+        <h3 id="run">Run It</h3>
+        <p>Zig compiles and runs a single file with one command. Behind the scenes a real binary is produced, cached in <code>.zig-cache</code>, then executed:</p>
+        <pre><code class="language-bash line-numbers">zig run hello.zig
+# Hello, World!
+# The year is 2026
+</code></pre>
+        <p>Compare with a C version: Zig has no separate <em>compile</em> and <em>link</em> steps for this case — one tool does both, and the same binary can target a different CPU and OS via flags (cross-compilation is a first-class feature, not an afterthought).</p>
+
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> <code>pub fn main() !void</code> is already a lesson. The <code>!</code> marks an error union: the function either returns nothing or an error. Failure is a <em>typed value in the signature</em>, never an invisible exception. You will decode this type fully in the <a href="/roadmap/zig/errors.html">Errors</a> lesson.
+        </div>
+
+        <h2 id="commands">Essential Commands</h2>
+        <p>Five subcommands carry you through every lesson in this track. The fourth, <code>build</code>, uses a <code>build.zig</code> file that you will author in the <a href="/roadmap/zig/build-system.html">Build System</a> lesson.</p>
+
+        <h3 id="command-table">Command Reference</h3>
+        <table class="table table-bordered table-striped table-dark">
+          <tr><th>Command</th><th>What it does</th><th>Typical use</th></tr>
+          <tr><td><code>zig run file.zig</code></td><td>Compile and execute one file</td><td>Prototyping and lessons</td></tr>
+          <tr><td><code>zig test file.zig</code></td><td>Compile and run <code>test</code> blocks</td><td>Unit tests inside any file</td></tr>
+          <tr><td><code>zig build</code></td><td>Run the project's <code>build.zig</code></td><td>Real projects with artifacts</td></tr>
+          <tr><td><code>zig init</code></td><td>Scaffold a new project</td><td>Starting a structured project</td></tr>
+          <tr><td><code>zig fmt file.zig</code></td><td>Format code canonically</td><td>Keeping style uniform</td></tr>
+        </table>
+
+        <h2 id="build-modes">Build Modes</h2>
+        <p>Every Zig compilation runs in one of four modes. Modes are chosen per <em>scope</em>: a whole artifact by default, or a single function or block with <code>@setRuntimeSafety</code>. The mode decides whether the cost of safety checks is paid in the produced machine code.</p>
+
+        <h3 id="debug-vs-release">Debug versus Release</h3>
+        <p><strong>Debug</strong> (the default) is unoptimized and maximizes error quality: fastest compilation, full safety, and the clearest stack traces. <strong>ReleaseSafe</strong> enables optimization while keeping safety — the production default. <strong>ReleaseFast</strong> and <strong>ReleaseSmall</strong> trade safety for speed or size. You already saw the full table in <a href="/roadmap/zig/overview.html#build-modes">the overview lesson</a>; the practical rule is simple: debug while developing, release-safe for anything you ship, and release-fast only on measured hot paths.</p>
+
+        <h2 id="project-layout">Project Layout</h2>
+        <p>Zig projects use an optional but conventional layout. <code>zig init</code> generates it for you; knowing it means you always know where source lives and where artifacts go.</p>
+
+        <h3 id="zig-init">zig init Layout</h3>
+        <pre><code class="language-bash line-numbers">my-project/
+├── build.zig        # build recipe — Zig code, not a DSL
+├── build.zig.zon    # package metadata (name, version, dependencies)
+├── src/             # application source
+│   ├── main.zig
+│   └── root.zig     # optional library root module
+└── .zig-cache/      # generated — never commit, never edit
+</code></pre>
+        <p>The build script is written in Zig itself and executed by the compiler — that single fact removes an entire class of build-tool bugs and keeps configurability infinite. <code>build.zig.zon</code> declares dependencies that <code>zig build</code> fetches and pins.</p>
+
+        <h2 id="editors">Editor Support</h2>
+        <p>Zig ships its own language server (<code>zig env</code> shows its path) and a canonical formatter. Any editor with LSP support — VS Code with the official extension, Neovim with <code>zls</code>, or JetBrains IDEs — gives you completion, hover docs, and inline errors for free.</p>
+
+        <h3 id="lsp">Language Server and Formatter</h3>
+        <p>Configure your editor to run <code>zig fmt</code> on save. Canonical formatting is not a preference — it is a community norm, so code from different authors looks consistent, and the compiler can even check it with <code>zig fmt --check</code> in CI.</p>
+        <p>Next: the <a href="/roadmap/zig/syntax.html">syntax lesson</a> — how statements and expressions are written in Zig.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'zig',
+    topicId: 'setup',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

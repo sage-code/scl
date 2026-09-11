@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig comptime: the compile-time execution model, comptime parameters, generics, type reflection, and compile errors without macros.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, comptime, compile-time, generics, reflection, metaprogramming">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Compile-Time Metaprogramming</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-comptime">Compile-Time Metaprogramming</h1>
+        <div class="alert alert-secondary shadow-sm">
+          <code>comptime</code> is what replaces the entire preprocessor and macro machinery of C: ordinary Zig code runs <em>while the compiler is compiling</em>. Types become values, values become types, and whole programs can be specialized per call site — with the same syntax and the same safety checks.
+        </div>
+        <h2 id="concept">The Compile-Time Concept</h2>
+        <p>Every value in Zig has a moment when it becomes known: when the compiler runs, or when the program runs. Zig lets you write code that executes in the first phase. Anything marked or inferred as compile-time-known can be folded, checked, and specialized before a single instruction ships.</p>
+        <h3 id="what-comptime">What Runs at Compile Time</h3>
+        <ul>
+          <li>Top-level <code>const</code> declarations are evaluated at compile time.</li>
+          <li>Values like <code>comptime_int</code> and array lengths exist only in the compiler.</li>
+          <li>Any expression forced into a compile-time context runs entirely in the compiler.</li>
+        </ul>
+        <pre><code class="language-zig line-numbers">const size = 4 * 1024;       // computed by the compiler, never at runtime
+const page: [size]u8 = undefined; // array length is a compile-time value
+</code></pre>
+        <h3 id="comptime-keyword">The comptime Keyword</h3>
+        <p><code>comptime</code> creates a scope guaranteed to run in the compiler. It is the legal, visible, typed replacement for <code>#define</code> and template mechanics.</p>
+        <pre><code class="language-zig line-numbers">comptime {
+    if (std.builtin.cpu.arch != .x86_64) {
+        @compileError("this demo targets x86_64 only");
+    }
+}
+</code></pre>
+        <h2 id="parameters">Compile-Time Parameters</h2>
+        <p>A parameter declared <code>comptime</code> must be known when the function is compiled. The classic case is a type parameter — that is how Zig does generics without a separate template language.</p>
+        <h3 id="comptime-param">comptime T: type</h3>
+        <pre><code class="language-zig line-numbers">fn max(comptime T: type, a: T, b: T) T {
+    return if (a &gt; b) a else b;
+}
+// max(u32, 3, 9) instantiates a specialized u32 version at compile time
+const bigger = max(u32, 3, 9);
+</code></pre>
+        <h3 id="generics">Generic Data Structures</h3>
+        <p>The same trick builds containers. The standard library is full of these: <code>std.ArrayList(T)</code>, <code>std.AutoHashMap(K, V)</code>. Each instantiation is type-safe and monomorphized — no boxing, no virtual dispatch.</p>
+        <pre><code class="language-zig line-numbers">fn Stack(comptime T: type) type {
+    return struct {
+        items: []T = &.{},
+        fn push(self: *@This(), value: T) void {
+            std.debug.print("push {any}\n", .{value});
+        }
+    };
+}
+var int_stack = Stack(u32){};
+int_stack.push(7);
+</code></pre>
+        <h2 id="reflection">Type Reflection</h2>
+        <p>Because types are values, you can inspect them at compile time and generate code from what you find. This is reflection in the same language, not a parallel scripting system.</p>
+        <h3 id="typeof">@TypeOf and @typeInfo</h3>
+        <pre><code class="language-zig line-numbers">const t = @TypeOf(42);            // comptime_int
+const info = @typeInfo(MyStruct); // a tagged union describing the struct
+// std.meta.fields(MyStruct) lists the fields for inspection
+</code></pre>
+        <h3 id="stdmeta">std.meta in Practice</h3>
+        <p>A canonical use: verifying a change did not break a type contract. Reflection turns a promise into a compile-time guarantee checkable in a test.</p>
+        <pre><code class="language-zig line-numbers">test "struct has an id field" {
+    const fields = std.meta.fields(Config);
+    try std.testing.expect(fields[0].name == "id");
+}
+</code></pre>
+        <h2 id="expressions">Compile-Time Expressions</h2>
+        <p>Any ordinary expression can be forced into a compile-time context, and the compiler will either compute it or refuse loudly. This is how Zig keeps metaprogramming honest.</p>
+        <h3 id="comptime-block">comptime Blocks</h3>
+        <pre><code class="language-zig line-numbers">comptime {
+    const n = 1 + 1;
+    if (n != 2) @compileError("arithmetic is broken");
+}
+</code></pre>
+        <h3 id="compile-errors">@compileError</h3>
+        <p>Custom diagnostics read like normal compile errors, appear at the exact definition site, and can encode entire validation rules — the modern, safe version of preprocessor assertions.</p>
+        <pre><code class="language-zig line-numbers">fn ensure(comptime cond: bool) void {
+    if (!cond) @compileError("requires condition to hold");
+}
+ensure(1 &lt; 2); // evaluated at compile time
+</code></pre>
+        <h3 id="embedfile">@embedFile</h3>
+        <p>Files can be baked into the binary at compile time: <code>const shader = @embedFile("shader.wgsl");</code>. No runtime reads, no packaging bugs — the bytes are part of the executable.</p>
+        <div class="text-center">
+          <img src="/roadmap/zig/img/comptime-runtime.svg" width="480" class="img-fluid protect rounded shadow border" alt="comptime versus runtime stages">
+          <p class="text-secondary small">Figure 1 — source becomes specialized machine code: comptime stages vanish before runtime.</p>
+        </div>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-eval-quota">Evaluation Branch Quota</h3>
+        <p>Comptime evaluation is bounded to keep compiles fast; hitting <code>error: evaluation exceeded 1000 back branches</code> usually means restructuring — often by moving a loop into a comptime function the optimizer can reduce.</p>
+        <h3 id="pitfall-runtime-values">Treating Runtime Values as Compile-Time</h3>
+        <p>Passing a runtime variable into a <code>comptime</code> context is a compile error. The error is the training: ask whether the value could be a constant — constants give the compiler the freedom it needs.</p>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> there is no macro language to learn and no generated source to debug. comptime code is Zig, debuggable with the same errors and the same tests — one compiler, two phases.
+        </div>
+        <p>Next: <a href="/roadmap/zig/pointers.html">Pointers &amp; Slices</a> — explicit memory access in Zig.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "comptime",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

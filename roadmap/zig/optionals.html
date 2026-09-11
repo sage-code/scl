@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig optionals: the ?T type, null, orelse, capture-based unwrapping, and optional pointers for explicit null safety.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, optionals, nullable, orelse, null safety, optional pointers">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Optionals &amp; Null Safety</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-optionals">Optionals &amp; Null Safety</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Zig makes absence a type-level fact. Writing <code>?T</code> says clearly: this value is either a real <code>T</code> or <code>null</code>. The compiler then refuses to use the value until you unwrap it — the null-check that C forgets becomes a syntax requirement in Zig.
+        </div>
+        <h2 id="optionals">Optional Basics</h2>
+        <p>An optional is not a pointer hack — it is its own type. A variable of type <code>?u32</code> holds either a <code>u32</code> payload or the special value <code>null</code>.</p>
+        <h3 id="type">The ?T Type</h3>
+        <pre><code class="language-zig line-numbers">const maybe: ?u32 = 42; // an optional holding a value
+const nothing: ?u32 = null; // an optional holding nothing
+</code></pre>
+        <h3 id="null">The null Keyword</h3>
+        <p><code>null</code> is the only value of the <code>null</code> type and it coerces into any optional. There is no hidden null in non-optional types: a plain <code>u32</code> is always a number, a plain <code>*T</code> always points somewhere.</p>
+        <h2 id="unwrap">Unwrapping</h2>
+        <p>An optional inside a computation is a dead end until unwrapped. Zig offers four visible idioms; each names its intent.</p>
+        <h3 id="orelse">orelse — Provide a Fallback</h3>
+        <pre><code class="language-zig line-numbers">const a: ?u32 = null;
+const safe = a orelse 0; // 0 when null, otherwise the payload
+std.debug.print("{d}\n", .{safe});
+</code></pre>
+        <h3 id="if-unwrap">if Capture</h3>
+        <pre><code class="language-zig line-numbers">if (a) |value| {
+    // value is the unwrapped payload — guaranteed non-null here
+    std.debug.print("got {d}\n", .{value});
+} else {
+    std.debug.print("was null\n", .{});
+}
+</code></pre>
+        <h3 id="while-unwrap">while Capture</h3>
+        <p>Iterating over a nullable stream is the strongest pattern: each loop iteration unwraps one value, and the loop ends cleanly at the first <code>null</code>.</p>
+        <pre><code class="language-zig line-numbers">var node: ?*Node = head;
+while (node) |n| : (node = n.next) {
+    std.debug.print("{s}\n", .{n.name});
+}
+</code></pre>
+        <h3 id="question">The .? Operator</h3>
+        <p><code>.?</code> asserts non-null: if the optional is null the program panics in safe builds. Use it only where you have proven the value exists — it is the explicit version of a guaranteed-unwrap.</p>
+        <pre><code class="language-zig line-numbers">const b: ?u32 = 5;
+const forced = b.?; // 5 — panics if b were null
+</code></pre>
+        <div class="text-center">
+          <img src="/roadmap/zig/img/optional.svg" width="460" class="img-fluid protect rounded shadow border" alt="optional value layout">
+          <p class="text-secondary small">Figure 1 — an optional carries a payload and a present flag; every unwrap method checks the flag.</p>
+        </div>
+        <h2 id="pointers">Optional Pointers</h2>
+        <p>For pointers, the optional degenerates to a null pointer at runtime — zero extra memory. That is why C code that uses NULL everywhere maps so naturally to <code>?*T</code> in Zig, with the check made mandatory at compile time.</p>
+        <h3 id="opt-ptr">?*T</h3>
+        <pre><code class="language-zig line-numbers">fn find(hay: []const u8, needle: u8) ?usize {
+    for (hay, 0..) |byte, index| {
+        if (byte == needle) return index;
+    }
+    return null; // absence is a first-class result
+}
+const pos = find("sage", g) orelse 0;
+</code></pre>
+        <h3 id="coercion">Coercions</h3>
+        <p>A plain value coerces into the optional automatically — <code>const x: ?u32 = 5;</code> needs no ceremony. The reverse never happens implicitly: unwrapping is always written down.</p>
+        <h2 id="semantics">Representation and Semantics</h2>
+        <p>Under the hood, an optional is a payload plus one bit of presence, typically a tag; for pointers the null address serves as the tag. When the payload type has spare bit patterns (like some enums and pointers), Zig reuses them so the optional costs nothing.</p>
+        <h3 id="layout">Layout</h3>
+        <pre><code class="language-zig line-numbers">// ?*const T is a single machine word — a possibly-null address
+// ?u32 is u32 plus a present bit (two words on common targets)
+const opt_size = @sizeOf(?u32);
+</code></pre>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> compare the three eras: C keeps every pointer nullable and hopes; many modern languages keep every reference non-null and introduce wrapper types; Zig lets YOU choose per type, and the compiler checks your choice on every use. Optionality is a property of the type, not the discipline.
+        </div>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-overunwrap">Unwrap on Null</h3>
+        <p>Both <code>.?</code> and an <code>if</code>-capture on a null optional crash loudly in safe builds. The crash is correct — it means the guarantee was wrong — but prefer <code>orelse</code> or an explicit <code>if</code> when null is a realistic outcome.</p>
+        <h3 id="pitfall-nested">Nested Optionals</h3>
+        <p><code>??u32</code> (an optional of an optional) is allowed but almost always a design smell. Flatten the intent: either the outer level is meaningful or it is not.</p>
+        <p>Next: <a href="/roadmap/zig/errors.html">Errors &amp; Error Unions</a> — failures as typed values.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "optionals",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig build system: build.zig as a program, executable and test steps, build options, modules, and the zig build workflow.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, build, build.zig, build.zig.zon, zig build, steps, modules, dependencies">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Build System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-build-system">Build System</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Zig has no Make or CMake: the build is a Zig program (<code>build.zig</code>) that the compiler runs. Build steps form a graph — compile, test, run, install — and every step is declared in ordinary Zig code with full type checking.
+        </div>
+        <h2 id="zig-init">From Scaffold to Program</h2>
+        <p><code>zig init</code> creates a working project with a library, an executable, and a test — instantly green. It is the fastest path to seeing the whole pipeline in motion.</p>
+        <h3 id="init">zig init</h3>
+        <pre><code class="language-bash line-numbers">mkdir hello && cd hello
+zig init          # generates build.zig, build.zig.zon, src/
+zig build run     # compiles and runs the sample executable
+zig build test    # runs the sample unit tests
+</code></pre>
+        <h3 id="layout">Project Layout</h3>
+        <pre><code class="language-bash line-numbers">hello/
+├── build.zig        # the build script — a Zig source file
+├── build.zig.zon    # package metadata and dependencies
+├── src/
+│   ├── main.zig     # executable entry
+│   └── root.zig     # library exports
+└── .zig-cache/      # compiler cache — ephemeral, never commit
+</code></pre>
+        <h2 id="build-zig">Anatomy of build.zig</h2>
+        <p>The core of any <code>build.zig</code> is the <code>build</code> function. It receives a <code>Build</code> handle, reads options, creates artifacts, and wires steps. The code below is for Zig 0.15; older releases used a slightly different module API.</p>
+        <h3 id="exe">Adding an Executable</h3>
+        <pre><code class="language-zig line-numbers">const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});   // --target flag
+    const optimize = b.standardOptimizeOption(.{}); // -Doptimize flag
+
+    const exe = b.addExecutable(.{
+        .name = "hello",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    b.installArtifact(exe); // makes the binary appear in zig-out/bin
+
+    const run_cmd = b.addRunArtifact(exe);
+    if (b.args) |args| run_cmd.addArgs(args);
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&amp;run_cmd.step);
+}
+</code></pre>
+        <h3 id="steps">Steps and Dependencies</h3>
+        <p>Every artifact exposes steps (compile, run, test), and steps declare dependencies with <code>dependOn</code>. The example wires a <code>run</code> step after the compile step — the graph runs in order, and caching skips untouched parts.</p>
+        <div class="text-center">
+          <img src="/roadmap/zig/img/build-system.svg" width="480" class="img-fluid protect rounded shadow border" alt="build step graph">
+          <p class="text-secondary small">Figure 1 — steps form a dependency graph: test feeds run, install feeds release.</p>
+        </div>
+        <h2 id="workflow">The Workflow</h2>
+        <p>Three commands cover development; all three read the same <code>build.zig</code>, so the paths stay consistent.</p>
+        <h3 id="commands">Command Reference</h3>
+        <table class="table table-bordered table-striped table-dark">
+          <tr><th>Command</th><th>Effect</th></tr>
+          <tr><td><code>zig build</code></td><td>Compile all installable artifacts into <code>zig-out/</code></td></tr>
+          <tr><td><code>zig build run</code></td><td>Build, then execute the run step</td></tr>
+          <tr><td><code>zig build test</code></td><td>Build and execute every test step</td></tr>
+          <tr><td><code>zig build run -- args</code></td><td>Pass arguments to the running program</td></tr>
+        </table>
+        <h3 id="options">Build Options</h3>
+        <p>Options arrive as flags: <code>-Doptimize=ReleaseSafe</code> picks a mode, <code>-Dtarget=x86_64-windows</code> cross-compiles. <code>--help</code> on any build prints the options your <code>build.zig</code> declared — self-documenting builds are the norm.</p>
+        <h2 id="modules">Modules and Packages</h2>
+        <p>Larger projects split code into modules and dependencies. <code>build.zig.zon</code> declares the package identity and its external dependencies with hashes; <code>zig fetch --save</code> pins them.</p>
+        <h3 id="zon">build.zig.zon</h3>
+        <pre><code class="language-zig line-numbers">.{
+    .name = .hello,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.15.0",
+    .dependencies = .{},
+}
+</code></pre>
+        <h3 id="deps">Fetching Dependencies</h3>
+        <pre><code class="language-bash line-numbers">zig fetch --save https://github.com/foo/bar/archive/refs/tags/v1.0.0.tar.gz
+# adds the dependency with its hash to build.zig.zon
+</code></pre>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> your build script is code — reviewable, testable, typed. There is no parallel macro language with its own bugs; the same discipline you apply to source applies to the build, and the caching layer just makes it fast.
+        </div>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-cache">Trusting the Cache Directory</h3>
+        <p><code>.zig-cache</code> and <code>zig-out/</code> are regenerated. Never commit them, and never ship files from cache — install via the declared steps so dependencies are explicit.</p>
+        <h3 id="pitfall-root">Wrong Root Module Path</h3>
+        <p>A wrong <code>root_source_file</code> path surfaces as a confusing import error. Point it at the file with the <code>pub fn main</code> you intend to run, and keep one module per artifact for clarity.</p>
+        <p>Next: <a href="/roadmap/zig/c-interop.html">C Interop</a> — importing the C ecosystem.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "build-system",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

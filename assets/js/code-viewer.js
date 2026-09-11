@@ -20,7 +20,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         'json': 'json',
         'dart': 'dart',
         'cs': 'csharp',
-        'csharp': 'csharp'
+        'csharp': 'csharp',
+        'zig': 'zig'
     };
     
     display.className = `language-${langMap[ext] || 'javascript'}`;
