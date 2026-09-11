@@ -179,7 +179,7 @@ Reference lists live ONLY in two places: the track `index.html` "Free References
 
 ### Diagrams
 
-Reuse shared assets first: `assets/images/<name>.svg` is referenced in SOURCE as `/images/<name>.svg` (the build rewrites it to `/assets/images/<name>.svg` in `public/`). Known shared inventory: control flow — `decision`, `switch`, `classic-for`, `for-loop`, `while`, `do-while`; HPC — `parallel_system`, `asynch`, `processes`. Track-specific diagrams: `roadmap/<track>/img/<name>.svg`. Embed pattern: `<div class="text-center"><img src="..." width="..." class="img-fluid protect rounded shadow border"><p>caption</p></div>`.
+Reuse shared assets first: `assets/images/<name>.svg` is referenced in SOURCE as `/images/<name>.svg` (the build rewrites it to `/assets/images/<name>.svg` in `public/`). Known shared inventory: control flow — `decision`, `switch`, `classic-for`, `for-loop`, `while`, `do-while`; HPC — `parallel_system`, `asynch`, `processes`. Track-specific diagrams: `roadmap/<track>/img/<name>.svg`. Shared SVGs are generic, language-agnostic primitives — never copy one into a track; when a language's construct differs (not all languages are the same), author a new track-specific SVG. Embed pattern: `<div class="text-center"><img src="..." width="..." class="img-fluid protect rounded shadow border"><p>caption</p></div>`.
 ## Demo Example Pages (required for every roadmap)
 
 Every roadmap track MUST include a **practice & demo** section.

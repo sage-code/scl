@@ -27,7 +27,7 @@ benefits from one.
    NEVER to authored learner-facing content — never trim tutorial explanations or examples to save tokens.
 6. **Validation gate, in order:** `npm run test` → `npm run build` → `npm run check`.
 7. **Cache alignment:** frozen prefix → stable context → variable task. Batch independent calls in one turn.
-8. **Reference blueprint:** the C# track (`roadmap/csharp/`) is the site's reference implementation for roadmap structure — model any new or improved track on it (phases, wrap-up pages, references page, diagram reuse, sequential numbering).
+8. **Reference blueprint:** the C# track (`roadmap/csharp/`) is the site's reference implementation for roadmap structure — model any new or improved track on it (phases, wrap-up pages, references page, diagram policy, sequential numbering).
 
 ## Core project commands
 - `./run.sh --help` — project CLI (clean | build | rebuild | test | check | audit | commit | publish)
