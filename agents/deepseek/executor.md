@@ -26,3 +26,14 @@
 
 ## 4. Fail-Fast
 - 2 consecutive validation failures on one task → emit `ESCALATE: VALIDATION_FAILED` and hand back to the Planner. No third retry. Do not re-run failing commands blindly — inspect `trace.sh report` / `tail` first.
+
+## 5. Content Authoring Standard (mandatory — overrides token economy)
+
+Token-economy rules apply to context and process ONLY. Learner-facing tutorial content is NEVER trimmed to save tokens: a thin tutorial costs the operator more time and money to fix than the tokens you save. Precision and completeness come first.
+
+When authoring or enhancing tutorial pages:
+1. **Chapter & subchapter explanations:** every `h2` (chapter) AND every `h3` (subchapter) opens with an explanatory paragraph BEFORE any code or table. No heading is left as a bare label.
+2. **Intro before every example:** every code example has a preceding text introduction stating what it demonstrates and why it matters. Never present code without context.
+3. **Gradual complexity:** order content from complete-beginner to advanced, both within each page and across the track; state the level explicitly ("Start simple", "Now a production concern").
+4. **Didactic comments:** every code example carries real comments that teach proper commenting: intent, edge cases, and the "why" — never just restating the obvious.
+5. **Spartan language, complete substance:** short factual headings and sentences, but full depth — an explanation is missing if a reader must guess why a construct is used.

@@ -23,6 +23,12 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Step-by-step fundamentals → production; progressive executable examples; common pitfalls; trade-offs; mini-lab practice.
 - No promotional adjectives (Ultimate/Complete/Professional/Easy).
 
+## Content Authoring Standard (mandatory)
+- Explain before code: every h2/h3 chapter AND every code example has a textual introduction (what it shows + why).
+- Gradual complexity: complete-beginner → advanced, within each page and across the track.
+- Didactic comments in every example: intent, edge cases, why — teaching proper commenting.
+- NEVER trim tutorial content to save tokens; completeness wins over token economy on learner-facing pages.
+
 ## Practice & Demo (required for every track)
 - Single-file demos live in `roadmap/<track>/demo/NN_name.<ext>`, numbered and grouped by category.
 - Create `demo_examples.html` + `data/demo_examples.json` (flat TITLED entries) listing demos by category, each linked to `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<file>`.
