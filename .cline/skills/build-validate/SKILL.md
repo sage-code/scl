@@ -12,6 +12,8 @@ Run the validation gate IN ORDER; every command through `scripts/tools/trace.sh`
 2. `trace.sh npm run build`  — assemble `public/` (full rebuild: `npm run build:full`).
 3. `trace.sh npm run check`  — audit compiled output (footer injection, page closure, JSON hierarchy).
 
+After roadmap content work, regenerate tracking status: `trace.sh python tracking/generate_roadmaps_status.py`.
+
 For pipelines/redirects use the `-c` form, e.g. `trace.sh -c 'npm run build > .temp/build.log 2>&1'`.
 
 ## Interpret results

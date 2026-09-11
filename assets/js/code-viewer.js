@@ -18,7 +18,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         'css': 'css',
         'html': 'html',
         'json': 'json',
-        'dart': 'dart'
+        'dart': 'dart',
+        'cs': 'csharp',
+        'csharp': 'csharp'
     };
     
     display.className = `language-${langMap[ext] || 'javascript'}`;

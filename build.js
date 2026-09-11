@@ -1624,6 +1624,15 @@ function publishChangedSourceFile(sourcePath, optimizedHtmlTargets) {
     return;
   }
 
+  // Any file inside a roadmap demo/ folder is published as-is (matches the
+  // full-build rule in copyLabStaticAssetsRecursive). Keeps incremental
+  // builds in sync when demo files are added/edited.
+  if (isPathInside(sourcePath, ROADMAP_DIR) && sourcePath.split(path.sep).includes("demo")) {
+    ensureDir(path.dirname(destinationPath));
+    fs.copyFileSync(sourcePath, destinationPath);
+    return;
+  }
+
   if (shouldPublishSourceAsset(sourcePath)) {
     ensureDir(path.dirname(destinationPath));
     fs.copyFileSync(sourcePath, destinationPath);

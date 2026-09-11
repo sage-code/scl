@@ -59,6 +59,9 @@ case "${1:-}" in
         if [ "${1:-}" = "-c" ]; then
             str_mode=true
             shift
+            if [ "$#" -ne 1 ]; then
+                die "'-c' expects exactly ONE argument — quote the full command string, got: $*"
+            fi
         fi
         [ "$#" -eq 0 ] && die "no command given — see header of $0"
         ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

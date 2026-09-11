@@ -1,5 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     const lang = document.body.getAttribute('data-lang');
+    // If the language is already bundled in assets/prism.js, do not request a
+    // separate component file (avoids 404s for bundled languages like csharp).
+    if (lang && window.Prism && window.Prism.languages[lang]) {
+        return;
+    }
     if (lang) {
         const script = document.createElement('script');
         script.src = `/assets/js/prism/prism-${lang}.min.js`;
