@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig functions: declarations, pass-by-value semantics, return values, defer and errdefer cleanup, and inline functions.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, functions, defer, errdefer, parameters, return, inline">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Functions &amp; Cleanup</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-functions">Functions &amp; Cleanup</h1>
+        <div class="alert alert-secondary shadow-sm">
+          In Zig a function is an ordinary value: declared with <code>fn</code>, passed by value into parameters, and free to return an error union. The true star of this lesson is <code>defer</code> — deterministic cleanup that runs when the scope exits, making early returns safe by construction.
+        </div>
+        <h2 id="declaration">Function Declarations</h2>
+        <p>A function name, a parameter list, a return type, and a block. Parameters are typed and — unlike C — parameters and locals are immutable unless declared <code>var</code>.</p>
+        <h3 id="basic">Basic Signature</h3>
+        <pre><code class="language-zig line-numbers">fn add(a: u32, b: u32) u32 {
+    return a + b;
+}
+// parameters behave like const values — reassigning a throws an error
+</code></pre>
+        <h3 id="visibility">pub and Scope</h3>
+        <p>Declarations are file-scoped and private by default; <code>pub</code> exports a function to importers. Keep private the helpers that are only internal details, and publish the stable API.</p>
+        <pre><code class="language-zig line-numbers">pub fn publicApi() void {} // visible to other files via @import
+fn privateHelper() void {} // visible only inside this file
+</code></pre>
+        <h2 id="pass-by-value">Pass-by-Value</h2>
+        <p>Zig parameters are passed by value: the callee receives a copy, so mutating a parameter cannot mutate the caller value. There are no default parameters and no hidden references — everything is visible.</p>
+        <h3 id="copy-semantics">Copy Semantics</h3>
+        <pre><code class="language-zig line-numbers">fn double(x: u32) u32 {
+    return x * 2; // x is a copy; the caller value is untouched
+}
+var score: u32 = 21;
+_ = double(score);
+// score is still 21
+</code></pre>
+        <h3 id="pointers-when-needed">Pointers When Needed</h3>
+        <p>When you genuinely need to mutate the caller value, pass a pointer. Zig makes pointers explicit — there is no reference type pretending to be a value (see the <a href="/roadmap/zig/pointers.html">pointers lesson</a>).</p>
+        <pre><code class="language-zig line-numbers">fn increment(p: *u32) void {
+    p.* += 1; // star dereferences; mutation reaches the caller
+}
+var n: u32 = 1;
+increment(&amp;n);
+// n is now 2
+</code></pre>
+        <h2 id="return">Return Values</h2>
+        <p>Return types are written after the parameter list. Three families matter most: <code>void</code> for doing things, values for computing things, and error unions for fallible operations.</p>
+        <h3 id="error-unions">Error Unions</h3>
+        <p>A function that can fail returns <code>!T</code> — either a value of type <code>T</code> or an error. The caller must handle the failure visibly: with <code>try</code> to propagate or <code>catch</code> to recover. Nothing is ever thrown invisibly.</p>
+        <pre><code class="language-zig line-numbers">fn mightFail(ok: bool) !u32 {
+    if (!ok) return error.NotReady;
+    return 42;
+}
+// try propagates the error to the caller of main (which is !void)
+const x = try mightFail(true);
+</code></pre>
+        <h3 id="noreturn">void and noreturn</h3>
+        <p><code>void</code> means the function succeeds and returns nothing. <code>noreturn</code> is stronger: functions like <code>std.process.exit</code> and <code>@panic</code> never return, and the compiler uses that to prove control flow.</p>
+        <h2 id="defer">defer — Guaranteed Cleanup</h2>
+        <p><code>defer</code> is Zig replacement for RAII. Instead of running at an object lifetime boundary, it runs when the enclosing block exits — no matter how: normal end, early <code>return</code>, or even a <code>break</code>. Cleanup is always next to the acquisition, in the same function, visible to the reader.</p>
+        <h3 id="defer-basics">Basics</h3>
+        <pre><code class="language-zig line-numbers">const allocator = std.heap.page_allocator;
+const buf = try allocator.alloc(u8, 16);
+defer allocator.free(buf); // runs at scope exit, whatever happens
+std.debug.print("allocated\n", .{});
+// buf is freed here, automatically, even on early returns before this line
+</code></pre>
+        <h3 id="defer-lifo">Multiple Defers Run Last-In-First-Out</h3>
+        <p>Defers execute in reverse order of declaration — the mirror image of acquisition. Acquire file, then buffer, then lock: the lock frees first, then the buffer, then the file. This symmetry is what makes cleanup deterministic.</p>
+        <pre><code class="language-zig line-numbers">defer std.debug.print("1\n", .{});
+defer std.debug.print("2\n", .{});
+// prints 2 then 1 — LIFO, like unwinding a stack
+</code></pre>
+        <h2 id="errdefer">errdefer — Cleanup on Error</h2>
+        <p><code>errdefer</code> runs <em>only</em> when the scope exits with an error. It is the correct partner for allocations that must become the caller responsibility on success but be freed on failure.</p>
+        <h3 id="errdefer-basics">Basics</h3>
+        <pre><code class="language-zig line-numbers">fn build() ![]u8 {
+    const out = try std.heap.page_allocator.alloc(u8, 64);
+    errdefer std.heap.page_allocator.free(out); // freed only on error
+    if (shouldFail()) return error.BadState;    // errdefer fires
+    return out;                                 // success: caller owns it
+}
+</code></pre>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> <code>defer</code>/<code>errdefer</code> are read in one glance, unlike destructors hidden in class definitions. The pairing of an allocator with a <code>defer free</code> on the next line is the single most common rhythm in real Zig code — learn to read it as one unit.
+        </div>
+        <h2 id="inline">inline Functions</h2>
+        <p>Prefixing <code>fn</code> with <code>inline</code> forces the compiler to duplicate the function body at every call site. It is not a hint — it is a guarantee, and it enables compile-time tricks with types. Use it sparingly; the optimizer handles most cases on its own.</p>
+        <h3 id="inline-fn">inline fn</h3>
+        <pre><code class="language-zig line-numbers">inline fn twice(comptime T: type, value: T) T {
+    return value * 2; // T is known at compile time — no runtime polymorphism
+}
+const a = twice(u32, 21); // instantiates the u32 version
+</code></pre>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-mutation">Mutating Parameters</h3>
+        <p>Treating parameters as mutable causes confusion: without <code>var</code>, reassigning a parameter is a compile error, which is the compiler's way of saying the copy was not meant to change.</p>
+        <h3 id="pitfall-forgot-defer">Forgetting defer</h3>
+        <p>Manual free on every exit path is exactly how leaks and double-frees are born. If a resource is acquired, answer the question: which <code>defer</code> or <code>errdefer</code> releases it?</p>
+        <p>Next: <a href="/roadmap/zig/comptime.html">Compile-Time Metaprogramming</a> — the feature that makes Zig feel like a macro platform without macros.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "functions",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

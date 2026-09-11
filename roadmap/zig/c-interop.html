@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig and C interop: @cImport and @cInclude, linking system and static libraries, ABI-compatible types, and translate-c.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, c interop, cImport, cInclude, linkSystemLibrary, translate-c, ABI">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — C Interop</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-c-interop">C Interop</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Zig treats C as a first-class neighbor: import headers directly with <code>@cImport</code>, link C libraries from <code>build.zig</code>, and share structs that follow the C ABI. This lesson shows how to stand on the shoulders of the entire C ecosystem.
+        </div>
+        <h2 id="cimport">Importing C</h2>
+        <p>The <code>@cImport</code> builtin compiles the named headers into a Zig container. Every C function, type, and constant becomes accessible through the resulting namespace — translated automatically, with types mapped to their Zig equivalents.</p>
+        <h3 id="import-basics">@cImport and @cInclude</h3>
+        <pre><code class="language-zig line-numbers">const c = @cImport({
+    @cInclude("math.h");   // pull in the C header
+    @cInclude("stdlib.h");
+});
+
+const root = c.sqrt(16.0);  // call the C function
+std.debug.print("{d}\n", .{root}); // 4.0
+</code></pre>
+        <h3 id="namespaces">Namespaced Access</h3>
+        <p>Everything lands under <code>c.</code>, so a C symbol can never collide with a Zig name. Constants, enum values, and function pointers all travel through the same namespace — <code>c.EXIT_SUCCESS</code> works like <code>c.errno</code>.</p>
+        <h2 id="linking">Linking Libraries</h2>
+        <p>Declaring headers is only half the story; the binary must also link the library. Zig keeps this in the build script where everyone can see it.</p>
+        <h3 id="system-lib">linkSystemLibrary</h3>
+        <pre><code class="language-zig line-numbers">const exe = b.addExecutable(.{
+    .name = "app",
+    .root_module = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    }),
+});
+exe.root_module.addCMacro("USE_SSE", "1");   // define a macro
+if (target.result.os.tag == .linux) {
+    exe.root_module.linkSystemLibrary("m", .{}); // libm on Linux
+}
+b.installArtifact(exe);
+</code></pre>
+        <h3 id="static">Static Libraries</h3>
+        <p>Static archives link the same way: <code>linkSystemLibrary</code> for standard names or <code>addObjectFile</code>/<code>addIncludePath</code> for vendored builds. Third-party C code ships with its own compile flags, and Zig honors the include and library paths you declare.</p>
+        <h2 id="types">Sharing Types and the ABI</h2>
+        <p>Passing data across the boundary requires agreeing on layout. Zig gives you precise tools for that agreement — the same ones from the <a href="/roadmap/zig/structures.html">structures lesson</a>.</p>
+        <h3 id="extern-types">extern Structs and Opaque Types</h3>
+        <pre><code class="language-zig line-numbers">// matches the C declaration: struct timespec { tv_sec; tv_nsec; }
+const Time = extern struct {
+    sec: i64,
+    nsec: i64,
+};
+
+// opaque hides the layout of a foreign handle (e.g. FILE*)
+const OpaqueFile = opaque {};
+const file: *OpaqueFile = undefined;
+</code></pre>
+        <h3 id="c-strings">C Strings</h3>
+        <p>A C <code>char*</code> arrives as a sentinel pointer; convert to a Zig slice with <code>std.mem.span</code> (which uses the NUL terminator) and back with <code>@ptrCast</code> + <code>@intFromPtr</code> where the ABI demands it.</p>
+        <h2 id="translation">Automatic Translation</h2>
+        <p>When a whole C file must become Zig, <code>zig translate-c</code> produces idiomatic (or at least faithful) Zig. It is the ideal starting point for migration and for vendoring a library without a hand-written wrapper.</p>
+        <h3 id="translate-c">zig translate-c</h3>
+        <pre><code class="language-bash line-numbers">zig translate-c legacy.c &gt; legacy.zig
+# review the output, then @import it or fold it into your build
+</code></pre>
+        <h3 id="when-to-translate">Translate or Hand-Write</h3>
+        <p>Hand-writing small, stable interfaces keeps types precise and Zig-idiomatic. Translating whole libraries is faster and less error-prone for large surface areas. Prefer the smaller hand-crafted seam: less generated code to audit.</p>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> interop is not a bridge to a foreign land — it is the same land. Zig was designed so C headers, C ABIs, and C libraries feel native, which is why the Zig toolchain also compiles C directly. You reuse the ecosystem instead of reimplementing it.
+        </div>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-null">C NULL Is an Optional</h3>
+        <p>C functions that may return NULL map to optionals (<code>?*T</code>). Forgetting to unwrap is a compile error — which is precisely the protection you never had in C.</p>
+        <h3 id="pitfall-memory">Memory Across the Boundary</h3>
+        <p>Memory allocated by a C library must be freed by the library (or <code>std.heap.c_allocator</code>), never by a Zig arena. Keep ownership on the side that allocated — mixed free is a fast way to corrupt both heaps.</p>
+        <p>Next: <a href="/roadmap/zig/testing.html">Testing &amp; Debugging</a> — making the compiler prove your code.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "c-interop",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

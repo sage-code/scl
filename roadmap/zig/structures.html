@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig data modeling: structs for records, enums for tags, tagged unions for alternatives, and exhaustive switch over payloads.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, struct, enum, union, tagged union, switch, data structures">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Structs, Enums &amp; Unions</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-structures">Structs, Enums &amp; Unions</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Zig offers three composable tools for data: <code>struct</code> bundles fields, <code>enum</code> names a closed set of tags, and <code>union(enum)</code> lets alternative shapes share one type. Paired with exhaustive <code>switch</code>, the compiler turns forgotten cases into errors.
+        </div>
+        <h2 id="struct">struct — Records</h2>
+        <p>A struct is a sequence of named, typed fields. Initialization uses named field syntax, which is self-documenting and survives field reordering without silent bugs (the compiler rejects mismatched init order).</p>
+        <h3 id="declare">Declaring and Initializing</h3>
+        <pre><code class="language-zig line-numbers">const Point = struct {
+    x: f64,
+    y: f64,
+};
+const origin = Point{ .x = 0.0, .y = 0.0 };
+const moved = Point{ .x = 3.0, .y = 4.0 };
+std.debug.print("{d}\n", .{moved.x});
+</code></pre>
+        <h3 id="methods">Methods — Namespaced Functions</h3>
+        <p>There is no class inheritance; a struct is a namespace. Functions declared inside it become associated methods taking the struct explicitly — Zig keeps the OO convenience without hiding the receiver.</p>
+        <pre><code class="language-zig line-numbers">const Rect = struct {
+    w: u32,
+    h: u32,
+    fn area(self: *const Rect) u32 {
+        return self.w * self.h;
+    }
+};
+const box = Rect{ .w = 4, .h = 3 };
+std.debug.print("{d}\n", .{box.area()}); // 12
+</code></pre>
+        <h2 id="enum">enum — Tagged Values</h2>
+        <p>An enum is a closed set of named values, each with an integer backing tag. It replaces the error-prone C pattern of <code>#define</code> constants and manual validation.</p>
+        <h3 id="declare-enum">Declaring and Converting</h3>
+        <pre><code class="language-zig line-numbers">const Color = enum { red, green, blue };
+const c: Color = .green; // enum literal shorthand
+const backing: u8 = @intFromEnum(c); // 1 — the tag value
+const back: Color = @enumFromInt(1); // .green — checked at runtime
+</code></pre>
+        <h3 id="switch-enum">Exhaustive switch</h3>
+        <p>Switching an enum without covering every variant is a compile error. Adding a variant to the enum updates every switch — forgotten sites fail to build, which is exactly the safety nettle C never solved.</p>
+        <pre><code class="language-zig line-numbers">fn hexName(c: Color) []const u8 {
+    return switch (c) {
+        .red =&gt; "#ff0000",
+        .green =&gt; "#00ff00",
+        .blue =&gt; "#0000ff",
+        // no else needed: red, green, blue are all covered
+    };
+}
+</code></pre>
+        <h2 id="union">union — Alternatives</h2>
+        <p>A plain union stores one of several types, but reading it safely needs a tag. Zig models this precisely with a tagged union, which pairs the payload with its discriminator.</p>
+        <h3 id="tagged">Tagged Unions</h3>
+        <pre><code class="language-zig line-numbers">const Value = union(enum) {
+    int: i64,
+    float: f64,
+    text: []const u8,
+};
+const v1 = Value{ .int = 42 };
+const v2 = Value{ .text = "sage" };
+</code></pre>
+        <h3 id="switch-payload">switch with Payloads</h3>
+        <p>Extracting the payload is done by an exhaustive switch that captures the inner value — the tag check and the cast happen in one visible step.</p>
+        <pre><code class="language-zig line-numbers">fn describe(v: Value) void {
+    switch (v) {
+        .int =&gt; |n| std.debug.print("integer {d}\n", .{n}),
+        .float =&gt; |f| std.debug.print("float {d}\n", .{f}),
+        .text =&gt; |s| std.debug.print("text {s}\n", .{s}),
+    }
+}
+</code></pre>
+        <h2 id="special">extern, packed and opaque</h2>
+        <p>Three modifiers adapt structs to the raw world: <code>extern struct</code> follows the C ABI for interfacing, <code>packed struct</code> squeezes bitfields, and <code>opaque</code> hides layout entirely for foreign handles.</p>
+        <h3 id="extern-struct">extern Structs for FFI</h3>
+        <pre><code class="language-zig line-numbers">const Timespec = extern struct {
+    tv_sec: i64,
+    tv_nsec: i64,
+}; // layout matches the C struct from <time.h>
+</code></pre>
+        <h3 id="packed">packed Structs</h3>
+        <p>Bit-level control belongs to protocols and hardware: <code>packed struct</code> orders bits without padding. Prefer it only where the byte layout is a contract, and test against the spec.</p>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> model the data, then let the compiler defend it. An enum that cannot hold an unknown value, a tagged union that cannot misrepresent its payload, a switch that cannot miss a case — every one of these is a bug class removed by the type system, not by discipline.
+        </div>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-field-order">Field Order and Layout</h3>
+        <p>Non-<code>extern</code> structs may be reordered by the compiler; rely on declared order only for logical grouping, not for byte layout, unless you chose <code>extern</code> or <code>packed</code>.</p>
+        <h3 id="pitfall-else">else That Hides Cases</h3>
+        <p>An <code>else =&gt;</code> prong on a tagged-union switch swallows future variants silently. When new cases should fail loudly, omit <code>else</code> and let the compiler demand coverage.</p>
+        <p>Next: <a href="/roadmap/zig/build-system.html">Build System</a> — build.zig and the zig build workflow.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "structures",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

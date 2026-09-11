@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig pointers and slices: single-item and many-item pointers, fat slices, alignment, pointer casts, and safety behavior.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, pointers, slices, alignment, ptrCast, memory, safety">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Pointers &amp; Slices</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-pointers">Pointers &amp; Slices</h1>
+        <div class="alert alert-secondary shadow-sm">
+          In Zig a pointer is never implicit: types like <code>*T</code> and <code>[]T</code> say exactly what they point to and how far they reach. The slice — a pointer plus a length — is the workhorse of the standard library, and dereferencing is always written with <code>.*</code>.
+        </div>
+        <h2 id="pointers">Pointers</h2>
+        <p>There is no reference syntax pretending to be a value. Creating a pointer needs <code>&amp;</code>, reading through it needs <code>.*</code>, and both operations are visible in the source.</p>
+        <h3 id="single-item">Single-Item Pointers (*T)</h3>
+        <pre><code class="language-zig line-numbers">var value: u32 = 10;
+const p: *u32 = &amp;value; // address of value — a single-item pointer
+p.* = 20;               // write through the pointer
+std.debug.print("{d}\n", .{value}); // 20 — mutation reached the original
+</code></pre>
+        <h3 id="many-item">Many-Item Pointers ([*]T)</h3>
+        <p><code>[*]T</code> points to an unknown sequence of items starting at an address — the C-like raw pointer. Arithmetic with <code>ptr + n</code> is allowed but unchecked; production Zig prefers slices precisely because they carry the length.</p>
+        <h3 id="const-pointers">const Pointers</h3>
+        <p><code>*const T</code> allows reading, not writing. The compiler enforces it, so a function that only reads data can safely accept a const pointer and callers know nothing is mutated.</p>
+        <h2 id="slices">Slices</h2>
+        <p>A slice is a fat pointer: a start pointer plus a length. Writing <code>[]const u8</code> for a string or <code>[]u32</code> for a buffer tells the reader both where and how many.</p>
+        <h3 id="slice-basics">Basics</h3>
+        <pre><code class="language-zig line-numbers">const arr = [_]u32{ 10, 20, 30, 40 };
+const all: []const u32 = &amp;arr;    // slice over the whole array
+const part: []const u32 = arr[1..3]; // items 1 and 2: length 2
+std.debug.print("{d} {d}\n", .{ all.len, part.len }); // 4 2
+</code></pre>
+        <h3 id="fat-pointer">Slices Are Fat Pointers</h3>
+        <div class="text-center">
+          <img src="/images/slice.svg" width="460" class="img-fluid protect rounded shadow border" alt="slice as pointer plus length">
+          <p class="text-secondary small">Figure 1 — a slice carries the address of its first item and the item count alongside it.</p>
+        </div>
+        <p>Slices exist to make out-of-bounds impossible at the type level: the runtime knows the length and checks every index in safe builds. Passing <code>[]const u8</code> around is Zig idioms standard way to share read-only data without ownership questions.</p>
+        <h3 id="slicing">Slicing Operations</h3>
+        <pre><code class="language-zig line-numbers">var buffer: [64]u8 = undefined;
+const head: []u8 = buffer[0..16];    // first 16 bytes
+const rest: []u8 = buffer[16..];     // from index 16 to the end
+const exact: []u8 = buffer[10..12];  // two bytes, indices 10-11
+</code></pre>
+        <h2 id="alignment">Alignment</h2>
+        <p>Every type has an alignment: the address multiple its data prefers (for example 4 for u32 on most CPUs). Misaligned access can crash or corrupt; Zig tracks alignment in the pointer type and checks casts.</p>
+        <h3 id="alignment-rules">Alignment Rules</h3>
+        <pre><code class="language-zig line-numbers">const a = @alignOf(u32); // 4 on common targets
+const s = @sizeOf(u32);  // 4
+// a pointer type records its alignment: *align(8) u32
+</code></pre>
+        <h3 id="aligncast">@alignCast</h3>
+        <p>When you have proven (or constructed) a stronger alignment than the type claims, <code>@alignCast</code> raises it. It is an explicit promise; the runtime verifies it in safety-checked builds.</p>
+        <h2 id="casts">Pointer Casts</h2>
+        <p>Zig treats casting as a visible, checked operation. Two builtins dominate pointer work.</p>
+        <h3 id="ptrcast">@ptrCast</h3>
+        <pre><code class="language-zig line-numbers">const bytes: [*]const u8 = @ptrCast(&amp;value);
+// reinterpret the address of a u32 as a byte pointer — layout must match
+</code></pre>
+        <h3 id="intptr">Integers to Pointers and Back</h3>
+        <p>Hardware and kernel code often work with raw addresses. Zig exposes the conversion explicitly: <code>@intFromPtr(p)</code> turns a pointer into a <code>usize</code>, and <code>@ptrFromInt</code> reverses it. Both are visible, and both demand discipline.</p>
+        <h2 id="safety">Safety</h2>
+        <p>Unlike C, Zig keeps pointer mistakes diagnosable. Bounds checks, alignment checks, and the absence of implicit null pointers turn the classic C bug classes into loud, localized panics in safe builds.</p>
+        <h3 id="bounds">Bounds Checking</h3>
+        <pre><code class="language-zig line-numbers">const items = [_]u32{ 1, 2, 3 };
+const bad = items[10]; // panic in Debug/ReleaseSafe: index out of bounds
+// in ReleaseFast this becomes undefined behavior — keep safety in production
+</code></pre>
+        <h3 id="null">No Built-In Null Pointers</h3>
+        <p>A plain <code>*T</code> cannot be null — the type forbids it. When absence must be representable, Zig uses optionals (<code>?*T</code>), which are covered in the <a href="/roadmap/zig/optionals.html">optionals lesson</a>. Nullability becomes a deliberate, type-level choice.</p>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> compare with C where every pointer might be NULL and nobody knows. Zig moves the question into the type: either the pointer cannot be null, or it is an optional and every use shows it. That is one less class of crashes, decided by the syntax itself.
+        </div>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-dangling">Dangling After Free</h3>
+        <p>A pointer to freed memory is still a valid pointer value — Zig cannot know it is stale. The discipline is lifetime pairing: allocate once, <code>defer free</code>, and never save the address beyond the defer.</p>
+        <h3 id="pitfall-forget-star">Forgetting the Star</h3>
+        <p><code>p</code> and <code>p.*</code> are not interchangeable: forgetting <code>.*</code> is the most common beginner compile error, and the error message teaches the model — the pointer is the address, the star is the value it points to.</p>
+        <p>Next: <a href="/roadmap/zig/optionals.html">Optionals &amp; Null Safety</a> — making absence explicit in the type.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "pointers",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

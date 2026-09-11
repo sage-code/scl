@@ -14,8 +14,15 @@ All 42 roadmap indexes implement the roadmap index standard:
 - Each page has a 2-level sidebar (`roadmap/csharp/data/<topic>.json`).
 - References: Microsoft Learn + W3Schools (free). Validate: `run test` → `run build` → `run check`.
 
+## ✅ zig — Tutorial written (2026-09-11)
+`zig` was a bare scaffold (index + empty data/); now a comprehensive 19-row track modeled on `csharp`:
+- 16 lessons: `overview`, `setup`, `syntax`, `types`, `control`, `functions`, `comptime`, `pointers`, `optionals`, `errors`, `memory`, `strings`, `structures`, `build-system`, `c-interop`, `testing`.
+- Each lesson has a 2-level hierarchical sidebar (`roadmap/zig/data/<topic>.json`).
+- Practice & Demo: 14 single-file demos (`demo/01..14`) + `demo_examples.html`; Study Projects (`samples.html`) and `references.html` close the track.
+- 5 track-specific SVG diagrams (`roadmap/zig/img/`); code-viewer now highlights `.zig` (langMap + Prism component).
+- Validated: `run test` → `run build` → `run check`; status now **converted** (36/42).
+
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py)
-- [ ] `zig/` — scaffold only: single index.html + empty `data/`; 0 topic pages.
 - [ ] `assembly/` — 10 topic pages are "To be replaced!" ~3.4 KB placeholder shells.
 - [ ] `swift/` — 13 topic pages are "Work in progress!" ~3.6 KB placeholder shells.
 - [ ] `carbon/` — 8 topic pages are "Work In Progress" stubs (syntax.html has real content).

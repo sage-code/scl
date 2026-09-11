@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig testing and debugging: test blocks, assertions, leak detection with std.testing.allocator, doctests, and debugging tools.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, testing, zig test, assertions, leaks, doctests, debugging, fmt">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Testing &amp; Debugging</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-testing">Testing &amp; Debugging</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Testing is a language feature in Zig, not an add-on: <code>test</code> blocks live inside your source files and run with <code>zig test</code>. The standard testing allocator turns memory leaks into test failures, and doctests let documentation stay correct forever.
+        </div>
+        <h2 id="test-blocks">Test Blocks</h2>
+        <p>A <code>test</code> block is a named scope anywhere in a file; the compiler collects them all. They can be exported to consumers or kept private — the harness runs them wherever they are.</p>
+        <h3 id="declare">Declaring</h3>
+        <pre><code class="language-zig line-numbers">const std = @import("std");
+
+fn add(a: u32, b: u32) u32 {
+    return a + b;
+}
+
+test "add works" {
+    try std.testing.expectEqual(@as(u32, 5), add(2, 3));
+}
+</code></pre>
+        <h3 id="run">zig test</h3>
+        <pre><code class="language-bash line-numbers">zig test math.zig
+# 1/1 math.test.add works... OK
+# All 1 tests passed.
+</code></pre>
+        <h2 id="assertions">Assertions</h2>
+        <p>The <code>std.testing</code> namespace provides typed checks. They report file, line, and actual versus expected values — far better than a bare panic.</p>
+        <h3 id="expect">expect and expectEqual</h3>
+        <pre><code class="language-zig line-numbers">test "ordering checks" {
+    try std.testing.expect(1 &lt; 2);                       // boolean condition
+    try std.testing.expectEqual(@as(u32, 3), 1 + 2);      // equality, types shown
+    try std.testing.expectEqualStrings("ab", &amp;[_]u8{ a, b });
+}
+</code></pre>
+        <h3 id="errors">Error-Passing Tests</h3>
+        <p>Tests return <code>!void</code>, so they can <code>try</code> fallible code directly. An unexpected error marks the test failed with the error name — no setup ceremony needed.</p>
+        <pre><code class="language-zig line-numbers">test "file is readable" {
+    const data = try std.fs.cwd().readFileAlloc(std.testing.allocator, "notes.txt", 1000);
+    defer std.testing.allocator.free(data);
+    try std.testing.expect(data.len &gt; 0);
+}
+</code></pre>
+        <h2 id="leaks">Leak Detection</h2>
+        <p>The best testing gift: <code>std.testing.allocator</code> verifies every allocation is freed. A test that leaks fails with the leak count and stack — the memory discipline of the <a href="/roadmap/zig/memory.html">memory lesson</a> becomes a machine-checked rule.</p>
+        <h3 id="testing-allocator">std.testing.allocator</h3>
+        <pre><code class="language-zig line-numbers">test "no leaks allowed" {
+    const buf = try std.testing.allocator.alloc(u8, 8);
+    // forget the free -> the test FAILS with a leak report
+    defer std.testing.allocator.free(buf);
+}
+</code></pre>
+        <h3 id="gpa-in-tests">GPA in Tests</h3>
+        <p>For library code that receives an allocator, pass <code>std.testing.allocator</code> in every unit test. For binary code, create a GPA in the test and assert its <code>deinit</code> is leak-free.</p>
+        <h2 id="doctests">Doctests</h2>
+        <p>Documentation can rot. Zig doctests tie the two together: a test written in a doc comment runs in CI, so the example in the docs is proven every time the suite runs.</p>
+        <h3 id="doctest">Doc Test Syntax</h3>
+        <pre><code class="language-zig line-numbers">/// Multiply two integers.
+///
+/// `test "example" {
+///     const std = @import("std");
+///     try std.testing.expectEqual(@as(u32, 6), mul(2, 3));
+/// }`
+fn mul(a: u32, b: u32) u32 {
+    return a * b;
+}
+</code></pre>
+        <h2 id="debugging">Debugging Tools</h2>
+        <p>Beyond tests, four tools carry most debugging sessions.</p>
+        <h3 id="tools">fmt, Safety, Logs, and Traces</h3>
+        <ul>
+          <li><code>zig fmt</code> — canonical formatting, with <code>--check</code> for CI.</li>
+          <li><strong>Safety panics</strong> — overflow, bounds, and alignment failures print stack traces in Debug/ReleaseSafe.</li>
+          <li><code>std.log</code> — leveled logging (<code>std.log.info</code>, <code>.err</code>) that routes to stderr.</li>
+          <li><strong>Error return traces</strong> — the <a href="/roadmap/zig/errors.html">errors lesson</a> showed how they name the failing call chain.</li>
+        </ul>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Zig:</strong> tests, safety checks, and leak detection form one coherent feedback loop: the compiler proves structure, the safe runtime proves behavior, and the testing allocator proves resource hygiene. Production code should carry the same rigor with ReleaseSafe — that is the Zig default for deliverables.
+        </div>
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <h3 id="pitfall-state">Shared State Across Tests</h3>
+        <p>Tests may run in any order. Reset globals at the start of every test block, or keep state inside the test — determinism matters more than speed.</p>
+        <h3 id="pitfall-debug-only">Testing Only in Debug</h3>
+        <p>Run the suite in ReleaseSafe at least once before shipping: safety checks behave identically, but the optimizer can expose bugs that Debug hides (uninitialized reads, for example).
+</p>
+        <p>Next, practice: the <a href="/roadmap/zig/demo_examples.html">Lab Examples</a> page collects runnable programs for every lesson in this track.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "zig",
+    topicId: "testing",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

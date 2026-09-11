@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Zig syntax fundamentals: statements, expressions, identifiers, variable declarations, operators, comments, and compiler builtins.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, zig, syntax, statements, expressions, operators, variables, builtins">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zig — Statements &amp; Expressions</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="zig-syntax">Statements &amp; Expressions</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Zig is a free-form, C-family language: statements end with a semicolon, blocks use braces, and identifiers are case-sensitive. The key difference from C is discipline — no automatic semicolon insertion, no preprocessor, and every compiler magic name starts with an <code>@</code> so you always recognize a builtin.
+        </div>
+
+        <h2 id="statements">Statements and Expressions</h2>
+        <p>An <strong>expression</strong> produces a value; a <strong>statement</strong> performs an action. Zig deliberately blurs the line: control-flow constructs such as <code>if</code> and <code>switch</code> are expressions that return values, which removes a classic bug source — the forgotten intermediate variable.</p>
+
+        <h3 id="terminators">Statement Terminators</h3>
+        <p>Every statement ends with a semicolon, and Zig never inserts one for you. A missing semicolon is a compile error with the exact line number, not a silent behavior change.</p>
+        <pre><code class="language-zig line-numbers">const answer: u32 = 42;      // declaration statement
+std.debug.print("hi\n", .{}); // call statement
+_ = answer;                  // discard statement on purpose
+</code></pre>
+
+        <h3 id="blocks">Blocks</h3>
+        <p>Braces group statements and introduce a scope. A block is itself an expression: when its last statement is a value, the block evaluates to it, and a label lets you break out of the block with that value.</p>
+        <pre><code class="language-zig line-numbers">const total = blk: {
+    const a: u32 = 2;
+    const b: u32 = 3;
+    break :blk a + b; // the block "returns" this value
+};
+// total == 5
+</code></pre>
+
+        <h2 id="identifiers">Identifiers</h2>
+        <p>Identifiers begin with a letter or underscore, then continue with letters, digits, or underscores. Convention is <code>snake_case</code> for values and functions and <code>PascalCase</code> for types; the compiler is case-sensitive, so <code>answer</code> and <code>Answer</code> are different names.</p>
+
+        <h3 id="at-identifiers">The @ Family</h3>
+        <p>Names beginning with <code>@</code> are reserved for the compiler. Builtins such as <code>@intCast</code>, <code>@sizeOf</code>, and <code>@import</code> cannot be shadowed, so their meaning is always unambiguous in code.</p>
+        <pre><code class="language-zig line-numbers">const len = @sizeOf(u32);  // 4 — the builtin knows the type's size
+const imp = @import("std"); // the import builtin loads another module
+const cast = @as(u32, 7);   // explicit, checked type coercion
+</code></pre>
+
+        <h2 id="variables">Variable Declarations</h2>
+        <p>Zig has two declaration keywords — <code>const</code> and <code>var</code> — plus the special value <code>undefined</code> for declaring an uninitialized slot. The distinction is core to "thinking in Zig": <code>const</code> values are immutable and the compiler can often prove their whole life, so prefer them.</p>
+
+        <h3 id="const-var">const versus var</h3>
+        <pre><code class="language-zig line-numbers">const pi: f64 = 3.14159;       // immutable — the value never changes
+var counter: u32 = 0;          // mutable — reassigned with an assignment
+counter += 1;
+var buffer: [16]u8 = undefined; // declared, contents not initialized yet
+</code></pre>
+
+        <h3 id="type-inference">Type Inference</h3>
+        <p>When the type is obvious from the initializer you can omit it, and inference remains strongly typed — there is no fallback to a generic "number". Integers and floats without a declared type are bootstrapped as compile-time values, which you will meet in the <a href="/roadmap/zig/types.html">types lesson</a>.</p>
+        <pre><code class="language-zig line-numbers">const name = "Sage-Code"; // []const u8 inferred — a slice of bytes
+const count = 10;         // comptime_int inferred
+const ratio = 0.5;        // comptime_float inferred
+</code></pre>
+
+        <h2 id="operators">Operators</h2>
+        <p>Zig keeps C's familiar operator set and adds explicit wrapped arithmetic (<code>+%</code>, <code>-%</code>, <code>*%</code>) that is allowed to overflow, saturating variants (<code>+|</code>, <code>-|</code>, <code>*|</code>), and keyword logical operators <code>and</code>/<code>or</code> instead of <code>&amp;&amp;</code>/<code>||</code>.</p>
+
+        <h3 id="operator-table">Operator Table</h3>
+        <table class="table table-bordered table-striped table-dark">
+          <tr><th>Category</th><th>Operators</th><th>Example</th></tr>
+          <tr><td>Arithmetic</td><td>+ - * / %</td><td>a + b</td></tr>
+          <tr><td>Wrapped</td><td>+% -% *%</td><td>a +% b</td></tr>
+          <tr><td>Saturating</td><td>+| -| *|</td><td>a +| b</td></tr>
+          <tr><td>Comparison</td><td>== != &lt; &gt; &lt;= &gt;=</td><td>a &lt; b</td></tr>
+          <tr><td>Logical</td><td>and or !</td><td>a and b</td></tr>
+          <tr><td>Bitwise</td><td>&amp; | ^ ~ &lt;&lt; &gt;&gt;</td><td>a &amp; b</td></tr>
+          <tr><td>Assignment</td><td>= += -= *= /= %= &amp;= |= ^= &lt;&lt;= &gt;&gt;=</td><td>a += 1</td></tr>
+          <tr><td>Concatenation</td><td>++ (arrays) ** (repetition)</td><td>a ++ b</td></tr>
+        </table>
+        <p>Operator precedence matches C: <code>*</code> before <code>+</code>, comparison before logical, assignment lowest. When in doubt, add parentheses — clarity beats cleverness.</p>
+
+        <h2 id="comments">Comments</h2>
+        <p>Comments document intent for humans and are ignored by the compiler. Zig keeps the two C-style kinds and adds doc comments that tooling and IDEs can display.</p>
+
+        <h3 id="comment-types">Comment Types</h3>
+        <pre><code class="language-zig line-numbers">// single-line comment
+/* multi-line
+   comment */
+/// doc comment — attached to the next declaration
+//! file-level doc comment at the top of the file
+</code></pre>
+        <p>Write <em>why</em> in comments, not what the code plainly shows. The code tells the compiler what happens; the comment tells the next engineer why it should happen this way.</p>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Three mistakes trap every newcomer; knowing them in advance saves your first hour with the compiler.</p>
+
+        <h3 id="pitfall-semicolon">Missing Semicolons</h3>
+        <p>Unlike JavaScript, Zig never inserts semicolons. Every declaration, assignment, and call needs its terminator; the error message points at the exact line.</p>
+
+        <h3 id="pitfall-shadowing">Shadowing Edge Cases</h3>
+        <p>Zig allows inner scopes to reuse a name, but accidental shadowing of a value you still need later is a real debugging cost. Keep names unique inside a function and let <code>zig fmt</code> enforce consistent style.</p>
+
+        <h3 id="pitfall-unused">Unused Values</h3>
+        <p>The compiler reports unused local variables and return values. Assign to <code>_</code> to discard deliberately — visibility into waste is a feature of Zig, not noise.</p>
+        <pre><code class="language-zig line-numbers">_ = someFunction(); // I really meant to ignore this result
+</code></pre>
+
+        <p>Next: <a href="/roadmap/zig/types.html">Data Types &amp; Literals</a> — the integer, float, and array building blocks.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'zig',
+    topicId: 'syntax',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
