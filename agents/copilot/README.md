@@ -7,6 +7,8 @@ This repository builds the static-first vanilla website for Sage-Code. Copilot a
 ## 1. Automation & Performance Rule: Cross-Platform Python & POSIX Shell
 
 * **POSIX-Compatible Environment**: All shell instructions must assume a POSIX-compliant shell (Bash via Git Bash on Windows, or native shell on Linux/macOS). Never generate or use PowerShell syntax (`pwsh`).
+* **Temporary Files (Spool)**: Write all temporary/intermediate files to `.temp/` at the repo root (run `mkdir -p .temp` first if missing). Never use `/tmp` or another global temp path — unreliable on Windows/Git Bash. `.temp/` is git-ignored.
+* **Command Execution & Timeouts**: Use a POSIX shell (Bash via Git Bash on Windows), never PowerShell (`pwsh`) or `cmd`. For long-running commands, run them in the background and redirect output to `.temp/` — e.g. `npm run build > .temp/build.log 2>&1` — then read or `tail` the log. Avoid interactive pagers and prompts (use `git --no-pager` and `--non-interactive` flags; page large output with `grep`/`head`/`tail`).
 * **Prefer Python Scripts for Bulk Tasks**: For find-and-replace, refactoring, text transformation, or normalization, generate and execute a Python script using standard `python3` invocations.
 * **Diff Generation & Validation**: Python automation scripts must output clear diffs or dry-run validation summaries before writing modifications to disk.
 * **Reserve AI for Complex Logic**: Use AI exclusively for deep architectural reasoning, semantic understanding, or code design. Execute all mechanical, multi-file updates via Python.
@@ -32,6 +34,7 @@ To operate smoothly within free-tier quota limits (strict TPM/RPM constraints):
 ## 3. Fast Onboarding Checklist
 
 When initiating work:
+- Shell: POSIX Bash (Git Bash on Windows) — never PowerShell; spool temporary files/logs to `.temp/` (see §1).
 - Check `git status` and `git diff` to understand current modifications.
 - Reference core architecture files if needed:
   - `build.js`

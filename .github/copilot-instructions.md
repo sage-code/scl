@@ -26,6 +26,12 @@ Before editing content at scale, verify these generated outputs after build:
 2. public pages include footer markup in final HTML.
 3. public/assets/js/inline contains extracted script files from any inline executable JavaScript.
 
+## Environment & Commands
+
+- All shell commands run in a POSIX shell (Git Bash on Windows / GitHub terminal), never PowerShell (`pwsh`) or `cmd`.
+- Spool temporary/intermediate files to the repo-local `.temp/` directory (git-ignored; `mkdir -p .temp` first); never use `/tmp`.
+- Run long commands in the background and redirect output to `.temp/` (e.g. `npm run build > .temp/build.log 2>&1`); page results with `grep`/`head`/`tail` and use `git --no-pager`.
+
 Before creating or updating roadmap topic pages, verify sidebar navigation shape:
 
 1. Each topic page has one `h1`, multiple `h2`, and multiple `h3` under every `h2`.

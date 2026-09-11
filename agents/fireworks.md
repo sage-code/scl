@@ -2,10 +2,11 @@
 
 ## Purpose
 
-Shared configuration for the low-cost **worker models** running on Fireworks serverless inference. This file is the single source of truth for Fireworks-specific details and is referenced by:
+Shared configuration for the **DeepSeek models** running on Fireworks serverless inference and for **Cline** (OpenAI-compatible client). This file is the single source of truth for Fireworks-specific details. Referenced by:
 
-- `agents/deepseek/README.md` — DeepSeek agent instructions (architect/dispatcher)
-- `agents/glm/README.md` — GLM agent instructions (worker/executor)
+- `agents/static-context-prefix.md` — frozen system prefix (load first in every request)
+- `agents/deepseek/README.md` — DeepSeek Planner instructions (architect / thinker)
+- `agents/deepseek/executor.md` — DeepSeek Executor instructions (acting model)
 
 Keep API/pricing/caching details here. Keep model-behavior instructions in the per-model files.
 
@@ -22,7 +23,7 @@ Fireworks exposes an **OpenAI-compatible API**. Any OpenAI SDK or tool that acce
 ### curl
 
 ```bash
-curl [https://api.fireworks.ai/inference/v1/chat/completions](https://api.fireworks.ai/inference/v1/chat/completions) \
+curl https://api.fireworks.ai/inference/v1/chat/completions \
   -H "Authorization: Bearer $FIREWORKS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -32,7 +33,7 @@ curl [https://api.fireworks.ai/inference/v1/chat/completions](https://api.firewo
   }'
 ```
 
-### Python (OpenAI SDK with Caching Alignment)
+### Python (OpenAI SDK with Cache Alignment)
 
 ```python
 import os
@@ -40,10 +41,10 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key=os.environ["FIREWORKS_API_KEY"],
-    base_url="[https://api.fireworks.ai/inference/v1](https://api.fireworks.ai/inference/v1)",
+    base_url="https://api.fireworks.ai/inference/v1",
 )
 
-# Route to static replica via x-session-affinity header
+# FROZEN_SYSTEM_PREFIX = byte-identical copy of agents/static-context-prefix.md
 response = client.chat.completions.create(
     model="accounts/fireworks/models/deepseek-v4-flash-0731",
     messages=[
@@ -54,27 +55,25 @@ response = client.chat.completions.create(
     max_tokens=1024,
 )
 print(response.choices[0].message.content)
-print(response.usage)  # source of truth for billed tokens
+print(response.usage)  # source of truth for billed tokens and cache hits
 ```
 
 ---
 
-## 2. Recommended Models
+## 2. Recommended Models (DeepSeek only)
 
 > **Pricing and IDs as of 2026-09.** Model slugs rotate as new versions ship — always re-verify the current ID at [fireworks.ai/models](https://fireworks.ai/models) before pinning it in a script or client config.
 
 | Model | Serverless ID | Context | Input $/M | Output $/M | Role |
 |---|---|---|---|---|---|
-| DeepSeek V4 Flash (0731) | `accounts/fireworks/models/deepseek-v4-flash-0731` | 1,048,576 | $0.22 | $0.66 | **Default worker** |
-| DeepSeek V4 Pro (0813) | `accounts/fireworks/models/deepseek-v4-pro-0813` | 1,048,576 | $1.32 | $3.96 | Quality tier |
-| GLM 5.2 | `accounts/fireworks/models/glm-5p2` | 1,048,576 | $1.40 | $4.40 | GLM default |
-| GLM 5.3 Flash | verify slug in model library | 1,048,576 | $0.15 | $0.50 | **Cheapest tier** |
+| DeepSeek V4 Flash (0731) | `accounts/fireworks/models/deepseek-v4-flash-0731` | 1,048,576 | $0.22 | $0.66 | **Default executor (acting, Act mode)** |
+| DeepSeek V4 Pro (0813) | `accounts/fireworks/models/deepseek-v4-pro-0813` | 1,048,576 | $1.32 | $3.96 | **Planner (architect/thinker, Plan mode) + quality escalation** |
 
 Selection rules:
 
-- **Default worker:** DeepSeek V4 Flash — best price/performance for high-volume mechanical tasks.
-- **Quality escalation inside Fireworks:** DeepSeek V4 Pro when Flash output fails validation twice.
-- **Cheapest tier:** GLM 5.3 Flash for drafting, rewording, and normalization where output is easy to verify.
+- **Executor (Act mode):** DeepSeek V4 Flash — best price/performance for high-volume mechanical tasks.
+- **Planner (Plan mode):** DeepSeek V4 Pro — deeper reasoning for roadmap design and long-running plans.
+- **Quality escalation stays in DeepSeek:** V4 Pro when Flash output fails validation; retries remain in-session and never leave the DeepSeek family unless the user configures otherwise.
 - All IDs use the `accounts/fireworks/models/<slug>` prefix.
 
 ---
@@ -82,23 +81,32 @@ Selection rules:
 ## 3. Cost Levers (in order of impact)
 
 1. **Output discipline — the dominant lever.** Output tokens cost 2–3× input tokens on these models. Emit diffs and patches, never full-file rewrites. Set explicit `max_tokens` per task type.
-2. **Prompt caching (on by default).** Cached input tokens are billed at **50% of the input rate**. See section 4 for hit-rate discipline.
-3. **Batch inference.** Billed at **50% of standard serverless rates** on both input and output. Use for async bulk jobs (content drafting, metadata generation, multi-file transformations). Not for interactive work.
-4. **Worker/premium split.** DeepSeek/GLM handle high-volume, well-specified, mechanically verifiable tasks. Deep architectural reasoning and ambiguous design work go to the premium model (Gemini/Claude) — guessing in-session with a cheap model burns retries and produces rework.
+2. **Static Context Prefix + cache alignment (§4).** A stable, byte-identical prefix routes every request through the same cached prefix at 50% input price.
+3. **Diff-first context.** Use `git diff`/`git status` and targeted range reads instead of whole-file dumps.
+4. **Defer hard reasoning to the planner.** Deep architectural work happens in the Planner session (V4 Pro). Guessing in the executor session burns retries and produces rework.
 
 ---
 
-## 4. Prompt Caching Best Practices
+## 4. Static Context Prefix & Prompt Caching
 
 Caching is **replica-local and on by default** for every serverless model. Discount: cached input = 50% of input price.
 
+Every request MUST keep this fixed order:
+
+```
+[FROZEN_SYSTEM_PREFIX] → [STABLE_REPO_CONTEXT] → [VARIABLE_TASK]
+```
+
+- **FROZEN_SYSTEM_PREFIX:** byte-identical copy of `agents/static-context-prefix.md`. Loaded first in the system message. Never reorder, never inline-edit mid-session. Edit only between sessions.
+- **STABLE_REPO_CONTEXT:** architecture/skill material that only changes between sessions, not during.
+- **VARIABLE_TASK:** the micro-spec or user request — always last.
+
 To maximize hit rate:
 
-- **Freeze the system-prompt prefix.** The instructions/system message must be byte-identical and come first in every request. Never reorder, never inline-edit it mid-session. Edit `agents/<model>/README.md` only between sessions, not during.
-- **Keep the prefix stable.** Structure prompts as: `system prompt (frozen) → repo context (stable) → task (variable)`. Variable content must come last.
-- **Pin the replica.** Send a stable identifier in the `x-session-affinity` header (or the OpenAI `user` field) per session so repeated prefixes route to the same replica.
-- **Batch same-prefix requests** into one session rather than scattering them across new sessions.
-- **Read the truth from `usage`** in each response (`prompt_tokens`, `completion_tokens`) and from cache-related rate-limit headers on non-streamed responses. Streaming responses hide per-request perf headers unless `perf_metrics_in_response` is set.
+- Freeze the system-prompt prefix (see above).
+- Pin the replica: send a stable identifier in the `x-session-affinity` header (or the OpenAI `user` field) per session so repeated prefixes route to the same replica.
+- Batch same-prefix requests into one session rather than scattering across sessions.
+- Read truth from `usage` in each response (`prompt_tokens`, `completion_tokens`) and from cache-related headers on non-streamed responses.
 
 ---
 
@@ -109,34 +117,47 @@ To maximize hit rate:
 | Provider type | OpenAI Compatible |
 | Base URL | `https://api.fireworks.ai/inference/v1` |
 | API key | `FIREWORKS_API_KEY` (env var) |
-| Model ID | One of the IDs in section 2 |
+| Model (Plan mode) | `accounts/fireworks/models/deepseek-v4-pro-0813` |
+| Model (Act mode) | `accounts/fireworks/models/deepseek-v4-flash-0731` |
 
 Output-token guardrails by task type (set as `max_tokens`):
 
 - Diff/patch generation: 512–1,024
 - Single topic page draft: 2,048–4,096
-- JSON metadata: 1,024
+- JSON metadata / trace report: 1,024
 - Bulk batch jobs: per-item caps × batch size, reviewed before launch
 
 ---
 
 ## 6. Escalation Protocol & Status Tokens
 
-Workers must fail fast to preserve token budgets:
+Models fail fast to preserve token budgets:
 
 1. **Status Tokens:**
-   - `REJECT: AMBIGUOUS_SPEC` -> DeepSeek clarifies spec context and retries once.
-   - `ESCALATE: VALIDATION_FAILED` -> Escalates immediately upon 2 consecutive validation failures.
-2. After **2 failed validation passes** on the same task, stop worker retries and escalate to the premium model (Gemini/Claude) with a summary: `TASK`, `FILES_TOUCHED`, `FAILURE_REASON`, `TOKENS_SPENT`.
-3. If a task requires deep architectural reasoning, ambiguous-requirement resolution, or cross-system design -> delegate to the premium model directly. Do not attempt it in-session.
+   - `REJECT: AMBIGUOUS_SPEC` → Planner clarifies spec context and re-dispatches once.
+   - `ESCALATE: VALIDATION_FAILED` → escalated immediately upon 2 consecutive validation failures.
+2. After **2 failed validation passes** on the same task, the executor stops and hands back with: `TASK`, `FILES_TOUCHED`, `FAILURE_REASON`, `TOKENS_SPENT` (from the trace log).
+3. Deep architectural reasoning, ambiguous-requirement resolution, or cross-system design → Planner session (DeepSeek V4 Pro). Do not attempt it in the executor session.
 
 ---
 
 ## 7. Validation Gate
 
-All worker-model output must pass deterministic validation in exact sequence before acceptance:
+All model output must pass deterministic validation in exact sequence before acceptance:
 
 ```bash
 npm run test     # 1. Verify source file syntax, schema integrity, and links
 npm run build    # 2. Assemble static site artifacts into public/
 npm run check    # 3. Audit compiled public/ output and inline script extractions
+```
+
+Every run goes through the trace wrapper: `trace.sh npm run test`, etc.
+
+---
+
+## 8. Shared Shell & Temp-File Rules (applies to all agents)
+
+- **Shell:** POSIX Bash only (Git Bash on Windows / GitHub terminal). Never PowerShell (`pwsh`) or `cmd`.
+- **Command tracing:** run every command via `scripts/tools/trace.sh` so `.temp/trace.log` records status + duration. Investigate with `trace.sh report` / `trace.sh tail`.
+- **Temp spool:** all temporary/intermediate files (logs, script output, scratch data, plans, task reports) go to `.temp/` at the repo root — `mkdir -p .temp` if missing. Never `/tmp`. `.temp/` is git-ignored; the executor cleans scratch files after a task but keeps `trace.log` and the task report for inspection.
+- **Long commands & timeouts:** run long commands with output redirected to `.temp/` (e.g. `trace.sh -c 'npm run build > .temp/build.log 2>&1'`), then `tail` the log. Avoid interactive pagers and prompts (`git --no-pager`, `--non-interactive`, page with `grep`/`head`/`tail`).
