@@ -188,7 +188,7 @@ In git command terminal you can use run.sh to manage project operations. After y
 ```
 
 ## Code Viewer
-We use a unified viewer to display demo source code snippets. This tool has a download button and you can scroll large block of code. Code display in syntax color and font can be set larger or smaller. To link any code example file in the repository, developer create links like the following URL structure:
+We use a unified viewer to display demo source code snippets. This tool has a download button and you can scroll large block of code. Code display in syntax color and font can be set larger or smaller; the W toggle soft-wraps long lines. Font size and wrap preference are remembered in the browser (localStorage) and restored on the next visit. To link any code example file in the repository, developer create links like the following URL structure:
 
 `/roadmap/code-viewer.html?file=/path/to/your/file.ext`
 

@@ -18,7 +18,8 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 
 ## Sidebar JSON (`roadmap/<track>/data/<topic>.json`)
 - Hierarchical: each H2 object has a `children` array of H3 anchors. Flat lists break tree navigation.
-- Links are local anchors (`#section`). Titles short and factual.
+- The FIRST entry is the title link to the page's H1 — a leaf `{ "title": "<H1 text>", "link": "#<h1-id>" }` with no `children`, so users can always click back to the top of the lab (keep the tree at two levels: title + H2/H3).
+- Links are local anchors (`#section`). Titles short and factual (plain `&`, no entities).
 
 ## Curriculum standard
 - Step-by-step fundamentals → production; progressive executable examples; common pitfalls; trade-offs; mini-lab practice.
@@ -40,7 +41,7 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Single-file demos live in `roadmap/<track>/demo/NN_name.<ext>`, numbered and grouped by category.
 - Create `demo_examples.html` + `data/demo_examples.json` (flat TITLED entries) listing demos by category, each linked to `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<file>`.
 - Add a `demo_examples` row to the track `index.html` under a "Practice & Demo" phase.
-- New languages: extend `assets/js/code-viewer.js` `langMap` + add the Prism component in `roadmap/code-viewer.html`.
+- New languages: extend `assets/js/code-viewer.js` `langMap`; the code viewer and topic pages share the single bundle `assets/prism.js` (register the grammar there) — no per-page component files are loaded.
 
 ## Track blueprint & asset reuse
 

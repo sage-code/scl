@@ -146,6 +146,10 @@ All roadmap code is rendered by a **single Prism bundle** that supports every la
   - Only when the page contains a table: `content-tables.css`.
   - Track index pages (`roadmap/<track>/index.html`) use `roadmap-index.css`, not the content-* set.
 
+### Topic sidebar JSON — shape
+
+- `roadmap/<track>/data/<topic>.json` is hierarchical: each `h2` object has a `children` array of `h3` anchors; flat lists break `topic-loader.js`.
+- The FIRST entry is the title link to the page's `<h1>` — a leaf `{ "title": "<H1 text>", "link": "#<h1-id>" }` with no `children` — so the sidebar always lets the user click back to the top of the lab. Keep the tree at two levels (title + H2/H3), titles short and factual with plain `&` (no entities).
 
 ## Diagrams (SVG)
 
@@ -202,9 +206,10 @@ Every roadmap track MUST include a **practice & demo** section.
 - Exactly one `h1`; one `h2` per category; each category lists its demos in a table: `# | Description | Link`.
 - The Link column opens the unified code viewer:
   `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<filename>`
-- The code viewer highlights by file extension (`assets/js/code-viewer.js` `langMap`). When a new
-  language is introduced, add its extension mapping there and its Prism component to
-  `roadmap/code-viewer.html` (plus verify it is bundled in `assets/prism.js` for topic pages).
+- The code viewer highlights by file extension (`assets/js/code-viewer.js` `langMap`). It uses the
+  same single Prism bundle as topic pages (`/assets/prism.css` + `/assets/prism.js`), so when a new
+  language is introduced only two things are needed: extend the `langMap` and ensure the grammar is
+  registered in `assets/prism.js` (the download link in its header lists the included languages).
 
 ### 3. Sidebar JSON — `roadmap/<track>/data/demo_examples.json`
 - Flat, titled entries, one per category:
