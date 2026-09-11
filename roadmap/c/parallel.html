@@ -1,0 +1,309 @@
+    <!DOCTYPE html>
+    <html lang="en" data-bs-theme="dark">
+    <head>
+      <meta charset="utf-8">
+      <meta name="description" content="C parallel and multicore processing: concurrency vs parallelism, threads (pthreads and C11), atomics and mutexes, OpenMP, SIMD vectorization, and MPI for distributed memory.">
+      <meta name="author" content="Elucian Moise">
+      <meta name="keywords" content="sage, code, c, parallel, concurrency, multicore, pthread, thread, atomic, mutex, openmp, simd, mpi">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <title>C — Parallel &amp; Multicore Processing</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+      <link rel="stylesheet" href="/assets/prism.css">
+      <script src="/assets/prism.js"></script>
+      <link rel="stylesheet" href="/assets/css/sage-common.css">
+      <link rel="stylesheet" href="/assets/css/content-topic.css">
+      <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+      <link rel="stylesheet" href="/assets/css/content-code.css">
+      <link rel="stylesheet" href="/assets/css/content-tables.css">
+      <style>
+        .side-bar { order: 1; }
+        #main-content { order: 2; }
+        @media (max-width: 991px) {
+          .side-bar { display: none; }
+          .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+        }
+      </style>
+    </head>
+    <body>
+    <div class="container">
+      <header id="dynamic-header" class="container-fluid pb-2"></header>
+      <div class="container-fluid px-0">
+        <div class="row g-0">
+          <aside class="side-bar col-lg-3 col-12">
+            <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lab Topics</h5>
+              </div>
+              <hr>
+              <ul id="bookmark-list" class="list-unstyled"></ul>
+            </div>
+          </aside>
+          <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+    <h1 id="c-parallel">Parallel &amp; Multicore Processing</h1>
+
+    <div class="alert alert-secondary shadow-sm">
+      Every modern CPU chip has several cores, and C is the language that lets you use them directly. This lab covers CPU parallelism specifically: threads for a few big tasks, atomics and mutexes for safe shared state, OpenMP for simple loop speedups, SIMD for data-parallel math on a single core, and MPI for many machines. GPU programming — the thousand-core co-processor — is its own <a href="/roadmap/c/gpu.html">GPU lab</a> that follows.
+    </div>
+
+    <h2 id="approaches">Approaches to Parallelism</h2>
+    <p>Before writing any parallel code, name the kind of machine the work will run on. The approach you choose must match the hardware's memory model — this single decision shapes every API on this page.</p>
+
+    <h3 id="concurrency-vs-parallelism">Concurrency vs Parallelism</h3>
+    <p><strong>Concurrency</strong> is structure: a program that makes progress on several tasks at once, interleaving them so slow I/O does not block computation. <strong>Parallelism</strong> is execution: several tasks genuinely running at the same instant on different cores. A concurrent program can run on one core; a parallel program needs several. The two are not interchangeable — you can be concurrent without being parallel, and parallel without being concurrent.</p>
+
+    <h3 id="shared-vs-distributed">Shared vs Distributed Memory</h3>
+    <p>A <strong>shared-memory</strong> machine (one desktop, one virtual machine) gives every thread the same address space — fastest, but threads can step on each other. A <strong>distributed-memory</strong> cluster (many machines over a network) has no shared memory at all: processes must send messages. Threads, atomics, mutexes, OpenMP, and SIMD are shared-memory tools; MPI is the distributed-memory tool.</p>
+    <h2 id="threads">Threads — Multicore Execution</h2>
+    <p>A <strong>thread</strong> is an independent execution flow that shares the process's memory. Two threads on two cores can genuinely run different code at the same instant — which is exactly why shared state must be protected (next chapter). The two main APIs are POSIX pthreads (the de facto standard on Linux and macOS) and the C11 <code>&lt;threads.h&gt;</code> interface (portable by the standard).</p>
+    <div class="text-center">
+      <img src="/images/parallel_system.svg" alt="One job split across several cores" width="640" class="img-fluid protect rounded shadow border">
+      <p class="text-secondary small">Figure 1 — one CPU-bound job split across cores: each thread runs a slice of the work (shared control-flow/HPC primitive).</p>
+    </div>
+
+    <h3 id="pthreads">pthreads — The De Facto Standard</h3>
+    <p>POSIX threads are what production C actually uses on Linux and macOS. The pattern is always the same: create a thread with a function and an argument pointer, let it run, then <code>join</code> it to wait for completion.</p>
+    <pre><code class="language-c line-numbers">#include &lt;pthread.h&gt;   // POSIX threads
+#include &lt;stdio.h&gt;
+
+#define N 4
+
+// worker: runs on its own thread; arg is a pointer to the thread's number
+static void *worker(void *arg) {
+    int id = *(const int *)arg;              // reinterpret the payload
+    printf("thread %d running on a core\n", id);
+    return NULL;                             // no result to return here
+}
+
+int main(void) {
+    pthread_t tid[N];                        // one handle per thread
+    int ids[N] = {0, 1, 2, 3};
+    for (int i = 0; i &lt; N; i++) {
+        // create: thread handle, NULL attrs, function, argument pointer
+        pthread_create(&amp;tid[i], NULL, worker, &amp;ids[i]);
+    }
+    for (int i = 0; i &lt; N; i++) {
+        pthread_join(tid[i], NULL);          // wait for thread i to finish
+    }
+    printf("all %d threads joined\n", N);
+    return 0;
+}
+// build: gcc -std=c11 -Wall -Wextra -Werror -pthread app.c -o app
+</code></pre>
+    <p>The <code>-pthread</code> flag matters: it links the pthread library and defines the right feature macros. Without it, <code>pthread_create</code> becomes a link error on Linux at best, an undefined constant at worst.</p>
+
+    <h3 id="c11-threads">C11 Threads — A Portable Alternative</h3>
+    <p>The standard <code>&lt;threads.h&gt;</code> API mirrors pthreads with shorter names (<code>thrd_create</code>, <code>thrd_join</code>, <code>thrd_t</code>) and adds standard mutexes (<code>mtx_t</code>). It compiles anywhere the standard is implemented (glibc ≥ 2.28, musl, recent clang on BSDs) — but on MSVC and older glibc it is unavailable, which is why pthreads still dominates in the field.</p>
+    <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+#include &lt;threads.h&gt;   // C11: thrd_t, thrd_create, thrd_join
+
+static int greet(void *arg) {                // signature required by thrd_create
+    printf("hello from %s\n", (const char *)arg);
+    return 0;                                // thrd_success
+}
+
+int main(void) {
+    thrd_t t;
+    if (thrd_create(&amp;t, greet, "c11") != thrd_success) {
+        return 1;                            // thread could not be created
+    }
+    int result = 0;
+    thrd_join(t, &amp;result);                   // wait; capture the thread's exit code
+    return 0;
+}
+</code></pre>
+
+    <h2 id="shared-state">Shared State &amp; Synchronization</h2>
+    <p>The moment two threads touch the same variable, the memory model of C applies rules with teeth. Read this chapter before parallelizing anything: the tools here are what keep shared state correct, and they are the ones most often misused.</p>
+
+    <h3 id="data-races">Data Races</h3>
+    <p>Two threads reading and writing the same memory at the same instant is a <strong>data race</strong> — undefined behavior in C, even for a single <code>int</code>. Compilers and CPUs may reorder and cache aggressively, and "just make it volatile" does <em>not</em> help (it fights only the compiler, not the hardware). The classic symptom: an increment that "loses" updates.</p>
+    <pre><code class="language-c line-numbers">#include &lt;pthread.h&gt;
+#include &lt;stdio.h&gt;
+
+#define LOOP 100000
+
+static int racy_count = 0;   // NOT atomic: racing ++ is UB
+
+static void *bump(void *arg) {
+    for (int i = 0; i &lt; LOOP; i++) {
+        racy_count++;            // BUG: read-modify-write interleaves badly
+    }
+    return NULL;
+}
+
+int main(void) {
+    pthread_t t1, t2;
+    pthread_create(&amp;t1, NULL, bump, NULL);
+    pthread_create(&amp;t2, NULL, bump, NULL);
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    printf("racing counter = %d (expected %d)\n", racy_count, 2 * LOOP);
+    return 0;
+}
+</code></pre>
+    <p>Run it: the result is usually less than <code>200000</code>, sometimes far less. Under ThreadSanitizer (<code>-fsanitize=thread</code>) the race is reported line by line with both participants. There is no compiler fix for a race — only restructuring.</p>
+
+    <h3 id="atomics">Atomics</h3>
+    <p>Atomic types from <code>&lt;stdatomic.h&gt;</code> perform each operation as one indivisible step the hardware guarantees. For counters and flags, atomics are faster than locks and lock-free by design.</p>
+    <pre><code class="language-c line-numbers">#include &lt;pthread.h&gt;
+#include &lt;stdatomic.h&gt;   // atomic_int, atomic_fetch_add
+#include &lt;stdio.h&gt;
+
+#define LOOP 100000
+
+static atomic_int safe_count = 0;   // atomic: every op is indivisible
+
+static void *bump(void *arg) {
+    for (int i = 0; i &lt; LOOP; i++) {
+        atomic_fetch_add(&amp;safe_count, 1);   // one atomic read-modify-write
+    }
+    return NULL;
+}
+
+int main(void) {
+    pthread_t t1, t2;
+    pthread_create(&amp;t1, NULL, bump, NULL);
+    pthread_create(&amp;t2, NULL, bump, NULL);
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    printf("atomic counter = %d (exactly %d)\n",
+           atomic_load(&amp;safe_count), 2 * LOOP);
+    return 0;
+}
+</code></pre>
+    <p>The default memory order is <code>memory_order_seq_cst</code> — the strongest, easiest-to-reason guarantee; relax it only after you understand the weaker orders. If the shared region is bigger than one integer, atomics are not enough — that is what mutexes are for.</p>
+
+    <h3 id="mutexes">Mutexes &amp; Locks</h3>
+    <p>A <strong>mutex</strong> (mutual exclusion) lets only one thread inside a critical section at a time, turning a sequence of statements into an indivisible region regardless of size. Atomics scale better for tiny counters; mutexes are correct for anything more.</p>
+    <pre><code class="language-c line-numbers">#include &lt;pthread.h&gt;
+#include &lt;stdio.h&gt;
+
+static pthread_mutex_t gate = PTHREAD_MUTEX_INITIALIZER;  // static init
+static int account = 1000;          // the safeguarded shared balance
+
+static void *withdraw(void *arg) {
+    int amount = *(const int *)arg;
+    for (int i = 0; i &lt; 10; i++) {
+        pthread_mutex_lock(&amp;gate);        // enter the critical section
+        if (account &gt;= amount) {
+            account -= amount;            // check-then-act, now atomic
+        }
+        pthread_mutex_unlock(&amp;gate);      // leave — another thread may enter
+    }
+    return NULL;
+}
+
+int main(void) {
+    int five = 5;
+    pthread_t a, b;
+    pthread_create(&amp;a, NULL, withdraw, &amp;five);
+    pthread_create(&amp;b, NULL, withdraw, &amp;five);
+    pthread_join(a, NULL);
+    pthread_join(b, NULL);
+    pthread_mutex_destroy(&amp;gate);         // release the OS resource
+    printf("balance = %d\n", account);    // never negative: check-then-act held
+    return 0;
+}
+</code></pre>
+    <p>Every <code>lock</code> must have a matching <code>unlock</code> on every path — an early <code>return</code> inside a locked section is a classic deadlock. When a thread must wait for an event or condition, combine a mutex with a <em>condition variable</em> (<code>pthread_cond_t</code>); when only one thread should ever run a block, use a <em>once flag</em> (<code>pthread_once</code>).</p>
+
+    <h2 id="cpu-data-parallelism">Data Parallelism on the CPU</h2>
+    <p>Not all parallelism needs explicit threads. Pure data transform loops — "apply this formula to every element" — can be parallelized without a thread API in sight: OpenMP shares the loop across cores, and the CPU's SIMD units process several values per instruction on a single core.</p>
+
+    <h3 id="openmp">OpenMP — Pragmas for Multicore</h3>
+    <p><strong>OpenMP</strong> turns loops into parallel code with a single pragma; the compiler generates the thread management for you. It is the fastest route to a multicore speedup for CPU-bound loops over independent data, and it does not change your program's structure. Compile with <code>-fopenmp</code> (GCC and Clang).</p>
+    <pre><code class="language-c line-numbers">#include &lt;omp.h&gt;       // omp_get_num_threads
+#include &lt;stdio.h&gt;
+
+int main(void) {
+    long double sum = 0.0L;
+    // each iteration runs on whatever core; reduction(+:sum) merges
+    // the per-thread partial sums into one final value, race-free
+    #pragma omp parallel for reduction(+:sum)
+    for (long i = 1; i &lt;= 1000000; i++) {
+        sum += 1.0L / (long double)i;       // harmonic series, fine to split
+    }
+    printf("harmonic sum = %.6Lf using %d threads\n",
+           sum, omp_get_num_threads());
+    return 0;
+}
+// build: gcc -std=c11 -Wall -Wextra -fopenmp app.c -o app
+</code></pre>
+    <p>The <code>reduction</code> clause is what keeps this correct: each thread keeps a private partial <code>sum</code>, and the runtime combines them at the end — no shared-variable race exists at all. That one clause removes the entire synchronization chapter from this code path.</p>
+
+    <h3 id="simd">SIMD &amp; Auto-Vectorization</h3>
+    <p>Inside a single core, modern CPUs process several values per instruction — <strong>SIMD</strong> (single instruction, multiple data). The free first step: compile with <code>-O2 -march=native</code> and promise no aliasing with <code>restrict</code> (seen on the <a href="/roadmap/c/advanced.html">advanced page</a>), and GCC/Clang fuse simple loops into SIMD instructions. When the compiler cannot, write <strong>intrinsics</strong> directly.</p>
+    <pre><code class="language-c line-numbers">#include &lt;immintrin.h&gt;  // AVX2 intrinsics
+#include &lt;stdio.h&gt;
+
+int main(void) {
+    // eight floats per AVX lane: one instruction adds 8 values at once
+    __m256 a = _mm256_setr_ps(1, 2, 3, 4, 5, 6, 7, 8);
+    __m256 b = _mm256_setr_ps(8, 7, 6, 5, 4, 3, 2, 1);
+    __m256 c = _mm256_add_ps(a, b);       // packed add: 8 results in one op
+    float out[8];
+    _mm256_storeu_ps(out, c);             // write the 8 lanes to memory
+    printf("c[0] = %g, c[7] = %g\n", out[0], out[7]);   // 9 and 9
+    return 0;
+}
+// build: gcc -std=c11 -march=native -O2 app.c -o app
+</code></pre>
+    <p>Intrinsics grow with the ISA (<code>AVX</code>, <code>AVX2</code>, <code>AVX-512</code> on x86; NEON/SVE on ARM) — each has its own header, so intrinsic code is less portable than auto-vectorized code. Start with the compiler route; reach for intrinsics only on measured hot paths.</p>
+
+    <h2 id="distributed">Distributed Parallelism</h2>
+    <p>When the problem outgrows one machine, threads no longer work — there is no shared memory across a network. The tool changes from threads to messages.</p>
+
+    <h3 id="mpi">MPI — Message Passing</h3>
+    <p><strong>MPI</strong> (Message Passing Interface) treats each machine as a separate process with its own memory, exchanging data with explicit <code>send</code>/<code>receive</code> calls. It is the standard for scientific computing on clusters, and C is one of its native languages.</p>
+    <pre><code class="language-bash line-numbers"># typical MPI build &amp; run (OpenMPI or MPICH installed)
+mpicc -std=c11 -Wall -Wextra app.c -o app
+mpiexec -np 4 ./app        # launch 4 cooperating processes
+</code></pre>
+    <p>MPI code lives between <code>MPI_Init</code> and <code>MPI_Finalize</code>, introspects with <code>MPI_Comm_rank</code>/<code>MPI_Comm_size</code>, and moves data with collectives such as <code>MPI_Reduce</code> and <code>MPI_Bcast</code>. The mental model is entirely different from threads: you write a <em>single program, multiple data</em> (SPMD) kernel that every rank runs. Need depth? The dedicated <a href="/roadmap/hpc/">HPC roadmap</a> covers the full stack.</p>
+
+    <h2 id="choose">Choosing an Approach</h2>
+    <p>The approaches here are tools, not religions. Match the tool to the bottleneck:</p>
+    <table class="table table-bordered table-striped table-dark">
+      <thead><tr><th>Scenario</th><th>Approach</th><th>Tool</th><th>Build flag</th></tr></thead>
+      <tbody>
+        <tr><td>2–64 independent big tasks, one machine</td><td>Threads</td><td>pthreads / <code>&lt;threads.h&gt;</code></td><td><code>-pthread</code></td></tr>
+        <tr><td>Shared counters or flags</td><td>Atomics</td><td><code>&lt;stdatomic.h&gt;</code></td><td>header-only</td></tr>
+        <tr><td>Larger shared critical sections</td><td>Mutexes</td><td><code>pthread_mutex_t</code></td><td><code>-pthread</code></td></tr>
+        <tr><td>CPU-heavy loops over independent data</td><td>OpenMP</td><td><code>#pragma omp parallel for</code></td><td><code>-fopenmp</code></td></tr>
+        <tr><td>Dense packed math on one core</td><td>SIMD</td><td>auto-vectorize / intrinsics</td><td><code>-O2 -march=native</code></td></tr>
+        <tr><td>Many machines over a network</td><td>MPI</td><td>OpenMPI / MPICH</td><td><code>mpicc</code></td></tr>
+      </tbody>
+    </table>
+    <div class="alert alert-warning shadow-sm">
+      <strong>Homework to apply this lab:</strong> take the word-frequency counter from the <a href="/roadmap/c/samples.html">study projects</a> and speed it up three ways — OpenMP over file chunks, an atomic counter for the totals, then measure with <code>time</code> or <code>clock_gettime</code> before and after. Parallelism you cannot measure is marketing.
+    </div>
+    <p>Next lab: <a href="/roadmap/c/gpu.html">GPU computing</a> — moving the hot loops to a thousand-core co-processor. After that, <a href="/roadmap/c/abi-asm.html">ABI &amp; assembly</a> shows what the machine really does when your functions call each other.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'c',
+    topicId: 'parallel',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
+

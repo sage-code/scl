@@ -22,6 +22,16 @@ All 42 roadmap indexes implement the roadmap index standard:
 - 5 track-specific SVG diagrams (`roadmap/zig/img/`); code-viewer now highlights `.zig` (langMap + Prism component).
 - Validated: `run test` → `run build` → `run check`; status now **converted** (36/42).
 
+## ✅ c — Roadmap rebuilt & rewritten (2026-09-11)
+`c` was the oldest legacy track (duplicated sidebars, wrong heading levels, broken images/links, unsafe legacy demos). Rebuilt as a modern 19-row track modeled on `csharp` + `zig`:
+- 16 lessons: `overview`, `setup`, `syntax`, `types`, `composite`, `pointers`, `functions`, `control`, `input`, `directives`, `memory`, `errors`, `strings`, `collections`, `algorithms`, `advanced`.
+- Every lesson has a hierarchical sidebar JSON (`roadmap/c/data/<topic>.json`); `casting` folded into `types`, `linux_errors` folded into `errors`, `bbsort` replaced by `algorithms`.
+- Practice & Demo: 20 safe single-file demos (`demo/01..20`) + `demo_examples.html`; Study Projects (`samples.html`); `references.html` closes the track.
+- Critical-eye introduction: `overview.html` compares C honestly with **Zig** and **Oberon** (verified free resources on `references.html`).
+- 8 track-specific SVGs (`roadmap/c/img/`); shared control-flow SVGs reused on `control.html`; code-viewer langMap now maps `.c`/`.h` to the bundled Prism `c` grammar.
+- Removed legacy artifacts: `bbsort.html`, `linux_errors.html`, `casting.html`, `prompt.txt`, `c-exam.png`, `crepl.jpg`, 56 unsafe/un-named legacy `demo/*.c` files.
+- Validated: `run test` → `run build` → `run check` (0 C warnings); status now **converted**.
+
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py)
 - [ ] `assembly/` — 10 topic pages are "To be replaced!" ~3.4 KB placeholder shells.
 - [ ] `swift/` — 13 topic pages are "Work in progress!" ~3.6 KB placeholder shells.

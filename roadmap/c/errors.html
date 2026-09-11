@@ -1,131 +1,177 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
-  <meta charset="utf-8">
-  <meta name="description" content="Introduction to error handling in C programming language.">
-  <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="C, error, exception, handling">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>C Tutorial</title>  
-
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
-  <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
-<body>
-
-<div class="container">
-
-  <header id="dynamic-header" class="container-fluid pb-2"></header>
-
-  <div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
-
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
+    <!DOCTYPE html>
+    <html lang="en" data-bs-theme="dark">
+    <head>
+      <meta charset="utf-8">
+      <meta name="description" content="C error handling: return codes, exit statuses, errno and strerror, assertions for invariants, and setjmp/longjmp for non-local jumps.">
+      <meta name="author" content="Elucian Moise">
+      <meta name="keywords" content="sage, code, c, errors, errno, perror, strerror, assert, setjmp, longjmp, exit codes">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <title>C — Error Handling &amp; errno</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+      <link rel="stylesheet" href="/assets/prism.css">
+      <script src="/assets/prism.js"></script>
+      <link rel="stylesheet" href="/assets/css/sage-common.css">
+      <link rel="stylesheet" href="/assets/css/content-topic.css">
+      <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+      <link rel="stylesheet" href="/assets/css/content-code.css">
+      <link rel="stylesheet" href="/assets/css/content-tables.css">
+      <style>
+        .side-bar { order: 1; }
+        #main-content { order: 2; }
+        @media (max-width: 991px) {
+          .side-bar { display: none; }
+          .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+        }
+      </style>
+    </head>
+    <body>
+    <div class="container">
+      <header id="dynamic-header" class="container-fluid pb-2"></header>
+      <div class="container-fluid px-0">
+        <div class="row g-0">
+          <aside class="side-bar col-lg-3 col-12">
+            <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lab Topics</h5>
+              </div>
+              <hr>
+              <ul id="bookmark-list" class="list-unstyled"></ul>
+            </div>
+          </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
+    <h1 id="c-errors">Error Handling &amp; errno</h1>
 
-<h1 id="c-error-handling">C Error handling</h1>
+    <div class="alert alert-secondary shadow-sm">
+      C has no exceptions. Failure is a <em>value</em> you must check: functions return status codes, and many library calls also set the global <code>errno</code> with a precise reason. This page teaches the return-code contract, the <code>errno</code> vocabulary, assertions for invariants, and the escape hatch <code>setjmp</code>/<code>longjmp</code>.
+    </div>
 
-<div class="alert alert-secondary shadow-sm">
-In C there is very little error management support. C does not have try/except statement like Java or Python. To handle errors in C you must analyze the function result and the global error number that can be set by a function during execution.
-</div>
+    <h2 id="return-codes">The Return-Code Contract</h2>
+    <p>Well-designed C functions signal success or failure through their return value, and document both. The convention is zero/positive for success, a distinct code for each failure. Programs do the same with <code>exit</code> status — a shell script can then react to your program's outcome.</p>
+    <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;   // strlen
 
-<h2 id="design-flaw">Design flaw?</h2>
-
-<p>When C was invented the main focus was to get as much efficiency as possible without syntax overhead. Therefore in C language you will not find safety mechanics present in higher level languages of today.&nbsp;</p>
-<div class="alert alert-warning">Error handling require high level abstractions not available in C. However a good programmer will be concern about making safe applications. In this article we explain the little support C offers for error handling.</div>
-
-<h2 id="error-code">Error code</h2>
-
-<p>Most functions indicate that they detected an error by returning a special value, typically&nbsp;NULL&nbsp;for functions that return&nbsp;pointers, and &minus;1 for functions that return integers. In addition to this you can set "errno" global variable. Any non zero value for "errno" after a function call will indicate an error.&nbsp;</p>
-<p>Various system errors are defined in &lt;error.h&gt; header file. You can use these codes to compare&nbsp;<em>errno</em>&nbsp;and do some actions depending on the error code. It is a good practice, to set&nbsp;<em>errno</em>&nbsp;to zero (0) before computation or action. After you can check&nbsp;<em>errno</em>&nbsp;to verify if operation was successful.</p>
-
-
-<h2 id="error-message">Error message</h2>
-
-<p>Only error code will not be good enough for user to understand the error. Therefore a good practice is to send an error message to consol or to standard error stream. This can be redirected by the user into a log file using a script or command line arguments.</p>
-
-<p>Standard C provide two functions that are useful to produce the error message:</p>
-<ul>
-<li>
-<p><b>perror()</b>&nbsp;function: displays the string you pass to it, followed by a colon, a space, and then the textual representation of the current&nbsp;<em>errno</em>&nbsp;value.</p>
-</li>
-<li>
-<p><b>strerror()</b>&nbsp;function: returns a pointer to the textual representation of the current&nbsp;<em>errno</em>&nbsp;value.</p>
-</li>
-</ul>
-
-<h4>Example:</h4>
-<pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
-#include &lt;errno.h&gt;
-#include &lt;string.h&gt;
-extern int errno; //global variable
-int main () {
-    FILE * f;
-    //try to open file "test"
-    f = fopen ("test", "r");
-    //check if operation was successful
-    if (f == NULL) {
-        fprintf(stderr, "Error: %d, %s\n", errno, strerror(errno));
-    } else {
-        fclose (f);
+// contract: returns 0 on success, -1 if text is empty or too long
+int log_line(const char *text) {
+    if (text == NULL || text[0] == '\0') {
+        return -1;                     // nothing to log — fail fast
     }
+    if (strlen(text) &gt; 1024) {
+        return -1;                     // contract violation: too long
+    }
+    fprintf(stdout, "[log] %s\n", text);
+    return 0;                          // success
+}
+
+int main(void) {
+    if (log_line("") != 0) {           // every call must be checked
+        fprintf(stderr, "logging failed\n");
+        return 2;                      // program exit status: failure
+    }
+    return 0;                          // exit status 0: success
+}
+</code></pre>
+    <p>Common <code>main</code> exit conventions: <code>0</code> success, <code>1</code> generic failure, <code>2</code> usage error (what <code>grep</code> and friends use). Shell scripts test these with <code>$?</code>.</p>
+
+    <h2 id="errno">errno — The System's Reason</h2>
+    <p>Many standard library calls set <code>errno</code> (declared in <code>&lt;errno.h&gt;</code>) to a small positive number describing <em>why</em> an operation failed. It is a global, so read it immediately after the failing call and before any further library work. Convert it to text with <code>strerror</code> or print it directly with <code>perror</code>, which prefixes your message.</p>
+    <table class="table table-bordered table-striped table-dark">
+      <thead><tr><th>errno</th><th>Meaning</th><th>Typical cause</th></tr></thead>
+      <tbody>
+        <tr><td><code>ENOENT</code> (2)</td><td>No such file or directory</td><td><code>fopen</code> of a missing path</td></tr>
+        <tr><td><code>EACCES</code> (13)</td><td>Permission denied</td><td>Opening a read-only file for write</td></tr>
+        <tr><td><code>EINVAL</code> (22)</td><td>Invalid argument</td><td>Bad parameter to a syscall</td></tr>
+        <tr><td><code>ENOMEM</code> (12)</td><td>Out of memory</td><td><code>malloc</code> failure</td></tr>
+        <tr><td><code>ERANGE</code> (34)</td><td>Result out of range</td><td><code>strtol</code> overflow</td></tr>
+        <tr><td><code>EAGAIN</code> (11)</td><td>Try again</td><td>Non-blocking read with no data</td></tr>
+      </tbody>
+    </table>
+    <pre><code class="language-c line-numbers">#include &lt;errno.h&gt;    // errno, ENOENT, ERANGE...
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;   // strerror
+
+int main(void) {
+    errno = 0;                            // clear before the risky call
+    FILE *f = fopen("does_not_exist.txt", "r");
+    if (f == NULL) {
+        printf("code: %d\n", errno);                 // 2 (ENOENT)
+        printf("text: %s\n", strerror(errno));       // "No such file..."
+        perror("open");                              // "open: No such file..."
+        return 1;
+    }
+    fclose(f);
     return 0;
-}</code></pre>
-<p><b>Note:&nbsp;</b>It is better to have a preventive design in your application than a reactive design. What that means is you can check parameter values before you use these values as parameters to call other functions or computations to prevent possible errors.</p>
-<p>A reactive design uses whatever values and analyze later if the computation was successful. After the fact you may have less information available about the reason the computation was failed. However it is a good practice to check&nbsp;<em>errno&nbsp;</em>every time even if you use preconditions to prevent the errors in the first place.</p>
+}
+</code></pre>
+    <p>Note the pattern: reset <code>errno</code> to 0 before calling, because it is never cleared by success — a stale value from an earlier call is the classic false-positive.</p>
+    <h2 id="assertions">Assertions — Catching the Impossible</h2>
+    <p><code>assert(cond)</code> from <code>&lt;assert.h&gt;</code> documents an invariant and aborts the program with file/line details when development finds it broken. It is compiled <em>out</em> entirely if <code>NDEBUG</code> is defined — so use it for programmer assumptions (<em>"this must never happen"</em>), never for runtime error handling you still need in production.</p>
+    <pre><code class="language-c line-numbers">#include &lt;assert.h&gt;    // assert
+#include &lt;stdio.h&gt;
 
-<hr>
+int divide(int a, int b) {
+    assert(b != 0);              // contract: caller must not pass zero
+    return a / b;                // without the assert, this is UB on b==0
+}
 
+int main(void) {
+    printf("%d\n", divide(10, 2));   // 5
+    // divide(10, 0);                // aborts with "assert failed" in debug
+    return 0;
+}
+</code></pre>
 
+    <h2 id="setjmp">setjmp / longjmp — Non-Local Jumps</h2>
+    <p><code>setjmp</code> books a place in the call stack; a later <code>longjmp</code> unwinds the stack back to it — a controlled, non-local jump that skips all intermediate <code>return</code>s. This is C's closest relative to exceptions, used mainly in embedded code and some libraries for emergency recovery. It is powerful and dangerous: local variables of skipped frames whose values changed may be indeterminate, and resources allocated in between leak unless you track them.</p>
+    <pre><code class="language-c line-numbers">#include &lt;setjmp.h&gt;   // jmp_buf, setjmp, longjmp
+#include &lt;stdio.h&gt;
 
-</main>
+jmp_buf env;                       // the saved execution point
+
+// pretend a deep operation that must abort the whole transaction
+void risky_step(int step) {
+    if (step &gt; 3) {
+        longjmp(env, 42);          // jump back to setjmp, return value 42
+    }
+}
+
+int main(void) {
+    int status = setjmp(env);      // 0 first time; longjmp's value if called back
+    if (status != 0) {
+        printf("aborted at step with code %d\n", status);   // recovery here
+        return 1;
+    }
+    for (int s = 1; s &lt; 10; s++) {
+        risky_step(s);             // when s exceeds 3, control returns to setjmp
+    }
+    printf("completed\n");
+    return 0;
+}
+</code></pre>
+    <p>Use <code>setjmp</code>/<code>longjmp</code> sparingly — prefer clean return-code propagation, and always free any resources acquired between <code>setjmp</code> and the jump.</p>
+
+    <h2 id="discipline">Error-Handling Discipline</h2>
+    <p>Four rules turn C's primitive error machinery into a reliable system:</p>
+    <ol>
+      <li><strong>Check every fallible call.</strong> If a function can fail, its return value exists for a reason — you read it or the failure is silent.</li>
+      <li><strong>Propagate with context.</strong> Add the operation name and any relevant values to the message: <code>fprintf(stderr, "read %s: %s\n", path, strerror(errno))</code>.</li>
+      <li><strong>Clean up on every path.</strong> An error return must free what was allocated and close what was opened — same as the success path.</li>
+      <li><strong>Let it fail loudly.</strong> In debug builds, assert invariants and run the sanitizers; an early crash with a stack trace beats a late silent corruption.</li>
+    </ol>
+    <p>Next: <a href="/roadmap/c/strings.html">strings</a> — the char-array frontier where C's most famous bugs live.</p>
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'c',
@@ -139,6 +185,6 @@ int main () {
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>
+

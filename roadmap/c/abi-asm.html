@@ -1,0 +1,182 @@
+    <!DOCTYPE html>
+    <html lang="en" data-bs-theme="dark">
+    <head>
+      <meta charset="utf-8">
+      <meta name="description" content="C ABI programming with assembly: calling conventions, System V and Windows x64, inline asm, calling between C and assembly, and which assemblers can be used.">
+      <meta name="author" content="Elucian Moise">
+      <meta name="keywords" content="sage, code, c, abi, assembly, asm, calling convention, system v, inline asm, gas, nasm, masm, registers">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <title>C — ABI Programming with Assembly</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+      <link rel="stylesheet" href="/assets/prism.css">
+      <script src="/assets/prism.js"></script>
+      <link rel="stylesheet" href="/assets/css/sage-common.css">
+      <link rel="stylesheet" href="/assets/css/content-topic.css">
+      <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+      <link rel="stylesheet" href="/assets/css/content-code.css">
+      <link rel="stylesheet" href="/assets/css/content-tables.css">
+      <style>
+        .side-bar { order: 1; }
+        #main-content { order: 2; }
+        @media (max-width: 991px) {
+          .side-bar { display: none; }
+          .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+        }
+      </style>
+    </head>
+    <body>
+    <div class="container">
+      <header id="dynamic-header" class="container-fluid pb-2"></header>
+      <div class="container-fluid px-0">
+        <div class="row g-0">
+          <aside class="side-bar col-lg-3 col-12">
+            <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lab Topics</h5>
+              </div>
+              <hr>
+              <ul id="bookmark-list" class="list-unstyled"></ul>
+            </div>
+          </aside>
+          <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+    <h1 id="c-abi-asm">ABI Programming with Assembly</h1>
+
+    <div class="alert alert-secondary shadow-sm">
+      When two binaries call each other, they must agree on a contract: where arguments go, who cleans the stack, what the CPU registers mean at the boundary. That contract is the <strong>ABI</strong> — the Application Binary Interface — and assembly is where you see it naked. This lab teaches the ABI, the calling conventions of the three big platforms, inline <code>__asm__</code>, calling between C and assembly, and which assemblers and syntaxes exist.
+    </div>
+
+    <h2 id="what-is-abi">What an ABI Is</h2>
+    <p>An <strong>API</strong> is a source-level contract (function names and signatures). An <strong>ABI</strong> is the binary-level contract: byte-for-byte, register-for-register. It fixes the sizes and layout of types, the endianness of multi-byte integers (seen on the <a href="/roadmap/c/advanced.html">advanced page</a>), struct padding rules, and — most visibly — the <strong>calling convention</strong>: which registers carry arguments, which are call-clobbered, how the stack is aligned, and how symbols are named.</p>
+    <p>C has a unique property in this story: it does <strong>no name mangling</strong>. The symbol exported for <code>int add(int, int)</code> is literally <code>add</code>. C++ adds type information to its symbol names (mangling); C's plain names are why the C ABI became the universal glue — every language, from Python to Rust, exposes its libraries through a C-compatible ABI.</p>
+
+    <h2 id="calling-conventions">Calling Conventions</h2>
+    <p>The convention your compiler follows depends on the operating system and architecture. The three you will meet are listed below — note that the <em>same C source</em> compiles against all of them; the convention is decided by the platform, not by you (unless you write assembly).</p>
+    <table class="table table-bordered table-striped table-dark">
+      <thead><tr><th>Convention</th><th>Platform</th><th>Integer/pointer args</th><th>Stack duties</th></tr></thead>
+      <tbody>
+        <tr><td><strong>System V AMD64</strong></td><td>Linux, macOS, BSDs on x86-64</td><td>RDI, RSI, RDX, RCX, R8, R9 (arg 1–6); rest on stack</td><td>Caller aligns stack to 16 bytes; callee makes <code>ret</code>; 128-byte <em>red zone</em> below RSP</td></tr>
+        <tr><td><strong>Microsoft x64</strong></td><td>Windows on x86-64</td><td>RCX, RDX, R8, R9 (arg 1–4); rest on stack</td><td>Caller reserves 32 bytes of <em>shadow space</em>; args + locals share the frame</td></tr>
+        <tr><td><strong>AAPCS64</strong></td><td>Arm 64 (Linux, mobile)</td><td>X0–X7 (arg 1–8); rest on stack</td><td>Caller aligns stack to 16 bytes; X8 carries the struct-return address</td></tr>
+        <tr><td><strong>cdecl</strong></td><td>32-bit x86 (legacy)</td><td>all args on the stack, pushed right-to-left</td><td>Caller cleans the stack after the call</td></tr>
+      </tbody>
+    </table>
+    <p>Floating-point arguments travel separately in vector registers (XMM0–XMM7 in System V, XMM0–XMM3 on Windows), and a returned value lands in RAX (or the XMM0 return register for floats). Two subtle rules matter in practice: <em>which registers the callee must preserve</em>, and <em>stack alignment at the call boundary</em> — violating alignment crashes vectorized library code that assumes it.</p>
+
+    <h2 id="registers">Register Roles on x86-64</h2>
+    <p>The System V convention partitions the general registers into <strong>caller-saved</strong> (a function may overwrite them freely) and <strong>callee-saved</strong> (a function must preserve them for its caller — practically, save/restore them in its own stack frame). RAX carries the return value; RIP is the instruction pointer; RSP the stack pointer. Learning these six argument slots turns any disassembly of a C function into a readable story.</p>
+    <div class="text-center">
+      <img src="/roadmap/c/img/c-abi-registers.svg" alt="System V AMD64 register argument layout and return value" width="620" class="img-fluid protect rounded shadow border">
+      <p class="text-secondary small">Figure 1 — System V AMD64: args 1–6 arrive in RDI/RSI/RDX/RCX/R8/R9, extras go on the stack, the result returns in RAX.</p>
+    </div>
+    <table class="table table-bordered table-striped table-dark">
+      <thead><tr><th>Function</th><th>Registers</th></tr></thead>
+      <tbody>
+        <tr><td>Caller-saved (scratch)</td><td>RAX, RCX, RDX, RSI, RDI, R8–R11</td></tr>
+        <tr><td>Callee-saved (preserve)</td><td>RBX, RBP, RSP, R12–R15</td></tr>
+        <tr><td>Argument registers</td><td>RDI, RSI, RDX, RCX, R8, R9</td></tr>
+        <tr><td>Return value</td><td>RAX (and RDX for 128-bit results)</td></tr>
+        <tr><td>Special</td><td>RSP (stack), RBP (frame base), RIP (next instruction)</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="inline-asm">Inline Assembly in C</h2>
+    <p>GCC and Clang let you drop raw instructions into a C function — the <strong>extended asm</strong> form. The syntax is a GNU extension (not ISO C), so it is inherently non-portable; keep it tiny and explain why. The template lists the instructions; the three sections after the colon bind C operands to registers: outputs, inputs, and <em>clobbers</em> (registers or memory the instructions destroy, so the compiler can save them).</p>
+    <pre><code class="language-c line-numbers">#include &lt;stdint.h&gt;
+#include &lt;stdio.h&gt;
+
+// read the CPU timestamp counter — the highest-resolution clock on x86-64
+static inline uint64_t rdtsc(void) {
+    uint32_t lo, hi;
+    // "rdtsc" loads EDX:EAX with the counter; bind them to the outputs
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi &lt;&lt; 32) | lo;   // pack the two 32-bit halves
+}
+
+int main(void) {
+    uint64_t t0 = rdtsc();
+    uint64_t t1 = rdtsc();
+    printf("elapsed ticks: %llu\n", (unsigned long long)(t1 - t0));
+    return 0;
+}
+</code></pre>
+    <p>Read the constraints left to right: <code>"=a"(lo)</code> means "put the output in register RAX and store it into <code>lo</code>"; <code>"=d"(hi)</code> does the same for EDX; <code>__volatile__</code> tells the compiler not to move, deduplicate, or delete the block.</p>
+
+    <h3 id="att-vs-intel">AT&amp;T vs Intel Syntax</h3>
+    <p>GNU/GAS assembly writes operands in <em>AT&amp;T</em> order: source first, destination second (<code>mov %rax, %rbx</code> copies <em>into</em> RBX), registers with a <code>%</code> prefix, immediates with a <code>$</code>. Intel syntax — NASM, MASM, and <code>gcc -masm=intel</code> — writes destination first (<code>mov rbx, rax</code>) with no prefixes. Both describe the same machine code. Most inline asm you meet in C libraries is AT&amp;T, because GCC's default assembler is GAS.</p>
+    <h2 id="c-to-asm">Calling Between C and Assembly</h2>
+    <p>Because C names are unmangled, linking a hand-written assembly function into a C program is just a label, an <code>extern</code> declaration, and the same <code>gcc</code> link step you already use. The assembly function must honor the ABI of its platform — below, System V: first argument arrives in RDI, the result must land in EAX.</p>
+    <pre><code># add.s — int add(int a, int b)  (System V AMD64, GAS/AT&amp;T syntax)
+        .globl add          # export "add" so the linker can see it
+add:                        # a = edi, b = esi ; result goes into eax
+        leal (%rdi, %rsi), %eax   # eax = a + b in one instruction
+        ret                       # return to the C caller
+</code></pre>
+    <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+
+extern int add(int a, int b);   // declared, defined in add.s
+
+int main(void) {
+    printf("2 + 3 = %d\n", add(2, 3));   // 5 — the asm function does the work
+    return 0;
+}
+</code></pre>
+    <p>Build both in one command and the linker resolves <code>add</code>:</p>
+    <pre><code class="language-bash line-numbers">gcc -std=c11 -Wall -Wextra -Werror main.c add.s -o app
+./app
+</code></pre>
+    <p>Two portability traps appear immediately: macOS prefixes every C symbol with an underscore in its object files (your assembler label must be <code>_add</code>), and 32-bit x86 expects all arguments on the stack — memory layout and register choices are <em>always</em> per-platform. When in doubt, disassemble the C compiler's own output (<code>gcc -S</code> or <a href="/roadmap/c/references.html">Compiler Explorer</a>) and imitate its prologue and epilogue exactly.</p>
+
+    <h2 id="assemblers">Which Assembly Can Be Used</h2>
+    <p>The phrase "assembly language" hides several dialects, assemblers, and ISAs. Pick the pair that matches your compiler and target:</p>
+    <table class="table table-bordered table-striped table-dark">
+      <thead><tr><th>Assembler</th><th>Syntax</th><th>Used by / best for</th><th>File extension</th></tr></thead>
+      <tbody>
+        <tr><td>GNU as (GAS)</td><td>AT&amp;T (or Intel with <code>.intel_syntax</code>)</td><td>GCC/Clang output, Linux kernels, <code>-S</code> dumps</td><td><code>.s</code> / <code>.S</code></td></tr>
+        <tr><td>NASM</td><td>Intel</td><td>Portable x86 programs, hand-written libs</td><td><code>.asm</code></td></tr>
+        <tr><td>MASM / ML64</td><td>Intel (Microsoft)</td><td>Windows x86-64 drivers and libraries</td><td><code>.asm</code></td></tr>
+        <tr><td>LLVM integrated assembler</td><td>AT&amp;T or Intel</td><td>Clang, Objective-C/C++ toolchains, Apple</td><td><code>.s</code></td></tr>
+        <tr><td>Inline <code>__asm__</code></td><td>AT&amp;T default</td><td>Tiny compiler-bound snippets in C</td><td>inside <code>.c</code></td></tr>
+      </tbody>
+    </table>
+    <p>Target <strong>ISAs</strong> matter just as much: x86-64 (desktop/server) and ARM64 (phones, Apple Silicon, most Linux boards) dominate today, with RISC-V rising. Assembly for one ISA is not portable to another — ever. That is the entire reason the <a href="/roadmap/assembly/">assembly roadmap</a> is a separate journey, and why you treat assembly as a carefully isolated layer inside a C program.</p>
+
+    <h2 id="using-asm">When to Reach for Assembly</h2>
+    <p>Assembly is the last tool, not the first. Use it — and the ABI knowledge behind it — when nothing else reaches:</p>
+    <ul>
+      <li><strong>Hardware access</strong> — privileged instructions, model-specific registers, fences and cache control that C cannot express.</li>
+      <li><strong>Precise timing</strong> — <code>rdtsc</code>-style counters for benchmarking (seen above).</li>
+      <li><strong>Bootloaders &amp; kernels</strong> — the first code on a CPU exists before a C runtime.</li>
+      <li><strong>Hot-loop maximums</strong> — only after profiling proves the compiler left performance on the table.</li>
+      <li><strong>Learning</strong> — reading disassembly is the deepest debugging and performance tool a C engineer has.</li>
+    </ul>
+    <p>Do <em>not</em> write assembly for portability, readability, or features — C and its ABI give you those for free. When you do drop down, wrap every asm block in one function, comment the ABI assumptions, and keep the C calling side boring.</p>
+    <p>That closes the lessons. Move to the <a href="/roadmap/c/demo_examples.html">lab examples</a> to compile and break these patterns, then the <a href="/roadmap/c/samples.html">study projects</a>, and finish with <a href="/roadmap/c/references.html">references</a>.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'c',
+    topicId: 'abi-asm',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
+

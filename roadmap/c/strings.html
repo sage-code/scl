@@ -1,192 +1,198 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
-  <meta charset="utf-8">
-  <meta name="description" content="Introduction to string functions in C programming language.">
-  <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="C, string, functions">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>C Tutorial</title>
-
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">
-  <!-- Prism Highlighter -->
-  <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
-<body>
-
-<div class="container">
-
-  <header id="dynamic-header" class="container-fluid pb-2"></header>
-
-  <div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
-
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
+    <!DOCTYPE html>
+    <html lang="en" data-bs-theme="dark">
+    <head>
+      <meta charset="utf-8">
+      <meta name="description" content="C strings: the NUL-terminated model, literals vs arrays, the string.h toolbox, safe idioms, and the classic string bugs.">
+      <meta name="author" content="Elucian Moise">
+      <meta name="keywords" content="sage, code, c, strings, strlen, strcpy, strncpy, snprintf, strcmp, string bugs">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <title>C — Strings</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+      <link rel="stylesheet" href="/assets/prism.css">
+      <script src="/assets/prism.js"></script>
+      <link rel="stylesheet" href="/assets/css/sage-common.css">
+      <link rel="stylesheet" href="/assets/css/content-topic.css">
+      <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+      <link rel="stylesheet" href="/assets/css/content-code.css">
+      <link rel="stylesheet" href="/assets/css/content-tables.css">
+      <style>
+        .side-bar { order: 1; }
+        #main-content { order: 2; }
+        @media (max-width: 991px) {
+          .side-bar { display: none; }
+          .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+        }
+      </style>
+    </head>
+    <body>
+    <div class="container">
+      <header id="dynamic-header" class="container-fluid pb-2"></header>
+      <div class="container-fluid px-0">
+        <div class="row g-0">
+          <aside class="side-bar col-lg-3 col-12">
+            <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lab Topics</h5>
+              </div>
+              <hr>
+              <ul id="bookmark-list" class="list-unstyled"></ul>
+            </div>
+          </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
+    <h1 id="c-strings">Strings</h1>
 
-<h2 id="c-string-functions">C String Functions</h2>
+    <div class="alert alert-secondary shadow-sm">
+      A C string is a <code>char</code> array plus a promise: the first <code>'\0'</code> (NUL) byte marks the end. There is no length field anywhere — every standard function walks the bytes until it finds the NUL. That design is the source of C strings' speed and of their most famous disasters. This page makes the model, and the safe idioms, second nature.
+    </div>
 
-<div class="alert alert-secondary shadow-sm">
-<p>Strings are actually arrays of characters terminated by a null character "\0". Elements of the array can be modified, therefore a string is mutable, unlike Java strings that are immutable. However the capacity of a C string is fixed. If you wish to change the capacity you must move the string in a new memory location.</p>
-</div>
+    <h2 id="model">The NUL-Terminated Model</h2>
+    <p>"Hello" occupies six bytes, not five: five letters plus the terminating <code>'\0'</code>. Array sizes must always leave room for it, and every string function trusts it to exist — overwrite or omit the NUL and functions read past your buffer looking for the end that never comes.</p>
+    <div class="text-center">
+      <img src="/roadmap/c/img/c-string.svg" alt="C string as NUL-terminated char array" width="520" class="img-fluid protect rounded shadow border">
+      <p class="text-secondary small">Figure 1 — <code>"Hi"</code> occupies 3 bytes; <code>strlen</code> counts until the NUL. No length is stored anywhere.</p>
+    </div>
+    <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;   // strlen
 
-
-<h2 id="string-initialization">String Initialization</h2>
-
-<p>There are two ways to initialize a string: By using a string literal and by using the array literal. The string literal is an enumeration of characters enclosed in double quotes: "&hellip;". The null character do not have to be specified, it is automatically added at the end of the string.</p>
-
-<h4>Examples:</h4>
-<pre><code class="language-c">/* initialize a string: test */
-char test[10] = {'t','e','s','t','\0'};
-/* using string literal */
-char test[] = "test";</code></pre>
-
-<h2 id="functions">Functions</h2>
-
-<p>To use string functions you must include header file: &lt;string.h&gt;&nbsp;</p>
-<div>
-<table class="table table-striped table-bordered table-dark">
-<tbody>
-<tr>
-<th>Function</th>
-<th>Description</th>
-</tr>
-<tr>
-<td>strcpy(s1, s2)</td>
-<td>
-<p>Copies string s2 into string s1.</p>
-</td>
-</tr>
-<tr>
-<td>strcat(s1, s2)</td>
-<td>
-<p>Concatenates string s2 onto the end of string s1.</p>
-</td>
-</tr>
-<tr>
-<td>strlen(s1)</td>
-<td>
-<p>Returns the length of string s1.</p>
-</td>
-</tr>
-<tr>
-<td>strcmp(s1, s2)</td>
-<td>
-<p>Returns 0 if s1 and s2 are the same; less than 0 if s1&lt;s2; greater than 0 if s1&gt;s2.</p>
-</td>
-</tr>
-<tr>
-<td>strchr(s1, ch)</td>
-<td>
-<p>Returns a pointer to the first occurrence of character ch in string s1.</p>
-</td>
-</tr>
-<tr>
-<td>strstr(s1, s2)</td>
-<td>
-<p>Returns a pointer to the first occurrence of string s2 in string s1.</p>
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h4>Example:</h4>
-<pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
-#include &lt;string.h&gt;
-int main () {
-    char hello[] = "Hello ";
-    char world[] = "World ";
-    char both[24];
-    int len ;
-    /* copy hello to both */
-    strcpy(both, hello);
-    printf("strcpy(both, hello): %s\n", both );
-    /* concatenates str1 and str2 */
-    strcat( both, world);
-    printf("strcat(both, world): %s\n", both );
-    /* total length of both after concatenation */
-    len = strlen(both);
-    printf("strlen(both) : %d\n", len );
+int main(void) {
+    char word[6] = {'H', 'e', 'l', 'l', 'o', '\0'};  // explicit NUL
+    char easy[]  = "Hello";                          // compiler adds the NUL
+    printf("strlen = %zu, bytes = %zu\n",
+           strlen(easy), sizeof(easy));              // 5 and 6 — the NUL counts
     return 0;
-}</code></pre>
+}
+</code></pre>
+    <p>The pair <code>strlen</code> (logical length) and <code>sizeof</code> (array capacity) look alike and are not — the first measures until NUL, the second the whole array. Confusing them is a classic off-by-one bug.</p>
 
-<p><b>Output:</b></p>
-<pre><code class="language-output">strcpy(both, hello): Hello
-strcat(both, world): Hello World
-strlen(both) : 12
+    <h2 id="literals-vs-arrays">Literals, Arrays, and Pointers</h2>
+    <p>There are three distinct things that all "look like strings", and only one of them is writable:</p>
+    <table class="table table-bordered table-striped table-dark">
+      <thead><tr><th>Declaration</th><th>Storage</th><th>Writable?</th></tr></thead>
+      <tbody>
+        <tr><td><code>char *s = "Hi"</code></td><td>string literal (typically read-only .rodata)</td><td><strong>No</strong> — modifying it is UB</td></tr>
+        <tr><td><code>char s[] = "Hi"</code></td><td>local array, copied at init</td><td>Yes</td></tr>
+        <tr><td><code>char s[3]; s[0]='H'; ...</code></td><td>explicit array built by hand</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+    <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+
+int main(void) {
+    char *lit = "Hi";            // points into immutable storage
+    char  arr[] = "Hi";          // own 3-byte copy on the stack
+    // lit[0] = 'X';             // UB — may crash on modern OSes
+    arr[0] = 'X';                // fine: arr is ours
+    printf("%s\n", arr);         // "Xi"
+    return 0;
+}
+</code></pre>
+    <p>Reassigning the <em>pointer</em> is fine (<code>lit = "bye"</code>) — the confusion is that <code>char *</code> invites writing through it. When a function takes <code>const char *</code>, it promises to treat the data as read-only; respect that contract on both sides.</p>
+    <h2 id="string-h">The string.h Toolbox</h2>
+    <p>The standard library ships a complete toolkit — and a set of traps. The key functions, with their safety notes:</p>
+    <table class="table table-bordered table-striped table-dark">
+      <thead><tr><th>Function</th><th>Does</th><th>Safety note</th></tr></thead>
+      <tbody>
+        <tr><td><code>strlen(s)</code></td><td>length until NUL</td><td>Runs forever if not NUL-terminated</td></tr>
+        <tr><td><code>strcpy(dst, src)</code></td><td>copy, incl. NUL</td><td>Writes unbounded — overflow risk</td></tr>
+        <tr><td><code>strncpy(d, s, n)</code></td><td>copy up to n bytes</td><td>Does NOT always add NUL — pad it yourself</td></tr>
+        <tr><td><code>strcat/snprintf</code></td><td>append / format</td><td>Use <code>snprintf</code> for safe appending</td></tr>
+        <tr><td><code>strcmp(a, b)</code></td><td>lexicographic compare</td><td>Return 0 means equal</td></tr>
+        <tr><td><code>strstr(hay, needle)</code></td><td>find substring</td><td>Returns pointer or NULL</td></tr>
+        <tr><td><code>strchr/strrchr</code></td><td>find a character</td><td>First / last occurrence</td></tr>
+      </tbody>
+    </table>
+    <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+
+int main(void) {
+    char name[32];
+    snprintf(name, sizeof(name), "%-15s | %3d", "ada", 7);  // safe formatting
+    printf("'%s'\n", name);
+
+    // find a substring and report which side it starts at
+    const char *text = "the quick brown fox";
+    const char *hit = strstr(text, "brown");
+    if (hit != NULL) {
+        printf("found at offset %td\n", hit - text);   // 10
+    }
+    return 0;
+}
 </code></pre>
 
-<p><b>Note:</b></p>
-<p>The capacity of string "both" is larger then the actual string. So there is an unused region of memory after "\0" for the string "both". The len function will report only the used part and ignore the rest.</p>
+    <h2 id="safe-idiom">The Safe Copy Idiom</h2>
+    <p>Copying text into a fixed buffer is the most common string operation — and the most common exploit. The disciplined pattern: bound every write, and <em>always</em> enforce a final NUL yourself, because the library may not.</p>
+    <pre><code class="language-c line_numbers">#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
 
-<h2 id="string-traversal">String traversal</h2>
+int main(void) {
+    const char *src = "a very long title that overflows small buffers";
+    char dst[16];
 
-<p>Since a string is actually an array, we can traverse the string character by character. This may be useful if we wish to make modifications in the string. In example below we use this trick to find the length of a string without a function:</p>
-<p><b>Example</b></p>
-<pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
-int main()
-{
-    char s[1000];
-    int i;
-    printf("Enter a string: ");
-    scanf("%s", s);
-    for(i = 0; s[i] != '\0'; ++i);
-    printf("Length of string: %d", i);
+    // SAFE: copy at most 15 bytes, then force the terminating NUL
+    strncpy(dst, src, sizeof(dst) - 1);   // reserves one byte for '\0'
+    dst[sizeof(dst) - 1] = '\0';          // strncpy may have omitted it
+
+    printf("'%s'\n", dst);                // truncated but well-formed
     return 0;
-}</code></pre>
+}
+</code></pre>
 
-<hr>
+    <h2 id="bugs">Classic String Bugs</h2>
+    <p>Every string exploit in history is one of these three. Learn the shapes and your review eye will catch them on sight:</p>
+    <ul>
+      <li><strong>Buffer overflow</strong> — copying an unchecked source into a fixed buffer. The <code>gets()</code> function could not even be given a bound and was <em>removed from the standard</em> for exactly this; never mourn it.</li>
+      <li><strong>Missing NUL</strong> — <code>strncpy</code> of a source as long as the buffer leaves no terminator; later <code>strlen</code>/<code>printf</code> walk into foreign memory.</li>
+      <li><strong>Off-by-one</strong> — declaring <code>char s[5]</code> for <code>"Hello"</code>: five letters plus NUL is six bytes.</li>
+    </ul>
+    <pre><code class="language-c line-numbers">char bad[5];
+strcpy(bad, "Hello");       // BUG: writes 6 bytes into 5 — 'o' lands outside
 
+char worse[3];
+strncpy(worse, "abc", 3);   // no room for NUL was reserved
+printf("%s", worse);        // BUG: reads past the array hunting for '\0'
+</code></pre>
+    <p>Fix both with the safe idiom above — reserve the terminator slot and set it explicitly.</p>
 
+    <h2 id="dynamic-strings">Dynamic Strings</h2>
+    <p>When text must grow beyond a guessable size, build it on the heap with <code>realloc</code>. A minimal, correct grow-by-doubling loop is the seed of a real string library — the <a href="/roadmap/c/samples.html">study projects page</a> grows it into one.</p>
+    <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
 
-</main>
+int main(void) {
+    size_t cap = 8, len = 0;
+    char *buf = malloc(cap);
+    if (buf == NULL) return 1;
+    const char *words[] = {"one", "two", "three"};
+    for (size_t i = 0; i &lt; 3; i++) {
+        size_t need = len + strlen(words[i]) + 1;   // +1 for space or NUL
+        if (need &gt; cap) {                           // grow by doubling
+            cap *= 2;
+            char *grown = realloc(buf, cap);
+            if (grown == NULL) { free(buf); return 1; }
+            buf = grown;
+        }
+        len += snprintf(buf + len, cap - len, "%s%s", i ? " " : "", words[i]);
+    }
+    printf("joined: '%s'\n", buf);
+    free(buf);
+    return 0;
+}
+</code></pre>
+    <p>Next: <a href="/roadmap/c/collections.html">data structures</a> — linked lists, vectors, and hash tables built from these tools.</p>
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'c',
@@ -200,6 +206,6 @@ int main()
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>
+

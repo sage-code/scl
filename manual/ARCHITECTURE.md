@@ -153,7 +153,14 @@ Roadmap pages may include **hand-authored SVG diagrams** to explain spatial or r
 
 - File convention: shared diagrams go to `assets/images/<name>.svg` and are embedded as `<img src="/images/<name>.svg" alt="...">`; track-specific diagrams go to `roadmap/<track>/img/<name>.svg` and are embedded as `/roadmap/<track>/img/<name>.svg`.
 - Editable sources for tool-made diagrams live in `assets/draw/*.drawio` (draw.io), exported to `.svg`.
-- SVG requirements: declare `viewBox`, responsive `width:100%`, dark-theme-friendly colors, minimal and technical (never decorative); add a one-line caption paragraph under the image.
+- SVG requirements: declare `viewBox`, responsive `width:100%`, minimal and technical (never decorative); add a one-line caption paragraph under the image.
+- **Dark-theme SVG style spec (mandatory for every SVG — draw.io export or hand-authored):**
+  - **Solid canvas.** The diagram always sits on a solid background `<rect>` (e.g. `#0f172a`). Never a transparent canvas.
+  - **Solid boxes.** Every node/box has a solid fill (default `#1e293b`). Never `fill="none"` and never transparency (`opacity < 1`).
+  - **Contrasting writing.** Text uses solid high-contrast fills: `#e2e8f0` primary, `#94a3b8` secondary, `#64748b` only for de-emphasized captions. Text is never dark on a dark box.
+  - **Light-box exception.** Dark text (`#0f172a`) is allowed **only when the box itself is a light highlight fill**: `#f59e0b` orange, `#3b82f6` blue, `#ef4444` red, `#34d399` green.
+  - **UML / logic-workflow shapes.** Use standard shapes: rounded rectangle = process/object, plain rectangle = data/terminal, diamond = decision, arrow with arrowhead = flow. No free-floating unboxed nodes.
+  - **Alignment & spacing.** Shapes align to one axis/grid; columnar shapes share one width and one center-x; leave explicit gaps of at least 12px between shapes (they must never touch); arrows are labeled.
 
 
 ## Roadmap Blueprint — the C# reference pattern
