@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="author" content="Elucian Moise">
+  <meta name="description" content="Enterprise C++: the discipline of production code — reliability, RAII resource management, error-handling strategy, structured logging, design patterns, CMake builds, testing and CI.">
+  <meta name="keywords" content="cpp, c++, enterprise, production, raii, error handling, logging, design patterns, cmake, testing, ci">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>C++ Enterprise Development</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-0">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="cpp-enterprise">Enterprise Development</h1>
+
+        <div class="alert alert-secondary shadow-sm" role="status">
+          <strong>Scope:</strong> This lesson is about writing C++ that survives contact with production.
+          The language does not change — the discipline does. You will see how invariants, RAII, a deliberate
+          error strategy, structured logging, well-chosen patterns, a reproducible build, and automated tests
+          turn working code into dependable software.
+        </div>
+
+        <h2 id="enterprise-grade">What makes code enterprise-grade</h2>
+        <p>
+          Enterprise code is written once but read, changed, and operated for years by many people. Three
+          qualities dominate every design decision: <em>reliability</em> (a defect must not lose data or
+          money), <em>observability</em> (when something fails, you must be able to see why), and
+          <em>maintainability</em> (the next engineer must change it safely). Everything below serves one of
+          those three goals.
+        </p>
+
+        <h3 id="reliability">Reliability and correctness</h3>
+        <p>
+          Correctness comes from invariants enforced by the compiler, not from hoping. Prefer a compile-time
+          guarantee to a runtime check, and a runtime check to nothing. <code>const</code>, strong types, and
+          <code>static_assert</code> cost nothing at run time yet eliminate whole classes of bug.
+        </p>
+        <pre><code class="language-cpp line-numbers">#include &lt;cstdint&gt;
+#include &lt;type_traits&gt;
+
+// A strong type stops you from mixing up two "int" arguments by accident.
+struct UserId { std::int64_t value; };
+
+void transfer(UserId from, UserId to, double amount);   // cannot pass the amount as an id
+
+// Encode an assumption the compiler can check for you.
+template &lt;typename T&gt;
+void fixedWidthBuffer() {
+    static_assert(sizeof(T) &gt;= 8, "this buffer requires a 64-bit element");
+}
+</code></pre>
+
+        <h2 id="raii">Resource management (RAII)</h2>
+        <p>
+          The cornerstone of safe C++ is RAII: acquire a resource in a constructor, release it in the
+          destructor, and never expose a raw resource. Files, sockets, locks, and buffers all become objects
+          that clean themselves up — even when an exception unwinds the stack.
+        </p>
+        <pre><code class="language-cpp line-numbers">#include &lt;cstdio&gt;
+#include &lt;stdexcept&gt;
+
+class FileGuard {                       // owns a FILE*; cannot be leaked or forgotten
+public:
+    explicit FileGuard(const char *path, const char *mode)
+        : file_(std::fopen(path, mode)) {
+        if (!file_) throw std::runtime_error("cannot open file");
+    }
+    ~FileGuard() { if (file_) std::fclose(file_); }
+
+    // A file owns a unique resource: copying would double-close. Forbid it.
+    FileGuard(const FileGuard &amp;) = delete;
+    FileGuard &amp;operator=(const FileGuard &amp;) = delete;
+
+    std::FILE *get() const { return file_; }
+
+private:
+    std::FILE *file_;
+};
+
+void writeReport() {
+    FileGuard out("report.txt", "w");   // opened here
+    std::fputs("ok\n", out.get());
+    // even if an exception is thrown below, ~FileGuard closes the file
+}
+</code></pre>
+        <p>
+          Smart pointers (<code>unique_ptr</code>, <code>shared_ptr</code>) are RAII for memory. The same
+          idea generalises to every resource, which is why "rule of zero" classes need no destructor at all —
+          their members already manage themselves.
+        </p>
+        <h2 id="errors">Error handling strategy</h2>
+        <p>
+          There is no single "correct" way to report failure — there is a <em>consistent</em> way. Pick one
+          strategy per boundary of your system and apply it uniformly, converting at the edges. Mixing
+          exceptions and error codes at random is what makes error handling unreadable.
+        </p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Mechanism</th><th>Best for</th><th>Cost / caution</th></tr></thead>
+          <tbody>
+            <tr><td>Exceptions</td><td>rare, truly exceptional failures a caller cannot ignore</td><td>unwinding cost; keep them out of hot loops and destructors</td></tr>
+            <tr><td><code>std::optional&lt;T&gt;</code></td><td>"value or nothing" where absence is normal</td><td>carries no error reason</td></tr>
+            <tr><td><code>std::error_code</code></td><td>library-level, non-throwing error reporting</td><td>easy to ignore if the caller does not check</td></tr>
+            <tr><td><code>std::expected&lt;T,E&gt;</code> (C++23)</td><td>"value or a typed error" without exceptions</td><td>newer standard; check availability</td></tr>
+          </tbody>
+        </table>
+        <p>
+          Regardless of mechanism, guarantee the <em>basic exception-safety guarantee</em>: if a function
+          throws, the program is still valid and no resource leaks — which RAII gives you for free. Mark the
+          functions that never throw <code>noexcept</code>; the compiler optimises around that promise and
+          will terminate if you break it.
+        </p>
+        <pre><code class="language-cpp line-numbers">#include &lt;optional&gt;
+#include &lt;string&gt;
+
+// Absence is a normal outcome here, so return optional — no exception, no sentinel.
+std::optional&lt;int&gt; findAge(const std::string &amp;name) {
+    if (name == "Ada") return 36;
+    return std::nullopt;                // "no age known"
+}
+
+void use() {
+    if (auto age = findAge("Ada"))
+        std::cout &lt;&lt; "age = " &lt;&lt; *age &lt;&lt; "\n";
+    else
+        std::cout &lt;&lt; "unknown\n";
+}
+</code></pre>
+
+        <h2 id="logging">Logging &amp; observability</h2>
+        <p>
+          A running service must explain itself. Structured logs with severity levels let operators filter
+          noise from signal, and an RAII timing guard records how long each unit of work took — automatically,
+          even on early returns. The <a href="/roadmap/cpp/demo_examples.html">demo collection</a> includes a
+          working logger with a <code>ScopedTiming</code> guard.
+        </p>
+        <pre><code class="language-cpp line-numbers">enum class Level { Debug, Info, Warning, Error };
+
+class Logger {
+public:
+    explicit Logger(Level minLevel) : minLevel_(minLevel) {}
+    void log(Level level, const std::string &amp;message) const {
+        if (level &lt; minLevel_) return;              // filter below the threshold
+        std::cout &lt;&lt; "[" &lt;&lt; toTag(level) &lt;&lt; "] " &lt;&lt; message &lt;&lt; "\n";
+    }
+private:
+    Level minLevel_;
+};
+</code></pre>
+        <p>
+          Good logs are event-oriented ("order 1024 committed"), not narration ("now we do X"). Never log
+          secrets, and prefer a logging interface you can inject — so tests can assert on what was logged.
+        </p>
+
+        <h2 id="patterns">Design patterns</h2>
+        <p>
+          Patterns are a shared vocabulary for common structures, not a checklist to apply everywhere. A few
+          recur constantly in C++ services:
+        </p>
+        <ul>
+          <li><strong>Observer / Event bus</strong> — decouple producers from consumers with callbacks; see demo 14.</li>
+          <li><strong>Factory</strong> — build objects through one function so the concrete type stays hidden.</li>
+          <li><strong>Pimpl</strong> — hide implementation behind a pointer to keep the public header stable and rebuilds fast.</li>
+          <li><strong>Strategy</strong> — swap an algorithm at run time by storing a <code>std::function</code>.</li>
+        </ul>
+        <pre><code class="language-cpp line-numbers">#include &lt;functional&gt;
+
+// Strategy: the pricing rule is data, injectable and replaceable at run time.
+class Checkout {
+public:
+    using Pricing = std::function&lt;double(double)&gt;;
+    explicit Checkout(Pricing pricing) : pricing_(std::move(pricing)) {}
+    double total(double subtotal) const { return pricing_(subtotal); }
+private:
+    Pricing pricing_;
+};
+// Checkout plain([](double s){ return s; });
+// Checkout discount([](double s){ return s * 0.9; });
+</code></pre>
+        <h2 id="build">Build &amp; dependencies</h2>
+        <p>
+          If a build is not reproducible, it is not enterprise. Modern C++ uses <strong>CMake</strong> with a
+          target-based model: each library is a target with explicit <code>PUBLIC</code>/<code>PRIVATE</code>
+          usage requirements. Third-party code comes from a package manager (<em>vcpkg</em> or
+          <em>Conan</em>) with pinned versions, never from a random checkout.
+        </p>
+        <pre><code class="language-cmake line-numbers">cmake_minimum_required(VERSION 3.20)
+project(billing CXX)                    # C++ project named "billing"
+
+add_library(core src/core.cpp)          # a reusable library target
+target_compile_features(core PUBLIC cxx_std_17)
+target_include_directories(core PUBLIC include)
+target_compile_options(core PRIVATE -Wall -Wextra -Wpedantic)   # warnings as policy
+
+add_executable(billing_app src/main.cpp)
+target_link_libraries(billing_app PRIVATE core)                 # explicit dependency
+</code></pre>
+        <p>
+          Warnings are not optional: <code>-Wall -Wextra -Wpedantic</code> (or MSVC <code>/W4</code>) catch
+          real defects before they ship. Treat warnings as errors in CI so nobody can merge new ones.
+        </p>
+
+        <h2 id="testing">Testing &amp; CI</h2>
+        <p>
+          Automated tests are what let you change code without fear. Start with a framework such as
+          <em>Catch2</em> or <em>GoogleTest</em>, and run the same suite in continuous integration on every
+          push. Because C++ lets you shoot yourself in the foot, layer dynamic analysers on top.
+        </p>
+        <pre><code class="language-cpp line-numbers">#define CATCH_CONFIG_MAIN       // or GoogleTest's main
+#include &lt;catch2/catch.hpp&gt;
+
+std::optional&lt;int&gt; findAge(const std::string &amp;name);   // the function under test
+
+TEST_CASE("findAge reports known and unknown names") {
+    REQUIRE(findAge("Ada").value() == 36);
+    REQUIRE(!findAge("Nobody").has_value());            // absence is a valid result
+}
+</code></pre>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Tool</th><th>Catches</th><th>Typical flag / command</th></tr></thead>
+          <tbody>
+            <tr><td>AddressSanitizer</td><td>buffer overflows, use-after-free</td><td><code>-fsanitize=address</code></td></tr>
+            <tr><td>UndefinedBehaviorSanitizer</td><td>integer overflow, bad casts</td><td><code>-fsanitize=undefined</code></td></tr>
+            <tr><td>ThreadSanitizer</td><td>data races</td><td><code>-fsanitize=thread</code></td></tr>
+            <tr><td>clang-tidy</td><td>style and bug-prone patterns</td><td><code>clang-tidy src/*.cpp</code></td></tr>
+            <tr><td>valgrind</td><td>leaks (Linux/macOS)</td><td><code>valgrind ./app</code></td></tr>
+          </tbody>
+        </table>
+        <p>
+          Run sanitizer builds in CI as a separate, slower job. A sanitizer build that is green is far more
+          convincing than any number of manual tests.
+        </p>
+
+        <h2 id="practice">Practice</h2>
+        <ol>
+          <li>Take one class you wrote and make it RAII-safe: no raw <code>new</code>, no manual cleanup.</li>
+          <li>Give a function two return styles — one throwing, one returning <code>std::optional</code> — and argue which boundary each belongs to.</li>
+          <li>Write a one-file CMake project that builds a library plus an executable and enables <code>-Wall -Wextra</code>.</li>
+          <li>Add three <code>TEST_CASE</code>s for a function you wrote earlier and run them.</li>
+          <li>Compile a demo with <code>-fsanitize=address,undefined</code> and fix anything it reports.</li>
+        </ol>
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'cpp',
+    topicId: 'enterprise',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

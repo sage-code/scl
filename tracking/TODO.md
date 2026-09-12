@@ -51,6 +51,11 @@ Index restored (2026-09-11): `roadmap/cpp/index.html` was missing after the rebu
 standard phase dashboard listing the 17 shipped lessons across 5 phases, plus a curated *Free References*
 block (cppreference, LearnCpp, Core Guidelines, isocpp.org, Compiler Explorer, C++ Insights, OnlineGDB,
 Microsoft docs, cplusplus.com, TheAlgorithms/C-Plus-Plus, awesome-cpp).
+Demo collection added (2026-09-11): `roadmap/cpp/demo/` holds 14 grouped, heavily-commented demos
+(all compiled with MSVC `cl /std:c++17 /W4` — 0 warnings — and executed); `demo_examples.html` +
+`data/demo_examples.json` present the collection. Two new lessons `concurrency.html` and
+`enterprise.html` (with sidebars) join the index, which is now 20 topics across 7 phases
+(PHASE 6: CONCURRENCY & ENTERPRISE, PHASE 7: PRACTICE & DEMO).
 When complete, remove this entry and mark the track done under the completed list.
 
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py)
