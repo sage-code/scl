@@ -32,6 +32,27 @@ All 42 roadmap indexes implement the roadmap index standard:
 - Removed legacy artifacts: `bbsort.html`, `linux_errors.html`, `casting.html`, `prompt.txt`, `c-exam.png`, `crepl.jpg`, 56 unsafe/un-named legacy `demo/*.c` files.
 - Validated: `run test` → `run build` → `run check` (0 C warnings); status now **converted**.
 
+## 🚧 cpp — IN PROGRESS (2026-09-11)
+
+`cpp` is the active track: rebuilding the legacy 6-topic scaffold into a complete first-language tutorial
+(basics → intermediate → advanced → expert). Curriculum plan (29 rows, 9 phases):
+- PHASE 1 Foundations: `overview`, `setup`, `syntax`, `types`, `operators`, `control`
+- PHASE 2 Functions & Data: `functions`, `pointers`, `composite`, `strings`
+- PHASE 3 OOP: `classes`, `inheritance`
+- PHASE 4 Memory & STL: `memory`, `templates`, `stl`, `algorithms`
+- PHASE 5 Modern & Best Practices: `modern`, `errors`, `best-practices`
+- PHASE 6 Concurrency & Performance: `concurrency`, `parallel`, `gpu`
+- PHASE 7 Production & Enterprise: `build`, `testing`, `cybersecurity`, `enterprise`
+- PHASE 8 Practice & Demo: `demo_examples`, `samples`
+- PHASE 9 Reference: `references`
+
+No C knowledge is assumed; C++ is taught as a first programming language. Modern C++ baseline: C++17.
+Index restored (2026-09-11): `roadmap/cpp/index.html` was missing after the rebuild — recreated as a
+standard phase dashboard listing the 17 shipped lessons across 5 phases, plus a curated *Free References*
+block (cppreference, LearnCpp, Core Guidelines, isocpp.org, Compiler Explorer, C++ Insights, OnlineGDB,
+Microsoft docs, cplusplus.com, TheAlgorithms/C-Plus-Plus, awesome-cpp).
+When complete, remove this entry and mark the track done under the completed list.
+
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py)
 - [ ] `assembly/` — 10 topic pages are "To be replaced!" ~3.4 KB placeholder shells.
 - [ ] `swift/` — 13 topic pages are "Work in progress!" ~3.6 KB placeholder shells.

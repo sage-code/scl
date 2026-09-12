@@ -117,7 +117,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         'csharp': 'csharp',
         'c': 'c',
         'h': 'c',
-        'zig': 'zig'
+        'zig': 'zig',
+        'cpp': 'cpp',
+        'cc': 'cpp',
+        'cxx': 'cpp',
+        'hpp': 'cpp',
+        'hh': 'cpp'
     };
 
     display.className = `language-${langMap[ext] || 'javascript'}`;
