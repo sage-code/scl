@@ -56,14 +56,19 @@ class TopicLoader {
     return `node-${String(sectionKey).replace(/[^a-zA-Z0-9_-]/g, '_')}-${path}`;
   }
 
+  // Page-title leaf = the root of the sidebar tree, so the glyph is a folder
+  // carrying the root-directory slash: a single outline folder (tab + body, in
+  // the same visual family as the `bi-folder2` tree toggles, but stroked instead
+  // of filled so it reads lighter than a real folder node) with one bold "/"
+  // inside its front panel. The slash is inset so it never touches the outline -
+  // no overlap, no halo, legible down to 16px. Two paths only.
   createTitleIcon() {
     const titleIcon = document.createElement('span');
     titleIcon.className = 'nav-title-icon';
     titleIcon.innerHTML =
-      '<svg class="bi-nav-title" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">' +
-      '<rect x="1.5" y="3" width="13" height="2.6" rx="0.6"></rect>' +
-      '<rect x="1.5" y="7.6" width="9" height="1.7" rx="0.5" opacity="0.62"></rect>' +
-      '<rect x="1.5" y="11.2" width="6" height="1.7" rx="0.5" opacity="0.62"></rect>' +
+      '<svg class="bi-nav-title" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true" focusable="false">' +
+      '<path d="M2.6 3H5.2L6.5 4.4H13.4Q14.8 4.4 14.8 5.8V12Q14.8 13.4 13.4 13.4H2.6Q1.2 13.4 1.2 12V4.4Q1.2 3 2.6 3Z" stroke-width="1.25" stroke-linejoin="round"></path>' +
+      '<path d="M5.4 11.4 10.4 6.4" stroke-width="1.9" stroke-linecap="round"></path>' +
       '</svg>';
     return titleIcon;
   }
