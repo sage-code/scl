@@ -149,7 +149,9 @@ All roadmap code is rendered by a **single Prism bundle** that supports every la
 ### Topic sidebar JSON — shape
 
 - `roadmap/<track>/data/<topic>.json` is hierarchical: each `h2` object has a `children` array of `h3` anchors; flat lists break `topic-loader.js`.
-- The FIRST entry is the title link to the page's `<h1>` — a leaf `{ "title": "<H1 text>", "link": "#<h1-id>" }` with no `children` — so the sidebar always lets the user click back to the top of the lab. Keep the tree at two levels (title + H2/H3), titles short and factual with plain `&` (no entities).
+- The FIRST entry is the title link to the page's `<h1>` — a leaf `{ "title": "<H1 text>", "link": "#<h1-id>", "role": "title" }` with no `children` — so the sidebar always lets the user click back to the top of the lab. The `"role": "title"` marker identifies it as the title item without relying on position; `npm run test` / `npm run check` warn when it is missing and fail when it is malformed (no anchor, or carrying `children`).
+- Generate the sidebar from the page itself: `python scripts/tools/gen_topic_sidebars.py roadmap/<track>/*.html` (add `--mixed` for `references.html` and `demo_examples.html`, whose `<h2>` sections may have no `<h3>`). The page stays the single source of truth, the title leaf is derived from its `<h1>`, and re-running is idempotent. A page whose `<h1>` has no `id` is reported and skipped — give the `<h1>` an `id` to enable its title leaf.
+- Keep the tree at two levels (title + H2/H3), titles short and factual with plain `&` (no entities).
 
 ## Diagrams (SVG)
 

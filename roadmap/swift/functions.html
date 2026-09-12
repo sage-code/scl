@@ -2,31 +2,35 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Template page for tutorials.">
+  <meta name="description" content="Swift functions: declaration, argument labels, return values, variadic and inout parameters, function types, nesting, and overloading.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="rust, syntax">
+  <meta name="keywords" content="sage, code, swift, functions, parameters, argument labels, inout, variadic, overloading">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Swift Tutorial</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>Swift Functions</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,56 +39,250 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="swift-functions">Functions</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A <strong>function</strong> packages a computation behind a name so it can be reused, tested, and reasoned about in isolation. Swift adds a feature many languages lack: every parameter can carry an <em>argument label</em>, so call sites read like sentences.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="swift-tutorial">Swift Tutorial</h2>
+        <p>This lesson moves from the basic shape of a function to the parameter modifiers that control how values flow in and out, and finally treats functions as values in their own right.</p>
 
+        <h2 id="basics">Function Basics</h2>
 
-<div class="alert alert-secondary shadow-sm">
-Work in progress!
-</div>
+        <p>A function declares a name, a parameter list, and — when it produces a result — a return type after the arrow. The parameter list is what makes Swift call sites self-documenting.</p>
 
-<pre><code class="language-swift line-numbers">// code example to be replaced
-  func factorial(number: Int) -> Int {
-    if number == 0 {
-      return 1
-    } else {
-      return number * factorial(number - 1)
+        <h3 id="declaration">Declaring &amp; Calling Functions</h3>
+
+        <p>The <code>func</code> keyword starts the declaration. A function that returns nothing may omit the arrow entirely, and a body holding a single expression may omit <code>return</code>.</p>
+
+        <pre><code class="language-swift line-numbers">// No parameters, no return value
+func sayHello() {
+    print("Hello!")
+}
+sayHello()                          // prints: Hello!
+
+// One parameter, and a return type after the arrow
+func square(_ value: Int) -&gt; Int {
+    return value * value
+}
+print(square(5))                    // prints: 25
+
+// A single-expression body may drop the `return` keyword
+func cube(_ value: Int) -&gt; Int { value * value * value }
+print(cube(3))                      // prints: 27
+
+// `_` as the label lets the caller pass values positionally
+func add(_ a: Int, _ b: Int) -&gt; Int { a + b }
+print(add(2, 3))                    // prints: 5
+</code></pre>
+
+        <h3 id="params">Parameters &amp; Argument Labels</h3>
+
+        <p>Every parameter has two names: an <em>external</em> label used at the call site and an <em>internal</em> name used inside the body. Design the label so the call reads as a phrase; that is why Swift's own APIs say <code>power(number:times:)</code> rather than <code>power(_:_:)</code>.</p>
+
+        <pre><code class="language-swift line-numbers">// `number`/`times` are the external labels; `base`/`exponent` are internal
+func power(number base: Int, times exponent: Int) -&gt; Int {
+    var result = 1
+    for _ in 0..&lt;exponent { result *= base }
+    return result
+}
+print(power(number: 2, times: 10))   // 1024 — the call reads as a sentence
+
+// Omitting the label entirely: write `_` instead of a name
+func greet(_ name: String) -&gt; String { "Hi, \(name)" }
+print(greet("Ada"))                  // prints: Hi, Ada
+</code></pre>
+
+        <h3 id="returns">Return Values &amp; Tuples</h3>
+
+        <p>A function may return a single value, several values bundled in a tuple, or nothing at all. When "no result" is a legitimate outcome, returning an <em>optional</em> is the idiomatic way to say so.</p>
+
+        <pre><code class="language-swift line-numbers">// Multiple results come back as one named tuple
+func minMax(_ values: [Int]) -&gt; (min: Int, max: Int)? {
+    guard let first = values.first else { return nil }   // empty input
+    var low = first
+    var high = first
+    for value in values {
+        low = Swift.min(low, value)
+        high = Swift.max(high, value)
     }
-  }
-  
-  let factorialOf5 = factorial(number: 5)
-  print(factorialOf5) // 120
-</code></code></pre>
+    return (low, high)
+}
 
-<!-- work in progress-->
+if let range = minMax([3, 1, 9, 4]) {
+    print(range.min, range.max)     // prints: 1 9 — accessed by name
+    print(range.0, range.1)         // prints: 1 9 — or by position
+}
+print(minMax([]) == nil)            // prints: true — empty input, no result
+</code></pre>
 
-<hr>
+        <h2 id="parameters">Advanced Parameters</h2>
 
-</main>
+        <p>Swift can vary the number of arguments, hand a parameter direct access to the caller's storage, and supply defaults so a single function serves several call shapes without needing overloads.</p>
+
+        <h3 id="variadic">Variadic Parameters</h3>
+
+        <p>A <code>...</code> after the type accepts zero or more values of that type. Inside the body the parameter is an ordinary array, so you can loop or reduce over it. Only one variadic parameter is allowed per function.</p>
+
+        <pre><code class="language-swift line-numbers">func total(_ numbers: Int...) -&gt; Int {
+    numbers.reduce(0, +)          // inside the body `numbers` is [Int]
+}
+print(total(1, 2, 3))             // prints: 6
+print(total())                    // prints: 0 — zero arguments are legal
+
+func log(_ level: String, _ messages: String...) {
+    for message in messages { print("[\(level)] \(message)") }
+}
+log("INFO", "started", "ready")   // prints two labelled lines
+</code></pre>
+
+        <h3 id="inout">inout Parameters</h3>
+
+        <p>Value types are copied into a function, so the body cannot change the caller's variable — unless the parameter is marked <code>inout</code>. That promises to modify the caller's storage in place, and the call site must acknowledge it with an ampersand.</p>
+
+        <pre><code class="language-swift line-numbers">func double(_ value: inout Int) {
+    value *= 2                    // modifies the caller's variable
+}
+
+var counter = 5
+double(&amp;counter)
+print(counter)                    // prints: 10
+
+// inout is also the idiomatic way to exchange two values
+var a = 1, b = 2
+swap(&amp;a, &amp;b)
+print(a, b)                       // prints: 2 1
+</code></pre>
+
+        <h3 id="defaults">Default Values</h3>
+
+        <p>A parameter with a default value may be left out by the caller. Defaults usually sit at the end of the list, which lets the same function serve a short and a detailed call without any repetition.</p>
+
+        <pre><code class="language-swift line-numbers">func greet(_ name: String, greeting: String = "Hello") -&gt; String {
+    "\(greeting), \(name)!"
+}
+print(greet("Ada"))                    // prints: Hello, Ada!
+print(greet("Ada", greeting: "Hi"))    // prints: Hi, Ada!
+
+// A defaulted count plus a closure keeps one function usable in two shapes
+func repeatTask(times: Int = 1, action: () -&gt; Void) {
+    for _ in 0..&lt;times { action() }
+}
+repeatTask { print("run") }            // prints: run
+repeatTask(times: 2) { print("run") }  // prints: run, twice
+</code></pre>
+
+        <h2 id="function-types">Functions as Values</h2>
+
+        <p>A function has a <em>type</em>, written as its parameter types followed by its return type. That single fact means a function can be stored in a variable, passed as an argument, returned from another function, and selected at runtime — exactly like any other value.</p>
+
+        <h3 id="function-type">Function Types</h3>
+
+        <p>The type <code>(Int, Int) -&gt; Int</code> reads as "takes two <code>Int</code>s and returns an <code>Int</code>". Referring to a function by name, without parentheses, produces that value rather than calling it.</p>
+
+        <pre><code class="language-swift line-numbers">// A variable whose type is "takes two Ints, returns an Int"
+let operation: (Int, Int) -&gt; Int = { $0 + $1 }
+print(operation(4, 5))              // prints: 9
+
+// A named function used as a value — no parentheses here
+func subtract(_ a: Int, _ b: Int) -&gt; Int { a - b }
+let chosen: (Int, Int) -&gt; Int = subtract
+print(chosen(9, 4))                 // prints: 5
+
+// A function that returns a function: pick the behaviour by name
+func chooser(_ symbol: String) -&gt; (Int, Int) -&gt; Int {
+    switch symbol {
+    case "-": return subtract
+    default:  return operation
+    }
+}
+print(chooser("-")(10, 3))          // prints: 7 — call the returned function
+</code></pre>
+
+        <h3 id="nesting">Nested &amp; Local Functions</h3>
+
+        <p>A function declared inside another is visible only there, and it can use the enclosing function's parameters. That keeps a helper close to its single caller instead of polluting the global namespace.</p>
+
+        <pre><code class="language-swift line-numbers">func formatList(_ values: [Int], prefix: String) -&gt; String {
+    // Nested helper: it captures `prefix` from the enclosing scope
+    func decorate(_ value: Int) -&gt; String { "\(prefix)\(value)" }
+
+    return values.map(decorate).joined(separator: ", ")
+}
+print(formatList([1, 2, 3], prefix: "#"))   // prints: #1, #2, #3
+</code></pre>
+
+        <h3 id="overloading">Overloading</h3>
+
+        <p>Several functions may share one name as long as their parameter or return types differ; the compiler picks the right one from the argument types. Use distinct argument labels when the behaviours are genuinely different — overloads that silently change meaning are hard to review.</p>
+
+        <pre><code class="language-swift line-numbers">func render(_ value: Int) -&gt; String { "int: \(value)" }
+func render(_ value: Double) -&gt; String { "double: \(value)" }
+func render(_ value: Bool) -&gt; String { "bool: \(value)" }
+
+print(render(7))            // prints: int: 7
+print(render(7.5))          // prints: double: 7.5
+print(render(true))         // prints: bool: true
+
+// A dictionary of functions dispatches by key without any switch
+let handlers: [String: (Int) -&gt; Int] = [
+    "double": { $0 * 2 },
+    "square": { $0 * $0 }
+]
+print(handlers["square"]?(6) ?? 0)   // prints: 36
+</code></pre>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="labels">Argument Label Confusion</h3>
+
+        <p>Read a parameter as two names: the <em>external label</em> the caller types, then the <em>internal name</em> the body uses. Nothing in the declaration is accidental — the label exists to make the call site readable.</p>
+
+        <pre><code class="language-swift line-numbers">// Left to right: external label first, then the internal name
+func move(from start: Int, to end: Int) -&gt; Int {
+    end - start                  // inside the body: `start` and `end`
+}
+print(move(from: 10, to: 25))    // prints: 15 — call site reads as a phrase
+
+// `_` removes the label so the argument is positional
+func moveTo(_ position: Int) -&gt; String { "at \(position)" }
+print(moveTo(25))                // prints: at 25
+
+// The label pairs with the function name: scale(by:)
+func scale(by factor: Double) -&gt; String { "x\(factor)" }
+print(scale(by: 2.5))            // prints: x2.5
+</code></pre>
+
+        <h3 id="recursion">Recursion &amp; Base Cases</h3>
+
+        <p>A recursive function calls itself, so it needs a <em>base case</em> that returns without recursing — and each step must move toward it. Recursion that never bottoms out, or that goes thousands of levels deep, overflows the call stack.</p>
+
+        <pre><code class="language-swift line-numbers">func factorial(_ n: Int) -&gt; Int {
+    guard n &gt; 1 else { return 1 }   // base case stops the recursion
+    return n * factorial(n - 1)     // the argument shrinks each call
+}
+print(factorial(5))                 // prints: 120
+print(factorial(0))                 // prints: 1 — base case reached at once
+
+// The same shape written as a single expression
+func sumUpTo(_ n: Int) -&gt; Int {
+    n &lt;= 0 ? 0 : n + sumUpTo(n - 1)
+}
+print(sumUpTo(4))                   // prints: 10
+</code></pre>
+
+        <p>Functions are now first-class values in your toolkit: you can pass behaviour around, capture state, and choose an implementation at runtime. Next, handle the case where a value may be absent in <a href="/roadmap/swift/optionals.html">Optionals</a>.</p>
+
+  </main>
     </div>
   </div>
 
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 
@@ -104,8 +302,6 @@ Work in progress!
   };
 </script>
 <script src="/assets/js/sage.js" defer></script>
-<script src="/assets/js/progress.js" defer></script>
-<script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
 
 </body>

@@ -2,31 +2,35 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Template page for tutorials.">
+  <meta name="description" content="Swift packages and modules: module boundaries, access control levels, the Swift Package Manager manifest, targets, dependency requirements, building, testing, and bundled resources.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="rust, syntax">
+  <meta name="keywords" content="sage, code, swift, package, module, swiftpm, package.swift, target, dependency, access control, public, internal, resources, testing">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Swift Tutorial</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>Swift Packages &amp; Modules</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,56 +39,506 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="swift-packages">Packages &amp; Modules</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Real Swift code does not live in one file. It lives in <strong>targets</strong> that compile into <strong>modules</strong>, grouped into <strong>packages</strong> described by a <code>Package.swift</code> manifest. This lesson turns a folder of source files into a library that another project can depend on.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="swift-tutorial">Swift Tutorial</h2>
+        <p>Everything so far fit in a single file. That is the right way to learn a language, and the wrong way to ship one: a growing program needs a stated surface — what other code may use, and what stays internal — plus a repeatable way to build, test, and version it.</p>
 
+        <h2 id="modules">Modules &amp; Access Control</h2>
 
-<div class="alert alert-secondary shadow-sm">
-Work in progress!
-</div>
+        <p>A <strong>module</strong> is a unit of compilation and of namespacing. An app is a module, a framework is a module, and each target in a package is a module. Inside a module every type can see every other type; across a module boundary, only what you deliberately expose is reachable.</p>
 
-<pre><code class="language-swift line-numbers">// code example to be replaced
-  func factorial(number: Int) -> Int {
-    if number == 0 {
-      return 1
-    } else {
-      return number * factorial(number - 1)
+        <h3 id="module-basics">What a Module Gives You</h3>
+
+        <p>Two boundaries appear the moment code is split into modules: what is visible outside, and what the compiler must recompile when a file changes. Both come from the same declaration.</p>
+
+        <pre><code class="language-swift line-numbers">// SensorKit/Reading.swift — inside the SensorKit module
+struct Reading {                     // internal by default: module-private in effect
+    let sensor: String
+    let celsius: Double
+}
+
+public struct Sensor {
+    public let name: String
+    // A public initializer is required: the internal memberwise one is not
+    // visible outside the module, so callers would otherwise have no way in.
+    public init(name: String) { self.name = name }
+
+    // A public method may NOT return the internal `Reading` type: callers
+    // outside the module could not even name the result. Two ways out —
+    // return a public or tuple type, or make `Reading` public as well.
+    public func snapshot() -> (sensor: String, celsius: Double) {
+        let reading = Reading(sensor: name, celsius: 0)   // internal use is fine
+        return (reading.sensor, reading.celsius)
     }
-  }
-  
-  let factorialOf5 = factorial(number: 5)
-  print(factorialOf5) // 120
-</code></code></pre>
+}
 
-<!-- work in progress-->
+// App/main.swift — in a different module
+import SensorKit
 
-<hr>
+let sensor = Sensor(name: "t1")      // public type and public init: reachable
+print(sensor.name)                   // public property: reachable
+print(sensor.snapshot())             // (sensor: "t1", celsius: 0.0)
+// let reading = Reading(sensor: "t1", celsius: 0)   // error: Reading is internal
+</code></pre>
 
-</main>
+        <p>The public surface of a module is a promise you have to keep. Every public declaration can be used by someone else, so widening access is easy and narrowing it later breaks builds — decide the surface deliberately, and keep it as small as the module's purpose allows.</p>
+
+        <h3 id="access-levels">Access Levels</h3>
+
+        <p>Swift has five access levels, and they are a ladder: each one is visible everywhere the more restrictive one is. Choosing the lowest level that works keeps the surface honest and gives the compiler more freedom to optimise.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th>Visible in</th>
+              <th>Use it when</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>open</code></td>
+              <td>Other modules, and subclassable or overridable there</td>
+              <td>You design a class or method for outside subclasses (rare)</td>
+            </tr>
+            <tr>
+              <td><code>public</code></td>
+              <td>Other modules, but not overridable outside them</td>
+              <td>Library API that consumers call or read</td>
+            </tr>
+            <tr>
+              <td><code>internal</code> (default)</td>
+              <td>The whole module</td>
+              <td>Everything that is not part of the published surface</td>
+            </tr>
+            <tr>
+              <td><code>fileprivate</code></td>
+              <td>The declaring file only</td>
+              <td>Two types in one file need to share an implementation detail</td>
+            </tr>
+            <tr>
+              <td><code>private</code></td>
+              <td>The enclosing declaration, plus extensions in the same file</td>
+              <td>State that must not be reachable even from the rest of the file</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>Two details save time later. First, <code>private</code> is scoped to the enclosing declaration <em>and</em> its extensions in the same file, so a type and its extensions can share private state without widening access. Second, access propagates: a <code>public</code> type must not expose an <code>internal</code> type in its signature, which is exactly the error shown above.</p>
+
+        <h3 id="imports">Importing</h3>
+
+        <p>An <code>import</code> makes one module's public declarations visible in the current file. It can be narrowed to a single declaration, which keeps the namespace clean and makes a dependency obvious.</p>
+
+        <pre><code class="language-swift line-numbers">import Foundation                  // the whole module
+import struct Foundation.Date      // one type only — a deliberate, narrow import
+import func Foundation.pow         // one function
+// @testable import SensorKit      // test-only: also exposes internal members
+
+// A plain import also re-exports nothing: if SensorKit's API mentions Date,
+// the file that uses SensorKit still needs its own `import Foundation`.
+// SwiftPM does not transpose transitive imports for you.
+
+// `typealias` is the usual tool for renaming a type you import:
+typealias Day = Foundation.Date
+let today: Day = Day()             // explicit, greppable, and short
+</code></pre>
+
+        <p>Prefer a narrow import when you need one item from a large module; prefer the plain import when the type is used throughout the file. The rule that matters most, though, is the second comment: imports are not transitive, so a type you use must be imported by <em>your</em> file.</p>
+
+        <h2 id="swiftpm">The Swift Package Manager</h2>
+
+        <p>SwiftPM is the build system that ships with Swift. A package is a directory containing a manifest called <code>Package.swift</code>; the manifest is Swift code, so the configuration is compiled and type-checked like everything else you write.</p>
+
+        <h3 id="package-manifest">The Manifest</h3>
+
+        <p>The manifest declares four things: the package's name, the products it publishes, the targets it builds, and the external packages it needs. Products are what consumers import; targets are what the compiler builds.</p>
+
+        <pre><code class="language-swift line-numbers">// swift-tools-version: 5.9
+// ^ The FIRST line, in a comment, must state the tools version. It decides
+//   which manifest API is available, not which Swift version compiles the code.
+import PackageDescription
+
+let package = Package(
+    name: "SensorKit",
+
+    // Minimum platform versions. Omit this and the code must work everywhere,
+    // including APIs that no modern OS still uses.
+    platforms: [.macOS(.v13)],
+
+    // Products are the public face of the package: a library others import,
+    // or an executable they run.
+    products: [
+        .library(name: "SensorKit", targets: ["SensorKit"]),
+        .executable(name: "sensor-demo", targets: ["SensorDemo"])
+    ],
+
+    // External packages, pinned by a version requirement.
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0")
+    ],
+
+    // Targets are the modules themselves. A .target is a library module,
+    // .executableTarget has a main entry point, .testTarget runs the tests.
+    targets: [
+        .target(
+            name: "SensorKit",
+            dependencies: [
+                // Pull in one product from a declared package. The `package:`
+                // argument names the package, not the repository URL.
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ]
+        ),
+        .executableTarget(name: "SensorDemo", dependencies: ["SensorKit"]),
+        .testTarget(name: "SensorKitTests", dependencies: ["SensorKit"])
+    ]
+)
+</code></pre>
+
+        <p>Read it as a contract: <code>products</code> answers "what may others use", <code>targets</code> answers "what does this package build", and <code>dependencies</code> answers "what do I need from outside". Everything else in a manifest is a refinement of those three.</p>
+
+        <h3 id="layout">Directory Layout</h3>
+
+        <p>SwiftPM has conventions, and following them means writing almost no path configuration. Each target's sources live in a folder named after the target under <code>Sources/</code>, and each test target under <code>Tests/</code>.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>Contents</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Package.swift</code></td>
+              <td>The manifest</td>
+              <td>Required; sits at the package root</td>
+            </tr>
+            <tr>
+              <td><code>Sources/SensorKit/*.swift</code></td>
+              <td>Sources of the <code>SensorKit</code> target</td>
+              <td>Folder name must match the target name</td>
+            </tr>
+            <tr>
+              <td><code>Sources/SensorDemo/main.swift</code></td>
+              <td>Entry point of the executable target</td>
+              <td><code>main.swift</code> is allowed to contain top-level code</td>
+            </tr>
+            <tr>
+              <td><code>Tests/SensorKitTests/*.swift</code></td>
+              <td>Tests for the library target</td>
+              <td>Each test target needs at least one file to exist</td>
+            </tr>
+            <tr>
+              <td><code>Package.resolved</code></td>
+              <td>Exact resolved versions of every dependency</td>
+              <td>Generated; commit it for apps, think twice for libraries</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>Create the skeleton with <code>swift package init --type library</code> (or <code>--type executable</code>) instead of by hand — the generated manifest already has the correct tools version and the folders in the right places.</p>
+
+        <h3 id="targets">Targets &amp; Their Graph</h3>
+
+        <p>Each target is a module, and the <code>dependencies</code> array inside a target is what creates the module boundary. A target may import a module only if it was declared as a dependency, which means the dependency graph in the manifest is the only way code can reach across.</p>
+
+        <pre><code class="language-swift line-numbers">// SensorKit/Reading.swift — library target: knows nothing about the app
+public struct Reading {
+    public let sensor: String
+    public let celsius: Double
+    public init(sensor: String, celsius: Double) {
+        self.sensor = sensor
+        self.celsius = celsius
+    }
+}
+
+// SensorDemo/main.swift — executable target: depends on SensorKit
+import SensorKit                    // allowed: "SensorKit" is a target dependency
+
+@main                               // the entry point for an executableTarget
+struct Demo {
+    static func main() {
+        let reading = Reading(sensor: "t1", celsius: 21.5)
+        print(reading.celsius)      // 21.5
+    }
+}
+
+// What the graph forbids, and why it matters:
+//  - a cycle: SensorKit cannot depend on SensorDemo, because the demo needs
+//    SensorKit to build. Circular target dependencies are rejected by SwiftPM.
+//  - importing without declaring: `import SensorKit` inside a target that did
+//    not list it is an error, even if another target in the package did.
+</code></pre>
+
+        <p>The graph is also a design tool. A library target that depends on nothing else is testable in isolation; an executable that depends on several libraries is where the wiring lives. When a target needs a dependency it should not have, that is usually a sign a responsibility sits in the wrong module.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/swift/img/module-dependency-graph.svg" alt="An executable target depends on a library target and on an external package product, while a test target depends on the library; dependencies point in one direction and no cycle exists" width="780" class="img-fluid protect rounded shadow border">
+          <p class="text-secondary small">Figure 1 — a target may import a module only along a declared edge. Test targets depend on the library, never the other way round.</p>
+        </div>
+
+        <h2 id="dependencies">Dependencies</h2>
+
+        <p>A dependency is a promise with a version attached. SwiftPM resolves it once, records the exact result, and rebuilds only what changed — but only if the requirement you wrote says what you meant.</p>
+
+        <h3 id="declaring-deps">Declaring a Dependency</h3>
+
+        <p>Declaring happens in two steps: name the package in the top-level <code>dependencies</code> list, then pull the specific product into the target that uses it. Skipping the second step is the most common mistake, because the package resolves but the <code>import</code> still fails.</p>
+
+        <pre><code class="language-swift line-numbers">// Step 1 — in the package's `dependencies`: where the code comes from.
+dependencies: [
+    .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0")
+],
+
+// Step 2 — in the target's `dependencies`: what this module imports.
+targets: [
+    .target(
+        name: "SensorDemo",
+        dependencies: [
+            // `name` is the product's name; `package` is the package's name.
+            // To find both, open the dependency's Package.swift and read its
+            // `products` and `name` — they are frequently different words.
+            .product(name: "ArgumentParser", package: "swift-argument-parser")
+        ]
+    )
+]
+
+// A local package is declared by path, which is what you use while developing
+// two packages together.
+// .package(path: "../SensorCore")
+</code></pre>
+
+        <p>Local path dependencies are the practical way to work on a library and its consumer at once: no publishing, no version bumping, and changes are picked up on the next build.</p>
+
+        <h3 id="versions">Version Requirements</h3>
+
+        <p>A requirement is a rule for choosing a version, and <code>from:</code> is the one people misread: it means "this version or any later one up to the next major version". Choosing the wrong form is how a library silently adopts a breaking change.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr>
+              <th>Requirement</th>
+              <th>Meaning</th>
+              <th>Reasonable when</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>from: "1.3.0"</code></td>
+              <td>1.3.0 up to (but not including) 2.0.0</td>
+              <td>The dependency follows semantic versioning — the usual choice</td>
+            </tr>
+            <tr>
+              <td><code>.upToNextMinor(from: "1.3.0")</code></td>
+              <td>1.3.0 up to (but not including) 1.4.0</td>
+              <td>A minor release has broken you before, and you want stability</td>
+            </tr>
+            <tr>
+              <td><code>.exact("1.3.0")</code></td>
+              <td>That version and no other</td>
+              <td>Debugging a version-specific bug, or reproducing a build</td>
+            </tr>
+            <tr>
+              <td><code>.range("1.3.0"..&lt;"1.5.0")</code></td>
+              <td>Any version in the range</td>
+              <td>You need a fix from one version and cannot take the next</td>
+            </tr>
+            <tr>
+              <td><code>.branch("main")</code></td>
+              <td>The tip of a branch</td>
+              <td>Development only — the build is not reproducible</td>
+            </tr>
+            <tr>
+              <td><code>.revision("abc123")</code></td>
+              <td>One specific commit</td>
+              <td>Pinning an unreleased fix while waiting for a tag</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>Two rules keep this simple. Use <code>from:</code> for anything that follows semantic versioning, because it lets bug fixes and features in while excluding major versions. Never depend on a branch in released code — the code under that name will change without your build changing.</p>
+
+        <h3 id="resolving">Resolution &amp; the Lock File</h3>
+
+        <p>Resolution takes the requirements of every package in the graph — yours and your dependencies' — and picks the highest version that satisfies all of them at once. The result is written to <code>Package.resolved</code>, so every machine builds the same code.</p>
+
+        <pre><code class="language-bash line-numbers"># Resolve the graph and write Package.resolved. Runs automatically before a
+# build, but explicit is better when you have just edited the manifest.
+swift package resolve
+
+# Move dependencies forward within the allowed range. The intermediate
+# Package.resolved is discarded, so this is the command that updates pins.
+swift package update
+
+# Print the resolved graph as a tree. The fastest way to answer
+# "who brought this package in?"
+swift package show-dependencies
+
+# Throw away the resolved pins and resolve from scratch — the fix for a
+# confusing conflict after switching branches.
+rm Package.resolved &amp;&amp; swift package resolve
+</code></pre>
+
+        <p>When resolution fails, the error names the conflicting requirements: two packages want the same dependency in ranges that do not overlap. The fix is always a version decision — widen one requirement, or pick a version of your direct dependency that agrees with the rest of the graph.</p>
+
+        <h2 id="build-test">Building, Testing &amp; Resources</h2>
+
+        <p>A package that builds on one machine and not another is a packaging bug, not a language bug. The commands below are the whole workflow, and running them in a clean checkout is the only real test of the manifest.</p>
+
+        <h3 id="build-run">Build &amp; Run</h3>
+
+        <pre><code class="language-bash line-numbers"># Debug build by default: fast to compile, with assertions enabled.
+swift build
+
+# Release build: optimised, no assertions, what you ship and measure.
+swift build -c release
+
+# Build one target only, which is much faster in a larger package.
+swift build --target SensorKit
+
+# Run an executable product, passing arguments through with `--`.
+swift run sensor-demo -- --sensor t1
+
+# Compile and run the tests.
+swift test
+
+# Inspect what the build produced.
+swift build --show-bin-path
+</code></pre>
+
+        <p>Prefer <code>swift run</code> over invoking the binary by path while developing: it rebuilds first, so the executable you run is always the code you just wrote.</p>
+
+        <h3 id="testing">Testing</h3>
+
+        <p>A test target is an ordinary module whose dependency is the library under test. <code>@testable import</code> widens access to <code>internal</code> for tests only, which is why a library can keep its surface small and still be tested thoroughly.</p>
+
+        <pre><code class="language-swift line-numbers">// Tests/SensorKitTests/ReadingTests.swift — XCTest, supported everywhere
+import XCTest
+@testable import SensorKit      // test-only access to internal declarations
+
+final class ReadingTests: XCTestCase {
+    func testSnapshotKeepsSensorName() {
+        let sensor = Sensor(name: "t1")
+        XCTAssertEqual(sensor.snapshot().sensor, "t1")   // fails loudly with both values
+    }
+
+    // A test that can throw is written `throws`; a thrown error fails the test.
+    func testReadingStoresValues() throws {
+        let reading = Reading(sensor: "t1", celsius: 21.5)
+        XCTAssertEqual(reading.celsius, 21.5, accuracy: 0.001)   // floats need accuracy
+    }
+}
+
+// Swift Testing — the newer framework, same target, different style.
+import Testing
+
+@Suite("SensorKit")
+struct SensorSuite {
+    @Test("snapshot carries the sensor name")
+    func snapshot() {
+        #expect(Sensor(name: "t1").snapshot().sensor == "t1")
+    }
+}
+</code></pre>
+
+        <p>Both frameworks run from the same <code>swift test</code>. XCTest is the safe choice for existing code and for anything that must run on older toolchains; the <code>@Test</code>/<code>#expect</code> style reads closer to a specification and reports the failing expression rather than a line number.</p>
+
+        <h3 id="resources">Resources</h3>
+
+        <p>Files that ship with a module are declared as resources in the target, and read at runtime through the module's own bundle. Declaring them is not optional: a file that is not listed is simply not copied into the build.</p>
+
+        <pre><code class="language-swift line-numbers">// In Package.swift, inside the .target declaration:
+.target(
+    name: "SensorKit",
+    dependencies: [],
+    resources: [
+        // .process: apply platform rules (asset catalogs, property lists) and
+        // optimise images. The usual choice.
+        .process("Resources"),
+        // .copy: copy the directory or file verbatim, structure preserved.
+        .copy("Fixtures")
+    ]
+)
+
+// In code, read a resource through the module's bundle. `Bundle.module` is
+// generated by SwiftPM for any target that declares resources.
+import Foundation
+
+enum Defaults {
+    static func load() throws -> Data {
+        guard let url = Bundle.module.url(forResource: "defaults", withExtension: "json") else {
+            // Missing resources are a packaging mistake, not an input error.
+            throw CocoaError(.fileNoSuchFile)
+        }
+        return try Data(contentsOf: url)
+    }
+}
+</code></pre>
+
+        <p>Use <code>Bundle.module</code>, never <code>Bundle.main</code>: the main bundle belongs to the executable, so a library that reads from it works in the app and fails in tests. This mistake survives local runs and appears only when the library is used from somewhere else.</p>
+
+        <h2 id="pitfalls">Pitfalls &amp; Practice</h2>
+
+        <p>Packaging failures are uncomfortable because they look like language failures. The build says a type is unavailable, the app crashes on a missing file, or a teammate gets a different version — and in every case the cause is in the manifest or the layout.</p>
+
+        <h3 id="pitfall-list">Common Pitfalls</h3>
+
+        <pre><code class="language-swift line-numbers">// 1. Marking everything public "in case it is needed". Access is a promise: a
+//    public type can never be removed without breaking someone. Start at
+//    internal and widen only when a real caller exists.
+
+// 2. Declaring the package dependency but forgetting the target dependency.
+//    Resolution succeeds, the module downloads, and the import still fails.
+//    Both lists must mention the dependency, for different reasons.
+
+// 3. Using @testable import in product code. It needs a testing-enabled build,
+//    so it compiles locally and fails in a release build. Tests only.
+
+// 4. A circular target dependency. SwiftPM rejects it, and the message names the
+//    cycle: the fix is to move the shared code into a third target both depend on.
+
+// 5. Reading resources through Bundle.main from inside a library. It works when
+//    the library is linked into an app and breaks under `swift test`.
+
+// 6. Editing Package.swift without resolving. The manifest and Package.resolved
+//    are then out of step, and the build uses pins you no longer intend.
+
+// 7. Committing .build/ (a machine-specific build directory) while ignoring
+//    Package.resolved. For an app the lock file is what makes builds reproducible.
+</code></pre>
+
+        <p>Each of these has the same shape: something is stated twice, or stated implicitly, and only one of the two places is correct. When a build behaves strangely, check the manifest and the layout before checking the code.</p>
+
+        <h3 id="packages-lab">Practice Lab</h3>
+
+        <p>Build one package end to end; the manifest stops feeling like configuration once you have written it yourself.</p>
+
+        <ol>
+          <li><strong>Create a library.</strong> Run <code>swift package init --type library</code>, rename the target to something of your own, and confirm that <code>swift build</code> and <code>swift test</code> both pass before you change anything.</li>
+          <li><strong>Draw the boundary.</strong> Add a public type with a public initializer and an internal helper. Try to use the helper from a test target without <code>@testable</code>, and read the error carefully.</li>
+          <li><strong>Add an executable.</strong> Add an <code>executableTarget</code> that depends on the library, use <code>@main</code>, and run it with <code>swift run</code>. Then remove the target dependency and confirm the import fails.</li>
+          <li><strong>Take a dependency.</strong> Add an external package with <code>from:</code>, wire one of its products into your target, and run <code>swift package show-dependencies</code> to see the resolved graph.</li>
+          <li><strong>Ship a resource.</strong> Add a JSON file to a <code>Resources</code> folder, declare it with <code>.process</code>, read it through <code>Bundle.module</code>, and verify the test still passes.</li>
+        </ol>
+
+        <p>That completes Phase 4. Phase 5 moves from building software to studying it: <a href="/roadmap/swift/demo_examples.html">Lab Examples</a> collects the single-file demos you can run and modify, and <a href="/roadmap/swift/samples.html">Study Projects</a> takes the same ideas into complete programs.</p>
+
+  </main>
     </div>
   </div>
 
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 
@@ -104,8 +558,6 @@ Work in progress!
   };
 </script>
 <script src="/assets/js/sage.js" defer></script>
-<script src="/assets/js/progress.js" defer></script>
-<script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
 
 </body>

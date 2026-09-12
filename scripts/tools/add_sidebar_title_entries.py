@@ -2,11 +2,14 @@
 """Prepend the page-title link as the FIRST entry of every topic sidebar JSON.
 
 Convention (see manual/ARCHITECTURE.md "Topic sidebar JSON — shape"):
-the first sidebar entry is a leaf { "title": "<H1 text>", "link": "#<h1-id>" }
+the first sidebar entry is a leaf
+{ "title": "<H1 text>", "link": "#<h1-id>", "role": "title" }
 pointing at the topic page's <h1>, so the user can always click back to the
 top of the lab. The h2/h3 tree keeps two levels only.
 
-Covers all `roadmap/c/data/<topic>.json` files (the C track).
+Superseded for new work by scripts/tools/gen_topic_sidebars.py, which derives the
+whole sidebar (title leaf included) from the page; this script remains only to
+retrofit the hand-written C-track data files, whose h1 texts are irregular.
 
 Usage:
   python scripts/tools/add_sidebar_title_entries.py            # dry-run
@@ -55,7 +58,7 @@ def detect_eol(text: str) -> str:
 
 
 def title_entry(h1_id: str, title: str) -> str:
-    return '{ "title": %s, "link": %s }' % (
+    return '{ "title": %s, "link": %s, "role": "title" }' % (
         json.dumps(title, ensure_ascii=False),
         json.dumps("#" + h1_id, ensure_ascii=False),
     )

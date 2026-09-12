@@ -2,31 +2,35 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Template page for tutorials.">
+  <meta name="description" content="Swift error handling: the Error protocol, throwing functions, do-catch, try? and try!, propagation, defer blocks, and the Result type.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="rust, syntax">
+  <meta name="keywords" content="sage, code, swift, error handling, throws, do catch, try, defer, Result, propagation">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Swift Tutorial</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>Swift Error Handling</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,56 +39,287 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="swift-errors">Error Handling</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Swift models recoverable failure with <strong>throwing functions</strong>: a function declares that it can fail, and every call site must acknowledge that with <code>try</code>. Errors are ordinary typed values, so you can match them precisely instead of inspecting error codes.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="swift-tutorial">Swift Tutorial</h2>
+        <p>This lesson covers defining errors, the four ways to handle them, guaranteeing cleanup with <code>defer</code>, and knowing when a thrown error beats a returned optional.</p>
 
+        <h2 id="defining">Defining Errors</h2>
 
-<div class="alert alert-secondary shadow-sm">
-Work in progress!
-</div>
+        <p>An error can be any type conforming to <code>Error</code>, but in practice it is almost always an <em>enum</em>: that makes the complete set of failure modes explicit, and the compiler can check that you have covered the ones you care about.</p>
 
-<pre><code class="language-swift line-numbers">// code example to be replaced
-  func factorial(number: Int) -> Int {
-    if number == 0 {
-      return 1
-    } else {
-      return number * factorial(number - 1)
+        <h3 id="error-protocol">The Error Protocol</h3>
+
+        <p>Each case names one failure, and associated values carry the context needed to explain it. Adopting <code>LocalizedError</code> adds a human-readable description for logs and dialogs.</p>
+
+        <pre><code class="language-swift line-numbers">// An enum is the idiomatic way to model the ways an operation can fail
+enum ValidationError: Error {
+    case empty
+    case tooShort(minimum: Int)      // an associated value carries context
+    case containsDigits
+}
+
+// LocalizedError adds a description suitable for a user-facing message
+extension ValidationError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .empty:             return "The name is empty."
+        case .tooShort(let min): return "Use at least \(min) characters."
+        case .containsDigits:    return "Digits are not allowed."
+        }
     }
-  }
-  
-  let factorialOf5 = factorial(number: 5)
-  print(factorialOf5) // 120
-</code></code></pre>
+}
 
-<!-- work in progress-->
+print(ValidationError.tooShort(minimum: 3).errorDescription ?? "?")
+// prints: Use at least 3 characters.
+</code></pre>
 
-<hr>
+        <h3 id="throwing">Throwing Errors</h3>
 
-</main>
+        <p>A function that can fail is marked <code>throws</code>, and it signals failure with <code>throw</code>. The rule the compiler enforces is simple: any call to a throwing function must be written with <code>try</code>, so failure can never be ignored by accident.</p>
+
+        <pre><code class="language-swift line-numbers">func validate(_ name: String) throws -&gt; String {
+    guard name.isEmpty == false else { throw ValidationError.empty }
+    guard name.count &gt;= 3 else { throw ValidationError.tooShort(minimum: 3) }
+    guard name.contains(where: \.isNumber) == false else {
+        throw ValidationError.containsDigits
+    }
+    return name
+}
+
+// A successful call
+do {
+    print(try validate("Ada"))      // prints: Ada
+} catch {
+    print(error)
+}
+
+// Catch a specific error type first, then anything unexpected
+do {
+    _ = try validate("")
+} catch let error as ValidationError {
+    print(error)                    // empty
+} catch {
+    print("unexpected: \(error)")   // any other error type
+}
+</code></pre>
+
+        <h2 id="handling">Handling Errors</h2>
+
+        <p>There are exactly four options at a call site: catch the error locally, convert it to <code>nil</code>, assert that it cannot happen, or pass it up the call stack. Choose the one that matches what you can actually <em>do</em> about the failure.</p>
+
+        <h3 id="do-catch">do / catch</h3>
+
+        <p>A <code>do</code> block contains the throwing calls and one or more <code>catch</code> clauses inspect the error. Clauses are tried in order, so specific patterns come first and a bare <code>catch</code> acts as the catch-all.</p>
+
+        <pre><code class="language-swift line-numbers">enum FileError: Error {
+    case notFound(String), unreadable
+}
+
+func readConfig(name: String) throws -&gt; String {
+    if name.isEmpty { throw FileError.notFound("(empty)") }
+    if name == "secret" { throw FileError.unreadable }
+    return "config: \(name)"
+}
+
+func load(_ name: String) {
+    do {
+        let content = try readConfig(name: name)
+        print(content)
+    } catch FileError.notFound(let name) {
+        print("missing: \(name)")        // binds the associated value
+    } catch FileError.unreadable {
+        print("permission denied")
+    } catch {
+        print("unexpected: \(error)")    // catch-all, must come last
+    }
+}
+
+load("app")       // prints: config: app
+load("")          // prints: missing: (empty)
+load("secret")    // prints: permission denied
+</code></pre>
+
+        <h3 id="try-optional">try? and try!</h3>
+
+        <p><code>try?</code> turns a thrown error into <code>nil</code>, producing an optional result. That is appropriate when the reason for failure carries no information you would act on. <code>try!</code> crashes on failure and belongs only in code where an error is genuinely impossible.</p>
+
+        <pre><code class="language-swift line-numbers">// try? converts failure into nil, discarding the error itself
+print(try? readConfig(name: "app") ?? "none")     // prints: config: app
+
+let failed = try? readConfig(name: "secret")
+print(failed == nil)                              // prints: true
+
+// try? flattens an already-optional result: no String?? to unwrap
+func find(_ key: String) throws -&gt; String? { key == "x" ? "found" : nil }
+print((try? find("x")) ?? "none")                 // prints: found
+
+// try! asserts success and crashes otherwise
+// print(try! readConfig(name: "secret"))         // ❌ crash: unreadable
+</code></pre>
+
+        <h3 id="propagating">Propagating with throws</h3>
+
+        <p>When a function cannot do anything useful about a failure, it declares <code>throws</code> and lets the error travel to whoever called it. Marking a function <code>rethrows</code> promises it can only throw what a closure argument threw.</p>
+
+        <pre><code class="language-swift line-numbers">// Propagation: no try-catch needed, the error travels to the caller
+func loadAll(_ names: [String]) throws -&gt; [String] {
+    var results: [String] = []
+    for name in names {
+        results.append(try readConfig(name: name))
+    }
+    return results
+}
+
+do {
+    print(try loadAll(["app", "app2"]))   // ["config: app", "config: app2"]
+} catch {
+    print("failed: \(error)")
+}
+
+// rethrows: only the closure can introduce an error
+func attempt(_ body: () throws -&gt; String) rethrows -&gt; String? {
+    try? body()
+}
+print(attempt { try readConfig(name: "app") } ?? "none")   // config: app
+</code></pre>
+
+        <h2 id="resources">Resource Safety</h2>
+
+        <p>Two features matter when errors meet resources. <code>defer</code> guarantees cleanup no matter how a scope ends, and <code>Result</code> lets a failure travel as an ordinary value instead of an exception.</p>
+
+        <h3 id="defer">defer Blocks</h3>
+
+        <p>A <code>defer</code> block runs when the current scope exits — by <code>return</code>, by <code>throw</code>, or by <code>break</code>. The body executes <em>before</em> control actually leaves, so it is the right place to release a resource. Multiple deferred blocks run in reverse order, like a stack.</p>
+
+        <pre><code class="language-swift line-numbers">func readFile(at path: String) throws -&gt; String {
+    // defer runs on every exit path: normal return or thrown error
+    defer { print("closed \(path)") }
+    print("opened \(path)")
+
+    guard path.hasSuffix(".txt") else { throw FileError.notFound(path) }
+    return "contents of \(path)"
+}
+
+print(try? readFile(at: "notes.txt") ?? "none")
+// prints: opened notes.txt, closed notes.txt, contents of notes.txt
+
+// The cleanup ran even though this call failed
+print(try? readFile(at: "notes.pdf") == nil)
+// prints: opened notes.pdf, closed notes.pdf, true
+
+// Several defers unwind in reverse order
+func scoped() {
+    defer { print("third") }
+    defer { print("second") }
+    defer { print("first") }
+    print("body")
+}
+scoped()      // prints: body, first, second, third
+</code></pre>
+
+        <h3 id="result-type">The Result Type</h3>
+
+        <p><code>Result&lt;Success, Failure&gt;</code> is an enum holding either a value or an error. Use it when the failure cannot be handled at the point where it occurs — for example inside an asynchronous callback that has nobody to throw to.</p>
+
+        <pre><code class="language-swift line-numbers">enum MathError: Error { case divisionByZero }
+
+// Result carries success or failure as a value instead of throwing
+func divide(_ a: Int, by b: Int) -&gt; Result&lt;Int, MathError&gt; {
+    guard b != 0 else { return .failure(.divisionByZero) }
+    return .success(a / b)
+}
+
+// get() rethrows, so try? turns the outcome back into an optional
+print(try? divide(10, by: 2).get())     // prints: Optional(5)
+print(try? divide(10, by: 0).get())     // prints: nil
+
+// switch over the outcome when both cases need first-class handling
+switch divide(9, by: 3) {
+case .success(let value): print("ok \(value)")     // prints: ok 3
+case .failure(let error): print("failed \(error)")
+}
+
+// map transforms a success and leaves a failure untouched
+print(try? divide(8, by: 2).map { $0 * 2 }.get())  // prints: Optional(8)
+</code></pre>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="swallow">Swallowing Errors</h3>
+
+        <p>An empty <code>catch</code> or a bare <code>try?</code> discards the reason for failure, turning a diagnosable bug into a mysterious silence. Either handle the error or report it with enough context for the next reader to act.</p>
+
+        <pre><code class="language-swift line-numbers">// ❌ An empty catch hides every failure, real bugs included
+func loadQuietly(_ name: String) {
+    do {
+        _ = try readConfig(name: name)
+    } catch { }                    // nothing recorded, nothing reported
+}
+
+// ❌ try? can hide a failure the caller genuinely needs to know about
+let silent = try? readConfig(name: "secret")
+print(silent == nil)               // prints: true — but why? nobody knows
+
+// ✅ Report it with enough context to be actionable
+func loadReported(_ name: String) -&gt; String {
+    do {
+        return try readConfig(name: name)
+    } catch let error as LocalizedError {
+        return "failed: \(error.errorDescription ?? "unknown")"
+    } catch {
+        return "failed: \(error)"
+    }
+}
+print(loadReported("app"))         // prints: config: app
+print(loadReported("secret"))      // prints: failed: unreadable
+</code></pre>
+
+        <h3 id="catch-order">Catch Order &amp; Specificity</h3>
+
+        <p>Clauses are matched top to bottom, so a bare <code>catch</code> placed first makes everything below it unreachable. Order them from most specific to least, and use <code>catch is Type</code> when the payload is not needed.</p>
+
+        <pre><code class="language-swift line-numbers">enum NetworkError: Error { case timeout(seconds: Int), offline }
+
+func ping() throws { throw NetworkError.timeout(seconds: 30) }
+
+// ❌ A catch-all first would make every clause below it unreachable:
+// do { try ping() } catch { } catch NetworkError.offline { }
+
+// ✅ Specific patterns first, general last
+do {
+    try ping()
+} catch NetworkError.timeout(let seconds) {
+    print("timed out after \(seconds)s")     // prints: timed out after 30s
+} catch NetworkError.offline {
+    print("no connection")
+} catch {
+    print("unexpected: \(error)")
+}
+
+// `is` tests the type when the associated value is not needed
+do {
+    try ping()
+} catch is NetworkError {
+    print("a network problem")               // prints: a network problem
+}
+</code></pre>
+
+        <p>Errors are now a designed part of your API rather than an afterthought: callers know exactly which failures to expect and how to respond. Continue with value types and classes in <a href="/roadmap/swift/objects.html">Classes &amp; Structs</a>.</p>
+
+  </main>
     </div>
   </div>
 
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 
@@ -104,8 +339,6 @@ Work in progress!
   };
 </script>
 <script src="/assets/js/sage.js" defer></script>
-<script src="/assets/js/progress.js" defer></script>
-<script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
 
 </body>

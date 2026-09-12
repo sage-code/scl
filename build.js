@@ -106,7 +106,6 @@ const ASSET_PATH_REWRITES = [
   { pattern: /(["'])\/(prism\.css)\1/g, replacement: "$1/assets/css/prism.css$1" },
   { pattern: /(["'])\/(sage\.js)\1/g, replacement: "$1/assets/js/sage.js$1" },
   { pattern: /(["'])\/(sidebar\.js)\1/g, replacement: "$1/assets/js/sidebar.js$1" },
-  { pattern: /(["'])\/(progress\.js)\1/g, replacement: "$1/assets/js/progress.js$1" },
   { pattern: /(["'])\/(home\.js)\1/g, replacement: "$1/assets/js/home.js$1" },
   { pattern: /(["'])\/(prism\.js)\1/g, replacement: "$1/assets/js/prism.js$1" },
   { pattern: /(["'])\/common\/([^"']+\.js)\1/g, replacement: "$1/assets/js/$2$1" },
@@ -719,6 +718,14 @@ function getLabIdFromRoute(route) {
   return route;
 }
 
+// Hand-authored heading glyph for the sidebar page-title leaf (`role: "title"`).
+// Bootstrap Icons ships no "nav title" glyph, so the SVG is inlined instead of a
+// font icon. A bold top rule over two lighter, shorter rules reads as the page
+// title / "back to top" and deliberately has no page outline so it is never
+// mistaken for the `bi-file-earmark-text` leaf icon.
+const TITLE_ICON =
+  '<span class="nav-title-icon"><svg class="bi-nav-title" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><rect x="1.5" y="3" width="13" height="2.6" rx="0.6"></rect><rect x="1.5" y="7.6" width="9" height="1.7" rx="0.5" opacity="0.62"></rect><rect x="1.5" y="11.2" width="6" height="1.7" rx="0.5" opacity="0.62"></rect></svg></span>';
+
 function renderSidebarItems(items, state = { index: 0 }, level = 0) {
   let html = "";
 
@@ -740,14 +747,16 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
     const sectionKey = escapeHtml(link.slice(1));
     const nodeId = `node-${sectionKey}-static-${state.index}`;
     const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+    const isTitle = item.role === "title";
     const icon = hasChildren
       ? `<button type="button" class="nav-tree-toggle" data-node-id="${nodeId}" aria-expanded="${level === 0 ? "true" : "false"}" aria-label="${level === 0 ? "Collapse topic folder" : "Expand topic folder"}"><i class="bi ${level === 0 ? "bi-folder2-open" : "bi-folder2"}" aria-hidden="true"></i></button>`
-      : '<span class="nav-file-icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>';
+      : isTitle
+        ? TITLE_ICON
+        : '<span class="nav-file-icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>';
 
-    html += `<li class="nav-item mb-2 nav-tree-item" id="${itemId}" data-sidebar-level="${level}" data-tree-level="${level}" data-node-id="${nodeId}" data-section-key="${sectionKey}"${hasChildren ? ' data-has-children="true"' : ""}>`;
+    html += `<li class="nav-item mb-2 nav-tree-item${isTitle ? " nav-title-item" : ""}" id="${itemId}" data-sidebar-level="${level}" data-tree-level="${level}" data-node-id="${nodeId}" data-section-key="${sectionKey}"${isTitle ? ' data-role="title"' : ""}${hasChildren ? ' data-has-children="true"' : ""}>`;
     html += `<div class="nav-node-row" data-node-id="${nodeId}" data-section-key="${sectionKey}">`;
-    const checkboxId = `nav-progress-${state.index}`;
-    html += `${icon}<input type="checkbox" class="nav-progress-checkbox" id="${checkboxId}" data-is-trackable="true" data-link="${safeLink}" data-section-key="${sectionKey}" tabindex="-1" aria-hidden="true">`;
+    html += `${icon}`;
     html += `<a href="${safeLink}" class="nav-tree-link text-decoration-none" data-section-key="${sectionKey}" role="treeitem" aria-level="${level + 1}" tabindex="-1">${title}</a>`;
     html += `</div>`;
 
@@ -1077,13 +1086,10 @@ function ensureTopicRuntimeScripts(html, sourcePath) {
 
   transformed = ensureTopicConfigScript(transformed, sourcePath);
 
+  // Topic pages are navigation + save-position only: no sidebar progress
+  // checkboxes, so neither progress.js nor lab-progress-bridge.js is injected.
+  // The roadmap index keeps lab-progress-bridge.js for its own row completion.
   const requiredScripts = [];
-  if (!/\bprogress\.js\b/i.test(transformed)) {
-    requiredScripts.push('<script src="/assets/js/progress.js" defer></script>');
-  }
-  if (!/\blab-progress-bridge\.js\b/i.test(transformed)) {
-    requiredScripts.push('<script src="/assets/js/lab-progress-bridge.js" defer></script>');
-  }
   if (!/\btopic-loader\.js\b/i.test(transformed)) {
     requiredScripts.push('<script src="/assets/js/topic-loader.js" defer></script>');
   }

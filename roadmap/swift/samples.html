@@ -1,0 +1,862 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Swift study projects: classic algorithms, data structures, file and text processing, and async networking, written as small but complete programs with commented Swift source.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, swift, samples, projects, algorithms, sorting, binary search, linked list, queue, csv, urlsession, actors, task groups, swift packages">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Swift Study Projects</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="swift-study-projects">Swift Study Projects</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          This is the final study page. The programs here are still small — each fits on one screen — but they
+          are complete: they take input, produce output, handle failure, and can be extended without being
+          rewritten. Everything uses only the standard library and Foundation, so there is nothing to install.
+        </div>
+
+        <p>
+          Work through the sections in order. Each one starts with a naive version so you can see the problem
+          clearly, then improves it and explains what the improvement costs. Implement every listing in your own
+          file, run it, and only then compare it with the version below — the compiler is a patient teacher.
+        </p>
+
+        <h2 id="algorithms">Algorithms</h2>
+
+        <p>
+          Algorithms are the shared vocabulary of computer science: the same five or six ideas appear in every
+          language, and each one has a characteristic cost. This section covers the two that matter most —
+          sorting and searching — and the recursion pattern that turns an exponential program into a linear one.
+        </p>
+        <h3 id="sorting">Sorting</h3>
+
+        <p>
+          Bubble sort is the clearest sorting algorithm and the slowest useful one. Each pass walks the array
+          swapping neighbours that are out of order, and after pass <em>k</em> the last <em>k</em> elements are
+          already in their final place — which is why the inner loop shrinks every time. Written generically it
+          sorts any <code>Comparable</code> type, integers and strings alike.
+        </p>
+
+        <pre><code class="language-swift line-numbers">// Bubble sort: O(n^2) comparisons, O(1) extra memory, stable.
+// "Stable" means equal elements keep their relative order — a property that
+// matters as soon as you sort records by one field among several.
+func bubbleSort&lt;T: Comparable&gt;(_ input: [T]) -&gt; [T] {
+    var items = input
+    for pass in 0..&lt;(items.count - 1) {
+        var swapped = false
+        // The last `pass` elements are already final, so stop before them.
+        for index in 0..&lt;(items.count - 1 - pass) {
+            if items[index] &gt; items[index + 1] {
+                items.swapAt(index, index + 1)
+                swapped = true
+            }
+        }
+        // No swaps in a whole pass proves the array is sorted: stop early.
+        // Without this line the best case is still O(n^2).
+        if !swapped { break }
+    }
+    return items
+}
+
+print(bubbleSort([5, 2, 9, 1]))             // [1, 2, 5, 9]
+print(bubbleSort(["pear", "fig", "kiwi"]))  // [fig, kiwi, pear]</code></pre>
+
+        <p>
+          Quicksort takes the opposite approach: pick a pivot, partition the input into smaller, equal and
+          larger parts, then sort each part the same way. On average the split halves the problem, giving
+          <code>O(n log n)</code>; if the pivot is always the smallest or largest element the split achieves
+          nothing and the cost degrades to <code>O(n^2)</code>. The version below is not in place — it trades
+          memory for clarity, which is the right trade while learning.
+        </p>
+
+        <pre><code class="language-swift line-numbers">// Quicksort: O(n log n) average, O(n^2) worst case, O(n) extra memory here.
+// The recursion terminates because each sub-array is strictly smaller: the pivot
+// stays inside `equal`, so it never appears in a recursive call.
+func quickSort&lt;T: Comparable&gt;(_ input: [T]) -&gt; [T] {
+    guard input.count &gt; 1 else { return input }      // 0 or 1 element is sorted
+    let pivot = input[input.count / 2]
+    let smaller = input.filter { $0 &lt; pivot }
+    let equal   = input.filter { $0 == pivot }
+    let larger  = input.filter { $0 &gt; pivot }
+    return quickSort(smaller) + equal + quickSort(larger)
+}
+
+print(quickSort([5, 2, 9, 1, 5, 7]))      // [1, 2, 5, 5, 7, 9]</code></pre>
+
+        <p>
+          In real code you call <code>sorted()</code> instead of writing either of these. The standard library
+          sort is an adaptive, stable merge sort: it avoids the quadratic worst case and exploits runs that are
+          already ordered. Write your own to understand the invariants — then ship the standard one.
+        </p>
+        <h3 id="searching">Searching</h3>
+
+        <p>
+          Searching is where the cost of not sorting shows up. Linear search works on any array because it
+          compares every element until it finds the one you want; binary search is dramatically faster but is
+          only legal on a sorted array, because it depends on being able to discard half the remaining range at
+          each step.
+        </p>
+
+        <pre><code class="language-swift line-numbers">// Linear search: O(n) time, O(1) memory, no ordering required.
+// Returning Int? instead of -1 is the Swift way to say "not found": the caller
+// cannot forget to handle it, because the type will not compile that way.
+func linearSearch&lt;T: Equatable&gt;(_ items: [T], for target: T) -&gt; Int? {
+    for (index, item) in items.enumerated() where item == target {
+        return index
+    }
+    return nil
+}
+
+// Binary search: O(log n) time on a sorted array — 1,000,000 elements need at
+// most 20 comparisons. The bounds are inclusive, and every iteration must
+// shrink the range, or the loop never terminates.
+func binarySearch&lt;T: Comparable&gt;(_ items: [T], for target: T) -&gt; Int? {
+    var low = 0
+    var high = items.count - 1
+    while low &lt;= high {
+        // Written as low + (high - low) / 2 to avoid overflow on huge arrays;
+        // (low + high) / 2 is the same value but can overflow Int on 32-bit.
+        let mid = low + (high - low) / 2
+        if items[mid] == target { return mid }
+        if items[mid] &lt; target {
+            low = mid + 1                 // target is in the upper half
+        } else {
+            high = mid - 1                // target is in the lower half
+        }
+    }
+    return nil                            // the range collapsed: not present
+}
+
+let sorted = [1, 3, 5, 8, 13, 21]
+print(linearSearch(sorted, for: 13) ?? -1)    // 4
+print(binarySearch(sorted, for: 13) ?? -1)    // 4
+print(binarySearch(sorted, for: 2) as Any)    // nil</code></pre>
+
+        <p>
+          The two functions return the same answers, so the difference is entirely in the cost: linear search
+          reads one element after another, while binary search halves the candidates. That is why databases
+          maintain indexes, and why <code>Set</code> and <code>Dictionary</code> exist — they trade memory for
+          lookups that are O(1) instead of O(log n).
+        </p>
+
+        <h3 id="recursion">Recursion &amp; Memoization</h3>
+
+        <p>
+          Recursion expresses a problem in terms of a smaller version of itself. It becomes dangerous when the
+          recursion calls itself more than once per level, because the number of calls grows exponentially. The
+          Fibonacci sequence is the standard demonstration: the definition is two lines, and the naive
+          implementation takes seconds at <code>fib(40)</code>.
+        </p>
+
+        <pre><code class="language-swift line-numbers">// Naive Fibonacci: O(2^n) time — each call fans out into two more calls, and the
+// same sub-problems are recomputed thousands of times.
+func fibSlow(_ n: Int) -&gt; Int {
+    n &lt; 2 ? n : fibSlow(n - 1) + fibSlow(n - 2)
+}
+
+// Memoised Fibonacci: O(n) time, O(n) memory. The first time an answer is
+// computed it is stored, and every later request is a dictionary lookup.
+// The cache lives in a class so that one instance keeps one shared cache.
+final class Memo {
+    private var cache: [Int: Int] = [:]
+
+    func fibonacci(_ n: Int) -&gt; Int {
+        if let cached = cache[n] { return cached }        // already known
+        let value = n &lt; 2 ? n : fibonacci(n - 1) + fibonacci(n - 2)
+        cache[n] = value
+        return value
+    }
+}
+
+print(fibSlow(20))              // 6765 — instant
+// print(fibSlow(45))           // would take minutes: the same work, re-done
+let memo = Memo()
+print(memo.fibonacci(45))       // 1134903170 — still instant
+print(memo.fibonacci(90))       // no overflow at 90; 93 is the Int64 limit</code></pre>
+
+        <p>
+          Two lessons are worth keeping. First, exponential recursion is usually a sign that the same sub-problem
+          is solved repeatedly — caching the answer is a one-line fix. Second, recursion depth is limited by the
+          stack: a recursive algorithm that goes <code>n</code> levels deep will overflow on large inputs, which
+          is why the tree and list code in the next section is written iteratively where it can be.
+        </p>
+        <h2 id="data-structures">Data Structures</h2>
+
+        <p>
+          The standard library covers most of what you need, and the sections below are not an argument for
+          writing your own containers — they are an argument for understanding the ones you already have. Each
+          structure is a different answer to the same question: what do you want to do in constant time, and
+          what are you willing to pay for it?
+        </p>
+
+        <h3 id="linked-list">Singly Linked List</h3>
+
+        <p>
+          A linked list is the smallest structure that makes ownership visible. There is no contiguous storage:
+          each node holds a value and a reference to the next node, so the list is a chain of heap allocations.
+          It gives O(1) insertion at the front and O(n) access by index — the exact opposite of an array — and it
+          is the clearest example of why Swift reaches for a class rather than a struct here.
+        </p>
+
+        <pre><code class="language-swift line-numbers">// A node is a class because two parts of the list must share the same node:
+// a value type would copy the tail every time you appended.
+final class Node&lt;Element&gt; {
+    let value: Element
+    var next: Node&lt;Element&gt;?
+
+    init(_ value: Element, next: Node&lt;Element&gt;? = nil) {
+        self.value = value
+        self.next = next
+    }
+}
+
+struct LinkedList&lt;Element&gt; {
+    private var head: Node&lt;Element&gt;?
+    private(set) var count = 0
+
+    // Appending at the end costs a full traversal; pushing at the front is O(1).
+    // That asymmetry is the whole personality of a linked list.
+    mutating func append(_ value: Element) {
+        let node = Node(value)
+        guard let last = tail() else {          // empty list: the node is the head
+            head = node
+            count = 1
+            return
+        }
+        last.next = node
+        count += 1
+    }
+
+    mutating func pushFront(_ value: Element) {
+        head = Node(value, next: head)          // O(1): only two references move
+        count += 1
+    }
+
+    // Finds the last node. Note the pattern `while let node = current`: it stops
+    // when the chain ends, without ever force-unwrapping an optional.
+    private func tail() -&gt; Node&lt;Element&gt;? {
+        var current = head
+        while let next = current?.next { current = next }
+        return current
+    }
+
+    // There is no subscript here on purpose: indexing would be O(n), and a
+    // subscript that lies about its cost is worse than no subscript at all.
+    func values() -&gt; [Element] {
+        var result: [Element] = []
+        var current = head
+        while let node = current {
+            result.append(node.value)
+            current = node.next
+        }
+        return result
+    }
+}
+
+var list = LinkedList&lt;Int&gt;()
+list.pushFront(2)
+list.pushFront(1)
+list.append(3)
+print(list.values(), list.count)            // [1, 2, 3] 3</code></pre>
+
+        <p>
+          Compare this with <code>Array</code>: appending to an array is O(1) amortised, indexing is O(1), and
+          inserting at the front is O(n) because every element must shift. A linked list only wins in one place —
+          constant-time insertion at a position you already hold — which is why you meet it in the internals of
+          queues, LRU caches and allocators rather than in application code.
+        </p>
+        <h3 id="stack-queue">Stack &amp; Queue</h3>
+
+        <p>
+          A stack is last-in, first-out and a queue is first-in, first-out — the two orderings that every
+          scheduler, parser and breadth-first search is built on. Both can be expressed behind one protocol,
+          which is a compact demonstration of protocol-oriented design: the container shape is shared, the
+          ordering policy is not.
+        </p>
+
+        <pre><code class="language-swift line-numbers">// One protocol, two policies. `associatedtype` keeps the protocol generic over
+// the element type without naming it, so Stack&lt;Int&gt; and Stack&lt;String&gt; both fit.
+protocol Container {
+    associatedtype Element
+    mutating func insert(_ element: Element)
+    mutating func remove() -&gt; Element?
+    var isEmpty: Bool { get }
+}
+
+// Stack: LIFO. An array is the ideal backing store because the "top" is the
+// end, and appending/removing at the end is O(1) amortised.
+struct Stack&lt;Element&gt;: Container {
+    private var items: [Element] = []
+    var isEmpty: Bool { items.isEmpty }
+    var count: Int { items.count }
+
+    mutating func insert(_ element: Element) { items.append(element) }
+    mutating func remove() -&gt; Element? { items.popLast() }   // nil when empty
+}
+
+// Queue: FIFO. Removing from the front of an array is O(n) because every
+// remaining element shifts down, so this version uses two stacks instead.
+// Elements move from `inbox` to `outbox` at most once, which makes both
+// operations O(1) amortised rather than O(n).
+struct Queue&lt;Element&gt;: Container {
+    private var inbox: [Element] = []      // new elements arrive here
+    private var outbox: [Element] = []     // served elements leave here
+
+    var isEmpty: Bool { inbox.isEmpty &amp;&amp; outbox.isEmpty }
+
+    mutating func insert(_ element: Element) { inbox.append(element) }
+
+    mutating func remove() -&gt; Element? {
+        if outbox.isEmpty {
+            // Reversing puts the oldest element on top of the outbox, which is
+            // exactly the one a queue must return next.
+            outbox = Array(inbox.reversed())
+            inbox.removeAll(keepingCapacity: true)
+        }
+        return outbox.popLast()
+    }
+}
+
+// The same call site works for both, which is the point of the protocol.
+func drain&lt;C: Container&gt;(_ container: inout C) -&gt; [C.Element] {
+    var result: [C.Element] = []
+    while let element = container.remove() { result.append(element) }
+    return result
+}
+
+var stack = Stack&lt;Int&gt;()
+for value in 1...4 { stack.insert(value) }
+print(drain(&amp;stack))                        // [4, 3, 2, 1]
+
+var queue = Queue&lt;String&gt;()
+for name in ["ada", "grace", "alan"] { queue.insert(name) }
+print(drain(&amp;queue))                        // [ada, grace, alan]</code></pre>
+
+        <p>
+          Two details are worth noticing. First, <code>remove()</code> returns an optional rather than trapping
+          on an empty container — an empty stack is a normal state, not a programmer error. Second, the generic
+          <code>drain</code> function accepts either type without knowing which ordering it implements, because
+          the ordering is hidden inside the conforming type.
+        </p>
+
+        <h3 id="frequency">Word Frequency</h3>
+
+        <p>
+          Counting words is the usual first dictionary exercise, and it hides a useful performance decision.
+          Building the counts with <code>reduce(into:)</code> mutates a single dictionary in place; using
+          <code>reduce</code> with a dictionary accumulator would copy the whole dictionary on every step. Same
+          result, very different cost.
+        </p>
+
+        <pre><code class="language-swift line-numbers">// Counts words, case-insensitively, and returns them from most to least common.
+// Steps: normalise, split on anything that is not alphanumeric, count, sort.
+func wordFrequency(in text: String) -&gt; [(word: String, count: Int)] {
+    let words = text.lowercased()
+        .components(separatedBy: CharacterSet.alphanumerics.inverted)
+        .filter { !$0.isEmpty }             // splitting leaves empty fragments
+
+    // reduce(into:) hands the closure the accumulating dictionary itself, so
+    // `result[word, default: 0] += 1` reads and writes without a copy.
+    let counts = words.reduce(into: [String: Int]()) { result, word in
+        result[word, default: 0] += 1
+    }
+
+    // Dictionary order is deliberately unspecified, so sort explicitly. Ties are
+    // broken by the word itself to keep the output stable between runs.
+    return counts
+        .sorted { ($0.value, $1.key) &gt; ($1.value, $0.key) }
+        .map { (word: $0.key, count: $0.value) }
+}
+
+let paragraph = "The quick brown fox jumps over the lazy dog. The dog sleeps."
+for entry in wordFrequency(in: paragraph) {
+    print("\(entry.word): \(entry.count)")
+}
+print("distinct words:", wordFrequency(in: paragraph).count)</code></pre>
+
+        <p>
+          The comparison inside <code>sorted</code> is a tuple comparison: Swift compares the first elements, and
+          only if they are equal does it compare the second. Because the keys are reversed in the tuple, equal
+          counts are ordered alphabetically instead of randomly — the difference between output you can test and
+          output you cannot.
+        </p>
+        <h2 id="files-and-text">Files &amp; Text</h2>
+
+        <p>
+          Real programs read and write files, and most of the bugs in that area come from two sources: assuming
+          text is ASCII, and assuming the file is on disk and writable. Swift answers both — encodings are
+          explicit, and every file operation throws instead of returning a null pointer.
+        </p>
+
+        <h3 id="file-io">Reading and Writing Files</h3>
+
+        <p>
+          FileManager works with URLs rather than path strings, and the temporary directory is the safest place
+          for scratch files because it exists on every platform and is always writable. The listing below writes
+          text, reads it back, then serialises an array of structs to JSON with <code>Codable</code> — the same
+          three-step shape you will use for configuration files and cached responses.
+        </p>
+
+        <pre><code class="language-swift line-numbers">import Foundation
+
+// TemporaryDirectory is per-user and per-process; two runs never collide.
+let folder = FileManager.default.temporaryDirectory
+let textURL = folder.appendingPathComponent("sage-sample.txt")
+
+// Writing a String throws: a full disk or a read-only volume is reported at the
+// call site instead of failing silently. `atomically` writes to a scratch file
+// and renames it, so a crash mid-write cannot leave half a file behind.
+let content = "Swift file I/O\nsecond line\n"
+try content.write(to: textURL, atomically: true, encoding: .utf8)
+
+// Reading is equally explicit. The encoding is never guessed, because guessing
+// is how mojibake gets into logs.
+let loaded = try String(contentsOf: textURL, encoding: .utf8)
+print(loaded.split(separator: "\n").count, "line(s)")
+
+// Codable turns a value into JSON and back with no hand-written parser.
+struct Note: Codable {
+    let title: String
+    let done: Bool
+}
+let notes = [Note(title: "read the docs", done: true), Note(title: "write a demo", done: false)]
+let jsonURL = folder.appendingPathComponent("sage-notes.json")
+
+let encoder = JSONEncoder()
+encoder.outputFormatting = [.prettyPrinted, .sortedKeys]   // stable, diffable output
+try encoder.encode(notes).write(to: jsonURL, options: .atomic)
+
+let data = try Data(contentsOf: jsonURL)
+let decoded = try JSONDecoder().decode([Note].self, from: data)
+print(decoded.map(\.title))
+
+// Cleanup so repeated runs of this demo do not fill the temp folder.
+try? FileManager.default.removeItem(at: textURL)     // try? discards "no such file"
+try? FileManager.default.removeItem(at: jsonURL)</code></pre>
+
+        <p>
+          On iOS an app cannot write outside its own container: use
+          <code>FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)</code> for files the user
+          should keep, and <code>.cachesDirectory</code> for data you can regenerate. On a server or a command
+          line tool the rule is the opposite — write wherever the configuration says — but the API is identical,
+          which is the point.
+        </p>
+        <h3 id="csv">Parsing CSV into Structs</h3>
+
+        <p>
+          CSV looks trivial and is not: quoted fields may contain the separator, lines may have the wrong number
+          of columns, and one bad row should not discard the good ones. The parser below therefore returns both
+          the records it understood and the errors it found, so the caller decides what to do with each.
+        </p>
+
+        <pre><code class="language-swift line-numbers">import Foundation
+
+struct Employee {
+    let name: String
+    let department: String
+    let salary: Int
+}
+
+// A dedicated error type with a description is what makes the failure readable
+// in a log. Enumerating the cases forces you to think about each failure mode.
+enum ParseError: Error, CustomStringConvertible {
+    case wrongFieldCount(line: Int, expected: Int, found: Int)
+    case badNumber(line: Int, field: String)
+
+    var description: String {
+        switch self {
+        case .wrongFieldCount(let line, let expected, let found):
+            return "line \(line): expected \(expected) fields, found \(found)"
+        case .badNumber(let line, let field):
+            return "line \(line): '\(field)' is not a number"
+        }
+    }
+}
+
+// Returning a tuple of results and errors keeps the good rows even when some
+// rows fail — throwing on the first bad line would lose the rest of the file.
+func parseEmployees(_ csv: String) -&gt; (employees: [Employee], errors: [ParseError]) {
+    var employees: [Employee] = []
+    var errors: [ParseError] = []
+
+    for (index, line) in csv.split(separator: "\n").enumerated() {
+        let lineNumber = index + 2        // line 1 is the header; data starts at 2
+        let fields = line.split(separator: ",", omittingEmptySubsequences: false)
+
+        guard fields.count == 3 else {
+            errors.append(.wrongFieldCount(line: lineNumber, expected: 3, found: fields.count))
+            continue                      // keep parsing the remaining lines
+        }
+        guard let salary = Int(fields[2]) else {
+            errors.append(.badNumber(line: lineNumber, field: String(fields[2])))
+            continue
+        }
+        employees.append(
+            Employee(name: String(fields[0]), department: String(fields[1]), salary: salary)
+        )
+    }
+    return (employees, errors)
+}
+
+let csv = """
+name,department,salary
+Ada,engineering,120000
+Grace,research,not-a-number
+Alan
+"""
+
+let parsed = parseEmployees(csv)
+print("parsed \(parsed.employees.count) row(s), \(parsed.errors.count) error(s)")
+parsed.employees.forEach { print("- \($0.name) in \($0.department)") }
+parsed.errors.forEach { print("! \($0)") }</code></pre>
+
+        <p>
+          This shape — a function that returns <code>(values, problems)</code> instead of throwing on the first
+          defect — is the right default for any batch import. Throwing is correct when a failure makes the whole
+          operation meaningless; it is wrong when you are importing ten thousand rows and one of them has a typo.
+        </p>
+        <h2 id="async-and-network">Async &amp; Networked</h2>
+
+        <p>
+          The last group of programs leaves the single-threaded world behind. Concurrency in Swift is structured:
+          work is described as a tree of tasks, and the compiler tracks which piece of state belongs to which
+          isolation domain — the runtime question from the memory lesson, answered by the type system.
+        </p>
+
+        <h3 id="urlsession">Fetching JSON with URLSession</h3>
+
+        <p>
+          Every network call has the same three steps: build a URL, await the bytes, decode them into a type.
+          With <code>async throws</code> both kinds of failure — the request failing and the payload being
+          malformed — arrive at the call site together, and there is no completion handler to forget to call.
+        </p>
+
+        <pre><code class="language-swift line-numbers">import Foundation
+
+// Decodable is all a response type needs; PropertyList and XML stay out of the
+// way because the field names match the JSON keys exactly.
+struct Post: Decodable, CustomStringConvertible {
+    let id: Int
+    let title: String
+    var description: String { "\(id): \(title)" }
+}
+
+// `async throws` states both facts in the signature: this call can suspend, and
+// it can fail. The caller must use await AND try, so neither is forgotten.
+func fetchPosts(limit: Int) async throws -&gt; [Post] {
+    let url = URL(string: "https://jsonplaceholder.typicode.com/posts")!
+    let (data, response) = try await URLSession.shared.data(from: url)
+
+    // A 404 or 500 arrives as a normal response, not as a thrown error: you must
+    // check the status code yourself, which is the single most common bug here.
+    guard let http = response as? HTTPURLResponse,
+          (200..&lt;300).contains(http.statusCode) else {
+        throw URLError(.badServerResponse)
+    }
+    return Array(try JSONDecoder().decode([Post].self, from: data).prefix(limit))
+}
+
+// Top-level await works in a script (Swift 5.7+) and in a @main entry point.
+// In an app the identical call runs inside a .task modifier or a button action.
+do {
+    let posts = try await fetchPosts(limit: 3)
+    posts.forEach { print($0) }
+} catch {
+    print("request failed:", error.localizedDescription)
+}
+
+// Offline? The same code path reports it through the catch above, which is why
+// no connectivity check is needed before the call — only a sensible retry later.</code></pre>
+
+        <p>
+          Two production habits belong here. First, decode into a type whose fields you actually need — a DTO —
+          rather than into the full response, so a server-side change cannot break code that never used the
+          changed field. Second, never force-unwrap a URL built from remote input: use <code>URLComponents</code>
+          and handle the case where the string is not a valid URL at all.
+        </p>
+        <h3 id="actor-cache">An Actor-Backed Cache</h3>
+
+        <p>
+          A cache is shared mutable state, which is exactly what an actor is for: the dictionary cannot be read
+          while it is being written, and that guarantee comes from the compiler rather than from a lock you might
+          forget. The actor below is also honest about what it does <em>not</em> do — it serialises access, it
+          does not deduplicate identical in-flight requests.
+        </p>
+
+        <pre><code class="language-swift line-numbers">import Foundation
+
+struct Profile: Sendable {
+    let name: String
+}
+
+// The loader is injected and marked @Sendable, so the actor never captures a
+// non-Sendable closure. Functions are Sendable, so a global function fits.
+typealias ProfileLoader = @Sendable (Int) async throws -&gt; Profile
+
+actor ProfileCache {
+    private var storage: [Int: Profile] = [:]
+    private var hits = 0
+    private let load: ProfileLoader
+
+    init(load: @escaping ProfileLoader) { self.load = load }
+
+    // The await on `load` happens inside the actor, so the actor is not
+    // blocked: other callers can enter while the network request is in flight.
+    // That is also why two simultaneous misses can both call the loader — the
+    // actor guarantees safety, not request coalescing. Coalescing needs a second
+    // dictionary of in-flight tasks, which is the exercise at the end.
+    func profile(for id: Int) async throws -&gt; Profile {
+        if let cached = storage[id] {
+            hits += 1
+            return cached
+        }
+        let profile = try await load(id)
+        storage[id] = profile
+        return profile
+    }
+
+    // Returning a snapshot keeps the state inside the actor: the caller gets a
+    // value it can print, not a reference it could use to mutate the cache.
+    func statistics() -&gt; (hits: Int, stored: Int) { (hits, storage.count) }
+}
+
+func remoteProfile(_ id: Int) async throws -&gt; Profile {
+    try await Task.sleep(nanoseconds: 10_000_000)     // pretend latency
+    return Profile(name: "user-\(id)")
+}
+
+let cache = ProfileCache(load: remoteProfile)
+
+// Warmed cache: the first call loads, every later call is a dictionary hit.
+for _ in 1...3 {
+    if let profile = try? await cache.profile(for: 7) { print(profile.name) }
+}
+let stats = await cache.statistics()
+print("stored \(stats.stored), hits \(stats.hits)")   // stored 1, hits 2</code></pre>
+
+        <p>
+          Notice what the actor does not protect you from: the cache grows without bound, entries never expire,
+          and a failed load is not remembered (so the next caller retries — usually what you want). Eviction,
+          TTLs and in-flight coalescing are the three features you would add next, and all three belong inside
+          this type rather than around it.
+        </p>
+        <h3 id="taskgroup">Fan-out with Task Groups</h3>
+
+        <p>
+          A task group starts a number of child tasks that is not known until runtime, awaits all of them, and
+          hands their results back as they complete. This is the pattern behind parallel downloads, image
+          thumbnailing and search aggregation — and it is also the honest way to see why concurrency does not
+          automatically make CPU-bound code faster.
+        </p>
+
+        <pre><code class="language-swift line-numbers">import Foundation
+
+// Both functions sum the same range; only the second uses more than one task.
+func sequentialSum(upTo limit: Int, chunks: Int) async -&gt; Int {
+    let size = limit / chunks
+    var total = 0
+    for chunk in 0..&lt;chunks {
+        let lower = chunk * size
+        let upper = (chunk == chunks - 1) ? limit : lower + size   // last chunk absorbs the remainder
+        total += (lower..&lt;upper).reduce(0, +)
+    }
+    return total
+}
+
+// withTaskGroup starts a dynamic number of children and awaits them all before
+// returning — this is what "structured" means: the parent cannot finish while a
+// child is still running, so no task is ever orphaned.
+func parallelSum(upTo limit: Int, chunks: Int) async -&gt; Int {
+    let size = limit / chunks
+    return await withTaskGroup(of: Int.self) { group in
+        for chunk in 0..&lt;chunks {
+            let lower = chunk * size
+            let upper = (chunk == chunks - 1) ? limit : lower + size
+            group.addTask { (lower..&lt;upper).reduce(0, +) }         // one child per chunk
+        }
+        var total = 0
+        for await partial in group { total += partial }            // results arrive in completion order
+        return total
+    }
+}
+
+let start = Date()
+let sequential = await sequentialSum(upTo: 2_000_000, chunks: 8)
+let sequentialTime = Date().timeIntervalSince(start)
+
+let startParallel = Date()
+let parallel = await parallelSum(upTo: 2_000_000, chunks: 8)
+let parallelTime = Date().timeIntervalSince(startParallel)
+
+print("both agree: \(sequential == parallel)")                     // true
+print(String(format: "sequential %.2fs, parallel %.2fs",
+             sequentialTime, parallelTime))
+// Expect little or no speed-up: the work is CPU-bound and the cooperative
+// thread pool is sized to the cores, so eight tasks queue on the same threads.
+// Concurrency wins when the work is I/O-bound and the tasks mostly wait.</code></pre>
+
+        <p>
+          Cancellation is the part everyone forgets. A task group cancels its children when its scope ends
+          abnormally, but cancellation is cooperative: a child must check <code>Task.isCancelled</code> or call a
+          throwing cancellation point such as <code>Task.sleep</code>. Use
+          <code>withTaskCancellationHandler</code> when a cancelled child has something to release — closing a
+          connection, deleting a temporary file. Then try the exercise below: make each child report which chunk
+          it finished first, and notice that the order is not the order you started them in.
+        </p>
+        <h2 id="next-steps">Where to Go Next</h2>
+
+        <p>
+          You have reached the end of the track, so the remaining question is what to build. The answer that works
+          is a small project you will actually finish, chosen one step beyond what you can already do — not a
+          clone of a large app, and not another tutorial.
+        </p>
+
+        <h3 id="project-ideas">Project Ideas in Increasing Order</h3>
+
+        <p>
+          Each idea below names the language features it forces you to use, so you can pick the one that trains
+          what you are weakest at. Build the command-line version first: it has no interface to distract you from
+          the logic, and every one of these can be finished in an evening.
+        </p>
+
+        <table class="table table-bordered table-dark">
+          <thead>
+            <tr><th>Project</th><th>Trains</th><th>Stretch goal</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Command-line todo list (JSON file)</td>
+              <td>Codable, file I/O, argument parsing, error reporting</td>
+              <td>Add due dates with <code>Date</code> and sorting by urgency</td>
+            </tr>
+            <tr>
+              <td>Markdown to HTML converter</td>
+              <td>Strings, enums, recursion, protocols</td>
+              <td>Support nested lists with a real parser</td>
+            </tr>
+            <tr>
+              <td>CSV statistics reporter</td>
+              <td>Generics, <code>reduce(into:)</code>, formatting</td>
+              <td>Accept column names from the command line</td>
+            </tr>
+            <tr>
+              <td>URL shortener with Vapor</td>
+              <td>SwiftPM packages, async routes, actors, a database</td>
+              <td>Add rate limiting and unit tests per route</td>
+            </tr>
+            <tr>
+              <td>Image batch resizer (macOS)</td>
+              <td>Task groups, actors, <code>@MainActor</code>, progress reporting</td>
+              <td>Cancel mid-run and clean up partial output</td>
+            </tr>
+            <tr>
+              <td>Chat client with WebSockets</td>
+              <td>Actors, AsyncSequence, structured concurrency</td>
+              <td>Reconnect with exponential back-off</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>
+          Whatever you pick, add the two habits this track kept repeating: write the failing case first, and make
+          the type system reject the invalid state instead of documenting it. A project without tests teaches you
+          syntax; a project with tests teaches you design.
+        </p>
+        <h3 id="repositories">Open-Source Repositories to Study</h3>
+
+        <p>
+          Reading production Swift is the fastest way to close the gap between exercises and real code. The
+          projects below are maintained by Apple or by teams with a public style you can imitate; start with the
+          first two, which are small enough to read end to end.
+        </p>
+
+        <ul>
+          <li><a href="https://github.com/apple/swift-algorithms" target="_blank" rel="noopener noreferrer nofollow">apple/swift-algorithms</a> — classic algorithms written as generic sequence methods, each with documentation that states its complexity.</li>
+          <li><a href="https://github.com/apple/swift-collections" target="_blank" rel="noopener noreferrer nofollow">apple/swift-collections</a> — <code>Deque</code>, <code>OrderedDictionary</code> and a heap: the containers the standard library deliberately leaves out.</li>
+          <li><a href="https://github.com/apple/swift-argument-parser" target="_blank" rel="noopener noreferrer nofollow">apple/swift-argument-parser</a> — how a modern Swift package declares a command-line interface, including the property wrappers.</li>
+          <li><a href="https://github.com/apple/swift-nio" target="_blank" rel="noopener noreferrer nofollow">apple/swift-nio</a> — event-driven networking underneath most server-side Swift; read it for the concurrency design, not the API.</li>
+          <li><a href="https://github.com/vapor/vapor" target="_blank" rel="noopener noreferrer nofollow">vapor/vapor</a> — the most widely used web framework: routing, async handlers, Fluent models, and a large test suite to model yours on.</li>
+          <li><a href="https://github.com/kodecocodes/swift-algorithm-club" target="_blank" rel="noopener noreferrer nofollow">kodecocodes/swift-algorithm-club</a> — data structures and algorithms in Swift with explanations; the reference to compare your own experiments against.</li>
+        </ul>
+
+        <p>
+          For documentation and playgrounds rather than source code, continue to
+          <a href="/roadmap/swift/references.html">References &amp; Playgrounds</a>. For the shorter, runnable
+          practice programs that accompany each lesson, go back to
+          <a href="/roadmap/swift/demo_examples.html">Lab Examples</a>. And when you miss a language detail, the
+          topic pages in <a href="/roadmap/swift/index.html">this track</a> are the fast lookup: Phases 1 to 4 are
+          written to be read out of order once you have finished them once.
+        </p>
+
+        <p>
+          One last exercise, worth more than any of the projects above: take the parser from the
+          <a href="#csv">CSV section</a>, move it into a Swift package with a library target and a test target,
+          and publish it. Creating the package, writing the <code>Package.swift</code> manifest and running
+          <code>swift test</code> is the transition from writing Swift to shipping Swift — which is exactly
+          what <a href="/roadmap/swift/packages.html">Packages &amp; Modules</a> prepared you for.
+        </p>
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'swift',
+    topicId: 'samples',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

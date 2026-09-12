@@ -1,0 +1,328 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Swift closures: syntax, trailing closures, shorthand arguments, capturing values, capture lists, escaping closures, and completion handlers.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, swift, closures, capturing, capture list, escaping, trailing closure, completion handler">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Swift Closures</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="swift-closures">Closures</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A <strong>closure</strong> is a block of code you can store, pass around, and call later — in effect a function without a name. Closures are the backbone of the standard library and of every asynchronous API you will use in Swift.
+        </div>
+
+        <p>This lesson starts with the syntax and its many abbreviations, then explains what a closure <em>captures</em> from its surroundings, and finishes with the escaping rules that decide when a closure outlives the call that created it.</p>
+
+        <h2 id="what">What Is a Closure?</h2>
+
+        <p>Every function is technically a closure. The word usually means an <em>unnamed, inline</em> block of code that can be stored in a variable or passed as an argument, and that remembers the context in which it was written.</p>
+
+        <h3 id="syntax">Closure Syntax &amp; Trailing Closures</h3>
+
+        <p>A closure literal lives between braces and uses <code>in</code> to separate its parameter list from its body. When a closure is the final argument, Swift lets you move it outside the parentheses — the <em>trailing closure</em> form that makes call sites read like control flow.</p>
+
+        <pre><code class="language-swift line-numbers">// A closure stored in a variable: parameters and body inside braces
+let multiply = { (a: Int, b: Int) -&gt; Int in
+    return a * b
+}
+print(multiply(3, 4))                // prints: 12
+
+// The same idea as a function argument
+func apply(_ value: Int, using transform: (Int) -&gt; Int) -&gt; Int {
+    transform(value)
+}
+print(apply(5, using: { $0 * $0 }))  // prints: 25
+
+// Trailing closure form: the parentheses around the argument disappear
+print(apply(5) { $0 + 100 })         // prints: 105
+</code></pre>
+
+        <h3 id="shorthand">Shorthand Argument Names</h3>
+
+        <p>Type inference usually already knows the parameter types, so the parameter list and <code>in</code> can be dropped. Then <code>$0</code>, <code>$1</code>, … refer to the arguments by position — a progression Swift code uses constantly.</p>
+
+        <pre><code class="language-swift line-numbers">let names = ["charlie", "alice", "bob"]
+
+// Full form: explicit types and an explicit return
+let sorted1 = names.sorted(by: { (a: String, b: String) -&gt; Bool in
+    return a &lt; b
+})
+
+// Types inferred, so only the names remain
+let sorted2 = names.sorted { a, b in a &lt; b }
+
+// Shorthand: $0 and $1 are the first and second arguments
+let sorted3 = names.sorted { $0 &lt; $1 }
+
+// An operator function is itself a closure, so this works too
+let sorted4 = names.sorted(by: &lt;)
+
+print(sorted1, sorted2, sorted3, sorted4)   // all: [alice, bob, charlie]
+</code></pre>
+
+        <h2 id="capturing">Capturing Values</h2>
+
+        <p>A closure is not just a block of code — it also carries the variables it uses from the surrounding scope. That is what lets a small function remember state between calls, and it is also the source of the subtle bugs in this chapter.</p>
+
+        <h3 id="capturing-values">Capturing by Reference</h3>
+
+        <p>Swift captures the <em>variable</em>, not a copy of the value it held when the closure was written. So the closure always sees the latest value, and mutations made inside it persist after the surrounding function has returned.</p>
+
+        <pre><code class="language-swift line-numbers">func makeCounter() -&gt; () -&gt; Int {
+    var count = 0                 // captured, and it outlives the call
+    return {
+        count += 1                // each call mutates the same variable
+        return count
+    }
+}
+
+let next = makeCounter()
+print(next())                     // prints: 1
+print(next())                     // prints: 2 — the state persisted
+
+// A second counter captures its own separate variable
+let other = makeCounter()
+print(other())                    // prints: 1 — independent state
+</code></pre>
+
+        <h3 id="capture-lists">Capture Lists</h3>
+
+        <p>A <em>capture list</em> in square brackets changes the rule: it snapshots the value at the moment the closure is created, or renames it. The <code>[weak self]</code> and <code>[unowned self]</code> forms are the standard way to break reference cycles.</p>
+
+        <pre><code class="language-swift line-numbers">var message = "first"
+let snapshot = { [message] in message }   // copied right now
+let live = { message }                    // still refers to the variable
+
+message = "second"
+print(snapshot())                 // prints: first — frozen at creation
+print(live())                     // prints: second — sees the update
+
+// A capture list can also rename what it captures
+let quoted = { [text = message] in "\"\(text)\"" }
+print(quoted())                   // prints: "second"
+
+// [weak self] avoids a retain cycle between object and closure
+final class Ticker {
+    var tick = 0
+    func start() {
+        // `self?.` keeps this safe even though the reference is weak
+        let body = { [weak self] in self?.tick += 1 }
+        body()
+        body()
+        print(tick)               // prints: 2
+    }
+}
+Ticker().start()
+</code></pre>
+
+        <h2 id="escaping">Escaping &amp; Non-Escaping</h2>
+
+        <p>A closure parameter is <em>non-escaping</em> by default: the function promises to finish with it before returning. When a closure is stored, or called after the function has already returned, that promise cannot hold — and the compiler requires you to say so.</p>
+
+        <h3 id="escaping-closures">Escaping Closures</h3>
+
+        <p>The <code>@escaping</code> attribute marks a closure that may outlive its call. It is required for stored callbacks and asynchronous completion handlers, and inside such a closure you must refer to class members through an explicit <code>self</code>.</p>
+
+        <pre><code class="language-swift line-numbers">// The closure is stored, so it outlives this call: mark it @escaping
+func store(_ action: @escaping () -&gt; Void, in box: inout [() -&gt; Void]) {
+    box.append(action)
+}
+
+var box: [() -&gt; Void] = []
+store({ print("remembered") }, in: &amp;box)
+box[0]()                     // prints: remembered — invoked much later
+
+// A completion handler is the classic escaping closure
+func fetchName(completion: @escaping (String) -&gt; Void) {
+    // imagine asynchronous work that finishes after this call returns
+    completion("Ada")
+}
+fetchName { name in print("got \(name)") }   // prints: got Ada
+</code></pre>
+
+        <h3 id="non-escaping">Non-Escaping by Default</h3>
+
+        <p>Keeping the default is worth it: the compiler can skip a heap allocation, and no retain cycle is possible because the closure cannot survive the call. Add <code>@escaping</code> only when the design truly needs it.</p>
+
+        <pre><code class="language-swift line-numbers">// Non-escaping: the closure is consumed during the call
+func twice(_ action: () -&gt; Void) {
+    action()
+    action()
+}
+twice { print("tick") }      // prints: tick, then tick
+
+// Because it cannot escape, there is no `self.` requirement and no risk
+struct Counter {
+    var value = 0
+    mutating func bump(by amount: Int, log: (Int) -&gt; Void) {
+        value += amount
+        log(value)           // guaranteed to run before this method returns
+    }
+}
+
+var counter = Counter()
+counter.bump(by: 5) { print("now \($0)") }   // prints: now 5
+</code></pre>
+
+        <h2 id="stdlib">Closures in the Standard Library</h2>
+
+        <p>The standard library is built on closures. Sorting, transforming, filtering, and every callback API accept a block that describes <em>what</em> to do, while the library hides the loop that does it.</p>
+
+        <h3 id="sorted-map-filter">sorted, map, filter</h3>
+
+        <p>These higher-order functions take the decision as a closure and keep the iteration for themselves — which is why they compose so easily with each other.</p>
+
+        <pre><code class="language-swift line-numbers">let numbers = [5, 3, 8, 1]
+
+// sorted(by:) takes a closure returning true when the first value comes first
+print(numbers.sorted(by: { $0 &lt; $1 }))    // [1, 3, 5, 8]
+print(numbers.sorted(by: &gt;))              // [8, 5, 3, 1] — descending
+
+// map transforms, filter selects, reduce folds
+print(numbers.map { $0 * 10 })            // [50, 30, 80, 10]
+print(numbers.filter { $0 % 2 == 1 })     // [5, 3, 1]
+print(numbers.reduce(0) { $0 + $1 })      // 17
+
+// A closure may also capture a value from the surrounding scope
+let threshold = 4
+print(numbers.filter { $0 &gt; threshold })  // [5, 8]
+</code></pre>
+
+        <h3 id="completion">Completion Handlers</h3>
+
+        <p>An asynchronous API reports its result by <em>calling a closure later</em>. That closure must be <code>@escaping</code>, and when it touches an object from outside it usually needs a capture list as well.</p>
+
+        <pre><code class="language-swift line-numbers">import Foundation
+
+// A small asynchronous-style API built on DispatchQueue
+func loadValue(completion: @escaping (Int) -&gt; Void) {
+    DispatchQueue.global().async {
+        let result = 21 * 2
+        DispatchQueue.main.async {
+            completion(result)      // hand the result back on the main queue
+        }
+    }
+}
+
+// The closure runs long after loadValue returns, so it must be escaping
+loadValue { value in
+    print("loaded \(value)")        // prints: loaded 42
+}
+</code></pre>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="retain-cycles">Retain Cycles</h3>
+
+        <p>When an object stores an escaping closure that also refers strongly to that object, the two keep each other alive and neither is ever released. A <code>[weak self]</code> capture list breaks the loop.</p>
+
+        <pre><code class="language-swift line-numbers">final class Model {
+    var value = 0
+    var onChange: (() -&gt; Void)?
+
+    func observe() {
+        // ❌ A strong `self` here keeps the Model alive forever:
+        // onChange = { self.value += 1 }
+
+        // ✅ `[weak self]` breaks the cycle; `self?.` covers the nil case
+        onChange = { [weak self] in self?.value += 1 }
+    }
+
+    deinit { print("Model released") }   // runs only with a broken cycle
+}
+
+var model: Model? = Model()
+model?.observe()
+model?.onChange?()
+print(model?.value ?? -1)                // prints: 1
+model = nil                              // prints: Model released
+</code></pre>
+
+        <h3 id="trailing-placement">Trailing Closure Placement</h3>
+
+        <p>With several closure parameters the trailing slot is reserved for the <em>last</em> one, so the earlier closures must still be labelled. When that reads badly, pass every closure labelled — clarity beats brevity.</p>
+
+        <pre><code class="language-swift line-numbers">func combine(_ names: [String],
+             filter: (String) -&gt; Bool,
+             transform: (String) -&gt; String) -&gt; [String] {
+    names.filter(filter).map(transform)
+}
+
+// The trailing closure binds to `transform`; `filter:` stays labelled
+print(combine(["ada", "bo", "alan"], filter: { $0.count &gt; 2 }) { $0.uppercased() })
+// prints: ["ADA", "ALAN"]
+
+// Writing both labels is often the more readable choice
+print(combine(["ada", "bo"], filter: { $0.count &gt; 0 }, transform: { $0 }))
+// prints: ["ada", "bo"]
+</code></pre>
+
+        <p>Closures give Swift its functional flavour and make callbacks natural. Next, master the type they are most often paired with in <a href="/roadmap/swift/optionals.html">Optionals</a>.</p>
+
+  </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'swift',
+    topicId: 'closures',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

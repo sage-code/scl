@@ -1,0 +1,547 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Swift protocols: requirements, conformance, protocol extensions and default implementations, composition, existentials, opaque types, and protocol-oriented design.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, swift, protocol, conformance, protocol extension, default implementation, composition, any, some, opaque type, delegation">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Swift Protocols</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="swift-protocols">Protocols</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A protocol is a <strong>contract</strong>: a list of requirements with no implementation. Any type — struct, class, or enum — can promise to satisfy it, and code written against the protocol then works with every conforming type. This is how Swift shares behaviour without inheritance.
+        </div>
+
+        <p>This lesson defines protocols, extends them with shared implementations, composes them, and finishes with the design rules that keep protocol-oriented code maintainable.</p>
+
+        <h2 id="defining">Defining Protocols</h2>
+
+        <p>A protocol states <em>what</em> must exist and says nothing about <em>how</em> it is done. The declaration therefore contains no bodies: just the shape of the properties and methods that a conforming type must provide.</p>
+
+        <h3 id="requirements">Method &amp; Property Requirements</h3>
+
+        <p>A property requirement declares readability, and optionally writability, with <code>get</code> or <code>get set</code>. A method requirement is an ordinary signature ending without braces. Marking a requirement <code>mutating</code> allows a struct to fulfil it.</p>
+
+        <pre><code class="language-swift line-numbers">// A protocol is a contract: it lists what must exist, never how it works.
+protocol Drawable {
+    // Read-only requirement: a stored property, a computed property, or even a
+    // `let` constant can satisfy it — only the getter is needed.
+    var area: Double { get }
+
+    // Read-write requirement: the conforming type must allow assignment, so a
+    // `let` constant can never satisfy this one.
+    var name: String { get set }
+
+    // A method requirement is a signature with no body.
+    func draw() -> String
+
+    // `mutating` lets a struct (or an enum) satisfy the requirement as well:
+    // without the keyword, value types could not conform.
+    mutating func scale(by factor: Double)
+}
+</code></pre>
+
+        <p>A requirement may also be <code>static</code>, in which case the conforming type supplies a type-level member. A protocol can demand an initializer too, by listing <code>init(…)</code> as a requirement.</p>
+
+        <h3 id="conformance">Adopting a Protocol</h3>
+
+        <p>Conformance is declared by naming the protocol after the type name and a colon. The compiler checks the complete list of requirements at that moment: forget one and the build fails with the missing member named, not with a mysterious crash later.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/swift/img/protocol-conformance.svg" alt="A protocol states requirements; a struct, a class, and an enum declare conformance to it" width="780" class="img-fluid protect rounded shadow border">
+          <p class="text-secondary small">Figure 1 — the protocol states the requirements; each conforming type declares conformance and supplies the members, or inherits them from a protocol extension.</p>
+        </div>
+
+        <pre><code class="language-swift line-numbers">struct Circle: Drawable {
+    var name = "circle"                    // satisfies `{ get set }` — it is a var
+    var radius: Double
+
+    // A computed property satisfies a `{ get }` requirement.
+    var area: Double { 3.14159 * radius * radius }
+
+    func draw() -> String { "circle of radius \(radius)" }
+
+    // `mutating` here matches the requirement, so a struct may conform.
+    mutating func scale(by factor: Double) {
+        radius *= factor
+    }
+}
+
+class Square: Drawable {
+    var name: String
+    var side: Double
+
+    init(side: Double) {
+        self.side = side
+        self.name = "square"
+    }
+
+    var area: Double { side * side }
+    func draw() -> String { "square of side \(side)" }
+
+    // A class mutates the shared instance, so no `mutating` is needed.
+    func scale(by factor: Double) { side *= factor }
+}
+</code></pre>
+
+        <p>An enum cannot satisfy a <code>{ get set }</code> requirement, because enums hold no stored properties for the setter to write to. That is a good argument for requiring only <code>{ get }</code> unless you truly need assignment.</p>
+
+        <pre><code class="language-swift line-numbers">// A getter-only contract is friendlier: it lets structs, classes, AND enums
+// conform, since none of them has to offer a writable property.
+protocol Labelled {
+    var label: String { get }
+}
+
+enum Signal: Labelled {
+    case red, amber, green
+
+    var label: String {
+        switch self {
+        case .red:   "stop"
+        case .amber: "wait"
+        case .green: "go"
+        }
+    }
+}
+
+print(Signal.amber.label)   // wait — the enum satisfies the contract with a switch
+</code></pre>
+
+        <h3 id="value-ref">Value or Reference Conformance</h3>
+
+        <p>A protocol is silent about semantics. What gets copied when you assign a variable depends on the underlying type, not on the protocol it conforms to — conformance adds requirements, never behaviour you did not write.</p>
+
+        <pre><code class="language-swift line-numbers">// The struct keeps value semantics even while conforming to Drawable.
+var a = Circle(name: "c", radius: 1)
+var b = a                        // ordinary struct copy
+b.scale(by: 2)
+print(a.radius)                  // 1.0 — a is untouched
+
+// The class keeps reference semantics, conformance or not.
+let s = Square(side: 2)
+let t = s                        // ordinary reference copy
+t.scale(by: 3)
+print(s.side)                    // 6.0 — both names see one object
+
+// A protocol-typed variable boxes the value it holds. Calling a mutating
+// requirement through it is legal when the variable itself is a `var`.
+var shape: any Drawable = a
+shape.scale(by: 3)               // mutates the boxed copy, not `a`
+print(a.radius)                  // 1.0 — the original value is still 1.0
+</code></pre>
+
+        <h2 id="extensions">Protocol Extensions</h2>
+
+        <p>A protocol declares requirements; an extension can implement them. That single feature removes most of the duplication that object-oriented code pays for, because one implementation serves every conforming type instead of one per class in a hierarchy.</p>
+
+        <h3 id="default-impl">Default Implementations</h3>
+
+        <p>Any member added in a protocol extension becomes available to all conforming types. Implement it in the extension and it acts as a default that a type may still replace; add a brand-new method and it becomes a free capability nobody had to declare.</p>
+
+        <pre><code class="language-swift line-numbers">// The same protocol as before, stated with just two requirements for brevity.
+protocol Drawable {
+    var name: String { get }
+    func draw() -> String
+}
+
+extension Drawable {
+    // A brand-new method: not a requirement, granted to every conforming type.
+    func describe() -> String {
+        "\(name) -> \(draw())"
+    }
+
+    // A default body for a requirement. Types that say nothing inherit this one.
+    func draw() -> String {
+        "[\(name)]"
+    }
+}
+
+struct Dot: Drawable {
+    var name = "dot"                      // uses both extension members as-is
+}
+
+struct Star: Drawable {
+    var name = "star"
+    func draw() -> String { "*\(name)*" } // replaces the default implementation
+}
+
+print(Dot().describe())    // dot -> [dot]
+print(Star().describe())   // star -> *star*
+</code></pre>
+
+        <p>There is a sharp edge here, and it is worth memorising. A method that exists <em>only</em> in the extension is dispatched statically, so a type's own version is never reached through a protocol-typed variable.</p>
+
+        <pre><code class="language-swift line-numbers">protocol Speaker { }                       // no requirements at all
+
+extension Speaker {
+    func speak() -> String { "default voice" }
+}
+
+struct Robot: Speaker {
+    // This does NOT override the extension method: the protocol never asked for
+    // it, so the extension body is merely a method the struct also happens to have.
+    func speak() -> String { "beep" }
+}
+
+let direct = Robot()
+print(direct.speak())                      // beep — concrete type, its own method
+
+let boxed: any Speaker = Robot()
+print(boxed.speak())                       // default voice — extension, static dispatch
+
+// The fix is to declare it as a requirement, so the implementation is looked up
+// in the conforming type instead of being taken from the extension.
+protocol Talker {
+    func speak() -> String
+}
+extension Talker {
+    func speak() -> String { "default voice" }
+}
+</code></pre>
+
+        <h3 id="protocol-ext">Constrained Extensions</h3>
+
+        <p>An extension may restrict itself with a <code>where</code> clause, so the added capability exists only for the types where it is meaningful. This is how the standard library offers extra methods for numeric collections or comparable sequences.</p>
+
+        <pre><code class="language-swift line-numbers">// The capability appears only when the elements support + and a zero start.
+extension Collection where Element: Numeric {
+    func total() -> Element {
+        reduce(0, +)
+    }
+}
+
+print([1, 2, 3].total())         // 6
+print([1.5, 2.5].total())        // 4.0
+// print(["a", "b"].total())     // error: String is not Numeric
+
+// A second constraint on a standard-library protocol.
+extension Sequence where Element: Comparable {
+    func largest() -> Element? {
+        reduce(nil) { best, next in
+            guard let best else { return next }      // first element becomes the seed
+            return next > best ? next : best
+        }
+    }
+}
+
+print([3, 9, 4].largest() ?? 0)  // 9
+
+// An extension can also add conformance for every type that already conforms.
+extension Drawable: CustomStringConvertible {
+    var description: String { describe() }
+}
+
+print(Dot())                     // dot -> [dot] — printed via description
+</code></pre>
+
+        <h3 id="retroactive">Retroactive Conformance</h3>
+
+        <p>Because conformance lives in an extension, you can make an existing type adopt your protocol without touching its declaration. The type does not even have to be yours — which is both the power and the danger of the technique.</p>
+
+        <pre><code class="language-swift line-numbers">// A type that already exists and that you may not own.
+struct Temperature {
+    var celsius: Double
+}
+
+protocol Formattable {
+    func formatted() -> String
+}
+
+// Retroactive conformance: the extension is declared in YOUR module, while the
+// type and the protocol come from somewhere else.
+extension Temperature: Formattable {
+    func formatted() -> String { "\(celsius)°C" }
+}
+
+print(Temperature(celsius: 21).formatted())   // 21.0°C
+
+// Both the type and the protocol are non-local here, so keep this conformance
+// in exactly ONE module. If two modules declare it, the two conformances can
+// disagree and the compiler may reject the ambiguity at the point of use.
+</code></pre>
+
+        <h2 id="composition">Composition &amp; Abstraction</h2>
+
+        <p>Swift offers three ways to talk about "some type that conforms": listing several protocols with <code>&amp;</code>, storing a value as <code>any</code> protocol, and hiding the concrete type behind <code>some</code>. Knowing which one to use is the difference between clear code and code that boxes everything for no reason.</p>
+
+        <h3 id="composition-op">The &amp; Composition Operator</h3>
+
+        <p>Composition demands that a value satisfies several contracts at once. It replaces the "one protocol per role, glued by a base class" pattern with a list joined by <code>&amp;</code>.</p>
+
+        <pre><code class="language-swift line-numbers">protocol Named { var name: String { get } }
+protocol Aged  { var age: Int { get } }
+
+// The argument must satisfy BOTH contracts — not one or the other.
+func introduce(_ person: any Named &amp; Aged) -&gt; String {
+    "\(person.name), age \(person.age)"
+}
+
+struct Cat: Named, Aged {
+    var name: String
+    var age: Int
+}
+
+print(introduce(Cat(name: "Ada", age: 3)))   // Ada, age 3
+
+// Name a combination once and reuse it everywhere.
+typealias Pet = Named &amp; Aged
+
+func feed(_ pet: any Pet) {
+    print("feeding \(pet.name)")
+}
+feed(Cat(name: "Ada", age: 3))               // feeding Ada
+</code></pre>
+
+        <h3 id="existentials">Existentials with any</h3>
+
+        <p><code>any Drawable</code> is an <em>existential</em>: a box that holds a value whose concrete type is decided at run time. It buys you heterogeneous collections — many different types in one array — at the cost of a box and a table lookup per call.</p>
+
+        <pre><code class="language-swift line-numbers">// One array, two different concrete types: only possible through `any`.
+var shapes: [any Drawable] = [
+    Circle(name: "c", radius: 1),
+    Square(side: 2)
+]
+
+for shape in shapes {
+    // Requirements and extension members are reachable through the box.
+    print(shape.describe())
+}
+
+// Members that belong only to a concrete type are not: the contract does not
+// mention `radius`, so the compiler cannot promise it exists.
+// print(shapes[0].radius)         // error: value of type `any Drawable` has no member
+
+// Downcast when you genuinely need the concrete type back.
+if let circle = shapes[0] as? Circle {
+    print(circle.radius)           // 1.0
+}
+
+// The conforming type can also be changed after the box exists.
+shapes[0] = Circle(name: "big", radius: 10)
+print(shapes[0].describe())
+</code></pre>
+
+        <h3 id="opaque">Opaque Types with some</h3>
+
+        <p><code>some Drawable</code> is an <em>opaque</em> type: one specific type, known to the compiler, hidden from the caller. Because the compiler still knows it, calls stay direct and no box is allocated — while the function remains free to change its implementation later without breaking anyone.</p>
+
+        <pre><code class="language-swift line-numbers">// The concrete type is fixed, but the caller is not told which one it is.
+func makeShape() -&gt; some Drawable {
+    Circle(name: "c", radius: 1)
+}
+
+let hidden = makeShape()
+print(hidden.area)          // 3.14159 — members of the concrete type stay reachable
+print(hidden.describe())    // c -> circle of radius 1.0
+
+// Every return path must produce the SAME concrete type, because `some` names
+// exactly one type. This is rejected at compile time:
+// func broken(_ flag: Bool) -&gt; some Drawable {
+//     flag ? Circle(name: "c", radius: 1) : Square(side: 2)   // error
+// }
+
+// SwiftUI uses this everywhere: `some View` hides a large nested type while
+// keeping the result one fixed concrete type for the compiler.
+</code></pre>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Aspect</th><th>any Protocol</th><th>some Protocol</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Concrete type</td>
+              <td>Chosen at run time; may differ per value.</td>
+              <td>Fixed at compile time; one type per declaration.</td>
+            </tr>
+            <tr>
+              <td>Dispatch</td>
+              <td>Witness table, with a box for the value.</td>
+              <td>Static — a direct call, no box.</td>
+            </tr>
+            <tr>
+              <td>Mixed collections</td>
+              <td>Yes: <code>[any Drawable]</code> holds any conforming type.</td>
+              <td>No: every element would have to be the same type.</td>
+            </tr>
+            <tr>
+              <td>Typical use</td>
+              <td>Storage, arrays of mixed types, APIs across modules.</td>
+              <td>Factory functions, computed properties, view builders.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2 id="design">Protocol-Oriented Design</h2>
+
+        <p>Swift's standard library is built from protocols: <code>Equatable</code>, <code>Hashable</code>, <code>Comparable</code>, <code>Sequence</code>, <code>Collection</code>, <code>Codable</code>. Designing your own types the same way means composition instead of a deep hierarchy — and it works for value types, which inheritance never can.</p>
+
+        <h3 id="pop-vs-oop">Protocol or Superclass?</h3>
+
+        <p>Both mechanisms share behaviour. The table makes the trade-off explicit so you can choose with reasons rather than habit.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Aspect</th><th>Protocol + extension</th><th>Superclass inheritance</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Who can adopt it</td>
+              <td>Struct, class, and enum.</td>
+              <td>Classes only.</td>
+            </tr>
+            <tr>
+              <td>How many</td>
+              <td>Unlimited; combine roles with <code>&amp;</code>.</td>
+              <td>Exactly one superclass.</td>
+            </tr>
+            <tr>
+              <td>Shared code</td>
+              <td>Written once in a protocol extension.</td>
+              <td>Inherited down the chain, whether needed or not.</td>
+            </tr>
+            <tr>
+              <td>Semantics</td>
+              <td>Value or reference, chosen by the conforming type.</td>
+              <td>Always a reference: instances live on the heap.</td>
+            </tr>
+            <tr>
+              <td>Effect of a change</td>
+              <td>Add a default and existing types keep compiling.</td>
+              <td>Changing a base method ripples into every subclass.</td>
+            </tr>
+            <tr>
+              <td>Reach for it when</td>
+              <td>Capabilities combine and vary by role.</td>
+        <h3 id="delegation">Delegation</h3>
+
+        <p>Delegation is the pattern protocols were made for in application code: an object performs a task and reports back through a protocol-typed property, so it never needs to know which class is listening. The classic example is a loader telling a screen that it finished.</p>
+
+        <pre><code class="language-swift line-numbers">// The delegate contract. `AnyObject` restricts conformance to classes, which is
+// what makes a `weak` reference to the delegate possible in the first place.
+protocol LoaderDelegate: AnyObject {
+    func loaderDidFinish(_ count: Int)
+}
+
+extension LoaderDelegate {
+    // A default body makes the requirement optional for delegates that do not
+    // care about this particular event.
+    func loaderDidFinish(_ count: Int) { }
+}
+
+final class Loader {
+    // `weak` breaks the cycle: the loader must not keep its delegate alive.
+    weak var delegate: (any LoaderDelegate)?
+
+    func run() {
+        let count = 3
+        // Optional chaining: if nobody subscribed, nothing happens and nothing crashes.
+        delegate?.loaderDidFinish(count)
+    }
+}
+
+final class Screen: LoaderDelegate {
+    var message = "idle"
+
+    func loaderDidFinish(_ count: Int) {
+        message = "loaded \(count) items"
+    }
+}
+
+let screen = Screen()
+let loader = Loader()
+loader.delegate = screen          // Screen subscribes to the loader's events
+loader.run()
+print(screen.message)             // loaded 3 items
+</code></pre>
+
+        <h3 id="pitfalls">Common Pitfalls</h3>
+
+        <p>Five rules cover almost every mistake made with protocols in production code.</p>
+
+        <pre><code class="language-swift line-numbers">// 1. A method that exists only in an extension is statically dispatched.
+//    Declare it as a requirement whenever conforming types must customise it.
+
+// 2. `any Protocol` boxes the value, so `[any Drawable]` allocates on every
+//    element. Prefer a generic parameter or `some` when one concrete type is enough.
+
+// 3. A `{ get set }` requirement cannot be met by an enum or by a `let`
+//    constant. Ask for `{ get }` unless assignment is genuinely required.
+
+// 4. Keep each protocol a single ROLE. Composing two small protocols with `&`
+//    is clearer than one protocol that lists unrelated requirements.
+
+// 5. A delegate property must be `weak` and the protocol `AnyObject`-bound,
+//    or the two objects keep each other alive forever (see Memory Management).
+</code></pre>
+
+        <p>Practice: define a <code>Storage</code> protocol with <code>save</code> and <code>load</code>, give <code>load</code> a default implementation in an extension, then write two conforming types — a struct backed by a dictionary and an enum that models a fixed table. Finally, write one function that accepts <code>any Storage</code> and see how little it needs to know.</p>
+
+        <p>Protocols describe capabilities; generics make them reusable without boxing. The next lesson, <a href="/roadmap/swift/generics.html">Generics</a>, takes the same requirements and turns them into type parameters with constraints.</p>
+
+  </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'swift',
+    topicId: 'protocols',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>
