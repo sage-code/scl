@@ -14,11 +14,12 @@ from pathlib import Path
 H1_RE = re.compile(r"<h1\b", re.IGNORECASE)
 H2_RE = re.compile(r"<h2\b", re.IGNORECASE)
 
-# Marker on a title node: the page title that roots the sidebar tree. On the
-# preferred (title-as-root) shape it tags a top-level `<h1>` entry that carries
-# its `<h2>` chapters in `children`; on the legacy shape it tags the childless
-# title leaf that sits above flat `<h2>` chapters. Mirrored in
-# scripts/tools/gen_topic_sidebars.py (TITLE_ROLE), the tool that emits it.
+# Marker on a LEGACY title node — the un-migrated sidebar shape where the page title
+# is a childless leaf sitting above flat `<h2>` chapters. The single-root folder model
+# needs no marker: the title IS the only top-level entry and it carries its chapters in
+# `children`, so nothing has to be tagged. Kept so the validators can still recognise
+# (and flag) the old shape. Mirrored in scripts/tools/gen_topic_sidebars.py, the tool
+# that migrates a page out of it.
 TITLE_ROLE = "title"
 
 
@@ -47,18 +48,19 @@ def sidebar_issues(data, rel: str) -> list:
       fails: it breaks tree navigation in assets/js/topic-loader.js.
     - Missing "title" only warns: topic-loader.js falls back to a formatted
       section name (item.title || this.formatTopicName(sectionKey)).
-    - The page title ROOTS the tree. Two shapes are accepted:
-        * title-as-root (preferred): a top-level entry
-          `{ "title": ..., "link": "#<h1-id>", "role": "title",
-             "children": [ <h2 chapters> ] }` — the h1 is the folder that
-          contains every topic. A page may declare several such roots (one per
-          `<h1>`).
-        * legacy: a childless title leaf, then flat `<h2>` chapters.
-      In both shapes the FIRST entry should be tagged `"role": "title"`; a
-      missing tag warns — content debt, backfillable by
-      scripts/tools/gen_topic_sidebars.py. Any title-tagged entry must anchor
-      with '#': topic-loader.js only renders '#'-anchored nodes, so an
-      unanchored title (or one whose link is missing) is dead navigation (fails).
+    - The page title is the ROOT FOLDER. Canonical (single-root) shape: every
+      top-level entry carries "children", the page `<h1>` is the only such entry,
+      and its children are the `<h2>` chapters (each owning its `<h3>` anchors).
+      title -> chapter -> sub-section is then three collapsible levels in
+      topic-loader.js and build.js. No marker key is involved: a node folds because
+      it HAS children.
+      A page may declare several `<h1>` roots; each opens its own top-level entry.
+      Anything else — a legacy childless `"role": "title"` leaf above flat `<h2>`
+      chapters, or a sidebar with no title at all — warns as content debt and is
+      migrated by regenerating the sidecar from the page
+      (scripts/tools/gen_topic_sidebars.py).
+    - Any `"role": "title"` entry must anchor with '#': topic-loader.js only renders
+      '#'-anchored nodes, so an unanchored title is dead navigation (fails).
     """
     issues: list = []
 
@@ -86,11 +88,26 @@ def sidebar_issues(data, rel: str) -> list:
 
     if data:
         first = data[0]
-        if not (isinstance(first, dict) and first.get("role") == TITLE_ROLE):
-            # Covers both a sidebar with no title node at all and a legacy title
-            # entry that predates the marker — same fix for either: add the tag.
+        single_root = all(
+            isinstance(entry, dict) and entry.get("children") is not None for entry in data
+        )
+        if not single_root:
+            # Two things share this fix: a legacy flat sidebar (childless title leaf,
+            # or no title at all) and a sidebar whose title never got a root folder.
+            # Either way the repair is to regenerate the sidecar from the page, so its
+            # `<h1>` becomes the root folder that contains the chapters.
             issues.append(
-                ("warn", f"{rel}: first sidebar entry is not tagged as the page title ('role': '{TITLE_ROLE}')")
+                (
+                    "warn",
+                    f"{rel}: sidebar is not a single-root folder — the page title must be "
+                    f"the only top-level entry and carry its chapters in 'children'",
+                )
+            )
+        elif first.get("role") == TITLE_ROLE:
+            # Root folder that still carries the legacy marker: legal, but the tag adds
+            # nothing now that a node folds because it has children.
+            issues.append(
+                ("warn", f"{rel}: root folder still carries the legacy 'role': '{TITLE_ROLE}' tag")
             )
 
     for entry in data:

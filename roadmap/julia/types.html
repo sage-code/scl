@@ -1,31 +1,34 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="Julia type system overview.">
+  <meta name="description" content="Julia data types: the type tree, abstract vs concrete types, numeric types and overflow, unions, annotations, and type inspection.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="julia, data types">
+  <meta name="keywords" content="sage, code, julia, types, type tree, abstract type, concrete type, integer, float, rational, complex, union, isa">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Julia Types</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>Julia Data Types</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -34,215 +37,387 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="julia-types">Data Types</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Every value in Julia has a type, and every type sits somewhere in a single tree whose root is <code>Any</code>. That tree is the backbone of the whole language: method dispatch walks it, the compiler reasons over it, and packages extend it to describe their own data. There is no primitive/object split as in Java — a number, a string, and a struct you define are all nodes in the same hierarchy.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
+        <p>This lesson teaches the tree, then the scalar types that live in it, then the two tools that let you <em>use</em> types rather than merely know them: unions and annotations. The final sections show how to interrogate the hierarchy from the REPL and the traps that catch beginners, starting with integer overflow.</p>
 
-<h1 id="julia-types">Julia Types</h1>
+        <h2 id="type-tree">The Type Tree</h2>
 
-<div class="alert alert-secondary shadow-sm">
-Julia&rsquo;s type system is dynamic. However you can use some advantages of static type systems by using type annotations. In  Julia you can use both native types and user defined types. This enable performance optimizations and argument based dispatch.
-</div>
+        <p>Julia's types form a directed acyclic graph with a single root: <code>Any</code>. Every concrete type has exactly one direct parent, so the graph is really a tree, and <code>&lt;:</code> — read "is a subtype of" — is the relation that walks it. Understanding three roles that types can play makes the rest of the chapter mechanical.</p>
 
-<h2 id="name-convention">Name Convention</h2>
+        <h3 id="any">Any and the Root of Everything</h3>
 
-<p>In Julia type names start with uppercase by convention. If use two or more words name you should use CamelCase. This is very important. This convention is like in Java, except that in Java only classes start with capital letters. Native types do not, but in Julia all data types should start with capital letter. </p>
+        <p><code>Any</code> is the most general type: every value is an <code>Any</code>. A container whose element type is <code>Any</code>, such as <code>Vector{Any}</code>, can hold anything — and pays for that flexibility by losing compile-time knowledge of what is inside, which costs performance.</p>
 
-<h2 id="static-typing">Static typing</h2>
-  
-  <p>This program paradigm is used in traditional languages: Fortran, Ada, C, C++, Pascal, Java, Level. The static typing require all variables to be declared before use. Declaration consist of a variable or argument name and type. If the type of the variable is not native type it has to be defined before the variable can use it.</p>
-  
-  <h2 id="dynamic-typing">Dynamic typing</h2>
-  
-  <p>This programming paradigm was created as reaction to rigid typing used in imperative languages. It was considered a "waste of time" to declare and maintain all the variables before use. In dynamic typing we allow the use of a variable before declaration. The type is created at run-time and can be changed in the same scope.</p>
-  <p>The idea is that a variable or argument do not have a type but only a name. Only values have types. A variable will get the type from the value when is assigned. This is called "type inference" and is used in many new languages: Python, Go and JavaScript. The problem is type inference is not very precise. Sometimes the type that is inferred is not the proper one. So dynamic languages are sometimes slow and inefficient.</p>
-  
-  <h2 id="constants">Constants</h2>
-  
-  <p>In Julia we use global constants to improve performance and protect them against change. So the constant values are declared using keyword constant to make the program faster. In local scope the constant is not faster than a simple variable.</p>
-  
-  <pre><code class="language-julia line-numbers"># Julia example
-   constant pi = 3.14
-  </code></pre>
-   
-  <h2 id="numeric-type">Numeric type</h2>
-  
-  <p>Julia uses native numeric types. This is one of the key elements to make fast Julia programs. When we assign a variable the type is automatically assigned using an assumption. If we wish to assign a specific type to a variable we use a "type annotation" this start with "::" symbol.</p>
-  
-  <ul>
-  <li>Integer types: Int32, Int64</li>
-  <li>Floating-point types: Float32, Float64</li>
-  </ul>
-  <p>To write a floating point number we use dot (.) after the number or before the number if the number is &lt;0.</p>
-  <pre><code class="language-julia line-numbers"># Float variables
-    v = 5.
-    x = .05
-    y = 5.05
-    
-  # Integer variables
-    i = 2 #use default Int64 type
-    z::Int8 = 10 #use type annotation
-  </code></pre>
-  
-  <h2 id="boolean-type">Boolean type</h2>
-  
-  <p>Boolean is a native type having two values: false &lt; true. Boolean variables can be used to create conditions. To create a Boolean variable we can use assign operator with a literal "true" or literal "false", or we can use a logical expression to assign the result to a variable. In next example we use Boolean operators: &amp;&amp; for "and", || for "or" and ! for "not". These are the basic operators for Boolean algebra.</p>
-  <pre><code class="language-julia line-numbers"># Boolean variables
-    locked = false
-    closed = true
-    is_secure = closed &amp;&amp; locked
-    not_secure = !closed || !locked
-  </code></pre>
+        <pre><code class="language-julia line-numbers">1 isa Any              # true — everything is an Any
+"text" isa Any         # true
+Any isa Any            # true — the type is a value too
 
-<h2 id="type-declarations">Type Declarations</h2>
-
-<p>The :: operator can be used to attach type annotations to expressions and variables in programs. There are two primary reasons to do this:</p>
-<ol>
-<li>As an assertion to help confirm that your program works the way you expect,</li>
-<li>To provide extra type information to the compiler, which can then improve performance</li>
-</ol>
-<h4>Example:</h4>
-<p>This function  will always return Float64 even if x and y are integers. 
-A function convert() is used to convert the result.</p>
-<pre><code class="language-julia line-numbers"># example of a function that have a result type
-function sum(x, y)::Float64
-    return x + y
-end</code></pre>
-
-<h2 id="type-tree">Type tree</h2>
-
-<p>In Julia types are organized like a tree.  This tree is an abstract structure based on inheritance. 
-One type can be derived from another type. The root type is called "Any".  
-There is a specific operator "sub-type of"  &lt;:  used to  specify the parent of a type.  
-If the parent is not specified the parent is Any.</p>
-
-<p>There are two categories of types:</p>
-<ul>
-<li>Abstract Type</li>
-<li>Concrete Type</li>
-</ul>
-<p>Abstract Type is a node in the tree and can&rsquo;t be instantiated.</p>
-<pre><code class="language-julia line-numbers"># Examples of abstract types:
-abstract type Number end
-abstract type Real     &lt;: Number end
-abstract type AbstractFloat &lt;: Real end
-abstract type Integer  &lt;: Real end
-abstract type Signed   &lt;: Integer end
-abstract type Unsigned &lt;: Integer end</code></pre>
-
-<h2 id="primitive-types">Primitive Types</h2>
-
-<p>Julia define primitive types as concrete types based on a number of bits. These types are predefined. The syntax is simple and can be used to define your own primitive types for a specified number of bits.</p>
-<pre class="normal"><code class="lang-julia">primitive type type_name  [&lt;: super_type] number_of_bits end </code></pre>
-<p>In the previous syntax &lt;: super_type can be missing from the declaration That means Any is the super-type.</p>
-<p> </p>
-<pre><code class="language-julia line-numbers"># Examples of primitive types:
-primitive type Float16 &lt;: AbstractFloat 16 end
-primitive type Float32 &lt;: AbstractFloat 32 end
-primitive type Float64 &lt;: AbstractFloat 64 end
-
-primitive type Bool &lt;: Integer 8 end
-primitive type Char 32 end
-
-primitive type Int8    &lt;: Signed   8 end
-primitive type UInt8   &lt;: Unsigned 8 end
-primitive type Int16   &lt;: Signed   16 end
-primitive type UInt16  &lt;: Unsigned 16 end
-primitive type Int32   &lt;: Signed   32 end
-primitive type UInt32  &lt;: Unsigned 32 end
-primitive type Int64   &lt;: Signed   64 end
-primitive type UInt64  &lt;: Unsigned 64 end
+typeof(1)              # Int64      — the concrete type of the value
+typeof(Any)            # DataType   — types are themselves values
 </code></pre>
 
-<h2 id="composite-types">Composite Types</h2>
+        <h3 id="abstract-concrete">Abstract vs Concrete Types</h3>
 
-<p>In other languages we have records or structures. Julia uses keyword "struct" to create composite types. By default a "<em>struct type</em>" is immutable. To create a mutable struct we use keyword "mutable". So it is easy to remember. Immutable structs are more efficient but can&rsquo;t be changed after initialization. Mutable struct can have it&rsquo;s member changed.</p>
-<pre class="normal"><code class="language-julia"># Example of composite type
-mutable struct Person
-   first_name 
-   last_name
-   age::Integer
+        <p>A <em>concrete</em> type is one you can instantiate: <code>Int64</code>, <code>Float64</code>, <code>String</code>, and any struct you define. An <em>abstract</em> type is a label for a set of types: <code>Integer</code>, <code>Real</code>, <code>Number</code>, <code>AbstractString</code>. You cannot create a value whose type is abstract, because an abstract type carries no layout information.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Keyword</th>
+              <th>Instantiable</th>
+              <th>Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Abstract</td><td><code>abstract type</code></td><td>No</td><td><code>Number</code>, <code>Integer</code></td></tr>
+            <tr><td>Concrete primitive</td><td>built in</td><td>Yes</td><td><code>Int32</code>, <code>Float64</code>, <code>Char</code></td></tr>
+            <tr><td>Concrete composite</td><td><code>struct</code></td><td>Yes</td><td><code>String</code>, your own structs</td></tr>
+            <tr><td>Parametric</td><td>type parameters</td><td>After binding</td><td><code>Vector{Int64}</code> vs <code>Vector</code></td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># Integer is abstract: it describes a family, it does not store values.
+# Integer(3)              # ❌ ERROR: MethodError — cannot instantiate abstract type
+
+Int64(3) isa Integer       # true  — Int64 is one member of the family
+UInt8(3) isa Integer       # true  — so is UInt8
+3 isa Real                 # true  — Int64 <: Signed <: Integer <: Real
+
+# `Vector` alone is a UnionAll — a family of vector types.
+Vector isa DataType        # false
+Vector{Int} isa DataType   # true
+</code></pre>
+
+        <p>The distinction has a direct performance consequence. A struct field annotated with an <em>abstract</em> type stores a boxed pointer, because the compiler does not know the layout. A field annotated with a <em>concrete</em> type is stored inline. That single difference is the topic of the last section.</p>
+
+        <div class="text-center my-4">
+          <img src="/roadmap/julia/img/julia-type-tree.svg" width="900" class="img-fluid" alt="Julia type tree from Any through Number, AbstractString and AbstractChar down to Integer, AbstractFloat, Rational and their concrete leaf types">
+          <p class="small text-secondary mt-2">The scalar region of Julia's type tree. Dark boxes are abstract (labels for a family); light boxes are concrete (installable types). <code>Bool</code> is a subtype of <code>Integer</code>, and <code>String</code> belongs to <code>AbstractString</code>, not to <code>Number</code>.</p>
+        </div>
+
+        <h2 id="numbers">Number Types</h2>
+
+        <p>The numeric tower is deeper than in most languages and every level is a real, usable type rather than an emulation. Integer widths are explicit, rationals are exact, and complex numbers are built in — so the type you choose documents the precision the algorithm needs.</p>
+
+        <h3 id="integers">Integer Types &amp; Overflow</h3>
+
+        <p>Julia's integer types have explicit widths, and unlike Python's arbitrary-precision integers they <em>wrap around</em> on overflow rather than promoting. <code>Int</code> is an alias for the machine word size — <code>Int64</code> on every 64-bit platform.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Family</th>
+              <th>Types</th>
+              <th>Range notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Signed</td><td><code>Int8</code> <code>Int16</code> <code>Int32</code> <code>Int64</code> <code>Int128</code></td><td>Two's complement</td></tr>
+            <tr><td>Unsigned</td><td><code>UInt8</code> <code>UInt16</code> <code>UInt32</code> <code>UInt64</code> <code>UInt128</code></td><td>No negative values</td></tr>
+            <tr><td>Word size</td><td><code>Int</code>, <code>UInt</code></td><td>Alias for 64-bit on modern hardware</td></tr>
+            <tr><td>Boolean</td><td><code>Bool</code></td><td>One byte; a subtype of <code>Integer</code></td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">typeof(1)              # Int64
+typeof(0x01)           # UInt8 — hex literals are unsigned
+typeof(true)           # Bool
+
+typemax(Int8)          # 127
+typemin(Int8)          # -128
+
+# Overflow wraps silently — no exception, no automatic promotion.
+Int8(127) + Int8(1)    # -128  ⚠ silently wrong
+127 + 1                # 128   ✅ Int64 has room
+
+# Ask before you assume:
+Base.checked_add(Int8(127), Int8(1))   # ❌ OverflowError — the safe form
+</code></pre>
+
+        <p>This is the first trap of the language and it deserves memorising: <strong>integer overflow in Julia is silent</strong>. When a width is genuinely close to its limit, use <code>checked_add</code>, <code>checked_mul</code>, and friends, or widen to <code>Int64</code>/<code>Int128</code>, or use <code>BigInt</code> for truly unbounded values.</p>
+
+        <pre><code class="language-julia line-numbers">big = big(2)^100        # BigInt — arbitrary precision, slower
+println(big)            # 1267650600228229401496703205376
+
+big(2)^10 isa BigInt    # true
+</code></pre>
+
+        <h3 id="floats">Floating-Point Types</h3>
+
+        <p>Three float widths exist: <code>Float16</code> (half), <code>Float32</code> (single), and <code>Float64</code> (double). <code>Float64</code> is the default for decimal literals and the right choice unless you have a specific reason — GPU work and memory-bound arrays are the usual reasons for the narrower types.</p>
+
+        <pre><code class="language-julia line-numbers">typeof(3.14)           # Float64 — the default
+typeof(3.14f0)         # Float32 — the f0 suffix forces single precision
+typeof(Float16(1.5))   # Float16
+
+eps(Float64)           # 2.220446049250313e-16 — machine epsilon
+eps(Float32)           # 1.1920929f-7 — larger, i.e. less precise
+
+0.1 + 0.2 == 0.3       # false — binary floating point cannot represent 0.1
+isapprox(0.1 + 0.2, 0.3)   # true — the correct comparison
+</code></pre>
+
+        <p>Two habits follow. Never compare floats with <code>==</code>; use <code>isapprox</code> or compare against a tolerance. And remember that <code>Float64</code> cannot represent most decimal fractions exactly, so results are approximately right by construction rather than by accident.</p>
+
+        <p>Special values are ordinary: <code>Inf</code>, <code>-Inf</code>, and <code>NaN</code> are <code>Float64</code> values, comparisons involving <code>NaN</code> are <code>false</code> (including <code>NaN == NaN</code>), and <code>isnan</code> is the only reliable test.</p>
+
+        <h3 id="exact">Rational &amp; Complex</h3>
+
+        <p>Two numeric types have no equivalent in most languages and are worth knowing early, because they remove entire categories of rounding bugs. <code>Rational</code> stores an exact fraction as a numerator and denominator; <code>Complex</code> stores a real and an imaginary part, both of any numeric type.</p>
+
+        <pre><code class="language-julia line-numbers">typeof(1//3)                  # Rational{Int64}
+1//2 + 1//3                   # 5//6 — exact, no rounding error
+float(1//3)                   # 0.3333333333333333
+
+numerator(5//6)               # 5
+denominator(5//6)             # 6
+
+typeof(2im)                   # Complex{Int64}
+typeof(1.0 + 2.0im)           # ComplexF64 — alias for Complex{Float64}
+(3 + 4im) * conj(3 + 4im)     # 25 + 0im — a value whose modulus is 5
+abs(3 + 4im)                  # 5.0
+</code></pre>
+
+        <p>Rationals are the right type for probability arithmetic, ratios, and any computation where you would otherwise reach for a tolerance constant. Once every operation is exact, the only place a rounded value can appear is where you explicitly asked for one with <code>float()</code>.</p>
+
+        <h2 id="other-scalars">Other Scalar Types</h2>
+
+        <h3 id="bool-char">Bool and Char</h3>
+
+        <p><code>Bool</code> has exactly two values, <code>true</code> and <code>false</code>, and — this surprises people — it is a subtype of <code>Integer</code>, so it can participate in arithmetic without conversion.</p>
+
+        <p><code>Char</code> is a single UTF-8 code point written with single quotes. It is <em>not</em> a one-character string, and indexing a string returns a <code>Char</code> rather than a <code>String</code>.</p>
+
+        <pre><code class="language-julia line-numbers">true isa Bool           # true
+true isa Integer        # true — Bool is a subtype of Integer
+true + true             # 2 (an Int64) — arithmetic works
+Int(true)               # 1
+
+typeof('A')             # Char   — single quotes
+typeof("A")             # String — double quotes
+
+Int('A')                # 65  — code point
+Char(66)                # 'B'
+'z' - 'a'               # 25  — Char arithmetic uses code points
+</code></pre>
+
+        <p>Because <code>Bool</code> converts to <code>0</code>/<code>1</code>, summing a vector of booleans counts how many are true — a compact and idiomatic way to count a condition without a loop:</p>
+
+        <pre><code class="language-julia line-numbers">v = [3, 8, 1, 12, 5]
+count(>(4), v)          # 3 — count with a predicate
+sum(v .&gt; 4)             # 3 — broadcast the comparison, then sum
+</code></pre>
+
+        <h3 id="strings-type">Strings as a Type</h3>
+
+        <p><code>String</code> is a concrete type under the abstract <code>AbstractString</code>. That hierarchy is why functions can accept any string-like input — including <code>SubString</code>, which is a view into an existing string rather than a copy.</p>
+
+        <pre><code class="language-julia line-numbers">typeof("hello")                 # String
+typeof(SubString("hello", 2))   # SubString{String}
+"hello" isa AbstractString      # true
+
+# Accept any string-like input, not just String:
+nchars(s::AbstractString) = length(s)
+nchars("hello")                 # 5
+</code></pre>
+
+        <p>Annotating a parameter as <code>AbstractString</code> rather than <code>String</code> is more general and costs nothing, because the concrete type is still known at the call site. Strings themselves are covered in <a href="/roadmap/julia/strings.html">Strings &amp; Text</a>.</p>
+
+        <h2 id="unions-annotations">Type Unions &amp; Annotations</h2>
+
+        <p>Knowing the tree is only half of it — you also have to <em>use</em> it. A union expresses "this thing may be one of a small set of types", and annotations are how you place type information where the compiler or a reader needs it.</p>
+
+        <h3 id="unions">Union Types</h3>
+
+        <p><code>Union{A, B}</code> is itself a type whose values belong to either <code>A</code> or <code>B</code>. Unions appear constantly in Julia's standard library, most famously in the result of a lookup: <code>findfirst</code> returns an index or <code>nothing</code>, and that is expressed as <code>Union{Nothing, Int}</code>.</p>
+
+        <pre><code class="language-julia line-numbers">u = Union{Int, String}
+3 isa u                 # true
+"x" isa u               # true
+3.0 isa u               # false
+
+# The idiomatic "missing" type: either a value or nothing.
+findfirst(isequal('l'), "hello")     # 3
+findfirst(isequal('z'), "hello")     # nothing
+typeof(findfirst(isequal('z'), "hello"))   # Nothing
+</code></pre>
+
+        <p>Unions with <code>Missing</code> describe data that may have gaps — the normal situation in a dataset with empty cells. Julia has a dedicated <code>Missing</code> value for this, distinct from <code>nothing</code>, which means "no value returned":</p>
+
+        <pre><code class="language-julia line-numbers">x = missing
+ismissing(x)                       # true
+typeof(x)                          # Missing
+
+# Any arithmetic with missing propagates it, rather than failing silently.
+x + 1                              # missing
+
+# Unions of small types stay efficient: the compiler still knows every case.
+const MaybeInt = Union{Missing, Int}
+</code></pre>
+
+        <p>Keep unions <em>small</em>. A union of two or three concrete types can still be compiled efficiently because the compiler knows the finite set of cases; a union of many types degrades back to the <code>Any</code> situation.</p>
+
+        <h3 id="annotation-forms">Where Annotations Appear</h3>
+
+        <p>The double colon means slightly different things depending on where it is written, and knowing each position prevents a lot of confusion about "do I need to annotate this?".</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Position</th>
+              <th>Form</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Function parameter</td><td><code>f(x::Int)</code></td><td>Defines a method for that signature</td></tr>
+            <tr><td>Struct field</td><td><code>struct P; x::Int; end</code></td><td>Fixes storage and layout</td></tr>
+            <tr><td>Local variable</td><td><code>n::Int = 7</code></td><td>Asserts the binding's type</td></tr>
+            <tr><td>Expression</td><td><code>first(v)::Int</code></td><td>Tells the compiler what to expect</td></tr>
+            <tr><td>Return type</td><td><code>f(x)::Int = ...</code></td><td>Asserts the returned value's type</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">f(x::Int)::Int = x * 2      # parameter type defines the method,
+                            # the trailing annotation asserts the result
+
+f(21)                       # 42
+# f(2.5)                    # ❌ MethodError — no method for Float64
+
+struct Reading
+    value::Float64          # concrete field: stored inline, fast
+    unit::String
 end
 
-# We create an instance of Person
-person = Person("John","Doe",25)</code></pre>
-
-<p>To create a struct instance we need to use a constructor. The constructor name is the struct name. This is automatically created and is available for use with parameters. We do not use New keyword like in Java and Python. Simple use the name of the struct as constructor.</p>
-
-<h2 id="parametric-types">Parametric Types</h2>
-
-<p>This is similar to "generics" in Java. We can define a composite type that have members of a variable type. We do not know the type until is used. This allow us to create meta structures. The use of parametric types is very advanced topic and complex. Be prepared to learn more about it.</p>
-<pre class="normal"><code class="language-julia"># create a parametric type
-struct Point{T}
-           x::T
-           y::T
-       end
-
-# create a sub-type of parametric type
-julia&gt;point = Point(1.0,2.1)
+r = Reading(21.5, "°C")
+typeof(r.value)             # Float64
 </code></pre>
 
-<p>This will create an object point with coordinates of type:  Float64</p>
-<pre class="normal"><code class="language-julia">Point{Float64}(1.0, 2.0)</code></pre>
+        <p>The decisive rule: annotate <em>parameters</em> when you want a method for a specific kind of argument, and annotate <em>fields</em> with concrete types so the compiler can lay them out inline. Annotating local variables in the middle of a function is almost always unnecessary.</p>
 
+        <h2 id="hierarchy-tools">Inspecting the Hierarchy</h2>
 
-<h2 id="array-type">Array type</h2>
+        <p>The type tree is not something you memorise; it is something you query. Four built-in functions answer nearly every question you will have at the REPL, and they work on types you or a package defined just as well as on built-ins.</p>
 
-<p>In Julia array represents a collection of elements all having the same type. This collection is indexed starting with index 1 until the last element end. We use square brackets [ &hellip; ] and elements are separated by comma or semicolon.</p>
-<pre><code class="language-julia line-numbers"># One array of with no elements is represented like this
-a = []
-# 1-dimensional array literals can be written with comma-separated values.
-b = [4, 5, 6] # =&gt; 3-element Int64 Array: [4, 5, 6]
-b[1] # this is 4
-b[end] # this is 6
-# 2-dimensional arrays use space-separated values and semicolon-separated rows.
-matrix = [1 2; 3 4] # this is 2x2 Int64 Array
+        <h3 id="supertype-subtype">supertype, subtypes, isa</h3>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Function</th>
+              <th>Answers</th>
+              <th>Example result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>typeof(x)</code></td><td>Concrete type of a value</td><td><code>Int64</code></td></tr>
+            <tr><td><code>supertype(T)</code></td><td>Direct parent of a type</td><td><code>supertype(Int64)</code> → <code>Signed</code></td></tr>
+            <tr><td><code>subtypes(T)</code></td><td>Known direct children</td><td><code>subtypes(Signed)</code></td></tr>
+            <tr><td><code>x isa T</code></td><td>Membership test</td><td><code>3 isa Number</code> → <code>true</code></td></tr>
+            <tr><td><code>T1 &lt;: T2</code></td><td>Subtype relation between types</td><td><code>Int64 &lt;: Real</code> → <code>true</code></td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">supertype(Int64)         # Signed
+supertype(Signed)        # Integer
+supertype(Integer)       # Real
+supertype(Real)          # Number
+supertype(Number)        # Any
+supertype(Any)           # Any — the chain stops at the root
+
+subtypes(Real)           # [AbstractFloat, Integer, Irrational, Rational]
+
+Int64 &lt;: Integer         # true
+Integer &lt;: Int64         # false — the relation is one-directional
+Int64 &lt;: AbstractString  # false
 </code></pre>
 
-<h2 id="tuple-type">Tuple type</h2>
+        <p>The <code>supertype</code> chain is how you decide where to place an abstract type of your own: walk up from the concrete types you want to cover until you reach a node that describes them and nothing else. <code>subtypes</code> lists only the children the runtime already knows about, so at the REPL it may be incomplete until a package is loaded.</p>
 
-<p>Tuples are immutable collection of elements. We use notation (,) to create tuples. The tuple collection is indexed.</p>
-<pre><code class="language-julia line-numbers">tup = (1, 2, 3)
-tup[1] # this is 1</code></pre>
+        <pre><code class="language-julia line-numbers"># Build a type and confirm where it landed.
+abstract type Vehicle end
+struct Car &lt;: Vehicle
+    wheels::Int
+end
 
-<h2 id="dictionary-type">Dictionary type</h2>
-
-<p>A dictionary is a collection of pairs. Each pair is (key, value).</p>
-<pre><code class="language-julia line-numbers"># Dictionaries store mappings
-empty_dict = Dict()
-# You can create a dictionary using a literal
-filled_dict = Dict("one"=&gt; 1, "two"=&gt; 2, "three"=&gt; 3)
+supertype(Car)           # Vehicle
+Car &lt;: Vehicle           # true
+Car(4) isa Any           # true — everything reaches Any
 </code></pre>
 
-<!-- work in progress-->
+        <h3 id="conversion-promotion">Conversion &amp; Promotion</h3>
 
-<hr>
+        <p>Julia reconciles mixed-type arithmetic by <em>promotion</em>: it finds a common type that can represent both operands, converts, then computes. This is why <code>1 + 2.5</code> works without you writing a cast — and why the result's type is worth checking when precision matters.</p>
 
+        <pre><code class="language-julia line-numbers">typeof(1 + 2.5)          # Float64 — Int64 promoted to match Float64
+typeof(1 + Int8(2))      # Int64 — a narrower int widens to Int64
+typeof(1//2 + 0.5)       # Float64 — a rational meets a float
+typeof(BigInt(2) * 3)    # BigInt
 
-</main>
+promote(1, 2.5)          # (1.0, 2.5) — the promoted pair
+promote_type(Int64, Float64)   # Float64
+</code></pre>
+
+        <p>Promotion is why mixing types in a loop is a performance smell: if a variable's type changes between iterations, the compiler cannot emit one specialised loop body. Keeping a numeric variable on a single type — usually <code>Float64</code> for scientific work — is a habit that costs nothing and keeps dispatch and inference simple.</p>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="overflow">Integer Overflow Wrap-Around</h3>
+
+        <p>Overflow is the trap most likely to produce a silently wrong answer, because nothing is raised and the type does not change. The classic victim is a factorial: it overflows <code>Int64</code> at <code>21!</code> and then keeps producing plausible-looking numbers.</p>
+
+        <pre><code class="language-julia line-numbers">factorial(20)                 # 2432902008176640000 — correct, just fits
+factorial(21)                 # -4249290049419214848 — WRONG, wrapped
+BigInt(factorial(20))         # correct but computed the wrapped way
+
+# Compute in the wide type from the start:
+prod(big(1):big(50))          # exact, arbitrary precision
+factorial(big(21))            # exact
+</code></pre>
+
+        <p>Three defences, in order of preference: compute in <code>BigInt</code> when the magnitude is unknown; use the <code>checked_*</code> family when you need a loud failure instead of a wrong answer; or widen the type deliberately with <code>Int128</code> when you can bound the true maximum. Note that promoting <em>after</em> the fact is useless — the wrap has already happened.</p>
+
+        <h3 id="concrete-fields">Abstract Fields Are Slow</h3>
+
+        <p>A struct field annotated with an abstract type cannot be stored inline, because the compiler does not know the field's size or layout. It stores a pointer to a heap-boxed value instead, and every read becomes an indirection plus a runtime type lookup. The fix is a type parameter.</p>
+
+        <pre><code class="language-julia line-numbers"># ❌ Abstract field: value is boxed and indirected on every access.
+struct BadHolder
+    value::Number
+end
+
+# ✅ Parametric field: the concrete type is part of the struct's own type,
+#    so the value is stored inline with no indirection.
+struct GoodHolder{T &lt;: Number}
+    value::T
+end
+
+b = BadHolder(1.5)             # BadHolder — type erased
+g = GoodHolder(1.5)            # GoodHolder{Float64} — type preserved
+typeof(g)                      # GoodHolder{Float64}
+g.value                        # 1.5, read directly with no boxing
+</code></pre>
+
+        <p>Notice that <code>GoodHolder{Float64}</code> and <code>GoodHolder{Int}</code> are two different concrete types, each with its own inline layout. That is the point of parametric types: they keep the type information <em>inside</em> the container's type instead of throwing it away. The full treatment is in <a href="/roadmap/julia/generics.html">Parametric Types &amp; Generics</a>.</p>
+
+        <p>You now have the tree and the tools: <code>Any</code> at the root, abstract types as labels, concrete types as storage, the numeric tower with its overflow trap, unions for optional values, and the four functions that let you query any of it. Next: <a href="/roadmap/julia/expressions.html">Expressions &amp; Operators</a> puts these values to work.</p>
+
+      </main>
     </div>
   </div>
 
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 

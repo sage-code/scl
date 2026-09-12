@@ -1,0 +1,393 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia variables and constants: bindings, type inference, const, scope rules, annotations, and why typed globals matter for performance.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, variables, constants, const, scope, type inference, annotations, global, performance">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Variables &amp; Constants</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-variables">Variables &amp; Constants</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A Julia variable is a <em>name bound to a value</em>. The name itself has no fixed type: what it points to does. That single design decision — binding, not slot — explains why Julia code has no declarations, why a variable can be reassigned to a value of another type, and why <code>const</code> exists for the cases where you must promise the binding will never change.
+        </div>
+
+        <p>This lesson covers the four questions every language must answer about names: how a name gets a value, how the compiler knows its type without you saying so, how long the name lives and who can see it, and what it costs when the answer is "it lives in a global". The performance section at the end is the one that turns a working script into a fast one.</p>
+
+        <h2 id="bindings">Bindings &amp; Assignment</h2>
+
+        <p>Assignment in Julia uses <code>=</code>, but it is not a declaration. It creates a <em>binding</em>: the name on the left is attached to the value on the right. No keyword, no type, no storage size appears, because the value already carries all of that information.</p>
+
+        <h3 id="assignment">Assignment &amp; Rebinding</h3>
+
+        <p>Because a binding attaches a name to a value rather than reserving a typed slot, the same name may later be bound to a value of a completely different type. This is legal, and it is also the situation you should avoid in performance-critical code.</p>
+
+        <pre><code class="language-julia line-numbers">x = 42              # x is bound to an Int64
+typeof(x)           # Int64
+
+x = "now a string"  # rebinding: legal, and now x is a String
+typeof(x)           # String
+
+x = 3.5             # rebinding again
+typeof(x)           # Float64
+</code></pre>
+
+        <p>Julia also supports destructuring and chained assignment, which make several bindings at once. This is not sugar for readability alone — destructuring is how you unpack tuples and named tuples returned by functions:</p>
+
+        <pre><code class="language-julia line-numbers">a, b = 1, 2                 # two bindings in one statement
+a, b = b, a                 # swap without a temporary variable
+println((a, b))             # (2, 1)
+
+x = y = z = 0               # chained: all three names bound to 0
+
+lo, hi = extrema([4, 1, 9]) # destructure a returned tuple
+println((lo, hi))           # (1, 9)
+</code></pre>
+
+        <h3 id="inference">Type Inference</h3>
+
+        <p>If a name has no type, how does the compiler generate fast machine code? It <em>infers</em> the type from the value assigned and from how the name is used. Inference is the engine that makes untyped code fast, and it works forwards: from the literal, through every operation, to the result.</p>
+
+        <pre><code class="language-julia line-numbers">n = 10                  # Int64 literal → n::Int64
+m = n * 2               # inference knows the result is Int64
+typeof(m)               # Int64
+
+s = n / 3               # `/` always produces a float, even for integer inputs
+typeof(s)               # Float64
+println(s)              # 3.3333333333333335
+</code></pre>
+
+        <p>Most of the time inference succeeds completely and you never think about it. It fails when a name can hold different types in different branches or across loop iterations, because then the compiler must allow the general case and generate slower code that boxes values. That situation has a name — <em>type instability</em> — and a tool to detect it, covered in the globals section below and in depth in <a href="/roadmap/julia/performance.html">Performance &amp; Benchmarking</a>.</p>
+
+        <p>One practical consequence of inference: writing the most natural expression, not the most annotated one, is usually the fastest path. Julia rewards idiomatic code, not defensive typing.</p>
+
+        <h2 id="constants">Constants</h2>
+
+        <p>Julia's <code>const</code> binds a name to a value so that the binding cannot be reassigned. It is the closest thing the language has to a declaration, and it exists for two distinct reasons: correctness and speed.</p>
+
+        <h3 id="const">The const Keyword</h3>
+
+        <p>Reassigning a <code>const</code> is an error in a new session but only a warning at the REPL in older versions — so rely on convention as well as the error. The value itself may still be mutable; <code>const</code> freezes the <em>binding</em>, not the object.</p>
+
+        <pre><code class="language-julia line-numbers">const MAX_ITER = 1000
+const G = 9.80665               # standard gravity, m/s²
+const NAMES = ["alpha", "beta"] # the binding is constant; the array is not
+
+MAX_ITER = 2000                 # ❌ ERROR: invalid redefinition of constant
+
+push!(NAMES, "gamma")           # ✅ allowed — mutating the object, not rebinding
+println(NAMES)                  # ["alpha", "beta", "gamma"]
+</code></pre>
+
+        <p>That last pair is the distinction people miss. <code>NAMES</code> will always refer to the same array, so the compiler may assume its type is <code>Vector{String}</code> forever. The array's contents are free to change, and every reference to <code>NAMES</code> sees the change immediately.</p>
+
+        <h3 id="convention">Constants by Convention</h3>
+
+        <p>There is a second, quieter reason to declare constants: the compiler can treat a global name as a constant only if you said so. A global that is never reassigned may still be inferred as <code>Any</code> unless it is declared <code>const</code>. The table below summarises when to reach for it.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Situation</th>
+              <th>Use</th>
+              <th>Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Physical constants, tolerances</td><td><code>const</code></td><td>Never change; documents intent</td></tr>
+            <tr><td>Configuration read once at startup</td><td><code>const</code></td><td>Fixes the type for every reader</td></tr>
+            <tr><td>Type names, module-level singletons</td><td><code>const</code></td><td>Aliases get stable types</td></tr>
+            <tr><td>Loop counters, accumulators</td><td>plain binding</td><td>They change by design</td></tr>
+            <tr><td>Anything read inside a hot function</td><td><code>const</code></td><td>Avoids <code>Any</code>-typed globals</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="scope">Scope &amp; Lifetime</h2>
+
+        <p>Scope answers two questions: which names can a given line see, and how long does a value survive. Julia's scope rules are slightly unusual because functions behave differently from the REPL and scripts, and that difference is the source of the famous <code>UndefVarError</code> inside a loop typed at the top level.</p>
+
+        <h3 id="local-global">Local vs Global Scope</h3>
+
+        <p>Names created inside a function, loop, <code>let</code> block, or <code>comprehension</code> are <em>local</em>: they exist only for the duration of that block and are invisible outside it. Names created at the top level of a module, script, or the REPL are <em>global</em> for that container.</p>
+
+        <pre><code class="language-julia line-numbers">function stats(v)
+    total = sum(v)          # `total` is local to this function
+    n = length(v)
+    return total / n
+end
+
+println(stats([1, 2, 3]))   # 2.0
+# println(total)            # ❌ UndefVarError — it never existed out here
+
+let                       # `let` creates a local scope at the top level
+    inside = 99
+    println(inside)         # 99
+end
+# println(inside)           # ❌ UndefVarError
+</code></pre>
+
+        <p>A function may <em>read</em> a global but may not <em>assign</em> to it without saying so. The <code>global</code> keyword grants permission, and <code>local</code> forces a new local instead — the two halves of an explicit scope declaration:</p>
+
+        <pre><code class="language-julia line-numbers">counter = 0
+
+function bump()
+    global counter           # without this line, Julia raises an error
+    counter += 1
+end
+
+bump(); bump()
+println(counter)             # 2
+</code></pre>
+
+        <p>Using <code>global</code> to accumulate state is worth recognising as a smell. In a real program, passing the value in and returning the new value is both clearer and dramatically faster — the reason is the performance section below.</p>
+
+        <h3 id="soft-hard">Soft vs Hard Scope at the Top Level</h3>
+
+        <p>Julia distinguishes <em>hard</em> scopes, which always introduce a new local variable, from <em>soft</em> scopes, which inherit the enclosing scope when one exists. Functions, <code>let</code> blocks, and struct bodies are hard; <code>for</code> and <code>while</code> loops introduced at the interactive prompt or in a script file are soft.</p>
+
+        <pre><code class="language-julia line-numbers"># Typed at the REPL (global soft scope) — this assigns the global `i`.
+i = 0
+for i in 1:3
+    println(i)
+end
+println(i)      # 3 — the global was updated
+
+# Inside a function (hard scope) — this creates a new local `i`.
+function f()
+    i = 0
+    for i in 1:3
+        # `i` here is local to the loop body
+    end
+    return i    # still 0 — the loop's `i` never escaped
+end
+
+println(f())    # 0
+</code></pre>
+
+        <h2 id="type-annotations">Type Annotations</h2>
+
+        <p>You never <em>have</em> to annotate a variable. Annotations exist to express intent, to constrain what a name may hold, and occasionally to help the compiler — in that order of importance. Used well they document a contract; used badly they fight inference and slow code down.</p>
+
+        <h3 id="annotating">Annotating a Binding</h3>
+
+        <p>Two operators appear here, and they are not interchangeable. The double colon <code>::</code> is a <em>type assertion</em> — it declares what a name or expression holds. The function <code>convert</code> and its constructor form actually <em>change</em> the value's type.</p>
+
+        <pre><code class="language-julia line-numbers"># `x::T = value` asserts the binding; the value must already conform.
+y::Float64 = 3.0            # fine
+# z::Float64 = 3            # ❌ InexactError: the literal 3 is an Int64
+
+# Assertion on a name, useful to document a field or a local:
+n::Int = 7
+typeof(n)                   # Int64
+
+# Asserting an expression tells the compiler what to expect:
+v = Any[1, 2, 3]
+first(v)::Int               # asserts the pulled-out value is an Int
+</code></pre>
+
+        <p>Assertions are checked at runtime where the compiler cannot prove them, so a wrong assertion is a caught bug, not silent corruption. In a struct field, the annotation defines the storage layout and is compulsory if you want the type to be concrete.</p>
+
+        <h3 id="converting">Conversion vs Annotation</h3>
+
+        <p>When you have a value of one type and want another, assert is the wrong tool — <code>convert</code> is. The distinction matters constantly in numeric code, where a floating-point result must be stored in an integer field or vice versa.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Intent</th>
+              <th>Write</th>
+              <th>Behaviour</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Declare what a name holds</td><td><code>x::Int = 5</code></td><td>Assert; error if it does not match</td></tr>
+            <tr><td>Change a value's type</td><td><code>convert(Int, 3.0)</code></td><td>Returns a new value of the target type</td></tr>
+            <tr><td>Construct the target type</td><td><code>Float64(3)</code></td><td>Same as <code>convert</code> for numbers</td></tr>
+            <tr><td>Truncate a float to an integer</td><td><code>trunc(Int, 3.7)</code></td><td>Explicit rounding, then conversion</td></tr>
+            <tr><td>Parse text into a number</td><td><code>parse(Int, "42")</code></td><td>Throws on malformed input</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">convert(Float64, 3)         # 3.0
+convert(Int, 3.0)           # 3 — exact, so allowed
+# convert(Int, 3.7)         # ❌ InexactError: 3.7 is not exactly representable
+trunc(Int, 3.7)             # 3 — you said how to round
+round(Int, 3.7)             # 4
+
+parse(Int, "42")            # 42
+parse(Float64, "2.5e-3")    # 0.0025
+</code></pre>
+
+        <h2 id="globals-performance">Globals &amp; Performance</h2>
+
+        <p>This section is the reason the lesson includes a performance chapter at all. Wrapping code in a function can make the same algorithm tens or hundreds of times faster purely by changing where the variables live — with no other edit. Understanding why removes a whole class of "Julia is slow" complaints.</p>
+
+        <h3 id="type-unstable-globals">Why Typed Globals Matter</h3>
+
+        <p>A global binding may be reassigned at any moment, from anywhere, to a value of any type. So when a function reads a global, the compiler cannot know its type at the time it generates code. The generated code must therefore box the value, look up its type dynamically, and dispatch at runtime for every access — inside the loop, on every iteration.</p>
+
+        <pre><code class="language-julia line-numbers"># ❌ Global, untyped → the loop body cannot be compiled to fast code.
+sum_val = 0.0
+function bad(n)
+    for i in 1:n
+        global sum_val
+        sum_val += i
+    end
+    return sum_val
+end
+
+# ✅ The value is passed in; the parameter has a concrete inferred type.
+function good(n)
+    total = 0.0                  # local, inferred as Float64
+    for i in 1:n
+        total += i               # compiled to a tight native loop
+    end
+    return total
+end
+</code></pre>
+
+        <p>Measured, the difference is not marginal. The idiom to internalise is that <strong>data flows in through arguments and out through return values</strong>; globals are for constants and configuration, never for accumulators.</p>
+
+        <h3 id="avoiding">Passing State Instead</h3>
+
+        <p>When a value truly is constant for the life of the session, a typed <code>const</code> gives the compiler what it needs while keeping the convenience of a global name. When the value changes, it should be a parameter or a field — not a global that every function reaches out to touch.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Pattern</th>
+              <th>Verdict</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>const RATE = 0.07</code> read in a function</td><td>Good</td><td>Type is known and fixed forever</td></tr>
+            <tr><td>Untyped global counter mutated in a loop</td><td>Bad</td><td>Forces dynamic lookup per access</td></tr>
+            <tr><td><code>const CACHE = Dict{String,Int}()</code></td><td>Acceptable</td><td>Binding is stable, type is concrete</td></tr>
+            <tr><td>Top-level script code with loops</td><td>Wrap in <code>main()</code></td><td>Function scope restores inference</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># A concrete container behind a const binding: fast and reusable.
+const CACHE = Dict{String, Int}()
+
+function memo_fib(n)
+    key = string(n)
+    haskey(CACHE, key) && return CACHE[key]     # concrete key and value types
+    val = n &lt; 2 ? n : memo_fib(n - 1) + memo_fib(n - 2)
+    CACHE[key] = val
+    return val
+end
+
+println(memo_fib(30))       # 832040
+</code></pre>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="undefined">UndefVarError &amp; UndefRefError</h3>
+
+        <p>Two errors look similar and mean different things. <code>UndefVarError</code> means the <em>name</em> does not exist in this scope — usually a typo, a case mismatch, or a variable that was defined inside a function that already returned. <code>UndefRefError</code> means the name exists but has no value yet, which happens with array slots and struct fields that were declared but never filled.</p>
+
+        <pre><code class="language-julia line-numbers"># UndefVarError — the name was never created here
+function g()
+    result = 1
+end
+g()
+# println(result)     # ❌ UndefVarError: `result` not defined
+
+# UndefRefError — the slot exists but was never assigned
+v = Vector{String}(undef, 3)     # three uninitialised slots
+# println(v[1])                  # ❌ UndefRefError
+v[1] = "ok"
+println(v[1])                    # ok
+</code></pre>
+
+        <p>The lesson from the first case: a function's locals die with the call. If you need a value to survive, return it. The lesson from the second: <code>Vector{T}(undef, n)</code> allocates storage but writes nothing, so read position <code>i</code> only after you have written position <code>i</code>.</p>
+
+        <h3 id="naming">Shadowing &amp; Reuse</h3>
+
+        <p>Rebinding a name to a different type is legal, but doing it routinely is a hazard: it defeats inference inside functions that use the name, and it makes a reader track two meanings for one word. The three symptoms below are worth recognising by name.</p>
+
+        <ul>
+          <li><strong>Shadowing.</strong> A local variable with the same name as a function, type, or global hides it for the rest of the block. Naming a variable <code>sum</code> or <code>length</code> breaks every later call to it in that scope.</li>
+          <li><strong>Accidental reuse.</strong> Using <code>i</code>, <code>x</code>, or <code>temp</code> for two unrelated purposes in one function. Each new meaning resets the inferred type.</li>
+          <li><strong>Function name capture.</strong> Assigning to a name in a scope where a function of that name exists makes the function unreachable there.</li>
+        </ul>
+
+        <pre><code class="language-julia line-numbers">function demo(v)
+    total = sum(v)          # ✅ `sum` is the function — fine
+    # sum = 0               # ❌ would shadow `sum` and break the line above
+    return total
+end
+
+println(demo([1, 2, 3]))     # 6
+</code></pre>
+
+        <p>The habit that avoids all three: choose names that say what the value <em>is</em> — <code>total</code>, <code>row_count</code>, <code>elapsed_ms</code> — and never reuse a name for a second purpose inside one block. It costs nothing and depends on no tooling.</p>
+
+        <p>You now know how names are bound, how inference types them, how <code>const</code> freezes a binding, how scope decides visibility, what annotations actually assert, and why globals cost performance. Next: <a href="/roadmap/julia/types.html">Data Types</a> maps the type tree those values live in.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'variables',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

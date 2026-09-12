@@ -1,0 +1,243 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia introduction: design goals, why it exists, where it shines, and an honest comparison with Go.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, introduction, tutorial, multiple dispatch, two-language problem, julia vs go">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Introduction</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-intro">Introduction to Julia</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Julia is a free, open-source, dynamically typed language created in 2009 by Jeff Bezanson, Stefan Karpinski, Viral Shah, and Alan Edelman. It was designed for <em>technical computing</em>: the kind of work where you prototype in a slow scripting language and then rewrite the hot parts in C or Fortran. Julia's central promise is that you never have to rewrite anything — the same code you type in the REPL is the code that runs at near-native speed.
+        </div>
+
+        <p>This first lesson answers three questions before you install anything: <strong>why</strong> Julia exists, <strong>where</strong> it is genuinely the right tool, and <strong>when</strong> a language like Go is the better choice. Later lessons assume you have decided Julia is worth learning; this one helps you decide.</p>
+
+        <h2 id="what-is-julia">What Is Julia</h2>
+
+        <h3 id="history">History &amp; Design Goals</h3>
+
+        <p>The four founders were numerical analysts who spent their careers writing MATLAB or Python for the thinking part of their work and C or Fortran for the part that had to be fast. The two halves never composed well: you could not call your C kernels from a high-level abstraction without paying for it, and you could not make the high-level code fast without rewriting it. In 2009 they published a design manifesto describing the language they wished existed.</p>
+
+        <p>The goals were deliberately simultaneous, because relaxing any one of them produces a language that already exists:</p>
+
+        <ul>
+          <li><strong>Speed.</strong> Code should run within a small factor of C. Not "fast for a scripting language" — actually fast.</li>
+          <li><strong>Dynamism.</strong> You should be able to write a function without declaring types, and run it immediately.</li>
+          <li><strong>Generality.</strong> The language should not be tied to matrices or statistics; it should be a real general-purpose language.</li>
+          <li><strong>Composability.</strong> Packages written by strangers should compose without glue code or type-conversion layers.</li>
+        </ul>
+
+        <p>Julia reached version 1.0 in August 2018 — the point at which the language promised backward compatibility. It has been on a regular minor-release cadence since, with a long-term-support line alongside the current release.</p>
+
+        <h3 id="julia-today">Julia Today</h3>
+
+        <p>Two things matter when you start learning: which version to install, and which packages are considered stable. The <code>1.x</code> line keeps the language stable, so tutorial code written for 1.0 still runs. The first number is the compatibility promise; the second moves.</p>
+
+        <pre><code class="language-julia line-numbers">julia&gt; VERSION
+v1.11.4
+
+julia&gt; Sys.WORD_SIZE        # 64 on all modern platforms
+64
+
+julia&gt; Sys.CPU_THREADS      # how many threads this machine has
+16
+</code></pre>
+
+        <h2 id="why-julia">Why Julia</h2>
+
+        <p>Most languages pick a point on a spectrum between "fast to write" and "fast to run". Python, R, and MATLAB are fast to write and slow to run; C, C++, and Rust are the reverse. Julia's claim is that the spectrum is an artifact of how those languages are implemented, not a law of nature.</p>
+
+        <h3 id="performance">Performance Through Types, Not Annotations</h3>
+
+        <p>Julia is compiled, but it is compiled <em>just in time</em>, and the trigger is the concrete types that actually reach a function. The first time you call a function with a given combination of argument types, Julia specializes that function for those types and emits native code. Every later call with the same types reuses the compiled version.</p>
+
+        <p>The practical effect is that you write untyped code and still get typed performance. The function below declares no types at all, yet runs as fast as the equivalent C loop:</p>
+
+        <pre><code class="language-julia line-numbers"># No type annotations — the compiler specializes on first call.
+function sum_squares(n)
+    total = 0
+    for i in 1:n
+        total += i * i
+    end
+    return total
+end
+
+sum_squares(1000)      # compiles the n::Int64 specialization here
+sum_squares(10^6)      # reuses it — no recompilation, no interpreter
+</code></pre>
+
+        <p>This is what makes the next section possible. If your high-level code is already fast, there is no reason to leave it for a lower-level language.</p>
+
+        <h3 id="two-language-problem">The Two-Language Problem</h3>
+
+        <p>The "two-language problem" is the industry habit of writing the same algorithm twice: once in a productive language to discover what the algorithm should be, and again in a fast language to make it usable. The rewrite costs time, and — worse — the two versions drift apart. A bug fixed in the C version is often not fixed in the Python prototype, and vice versa.</p>
+
+        <p>Julia collapses the two into one. Because the productive and the fast version are the same source, you can start by writing the obvious loop, measure it, and then optimize it in place without changing languages. You keep one implementation, one test suite, and one place where bugs live.</p>
+
+        <h2 id="julia-vs-go">Julia vs Go</h2>
+
+        <p>Go and Julia both compile to native code, both are garbage-collected, both ship a package manager and testing tools, and both were designed by people frustrated with C++. Beyond that they are opposites. Go was built by systems engineers to make large concurrent server programs easy to maintain. Julia was built by numerical analysts to make mathematical code fast and generic. Choosing between them is choosing which problem you have.</p>
+
+        <h3 id="vs-paradigm">Paradigm &amp; Typing</h3>
+
+        <p>Go is statically typed and deliberately simple. Types are written down, the type system is small enough to fit in your head, and generics arrived only recently and in a restricted form. The language values one obvious way to do things.</p>
+
+        <p>Julia is dynamically typed with an optional, deeply integrated type system. You may annotate types for performance and dispatch, or leave them out entirely. Its central abstraction is <em>multiple dispatch</em>: a function is a family of methods, and which method runs is decided by the runtime types of <em>all</em> arguments. Go has no equivalent — in Go, methods belong to a single receiver type.</p>
+
+        <pre><code class="language-julia line-numbers"># One generic function, three methods, all named `area`.
+area(r::Circle)              = pi * r.radius^2
+area(w::Int, h::Int)         = w * h          # rectangle from two sides
+area(s::Square)              = s.side^2
+
+area(Circle(2.0))            # dispatches to the first method
+area(3, 4)                   # dispatches to the second
+</code></pre>
+
+        <p>In Go you would write three differently named functions, or satisfiable interfaces, or a switch on a type tag. Julia's version extends without touching existing code.</p>
+
+        <h3 id="vs-performance">Performance &amp; Concurrency</h3>
+
+        <p>Both languages are fast, but they are fast in different regimes. Go produces small, statically linked binaries that start instantly and are excellent at I/O-bound work. Julia has a just-in-time compiler, so the very first call to a function pays a compilation cost; after that, tight numeric loops typically match C.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Aspect</th>
+              <th>Julia</th>
+              <th>Go</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Typing</td><td>Dynamic, optional annotations</td><td>Static, mandatory</td></tr>
+            <tr><td>Dispatch</td><td>Multiple dispatch on all arguments</td><td>Single-receiver methods, interfaces</td></tr>
+            <tr><td>Compilation</td><td>JIT per type signature (LLVM)</td><td>Ahead-of-time, fast to start</td></tr>
+            <tr><td>Concurrency</td><td>Tasks, threads, <code>@spawn</code>, distributed workers</td><td>Goroutines and channels as the core model</td></tr>
+            <tr><td>Numerics</td><td>Native, first-class: <code>1//3</code>, <code>2im</code>, matrices</td><td>Third-party libraries, no built-in vector math</td></tr>
+            <tr><td>Startup</td><td>Milliseconds to seconds (compile)</td><td>Instant</td></tr>
+            <tr><td>Sweet spot</td><td>Simulation, data, modeling, HPC</td><td>APIs, servers, CLI tools, infrastructure</td></tr>
+          </tbody>
+        <div class="text-center my-4">
+          <img src="/roadmap/julia/img/julia-vs-go.svg" width="720" class="img-fluid" alt="Diagram contrasting Julia's multiple-dispatch numeric pipeline with Go's static single-receiver concurrency pipeline">
+          <p class="small text-secondary mt-2">Two different pipelines: Julia specializes generic functions per argument type to reach native speed; Go fixes types at compile time and scales through lightweight goroutines.</p>
+        </div>
+
+        <h3 id="vs-choose">Which One to Choose</h3>
+
+        <p>The decision is usually obvious once you name the bottleneck:</p>
+
+        <ul>
+          <li><strong>Choose Go</strong> when the program spends its time waiting — network calls, databases, file I/O — or when you need a single small binary that boots in microseconds and deploys anywhere. Microservices, CLI tools, and infrastructure agents are Go's home ground.</li>
+          <li><strong>Choose Julia</strong> when the program spends its time <em>computing</em> — solving equations, transforming data, fitting models, simulating systems — and especially when the formula itself will change many times during development.</li>
+          <li><strong>Choose both</strong> when a system has two halves. It is common to serve an API in Go and delegate heavy numerical work to a Julia service or to a compiled Julia library called through its C interface; interop is covered in <a href="/roadmap/julia/interop.html">Interop</a>.</li>
+        </ul>
+
+        <h2 id="ecosystem">Where Julia Shines</h2>
+
+        <h3 id="domains">Domains &amp; Use Cases</h3>
+
+        <p>Julia's strengths cluster wherever mathematics meets code. These are the areas with mature, actively maintained packages:</p>
+
+        <ul>
+          <li><strong>Numerical computing.</strong> Linear algebra, differential equations, optimisation, and statistics are in the standard libraries or in heavily used packages.</li>
+          <li><strong>Data science.</strong> DataFrames, CSV parsing, plotting, and statistics form a workflow comparable to the Python data stack.</li>
+          <li><strong>Scientific machine learning.</strong> Differentiable programming that mixes neural networks with physical models is a Julia specialty, not an afterthought.</li>
+          <li><strong>Simulation and modelling.</strong> Agent-based models, climate models, and financial simulations use Julia for the same reason: one language for the model and the numerics.</li>
+          <li><strong>High-performance and parallel computing.</strong> Threads, distributed workers, and GPU arrays are all reachable from the standard language rather than separate frameworks.</li>
+        </ul>
+
+        <h3 id="companies">Who Uses Julia</h3>
+
+        <p>Adoption is concentrated in organisations whose product is a computation. It is not a coincidence that the public case studies come from finance, pharmaceuticals, aerospace, and energy — the fields where a tenfold speedup changes what is possible rather than merely what is convenient.</p>
+
+        <h2 id="pitfalls">Common Misconceptions</h2>
+
+        <h3 id="not-python">Julia Is Not "Faster Python"</h3>
+
+        <p>The surface syntax resembles Python, and the tab-completion REPL feels familiar, but the execution model is fundamentally different. Python is interpreted and offers speed only through C extensions or vectorised library calls. Julia compiles the code <em>you</em> write. Two consequences follow immediately:</p>
+
+        <ul>
+          <li><em>Vectorising everything is wrong.</em> In Python you avoid loops by calling NumPy. In Julia a plain loop over an array is already fast, and is often faster than allocating temporary arrays — a habit worth unlearning early.</li>
+          <li><em>Better algorithms beat vectorised tricks.</em> Because loops are fast, you can write the algorithm as written mathematics rather than contorting it into array operations.</li>
+        </ul>
+
+        <h3 id="compile-time">Latency &amp; the Compile Pause</h3>
+
+        <p>Because compilation happens on first call, Julia sessions have a warm-up phase. The very first plot, or the first call to a heavy package function, may pause for seconds while code is compiled. This is normal and does not indicate a slow program — it indicates a compiling one.</p>
+
+        <pre><code class="language-julia line-numbers">julia&gt; @time sum_squares(10^6)      # first call: includes compilation
+  0.036482 seconds (12.34 k allocations: 6.9 MiB)
+
+julia&gt; @time sum_squares(10^6)      # second call: pure execution
+  0.000281 seconds (1 allocation: 16 bytes)
+</code></pre>
+
+        <p>Notice that the second call is roughly a hundred times faster and allocates almost nothing. Every performance lesson later in this track depends on understanding that distinction between <em>compiling</em> and <em>running</em>. Modern Julia also caches compiled code across sessions, which shrinks the pause considerably.</p>
+
+        <p>You now know what Julia is for, how it differs from a systems language like Go, and what to expect from its execution model. Next: <a href="/roadmap/julia/setup.html">Setup &amp; the REPL</a> installs the toolchain and gets you typing in a live session.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'intro',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>
