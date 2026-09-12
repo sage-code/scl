@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="How Bash starts: login, interactive and non-interactive shells, the file order, environment variables and shell options.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="bash, bashrc, profile, environment, startup, shopt, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Environment & Startup Files</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="bash-environment">Environment & Startup Files</h1>
+
+<h2 id="startup">Startup Files</h2>
+
+<p>Which configuration files Bash reads depends on <em>how</em> it was started. Getting this wrong is the classic "it works in my terminal but not in cron" problem.</p>
+
+<figure class="figure">
+  <img src="/roadmap/bash/img/startup-order.svg" alt="Decision flow: login shell reads /etc/profile then ~/.bash_profile; interactive non-login reads ~/.bashrc; scripts read $BASH_ENV" width="900" class="img-fluid protect rounded shadow border">
+  <figcaption class="figure-caption">Bash classifies itself first, then reads the matching startup file.</figcaption>
+</figure>
+
+<h3 id="login-shell">Login Shell</h3>
+
+<p>A login shell is one you authenticate into: an SSH session, a console login, or <code>bash -l</code> / <code>bash --login</code>. It reads:</p>
+
+<ol>
+  <li><code>/etc/profile</code> — system-wide settings</li>
+  <li>the first existing of <code>~/.bash_profile</code>, <code>~/.bash_login</code>, <code>~/.profile</code></li>
+</ol>
+
+<h3 id="interactive-shell">Interactive Non-Login Shell</h3>
+
+<p>Opening a new tab or terminal window after logging in usually gives an interactive non-login shell. It reads <code>/etc/bash.bashrc</code> (on Debian/Ubuntu) and <code>~/.bashrc</code>.</p>
+
+<h3 id="non-interactive">Non-Interactive (Scripts)</h3>
+
+<p>A script is <strong>non-interactive</strong>. It reads <em>none</em> of the above. It only honours the file named by <code>$BASH_ENV</code>, which is normally unset. This is why aliases and interactive functions are invisible to your scripts.</p>
+
+<pre><code class="language-bash line-numbers">bash -l            # force a login shell
+bash -i            # force an interactive shell
+bash --noprofile --norc -c 'echo hi'   # skip all startup files (useful for tests)
+</code></pre>
+
+<h2 id="profile-bashrc">profile vs bashrc</h2>
+
+<p>Put <strong>environment</strong> settings in <code>~/.profile</code>/<code>~/.bash_profile</code> (PATH, EDITOR, locale) and <strong>interactive</strong> settings in <code>~/.bashrc</code> (aliases, prompt, completion). Then let one source the other so a login shell gets both.</p>
+
+<pre><code class="language-bash line-numbers"># ~/.bash_profile
+[[ -f ~/.bashrc ]] &amp;&amp; source ~/.bashrc
+export PATH="$HOME/.local/bin:$PATH"
+</code></pre>
+
+<pre><code class="language-bash line-numbers"># ~/.bashrc
+export PS1='\[\e[32m\]\u@\h\[\e[0m\]:\w\$ '
+alias ll='ls -alF'
+alias gs='git status'
+shopt -s checkwinsize histappend
+</code></pre>
+
+<div class="alert alert-info shadow-sm">
+  After editing a startup file, run <code>source ~/.bashrc</code> to apply it to the current shell, or open a new terminal.
+</div>
+
+<h2 id="envar">Environment Variables</h2>
+
+<h3 id="common-vars">Common Variables</h3>
+
+<table class="table table-bordered table-striped table-dark">
+  <tr><th>Variable</th><th>Purpose</th></tr>
+  <tr><td><code>PATH</code></td><td>Directories searched for commands</td></tr>
+  <tr><td><code>HOME</code></td><td>Your home directory</td></tr>
+  <tr><td><code>USER</code></td><td>Current username</td></tr>
+  <tr><td><code>PWD</code> / <code>OLDPWD</code></td><td>Current and previous directory</td></tr>
+  <tr><td><code>SHELL</code></td><td>Login shell path</td></tr>
+  <tr><td><code>LANG</code> / <code>LC_*</code></td><td>Locale and character set</td></tr>
+  <tr><td><code>EDITOR</code></td><td>Preferred text editor</td></tr>
+</table>
+
+<h3 id="special-vars">Shell-Maintained Variables</h3>
+
+<pre><code class="language-bash line-numbers">echo "$BASH_VERSION"     # 5.2.21(1)-release
+echo "$BASH_SOURCE"      # current sourced file path
+echo "$LINENO"           # current line number (useful in errors)
+echo "$SECONDS"          # seconds since the shell started
+echo "$RANDOM"           # pseudo-random integer 0..32767
+echo "$PWD"              # logical current directory
+</code></pre>
+
+<div class="alert alert-warning shadow-sm">
+  <code>$RANDOM</code> is fine for games and temp names but is <strong>not</strong> cryptographically secure. Use <code>openssl rand</code> or <code>/dev/urandom</code> for secrets.
+</div>
+
+<h2 id="shell-options">Shell Options</h2>
+
+<h3 id="set-e">set Options</h3>
+
+<pre><code class="language-bash line-numbers">set -e            # exit on any command failure
+set -u            # error on unset variables
+set -o pipefail   # a pipeline fails if any stage fails
+set -x            # print commands as they run (debug)
+set +x            # stop tracing
+</code></pre>
+
+<h3 id="shopt">shopt Options</h3>
+
+<pre><code class="language-bash line-numbers">shopt -s nullglob      # unmatched globs expand to nothing
+shopt -s globstar      # '**' matches across directories
+shopt -s nocaseglob    # case-insensitive globbing
+shopt -s extglob       # extended pattern operators
+shopt -u nullglob      # turn an option off
+</code></pre>
+
+<h2 id="pitfalls">Pitfalls</h2>
+<ul>
+  <li>Scripts never read <code>~/.bashrc</code>: do not depend on aliases inside scripts.</li>
+  <li><code>PATH</code> in cron is minimal — set it explicitly or use absolute paths.</li>
+  <li>Exporting a variable affects only children; a child cannot change the parent's environment.</li>
+  <li>Editing <code>~/.bashrc</code> can break every new shell — test with <code>bash --rcfile</code> before committing.</li>
+</ul>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'bash',
+    topicId: 'environment',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

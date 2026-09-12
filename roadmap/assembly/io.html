@@ -2,31 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Assembly tutorial for beginners.">
+  <meta name="description" content="Assembly input and output: the Linux syscall interface, read/write on file descriptors, printing numbers, and using libc's printf and scanf.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="assembly, language, programming, tutorial">
+  <meta name="keywords" content="sage, code, assembly, syscall, write, read, stdin, stdout, printf, scanf, file descriptor">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>ASM Input/Output</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>ASM Input &amp; Output</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,60 +37,212 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="asm-io">Input/Output &amp; Syscalls</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A program with no output is indistinguishable from a crash. Everything a process does to the outside world goes through the kernel — and on Linux, "asking the kernel" is one instruction: <code>syscall</code>.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
+        <h2 id="write-stdout">Writing Output</h2>
+
+        <h3 id="write-syscall">The write Syscall</h3>
+
+        <p>Output is one call to the kernel: <code>write(fd, buffer, count)</code>. The count is the number of <em>bytes</em>, not characters or items — and for a string that means you must know its length.</p>
+
+<pre><code class="language-nasm line-numbers">section .rodata
+    msg     db  "Hello, stdout!", 10
+    MSG_LEN equ $ - msg              ; byte count, computed by the assembler
+
+section .text
+    mov  rax, 1                      ; syscall 1 = write
+    mov  rdi, 1                      ; fd 1 = stdout
+    mov  rsi, msg                    ; pointer to the bytes
+    mov  rdx, MSG_LEN                ; how many bytes
+    syscall
+</code></pre>
+
+        <p><code>write</code> returns the number of bytes actually written in <code>rax</code>. This can be <em>fewer</em> than you asked for — on a pipe, a socket, or a slow terminal — so robust code loops until every byte has been sent. For small console output this almost never happens, but it is the reason library functions look more complicated than the snippet above.</p>
+
+        <h3 id="print-number">Printing a Number: Converting Digits Yourself</h3>
+
+        <p>The kernel writes bytes; it does not format integers. To print the number 12345 you must produce the characters <code>'1'</code>, <code>'2'</code>, <code>'3'</code>, <code>'4'</code>, <code>'5'</code> yourself. The standard technique is repeated division by 10, filling a buffer backwards.</p>
+
+<pre><code class="language-nasm line-numbers">; print_uint — write an unsigned integer in rax to stdout
+; Destroys rax, rbx, rcx, rdx, rsi, rdi
+section .bss
+    numbuf  resb 32                  ; digits, filled from the end
+
+print_uint:
+    mov  rbx, 10                     ; divisor
+    lea  rsi, [numbuf + 31]          ; point at the LAST byte of the buffer
+    xor  rcx, rcx                    ; rcx = number of digits produced
+
+.digit_loop:
+    xor  rdx, rdx                    ; clear the high half before dividing
+    div  rbx                         ; rax = rax / 10, rdx = rax % 10
+    add  dl, '0'                     ; convert the digit to its ASCII code
+    dec  rsi                         ; move one byte towards the front
+    mov  [rsi], dl                   ; store the character
+    inc  rcx                         ; one more digit
+    test rax, rax                    ; any quotient left?
+    jnz  .digit_loop                 ; yes -> next digit
+
+    ; write(1, rsi, rcx)
+    mov  rdx, rcx                    ; length = digit count
+    mov  rax, 1
+    mov  rdi, 1
+    syscall
+    ret
+</code></pre>
+
+        <p>Walking through 12345: the loop extracts <code>5</code>, then <code>4</code>, then <code>3</code>, <code>2</code>, <code>1</code> — least significant first — and stores each one moving <em>backwards</em> from the end of the buffer. When it finishes, <code>rsi</code> points at the first digit and the digits are already in the correct order. This is the algorithm behind every integer-to-string conversion, in every language.</p>
+
+        <h2 id="read-stdin">Reading Input</h2>
+
+        <h3 id="read-syscall">The read Syscall</h3>
+
+        <p>Reading is the mirror image of writing: give the kernel a buffer, a maximum size, and the file descriptor to read from.</p>
+
+<pre><code class="language-nasm line-numbers">    ; read(fd, buffer, count)   -> returns bytes actually read in rax
+    mov  rax, 0              ; syscall 0 = read
+    mov  rdi, 0              ; fd 0 = stdin
+    mov  rsi, buffer         ; where to put the bytes
+    mov  rdx, 64             ; maximum number of bytes
+    syscall
+
+    ; rax now holds the number of bytes read:
+    ;   0  = end of input (EOF, e.g. Ctrl-D)
+    ;  <0  = error (negative errno)
+</code></pre>
+
+        <p>Three facts make <code>read</code> different from the <code>scanf</code> you may be used to. It returns raw bytes, not a parsed value. It reads <em>up to</em> the requested count, which may be fewer than you asked for. And the newline you type is part of the data — it is the last byte before the count you received.</p>
 
 
-<h2 id="asm-inputoutput">ASM Input/Output</h2>
+        <h2 id="syscalls">The Linux Syscall Interface</h2>
+
+        <h3 id="calling-convention">How a Syscall Works</h3>
+
+        <p>User code cannot touch hardware directly. To open a file or write to the screen, it asks the kernel, and on x86-64 that request travels through registers in a fixed layout:</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Register</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>rax</code></td><td>Syscall number (in), return value (out)</td></tr>
+            <tr><td><code>rdi</code></td><td>Argument 1</td></tr>
+            <tr><td><code>rsi</code></td><td>Argument 2</td></tr>
+            <tr><td><code>rdx</code></td><td>Argument 3</td></tr>
+            <tr><td><code>r10</code></td><td>Argument 4 (note: <em>not</em> <code>rcx</code>)</td></tr>
+            <tr><td><code>r8</code>, <code>r9</code></td><td>Arguments 5 and 6</td></tr>
+          </tbody>
+        </table>
+
+        <p>Then <code>syscall</code> switches the CPU into kernel mode, the kernel performs the work, and control returns with the result in <code>rax</code> — a non-negative value on success, or a negative <code>-errno</code> on failure. That the failure signal is a negative number rather than a flag is worth remembering when you check for errors.</p>
+
+        <h3 id="common-syscalls">The Syscalls You Will Use Most</h3>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>#</th><th>Name</th><th>Signature</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>0</td><td><code>read</code></td><td><code>read(fd, buf, count)</code></td><td>Read bytes from a file descriptor</td></tr>
+            <tr><td>1</td><td><code>write</code></td><td><code>write(fd, buf, count)</code></td><td>Write bytes to a file descriptor</td></tr>
+            <tr><td>2</td><td><code>open</code></td><td><code>open(path, flags, mode)</code></td><td>Open a file; returns a file descriptor</td></tr>
+            <tr><td>3</td><td><code>close</code></td><td><code>close(fd)</code></td><td>Release a file descriptor</td></tr>
+            <tr><td>9</td><td><code>mmap</code></td><td><code>mmap(...)</code></td><td>Map memory pages (allocator building block)</td></tr>
+            <tr><td>60</td><td><code>exit</code></td><td><code>exit(status)</code></td><td>Terminate the process</td></tr>
+          </tbody>
+        </table>
+
+        <p>File descriptors are small integers that name open files. Three are created for you before your first instruction runs: <strong>0</strong> is standard input, <strong>1</strong> is standard output, and <strong>2</strong> is standard error. That is why <code>mov rdi, 1</code> means "print to the screen".</p>
 
 
-<div class="alert alert-secondary shadow-sm">
-To be replaced!
-</div>
+        <h2 id="libc-io">Using libc Instead</h2>
+
+        <p>Raw syscalls are educational but verbose: you must format every number yourself. Linking against the C library gives you <code>printf</code>, <code>scanf</code>, and file handling that already work.</p>
+
+<pre><code class="language-nasm line-numbers">; echo_libc.asm — read a line and print it back, using printf/scanf
+; Build:  nasm -f elf64 echo_libc.asm -o echo_libc.o
+; Link:   gcc echo_libc.o -o echo_libc
+
+section .rodata
+    prompt  db  "Type something: ", 0
+    fmt_in  db  "%63s", 0               ; read at most 63 chars, stop at space
+    fmt_out db  "You typed: %s", 10, 0
+
+section .bss
+    buffer  resb 64                     ; space for the input
+
+section .text
+    global main
+    extern printf, scanf
+
+main:
+    push    rbp
+    mov     rbp, rsp
+    sub     rsp, 16                     ; keep rsp 16-byte aligned
+
+    lea     rdi, [rel prompt]           ; printf(prompt)
+    xor     eax, eax
+    call    printf
+
+    lea     rdi, [rel fmt_in]           ; scanf("%63s", buffer)
+    lea     rsi, [rel buffer]
+    xor     eax, eax
+    call    scanf
+
+    lea     rdi, [rel fmt_out]          ; printf("You typed: %s\n", buffer)
+    lea     rsi, [rel buffer]
+    xor     eax, eax
+    call    printf
+
+    xor     eax, eax                    ; return 0
+    leave
+    ret
+</code></pre>
+
+        <p>Compare the two approaches honestly. The syscall version has no dependencies and shows exactly what the kernel does, but you own the formatting. The libc version is shorter and richer, but you are now calling a function whose internals are hidden — and whose stack-alignment and register rules you must still respect.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Approach</th><th>Link with</th><th>Entry point</th><th>Best for</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Raw syscalls</td><td><code>ld</code></td><td><code>_start</code></td><td>Learning, tiny binaries, freestanding code</td></tr>
+            <tr><td>libc functions</td><td><code>gcc</code></td><td><code>main</code></td><td>Formatting, buffered I/O, portability</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li><code>syscall</code> is the only doorway from a program to the kernel on Linux x86-64.</li>
+          <li>The syscall number goes in <code>rax</code>; arguments go in <code>rdi</code>, <code>rsi</code>, <code>rdx</code>, <code>r10</code>, <code>r8</code>, <code>r9</code>; the result comes back in <code>rax</code>.</li>
+          <li>File descriptors 0, 1, and 2 are standard input, output, and error — already open when your program starts.</li>
+          <li><code>write</code> needs a pointer <em>and</em> a byte count; a partial write returns the number of bytes actually written.</li>
+          <li>Printing a number means converting it to digits yourself — the kernel does not format anything.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/debug.html">Debugging &amp; Disassembly</a> — what to do when the program compiles and still does the wrong thing.</p>
 
 
-<pre><code class="language-go line-numbers">
-// code example to be replaced with first example
-</code></code></code></pre>
-
-<!-- work in progress-->
-
-<hr>
-
-</main>
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'assembly',
@@ -102,6 +256,5 @@ To be replaced!
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

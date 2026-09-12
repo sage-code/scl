@@ -2,31 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Assembly tutorial for beginners.">
+  <meta name="description" content="Assembly introduction: what assembly is, how source becomes machine code, the CPU and memory model, and the dialects you will meet (x86, ARM, RISC-V, WebAssembly).">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="assembly, language, programming, tutorial">
+  <meta name="keywords" content="sage, code, assembly, asm, introduction, machine code, cpu, registers, nasm">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>ASM Introduction</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>ASM Introduction</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,57 +37,208 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="asm-introduction">Assembly Introduction</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Assembly is the last language that still shows you the machine: one instruction, one operation; one register, one physical box inside the CPU. Everything a compiler does for you was invented to hide this layer — so opening it teaches you what your programs actually cost.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="asm-introduction">ASM Introduction</h2>
+        <h2 id="what-is">What Is Assembly?</h2>
+
+        <p>A <strong>processor</strong> does not read <code>if</code>, <code>for</code>, or <code>printf</code>. It reads numbers — a stream of bytes in memory where each byte is an instruction code. That byte stream is <strong>machine code</strong>, or <em>native code</em>, and it is the only thing the CPU can execute.</p>
+
+        <p>Machine code is unreadable by humans, so every processor family gives each instruction code a <strong>mnemonic</strong> — a short word. Byte <code>0xB8</code> becomes <code>mov eax, ...</code>. A program written with those mnemonics is <strong>assembly language</strong>, and the tool that turns it into bytes is an <strong>assembler</strong>.</p>
+
+        <h3 id="machine-code">From Source to Machine Code</h3>
+
+        <p>There are two different ways to reach machine code, and knowing which one you are looking at tells you a lot:</p>
+
+        <ul>
+          <li><strong>Compiler</strong> — translates a high-level language (C, Rust, Go) to assembly <em>automatically</em>. The assembly is a build artifact you inspect but rarely edit.</li>
+          <li><strong>Assembler</strong> — translates the assembly <em>you</em> wrote into machine code. You choose the registers and the instructions.</li>
+        </ul>
+
+        <p>Both paths meet at the same place, because a compiler is literally a program that emits assembly. Here is what a C compiler produces for a tiny function when you ask it for x86-64 output:</p>
+
+<pre><code class="language-nasm line-numbers">; C source:  long add(long a, long b) { return a + b; }
+; The compiler emits this assembly for x86-64 (System V ABI):
+add:
+    lea     rax, [rdi + rsi]   ; rdi = a, rsi = b (first two integer arguments)
+    ret                        ; result is returned in rax
+</code></pre>
+
+        <p>Notice how much the compiler decided for you: which registers hold the arguments, which register holds the result, and even that <code>lea</code> is a cheaper way to add than <code>add</code>. When you write assembly by hand, those decisions are yours — and so is the responsibility for getting them right.</p>
+
+        <h3 id="why-learn">Why Learn Assembly?</h3>
+
+        <p>Almost nobody ships a large program written in assembly. People learn it for four concrete reasons, and every lesson in this track serves at least one of them:</p>
+
+        <ul>
+          <li><strong>Performance intuition.</strong> Once you see that a cache miss costs hundreds of instructions, "optimize later" becomes a measurable habit instead of a slogan.</li>
+          <li><strong>Debugging.</strong> When a crash gives you a stack trace and a disassembly window, reading registers is the difference between guessing and knowing.</li>
+          <li><strong>Systems work.</strong> Bootloaders, interrupt handlers, context switches, and cryptography primitives are written in assembly because no compiler can be trusted with the exact instruction sequence.</li>
+          <li><strong>Security.</strong> Reverse engineering, exploit analysis, and understanding how malware hides all begin with reading machine code.</li>
+        </ul>
 
 
-<div class="alert alert-secondary shadow-sm">
-To be replaced!
-</div>
+        <h2 id="machine-model">The Machine Model</h2>
+
+        <p>Before writing a single instruction, build a mental picture of the machine. Almost every assembly question reduces to one of three parts: what the CPU is doing, what it remembers, and where it keeps everything.</p>
+
+        <h3 id="cpu">The CPU: Fetch, Decode, Execute</h3>
+
+        <p>The processor repeats one cycle forever, billions of times per second:</p>
+
+        <ol>
+          <li><strong>Fetch</strong> — read the next instruction bytes from the address in the instruction pointer (<code>rip</code> on x86-64, <code>pc</code> on ARM/RISC-V).</li>
+          <li><strong>Decode</strong> — work out which operation those bytes mean and what operands it needs.</li>
+          <li><strong>Execute</strong> — perform the operation, writing a result back to a register or memory.</li>
+        </ol>
+
+        <p>That is the whole machine. Everything else — pipelines, caches, out-of-order execution, branch prediction — exists only to make this cycle faster, and every one of them exists because the original three steps are wasteful.</p>
+
+        <h3 id="registers-intro">Registers Are the CPU's Hands</h3>
+
+        <p>A <strong>register</strong> is a tiny, extremely fast storage slot inside the CPU. x86-64 has sixteen general-purpose 64-bit registers; ARM64 has thirty-one. Registers are the only operands an instruction can touch directly — everything else must be loaded into a register first. A register read or write costs effectively nothing (a fraction of a nanosecond), which is why assembly code is obsessed with keeping values in registers rather than in memory.</p>
+
+<pre><code class="language-nasm line-numbers">    mov     rax, 5        ; put the number 5 into register rax
+    mov     rbx, 7        ; put the number 7 into register rbx
+    add     rax, rbx      ; rax = rax + rbx  ->  rax now holds 12
+    mov     rcx, rax      ; copy the result into rcx
+</code></pre>
+
+        <p>No memory is touched here. Four instructions, four register operations, done in a handful of clock cycles.</p>
+
+        <h3 id="memory">Memory, Addresses, and the Stack</h3>
+
+        <p><strong>Memory</strong> (RAM) is one enormous flat array of bytes. Each byte has an <strong>address</strong>, a number that starts at 0 and counts upward. When an instruction needs a value from memory, it must name that address — or name registers whose contents produce the address.</p>
+
+        <p>Two regions matter most in beginner programs:</p>
+
+        <ul>
+          <li><strong>Static data</strong> — your constants, strings, and variables declared with <code>db</code>/<code>dd</code>/<code>dq</code>. They live at fixed addresses known at assembly time.</li>
+          <li><strong>The stack</strong> — a region that grows downward as the program runs. It stores return addresses, saved registers, and local storage. The stack pointer register (<code>rsp</code>) always points to its current top.</li>
+        </ul>
+
+        <p>Keep the picture simple: <strong>registers</strong> are fast and scarce, <strong>memory</strong> is slow and plentiful, and the <strong>stack</strong> is memory used with a strict discipline — push to save, pop to restore.</p>
 
 
-<pre><code class="language-go line-numbers">
-// code example to be replaced with first example
-</code></code></code></pre>
+        <h2 id="dialects">Assembly Dialects Around the World</h2>
 
-<!-- work in progress-->
+        <p>Assembly is not one language. Every processor family has its own instruction set, its own register names, and usually its own assembler syntax. These are the four you will meet in this track:</p>
 
-<hr>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Family</th><th>Found in</th><th>Assembler</th><th>Character</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>x86-64</strong></td><td>Desktops, laptops, most servers</td><td>NASM, GNU as, MASM</td><td>CISC — large instruction set, variable-length instructions</td></tr>
+            <tr><td><strong>ARM64</strong> (AArch64)</td><td>Phones, tablets, Apple silicon, Raspberry Pi</td><td>GNU as, LLVM</td><td>RISC — fixed 32-bit instructions, load/store architecture</td></tr>
+            <tr><td><strong>RISC-V</strong></td><td>Embedded, education, open hardware</td><td>GNU as, LLVM</td><td>RISC — open standard, modular extensions</td></tr>
+            <tr><td><strong>WebAssembly</strong></td><td>Browsers, edge runtimes, plugins</td><td>wat2wasm, LLVM</td><td>Virtual stack machine — not a physical CPU</td></tr>
+          </tbody>
+        </table>
 
-</main>
+        <h3 id="risc-cisc">RISC vs CISC, in One Paragraph</h3>
+
+        <p><strong>CISC</strong> (Complex Instruction Set Computer) gives you many powerful instructions, each doing several jobs at once, encoded in variable-length bytes. <strong>RISC</strong> (Reduced Instruction Set Computer) gives you a small set of simple instructions, each one word long, and expects you to combine them. x86-64 is CISC; ARM64 and RISC-V are RISC. The practical consequence for you as a programmer: on x86 you constantly ask "can this be done in one instruction?", while on ARM you ask "how do I sequence these simple steps?"</p>
+
+        <p>WebAssembly is a different animal — it is a portable bytecode designed to compile <em>to</em>, not a CPU. Its text format, <strong>WAT</strong>, looks like assembly but describes a stack machine: there are no named registers at all. It is included here because it is the dialect most web developers will actually read.</p>
+
+
+        <h2 id="syntax-flavors">Two Syntaxes for One CPU</h2>
+
+        <p>Here is the trap that catches every beginner: <em>the same instruction can be written two ways</em>. The x86-64 CPU has one machine code, but two competing textual spellings for it:</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Aspect</th><th>Intel syntax (NASM, MASM)</th><th>AT&T syntax (GNU as)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Operand order</td><td><code>dest, src</code></td><td><code>src, dest</code></td></tr>
+            <tr><td>Register prefix</td><td>none — <code>rax</code></td><td><code>%</code> — <code>%rax</code></td></tr>
+            <tr><td>Immediate prefix</td><td>none — <code>10</code></td><td><code>$</code> — <code>$10</code></td></tr>
+            <tr><td>Memory operand</td><td><code>[rbx + 8]</code></td><td><code>8(%rbx)</code></td></tr>
+            <tr><td>Size suffix</td><td><code>mov qword [rbx], 1</code></td><td><code>movq $1, (%rbx)</code></td></tr>
+            <tr><td>Comment</td><td><code>;</code></td><td><code>#</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>The same two instructions, side by side — identical bytes come out of the assembler:</p>
+
+<pre><code class="language-nasm line-numbers">; Intel / NASM — destination first, no prefixes
+    mov     rax, [rbx + 8]     ; load the 64-bit value at address (rbx + 8)
+    add     rax, 10            ; add the constant 10
+</code></pre>
+
+<pre><code class="language-nasm line-numbers"># AT&T / GNU as — source first, % registers, $ immediates
+    movq    8(%rbx), %rax      # load the value at address (rbx + 8)
+    addq    $10, %rax          # add the constant 10
+</code></pre>
+
+        <h3 id="choosing-syntax">Which Syntax Should You Learn?</h3>
+
+        <p>Learn <strong>Intel syntax with NASM</strong> first, which is what this track uses. It reads left to right like an assignment, it needs fewer punctuation marks, and the NASM manual is one of the clearest documents in low-level computing. AT&amp;T syntax matters because that is what Linux kernel source, GCC's <code>-S</code> output, and most tutorials written before 2010 use — so you will need to recognize it, even if you rarely type it.</p>
+
+        <p>If you already use GDB, remember that GDB's default disassembly is AT&amp;T. Switch it with <code>set disassembly-flavor intel</code>, and it will match everything on this site.</p>
+
+
+        <h2 id="organization">How This Track Is Organized</h2>
+
+        <p>The lessons follow the order in which a machine actually makes decisions, so nothing is used before it is explained:</p>
+
+        <ul>
+          <li><strong>Phase 1 — Fundamentals:</strong> what assembly is, the toolchain, and the number/memory model.</li>
+          <li><strong>Phase 2 — Registers &amp; Data:</strong> the CPU's working storage, how bytes are declared, and how addresses are computed.</li>
+          <li><strong>Phase 3 — Instructions &amp; Logic:</strong> the instruction set, arithmetic, and how to branch.</li>
+          <li><strong>Phase 4 — Program Structure:</strong> the stack, subroutines, and the assembler's macro system.</li>
+          <li><strong>Phase 5 — Systems &amp; Flavors:</strong> talking to the operating system, debugging, and comparing dialects.</li>
+          <li><strong>Phase 6 — Practice:</strong> runnable demo programs and small projects.</li>
+          <li><strong>Phase 7 — Reference:</strong> assemblers, simulators, and manuals you can return to.</li>
+        </ul>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="pitfall-portable">"Assembly is portable"</h3>
+
+        <p>It is not, and pretending otherwise is the fastest way to waste an afternoon. x86-64 assembly does not run on ARM, ARM assembly does not run on RISC-V, and even two x86 assemblers disagree about syntax. Portability comes from the high-level language above assembly, not from assembly itself.</p>
+
+        <h3 id="pitfall-difficult">"Assembly is only for geniuses"</h3>
+
+        <p>Assembly is small, not hard. x86-64 has a large instruction set, but day-to-day programming uses perhaps thirty instructions: move, add, compare, branch, call, return. The difficulty is not complexity — it is the lack of safety nets that a compiler normally provides.</p>
+
+        <h3 id="pitfall-opt">"Hand-written assembly is always faster"</h3>
+
+        <p>Modern compilers are extremely good. They know instruction latencies, prefer SIMD, and reorder code around pipeline stalls. Hand-written assembly usually wins only in narrow, well-measured hotspots — and it loses badly when the author has not profiled first. Write assembly to <em>understand</em> the machine; keep it only when a measurement proves it helps.</p>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li>Machine code is the only language a CPU executes; assembly is its human-readable spelling.</li>
+          <li>An assembler turns your mnemonics into machine code — you are the optimizer.</li>
+          <li>Assembly is not portable: it is tied to one processor family and often to one operating system's calling convention.</li>
+          <li>This track teaches x86-64 with NASM as the primary dialect, then shows the same ideas in ARM64, RISC-V, and WebAssembly.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/toolchain.html">Toolchain &amp; First Program</a> — install the tools and assemble something that actually runs.</p>
+
+
+
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'assembly',
@@ -99,6 +252,5 @@ To be replaced!
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

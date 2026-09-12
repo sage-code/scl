@@ -62,3 +62,52 @@ Prism.languages.wasm={comment:[/\(;[\s\S]*?;\)/,{pattern:/;;.*/,greedy:!0}],stri
 !function(){if("undefined"!=typeof Prism&&"undefined"!=typeof document){var e="line-numbers",n=/\n(?!$)/g,t=Prism.plugins.lineNumbers={getLine:function(n,t){if("PRE"===n.tagName&&n.classList.contains(e)){var i=n.querySelector(".line-numbers-rows");if(i){var r=parseInt(n.getAttribute("data-start"),10)||1,s=r+(i.children.length-1);t<r&&(t=r),t>s&&(t=s);var l=t-r;return i.children[l]}}},resize:function(e){r([e])},assumeViewportIndependence:!0},i=void 0;window.addEventListener("resize",(function(){t.assumeViewportIndependence&&i===window.innerWidth||(i=window.innerWidth,r(Array.prototype.slice.call(document.querySelectorAll("pre.line-numbers"))))})),Prism.hooks.add("complete",(function(t){if(t.code){var i=t.element,s=i.parentNode;if(s&&/pre/i.test(s.nodeName)&&!i.querySelector(".line-numbers-rows")&&Prism.util.isActive(i,e)){i.classList.remove(e),s.classList.add(e);var l,o=t.code.match(n),a=o?o.length+1:1,u=new Array(a+1).join("<span></span>");(l=document.createElement("span")).setAttribute("aria-hidden","true"),l.className="line-numbers-rows",l.innerHTML=u,s.hasAttribute("data-start")&&(s.style.counterReset="linenumber "+(parseInt(s.getAttribute("data-start"),10)-1)),t.element.appendChild(l),r([s]),Prism.hooks.run("line-numbers",t)}}})),Prism.hooks.add("line-numbers",(function(e){e.plugins=e.plugins||{},e.plugins.lineNumbers=!0}))}function r(e){if(0!=(e=e.filter((function(e){var n,t=(n=e,n?window.getComputedStyle?getComputedStyle(n):n.currentStyle||null:null)["white-space"];return"pre-wrap"===t||"pre-line"===t}))).length){var t=e.map((function(e){var t=e.querySelector("code"),i=e.querySelector(".line-numbers-rows");if(t&&i){var r=e.querySelector(".line-numbers-sizer"),s=t.textContent.split(n);r||((r=document.createElement("span")).className="line-numbers-sizer",t.appendChild(r)),r.innerHTML="0",r.style.display="block";var l=r.getBoundingClientRect().height;return r.innerHTML="",{element:e,lines:s,lineHeights:[],oneLinerHeight:l,sizer:r}}})).filter(Boolean);t.forEach((function(e){var n=e.sizer,t=e.lines,i=e.lineHeights,r=e.oneLinerHeight;i[t.length-1]=void 0,t.forEach((function(e,t){if(e&&e.length>1){var s=n.appendChild(document.createElement("span"));s.style.display="block",s.textContent=e}else i[t]=r}))})),t.forEach((function(e){for(var n=e.sizer,t=e.lineHeights,i=0,r=0;r<t.length;r++)void 0===t[r]&&(t[r]=n.children[i++].getBoundingClientRect().height)})),t.forEach((function(e){var n=e.sizer,t=e.element.querySelector(".line-numbers-rows");n.style.display="none",n.innerHTML="",e.lineHeights.forEach((function(e,n){t.children[n].style.height=e+"px"}))}))}}}();
 "undefined"!=typeof Prism&&"undefined"!=typeof document&&Prism.hooks.add("before-sanity-check",(function(e){if(e.code){var n=e.element.parentNode,o=/(?:^|\s)keep-initial-line-feed(?:\s|$)/;!n||"pre"!==n.nodeName.toLowerCase()||o.test(n.className)||o.test(e.element.className)||(e.code=e.code.replace(/^(?:\r?\n|\r)/,""))}}));
 !function(){if("undefined"!=typeof Prism&&"undefined"!=typeof document){var e=/(?:^|\s)command-line(?:\s|$)/,t="command-line-prompt",n="".startsWith?function(e,t){return e.startsWith(t)}:function(e,t){return 0===e.indexOf(t)},a="".endsWith?function(e,t){return e.endsWith(t)}:function(e,t){var n=e.length;return e.substring(n-t.length,n)===t};Prism.hooks.add("before-highlight",(function(i){var o=r(i);if(!o.complete&&i.code){var s=i.element.parentElement;if(s&&/pre/i.test(s.nodeName)&&(e.test(s.className)||e.test(i.element.className))){var l=i.element.querySelector("."+t);l&&l.remove();var m=i.code.split("\n");o.numberOfLines=m.length;var u=o.outputLines=[],c=s.getAttribute("data-output"),d=s.getAttribute("data-filter-output");if(null!==c)c.split(",").forEach((function(e){var t=e.split("-"),n=parseInt(t[0],10),a=2===t.length?parseInt(t[1],10):n;if(!isNaN(n)&&!isNaN(a)){n<1&&(n=1),a>m.length&&(a=m.length),a--;for(var r=--n;r<=a;r++)u[r]=m[r],m[r]=""}}));else if(d)for(var p=0;p<m.length;p++)n(m[p],d)&&(u[p]=m[p].slice(d.length),m[p]="");for(var f=o.continuationLineIndicies=new Set,h=s.getAttribute("data-continuation-str"),v=s.getAttribute("data-filter-continuation"),g=0;g<m.length;g++){var b=m[g];b&&(h&&a(b,h)&&f.add(g+1),g>0&&v&&n(b,v)&&(m[g]=b.slice(v.length),f.add(g)))}i.code=m.join("\n")}else o.complete=!0}else o.complete=!0})),Prism.hooks.add("before-insert",(function(e){var t=r(e);if(!t.complete){for(var n=e.highlightedCode.split("\n"),a=t.outputLines||[],i=0,o=n.length;i<o;i++)a.hasOwnProperty(i)?n[i]='<span class="token output">'+Prism.util.encode(a[i])+"</span>":n[i]='<span class="token command">'+n[i]+"</span>";e.highlightedCode=n.join("\n")}})),Prism.hooks.add("complete",(function(n){if(function(e){return"command-line"in(e.vars=e.vars||{})}(n)){var a=r(n);if(!a.complete){var i=n.element.parentElement;e.test(n.element.className)&&(n.element.className=n.element.className.replace(e," ")),e.test(i.className)||(i.className+=" command-line");var o,s="",l=a.numberOfLines||0,m=b("data-prompt","");o=""!==m?'<span data-prompt="'+m+'"></span>':'<span data-user="'+b("data-user","user")+'" data-host="'+b("data-host","localhost")+'"></span>';for(var u=a.continuationLineIndicies||new Set,c='<span data-continuation-prompt="'+b("data-continuation-prompt",">")+'"></span>',d=0;d<l;d++)u.has(d)?s+=c:s+=o;var p=document.createElement("span");p.className=t,p.innerHTML=s;for(var f=a.outputLines||[],h=0,v=f.length;h<v;h++)if(f.hasOwnProperty(h)){var g=p.children[h];g.removeAttribute("data-user"),g.removeAttribute("data-host"),g.removeAttribute("data-prompt")}n.element.insertBefore(p,n.element.firstChild),a.complete=!0}}function b(e,t){return(i.getAttribute(e)||t).replace(/"/g,"&quot")}}))}function r(e){var t=e.vars=e.vars||{};return t["command-line"]=t["command-line"]||{}}}();
+/*
+ * nasm — x86 / x86-64 assembly grammar (NASM Intel syntax + GAS/AT&T syntax).
+ * Appended by Sage-Code because the upstream Prism bundle ships armasm and wasm
+ * but no x86 grammar. Registered aliases: nasm, asm, asm-x86, x86.
+ * Covers: labels, mnemonics, size qualifiers, NASM/GAS directives, registers
+ * (with optional AT&T '%' prefix), numbers (decimal/hex/octal/binary, '_' digit
+ * separators, 'h' suffixed hex), strings, ';' and C-style comments.
+ */
+(function () {
+  var register =
+    /%?(?:r(?:1[0-5]|[0-9])[bwd]?|r(?:ax|bx|cx|dx|si|di|bp|sp)|e(?:ax|bx|cx|dx|si|di|bp|sp)|[abcd][lh]|[xyz]?mm\d{1,2}|[cdefgs]s|r?[ei]p|st\(?\d?\)?|k[0-7])(?![a-z0-9_])/i;
+  var mnemonic =
+    /\b(?:mov|movzx|movsx|movsxd|lea|push|pop|pushfq?|popfq?|xchg|bswap|xadd|cmpxchg|add|sub|adc|sbb|inc|dec|neg|mul|imul|div|idiv|cmp|test|and|or|xor|not|shl|shr|sal|sar|rol|ror|rcl|rcr|shld|shrd|bt|bts|btr|btc|bsf|bsr|popcnt|tzcnt|lzcnt|jmp|j[a-z]+|call|ret[fn]?|leave|enter|nop|hlt|int\d?|iretq?|syscall|sysenter|loop(?:e|ne)?|cmov[a-z]+|set[a-z]+|movs[bwdq]|stos[bwdq]|lod[bsdq]|cmps[bwdq]|scas[bwdq]|rep|repe|repne|repz|repnz|in|out|ins[bwd]|outs[bwd]|cld|std|sti|cli|clc|stc|cmc|lahf|sahf|cpuid|rdtsc|rdrand|pause|endbr64|vmovdqa|vzeroupper|punpck[a-z]+|padd[a-z]+|psub[a-z]+|pxor|movdqa|movdqu)\b/i;
+  var qualifier = /\b(?:byte|word|dword|qword|tword|oword|yword|zword|ptr|short|near|far|rel|abs|strict|wrt|dword|fword)\b/i;
+  var directive =
+    /(^|[\s;])(?:%?(?:include|include_once|define|xdefine|undef|assign|iassign|strlen|substr|strcat|macro|endmacro|if|ifdef|ifndef|ifidn|ifidni|ifeq|elif|else|endif|rep|endrep|while|endwhile|exitrep|error|warning|fatal|push|pop|rotate|use|line|bits|section|segment|default|global|extern|export|common|static|group|absolute|org|align|alignb|times|equ|struc|endstruc|istruc|at|iend|db|dw|dd|dq|dt|do|dy|dz|resb|resw|resd|resq|rest|incbin|defstr)|\.(?:text|data|bss|rodata|section|global|globl|type|size|align|p2align|balign|byte|word|long|quad|single|double|ascii|asciz|string|space|zero|skip|fill|equ|set|equiv|comm|lcomm|file|ident|hidden|weak|protected|intel_syntax|att_syntax|code16|code32|code64|extern)|bits)(?![\w.])/i;
+  var number =
+    /(?:\$)?\b(?:0x[\da-f](?:_?[\da-f])*|0b[01](?:_?[01])*|0o[0-7](?:_?[0-7])*|[0-9](?:_?[0-9])*h?)\b|(?:\$)?\b0[hbo][\da-f]+\b/i;
+
+  Prism.languages.nasm = {
+    comment: [
+      { pattern: /;.*/, greedy: true },
+      { pattern: /\/\*[\s\S]*?\*\//, greedy: true }
+    ],
+    string: {
+      pattern: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/,
+      greedy: true
+    },
+    label: {
+      pattern: /(^|\n)[ \t]*\.?[A-Za-z_$?@][\w.$?@]*[ \t]*:(?![:=])/,
+      lookbehind: true,
+      alias: 'symbol'
+    },
+    directive: { pattern: directive, lookbehind: true, alias: 'keyword' },
+    register: { pattern: register, alias: 'symbol' },
+    qualifier: { pattern: qualifier, alias: 'keyword' },
+    instruction: { pattern: mnemonic, alias: 'keyword' },
+    number: number,
+    operator: /<<|>>|[+\-*/%&|^~!<>=]=?|==|!=/,
+    punctuation: /[[\](),:]/
+  };
+
+  // Friendly aliases so pages and the code viewer can use any of these names.
+  Prism.languages.asm = Prism.languages.nasm;
+  Prism.languages['asm-x86'] = Prism.languages.nasm;
+  Prism.languages.x86 = Prism.languages.nasm;
+  Prism.languages['x86-asm'] = Prism.languages.nasm;
+})();
+

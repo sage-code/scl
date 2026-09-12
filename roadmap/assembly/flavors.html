@@ -1,0 +1,290 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Assembly flavors compared: the same arithmetic and loop written in x86-64, ARM64, RISC-V, and WebAssembly text format, with porting notes.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, assembly, arm64, aarch64, riscv, webassembly, wat, risc, cisc, porting">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ASM Flavors</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="asm-flavors">Assembly Flavors</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Every dialect answers the same questions — where are the arguments, how do I load memory, how do I branch — with different spellings. Seeing one program in four dialects is the fastest way to stop being afraid of the others.
+        </div>
+
+        <h2 id="compare">One Idea, Four Dialects</h2>
+
+        <p>Take one trivial operation — <em>add two numbers and return the result</em> — and write it in each dialect. The differences you see here are the differences you will meet everywhere.</p>
+
+        <h3 id="x86-64">x86-64 (NASM, Intel syntax)</h3>
+
+<pre><code class="language-nasm line-numbers">; long add(long a, long b)   — System V ABI: rdi = a, rsi = b, result in rax
+add_ints:
+    mov     rax, rdi        ; copy the first argument
+    add     rax, rsi        ; add the second: rax = a + b
+    ret
+</code></pre>
+
+        <h3 id="arm64">ARM64 (AArch64)</h3>
+
+<pre><code class="language-armasm line-numbers">// long add(long a, long b)   — AAPCS64: x0 = a, x1 = b, result in x0
+add_ints:
+    add     x0, x0, x1      // x0 = x0 + x1  (three-operand form)
+    ret                     // return via the link register (x30)
+</code></pre>
+
+        <h3 id="riscv-dialect">RISC-V (RV64)</h3>
+
+<pre><code class="language-nasm line-numbers"># long add(long a, long b)   — RISC-V calling convention: a0 = a, a1 = b
+add_ints:
+    add     a0, a0, a1      # a0 = a0 + a1
+    ret                     # return via the return-address register (ra)
+</code></pre>
+
+        <h3 id="wat">WebAssembly (WAT)</h3>
+
+<pre><code class="language-wasm line-numbers">(func $add_ints (param $a i64) (param $b i64) (result i64)
+  local.get $a              ;; push a onto the stack
+  local.get $b              ;; push b onto the stack
+  i64.add                   ;; pop both, push their sum
+)                           ;; the remaining stack value is the result
+</code></pre>
+
+        <p>Three observations, and they are the whole lesson:</p>
+
+        <ul>
+          <li><strong>x86-64 uses two operands</strong> and destroys the destination, so you often need an extra <code>mov</code> first.</li>
+          <li><strong>ARM64 and RISC-V use three operands</strong> (<code>add dst, src1, src2</code>), which makes the intent clearer and avoids copying.</li>
+          <li><strong>WebAssembly has no operands at all</strong> — it pushes and pops an implicit operand stack, which is why it needs no register names.</li>
+        </ul>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Property</th><th>x86-64</th><th>ARM64</th><th>RISC-V</th><th>WASM</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Design</td><td>CISC</td><td>RISC</td><td>RISC</td><td>Stack VM</td></tr>
+            <tr><td>Instruction size</td><td>1–15 bytes</td><td>4 bytes</td><td>2–4 bytes</td><td>Variable bytecode</td></tr>
+            <tr><td>Operands in memory?</td><td>Yes</td><td>No</td><td>No</td><td>No (explicit load/store)</td></tr>
+            <tr><td>Registers (integer)</td><td>16</td><td>31</td><td>32</td><td>none (stack)</td></tr>
+            <tr><td>Flags register</td><td>dedicated</td><td><code>nzcv</code></td><td>none</td><td>none</td></tr>
+            <tr><td>Return address</td><td>on the stack</td><td>in <code>lr</code></td><td>in <code>ra</code></td><td>implicit call stack</td></tr>
+          </tbody>
+        </table>
+
+
+        <h2 id="arm">ARM64 in Detail</h2>
+
+        <h3 id="arm-load-store">A Load/Store Architecture</h3>
+
+        <p>ARM64 cannot use memory as an operand of an arithmetic instruction. Every value must be loaded into a register, operated on, and stored back. This single rule shapes all ARM assembly.</p>
+
+<pre><code class="language-armasm line-numbers">// sum of a 64-bit array — ARM64 (AArch64)
+// void sum(const long *p, long n)   -> x0 = p, x1 = n, result in x0
+sum:
+    mov     x2, #0              // x2 = total = 0
+    mov     x3, #0              // x3 = index i = 0
+
+loop:
+    cmp     x3, x1              // compare i with n
+    b.ge    done                // branch if i >= n  (b.<cond>)
+
+    ldr     x4, [x0, x3, lsl #3]  // load p[i]: base x0, index x3 scaled by 8
+    add     x2, x2, x4            // total += p[i]
+
+    add     x3, x3, #1            // i++
+    b       loop
+
+done:
+    mov     x0, x2              // return total in x0
+    ret                         // return via the link register
+</code></pre>
+
+        <p>Notice what replaced the x86 forms: <code>ldr</code> for the load, an explicit scale written as a shift (<code>lsl #3</code> means ×8), and <code>b.ge</code> for a conditional branch. There is no <code>mov rax, [rbx + rcx*8]</code> equivalent — the load and the arithmetic are always separate instructions.</p>
+
+        <h3 id="arm-conditional">Conditional Instructions</h3>
+
+        <p>ARM's flags (<code>nzcv</code>) are set only by instructions that explicitly end in <code>s</code>, and — unusually — many instructions can be executed conditionally without a branch at all:</p>
+
+<pre><code class="language-armasm line-numbers">    cmp     x0, #0              // compare
+    add     x1, x1, #1          // this ALWAYS runs
+
+    cmp     x0, #0
+    add.gt  x1, x1, #1          // this runs ONLY if x0 > 0
+
+    csel    x2, x3, x4, gt      // x2 = (x0 > 0) ? x3 : x4  — branchless select
+</code></pre>
+
+        <p><code>csel</code> is the ARM equivalent of x86's <code>cmov</code>, and conditional execution is a genuine ARM strength: short <code>if</code> bodies often become a single conditional instruction with no branch to predict.</p>
+
+        <h3 id="arm-calling">Calling into ARM</h3>
+
+        <p>The procedure call standard passes the first eight arguments in <code>x0</code>–<code>x7</code> and returns in <code>x0</code>. The return address lives in <code>x30</code>/<code>lr</code>, which means a non-leaf function must save it on the stack before calling anything else.</p>
+
+<pre><code class="language-armasm line-numbers">// leaf function: no stack needed
+double_it:
+    lsl     x0, x0, #1          // x0 = x0 << 1  (multiply by 2)
+    ret
+
+// non-leaf function: must preserve lr
+outer:
+    stp     x29, x30, [sp, #-16]!   // push frame pointer + link register
+    mov     x29, sp
+
+    bl      double_it               // call (sets lr to the return address)
+
+    ldp     x29, x30, [sp], #16     // restore them (post-increment)
+    ret
+</code></pre>
+
+        <p>Run ARM64 code without an ARM machine using the <a href="https://cpulator.01xz.net/" target="_blank" rel="noopener noreferrer nofollow">CPUlator browser simulator</a>, or in QEMU user-mode: <code>qemu-aarch64 program</code>. The demo programs in this track include ARM64 sources you can assemble with <code>aarch64-linux-gnu-as</code>.</p>
+
+        <h2 id="riscv">RISC-V Essentials</h2>
+
+        <p>RISC-V is the newest of the four dialects and the simplest: a small base instruction set (<code>RV64I</code>) plus standard extensions. It is also load/store, and its register names are deliberately unsurprising:</p>
+
+<pre><code class="language-nasm line-numbers"># Sum an array of 64-bit values — RISC-V RV64 (GNU as, AT&T-like syntax)
+# long sum(const long *p, long n)   -> a0 = p, a1 = n
+sum:
+    li      t0, 0               # t0 = total = 0
+    li      t1, 0               # t1 = index i = 0
+loop:
+    bge     t1, a1, done        # if i >= n, branch to done
+
+    slli    t2, t1, 3           # t2 = i * 8   (shift left logical immediate)
+    add     t2, a0, t2          # t2 = address of p[i]
+    ld      t3, 0(t2)           # t3 = *t2  (load doubleword)
+
+    add     t0, t0, t3          # total += p[i]
+    addi    t1, t1, 1           # i++
+    j       loop
+done:
+    mv      a0, t0              # return value goes in a0
+    ret
+</code></pre>
+
+        <p>Two RISC-V features are worth knowing. <code>li</code> ("load immediate") is a pseudo-instruction that the assembler expands into one or two real instructions depending on the constant. And <code>mv</code> is a pseudo-instruction for <code>addi rd, rs, 0</code>. Pseudo-instructions keep RISC-V source readable while the underlying ISA stays tiny.</p>
+
+
+        <h2 id="wasm">WebAssembly Text Format</h2>
+
+        <p>WebAssembly (WASM) is not a processor — it is a portable bytecode with a human-readable text form called <strong>WAT</strong>. It is included here because it is the dialect most web developers will encounter, and because it is genuinely different: WAT describes a <em>stack machine</em> with no named registers at all.</p>
+
+<pre><code class="language-wasm line-numbers">(module
+  ;; memory: one page = 64 KiB, exported so JavaScript can read it
+  (memory (export "memory") 1)
+
+  ;; data placed at offset 0, at instantiation time
+  (data (i32.const 0) "Hello from WASM!\n")
+
+  ;; imported function from the host: (fd, ptr, len) -> written
+  (import "env" "write" (func $write (param i32 i32 i32) (result i32)))
+
+  ;; exported function the host can call
+  (func (export "greet") (result i32)
+    i32.const 1        ;; push fd    = 1  (stdout)
+    i32.const 0        ;; push ptr   = 0  (start of the data above)
+    i32.const 16       ;; push len   = 16 bytes
+    call $write        ;; pop three arguments, push the result
+  )
+)
+</code></pre>
+
+        <p>Read it as a stack: <code>i32.const 1</code> pushes a value, and <code>call $write</code> pops the three values it needs. There is no <code>mov</code>, no <code>rax</code>, and no <code>syscall</code> — those are replaced by operands on an implicit stack and by imported host functions. Compile it with <code>wat2wasm</code> (from the WABT toolkit) or run it directly in a browser's <code>WebAssembly.instantiateStreaming</code>.</p>
+
+        <h2 id="porting">Porting Between Dialects</h2>
+
+        <p>You will rarely rewrite a whole program by hand, but you will read one dialect and think in another. The translation is mostly mechanical because the concepts are the same:</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Concept</th><th>x86-64 (NASM)</th><th>ARM64</th><th>RISC-V</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Move a constant</td><td><code>mov rax, 5</code></td><td><code>mov x0, #5</code></td><td><code>li a0, 5</code></td></tr>
+            <tr><td>Add registers</td><td><code>add rax, rbx</code></td><td><code>add x0, x0, x1</code></td><td><code>add a0, a0, a1</code></td></tr>
+            <tr><td>Load from memory</td><td><code>mov rax, [rbx]</code></td><td><code>ldr x0, [x1]</code></td><td><code>ld a0, 0(a1)</code></td></tr>
+            <tr><td>Store to memory</td><td><code>mov [rbx], rax</code></td><td><code>str x0, [x1]</code></td><td><code>sd a0, 0(a1)</code></td></tr>
+            <tr><td>Call a function</td><td><code>call fn</code></td><td><code>bl fn</code></td><td><code>call fn</code></td></tr>
+            <tr><td>Return</td><td><code>ret</code></td><td><code>ret</code> (uses <code>lr</code>)</td><td><code>ret</code> (uses <code>ra</code>)</td></tr>
+            <tr><td>Branch if zero</td><td><code>jz</code> / <code>je</code></td><td><code>cbz</code></td><td><code>beqz</code></td></tr>
+            <tr><td>Unconditional branch</td><td><code>jmp</code></td><td><code>b</code></td><td><code>j</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>Three habits make porting reliable: check the <em>argument register names</em> first (they differ per ABI), remember that RISC has no memory operands in arithmetic instructions, and re-read your conditional jumps, because the signed/unsigned distinction is expressed differently in every dialect.</p>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li>x86-64 is CISC: many instruction forms, memory operands allowed, variable-length encoding.</li>
+          <li>ARM64 is RISC with a link register, fixed 32-bit instructions, and conditional instructions as well as conditional branches.</li>
+          <li>RISC-V is a small, open RISC ISA whose base plus extensions make it easy to learn and to implement.</li>
+          <li>WebAssembly is a stack machine bytecode with a text form (WAT) and no registers at all.</li>
+          <li>The concepts — load/store, arithmetic, branches, calls — are identical everywhere; only the spelling and the ABI change.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/demo_examples.html">Lab Examples</a> — runnable programs in x86-64 and ARM that put everything together.</p>
+
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'assembly',
+    topicId: 'flavors',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

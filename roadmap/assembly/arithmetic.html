@@ -2,31 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Assembly tutorial for beginners.">
+  <meta name="description" content="Assembly arithmetic: add, sub, inc, dec, adc/sbb for 64-bit work, imul and idiv, overflow detection, and a note on floating point.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="assembly, language, programming, tutorial">
+  <meta name="keywords" content="sage, code, assembly, arithmetic, add, sub, imul, idiv, adc, overflow, ssse">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>ASM Arithmentic</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>ASM Arithmetic</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,57 +37,201 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="asm-arithmetic">Arithmetic</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Integer arithmetic in assembly is simple — and hiding inside that simplicity are the three classic traps: signed versus unsigned, the asymmetric multiply/divide registers, and overflow that nobody checks.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="asm-arithmentic">ASM Arithmentic</h2>
+        <h2 id="addsub">Add, Subtract, and the Flags</h2>
+
+        <p>Arithmetic instructions do two things at once: they produce a result <em>and</em> they record facts about that result in the flags register. Ignore the flags and you are programming with one hand tied behind your back.</p>
+
+        <h3 id="add-sub">add and sub</h3>
+
+<pre><code class="language-nasm line-numbers">    mov  rax, 50
+    add  rax, 8         ; rax = 58
+    sub  rax, 20        ; rax = 38   (sub is exactly add with the sign flipped)
+
+    add  [total], rax   ; memory can be a destination: total += rax
+    add  rax, [total]   ; ...or a source: rax += total
+</code></pre>
+
+        <p>Both set the full flag set. After any <code>add</code> or <code>sub</code> you may branch on zero (<code>jz</code>), on sign (<code>js</code>), on unsigned carry (<code>jc</code>), or on signed overflow (<code>jo</code>) — at no extra cost, because the flags are already there.</p>
+
+        <h3 id="inc-dec">inc and dec</h3>
+
+<pre><code class="language-nasm line-numbers">    inc  rcx            ; rcx += 1  — one byte shorter than `add rcx, 1`
+    dec  rbx            ; rbx -= 1
+</code></pre>
+
+        <p><code>inc</code> and <code>dec</code> set every flag <em>except</em> the carry flag. That one omission matters: if you are using the carry flag to hold state across a loop, an <code>inc</code> inside the loop will not disturb it, whereas <code>add</code> would.</p>
+
+        <h3 id="neg">neg</h3>
+
+<pre><code class="language-nasm line-numbers">    mov  rax, 42
+    neg  rax            ; rax = -42   (invert all bits, then add 1)
+</code></pre>
+
+        <p>Negation works by two's complement, which is why subtraction needs no separate hardware: <code>a - b</code> is computed as <code>a + neg(b)</code>. The negation of the most negative value overflows and sets <code>OF</code>; it is the one case that stays negative.</p>
+
+        <h3 id="adc-sbb">Carrying Across 64 Bits: adc and sbb</h3>
+
+        <p>To add numbers wider than 64 bits, process them one word at a time from the least significant end, and let the carry propagate with <code>adc</code> ("add with carry") and <code>sbb</code> ("subtract with borrow").</p>
+
+<pre><code class="language-nasm line-numbers">    ; Add two 128-bit numbers stored as [low, high] pairs
+    mov  rax, [a_low]
+    add  rax, [b_low]      ; add the low words; sets CF if it carried out
+    mov  [r_low], rax
+
+    mov  rax, [a_high]
+    adc  rax, [b_high]     ; add the high words PLUS the carry from the low add
+    mov  [r_high], rax
+
+    ; sbb does the same for subtraction, subtracting the borrow.
+</code></pre>
+
+        <p>This pattern is how every big-integer library, checksum, and cryptographic routine handles numbers larger than the register width.</p>
 
 
-<div class="alert alert-secondary shadow-sm">
-To be replaced!
-</div>
+        <h2 id="muldiv">Multiplication and Division</h2>
+
+        <p>These instructions break the tidy two-operand pattern, because the product of two n-bit numbers needs 2n bits, and the dividend of an n-bit result needs an input twice that wide.</p>
+
+        <h3 id="mul">Multiplication with imul</h3>
+
+        <p>The modern two-operand <code>imul</code> is what you want almost every time: it multiplies two registers and stores the low half of the product in the destination.</p>
+
+<pre><code class="language-nasm line-numbers">    mov  rax, 12
+    mov  rbx, 8
+    imul rax, rbx          ; rax = rax * rbx = 96 (low 64 bits of the product)
+
+    imul rax, rbx, 4       ; three-operand form: rax = rbx * 4 (imm must be constant)
+
+    ; For a full 128-bit product you need the one-operand form, which uses rdx:rax
+    mov  rax, 0x7FFFFFFFFFFFFFFF
+    mov  rbx, 2
+    imul rbx               ; rdx:rax = rax * rbx, 128 bits total
+                            ; OF=1 if the high half is not just the sign extension
+</code></pre>
+
+        <p>The one-operand form is only needed for arbitrary-precision work. For ordinary 64-bit values, two-operand <code>imul</code> is shorter and faster.</p>
+
+        <h3 id="div">Division with idiv</h3>
+
+        <p>Division is the most error-prone instruction in the whole set: the dividend is <em>always</em> held in <code>rdx:rax</code>, and the quotient and remainder come back in two fixed places.</p>
+
+<pre><code class="language-nasm line-numbers">    ; 100 / 7  (signed)
+    mov  rax, 100           ; rax = dividend (low half)
+    cqo                     ; sign-extend rax into rdx:rax  <-- REQUIRED before idiv
+    mov  rcx, 7             ; rcx = divisor
+    idiv rcx                ; rax = quotient = 14
+                            ; rdx = remainder = 2
+
+    ; Unsigned division behaves the same but uses the other instructions:
+    mov  rax, 100
+    xor  rdx, rdx           ; zero-extend rax into rdx:rax  <-- use xor, not cqo
+    mov  rcx, 7
+    div  rcx                ; rax = quotient, rdx = remainder
+</code></pre>
+
+        <div class="alert alert-danger shadow-sm">
+          <strong>Two hard rules:</strong> dividing by zero raises <code>SIGFPE</code> and kills the process; and forgetting <code>cqo</code> (signed) or <code>xor rdx, rdx</code> (unsigned) leaves garbage in <code>rdx</code>, which almost always produces a divide-overflow fault. Both are in the top five bugs of every assembly beginner, so check them first when your program dies with <em>Floating point exception</em> while doing integer maths.
+        </div>
+
+        <h3 id="modulo">Modulo Without Division</h3>
+
+        <p>When the divisor is a power of two, the modulo is just a mask — no division at all:</p>
+
+<pre><code class="language-nasm line-numbers">    ; rax % 8, for a NON-NEGATIVE rax
+    and  rax, 7             ; keep the low three bits — identical to rax % 8
+    ; (for signed values, negative inputs need the correction term first)
+</code></pre>
+
+        <h2 id="floating">A Note on Floating Point</h2>
+
+        <p>Everything above is integer arithmetic. Floating-point numbers are handled by a completely separate register file and a separate instruction set: <strong>x87</strong> (the historical stack-based unit) and <strong>SSE/AVX</strong> (the modern one).</p>
+
+<pre><code class="language-nasm line-numbers">    ; Single-precision (float) addition with SSE
+    movss   xmm0, [a]        ; load 4 bytes into a vector register
+    movss   xmm1, [b]
+    addss   xmm0, xmm1       ; xmm0 = a + b
+    movss   [result], xmm0   ; store it back
+
+    ; Double precision uses the sd (scalar double) variants:
+    ;   movsd / addsd / subsd / mulsd / divsd
+</code></pre>
+
+        <p>The XMM registers are 128 bits wide and hold several numbers at once, which is the basis of SIMD. Floating-point programming deserves its own treatment, but for now know that it is a different world: different registers, different instructions, and different rounding rules.</p>
 
 
-<pre><code class="language-go line-numbers">
-// code example to be replaced with first example
-</code></code></code></pre>
+        <h2 id="overflow">Handling Overflow Correctly</h2>
 
-<!-- work in progress-->
+        <p>There is no automatic error, no exception, and no warning: an arithmetic instruction overflow sets a flag and keeps going. If you do not check the flag, you get a wrong answer with no indication at all.</p>
 
-<hr>
+<pre><code class="language-nasm line-numbers">    ; Safe addition with an explicit overflow check
+    mov  rax, a
+    add  rax, b
+    jo   overflow_error        ; jo = "jump if overflow" (signed)
 
-</main>
+    ; ... continue with a valid result ...
+
+overflow_error:
+    ; handle it: return an error code, clamp, or abort
+    mov  rax, 60               ; exit
+    mov  rdi, 1                ; status 1 = failure
+    syscall
+</code></pre>
+
+        <p>Two jump mnemonics do the checks:</p>
+
+        <ul>
+          <li><code>jo</code> / <code>jno</code> — jump if the signed overflow flag is set / clear.</li>
+          <li><code>jc</code> / <code>jnc</code> — jump if the unsigned carry flag is set / clear. <code>jc</code> and <code>jb</code> are the same instruction.</li>
+        </ul>
+
+        <h3 id="wider-remedy">The Wider-Type Remedy</h3>
+
+        <p>In practice, most code avoids the flag entirely by computing in a wider type and range-checking the result. The same trick works in assembly, and it is what compilers do for arithmetic they cannot prove safe.</p>
+
+<pre><code class="language-nasm line-numbers">    ; Add two 32-bit values without risking a 32-bit overflow:
+    mov  eax, a                 ; zero-extends into rax
+    add  rax, b                 ; 64-bit addition cannot overflow here
+    cmp  rax, 0x7FFFFFFF        ; compare against the largest signed 32-bit value
+    ja   overflow_error         ; result does not fit -> handle it
+    ; rax now holds a correct 32-bit result
+</code></pre>
+
+        <p>This is why C's <code>int</code> arithmetic and assembly arithmetic behave differently out of the box: the compiler inserts the range check for you, and hand-written assembly does not.</p>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li><code>add</code>, <code>sub</code>, <code>inc</code>, <code>dec</code>, and <code>neg</code> are the basic arithmetic instructions; all set the flags.</li>
+          <li>Use <code>adc</code>/<code>sbb</code> to chain additions across 64-bit words using the carry flag.</li>
+          <li>Multiplication and division use <code>rax</code> (and <code>rdx</code>), because their results are twice as wide as their inputs.</li>
+          <li><code>idiv</code> requires <code>cqo</code> first and traps (SIGFPE) if the divisor is zero.</li>
+          <li>Never assume arithmetic is safe — check <code>jo</code>/<code>jc</code> or compute in a wider type.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/control.html">Control Flow</a> — turning those flags into decisions and loops.</p>
+
+
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'assembly',
@@ -99,6 +245,5 @@ To be replaced!
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

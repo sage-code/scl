@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Text processing with grep, sed, awk, cut and tr, and the regular expressions that drive them.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="bash, grep, sed, awk, cut, tr, regex, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Text Processing</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="bash-text">Text Processing</h1>
+
+<h2 id="grep">grep — Search</h2>
+
+<p><code>grep</code> prints lines that match a pattern. It is the first tool to reach for on logs and config files.</p>
+
+<h3 id="grep-options">Useful Options</h3>
+
+<pre><code class="language-bash line-numbers">grep "error" app.log              # matching lines
+grep -i "error" app.log           # ignore case
+grep -c "error" app.log           # count matches
+grep -n "error" app.log           # show line numbers
+grep -v "debug" app.log           # invert: lines that do NOT match
+grep -r "TODO" src/               # recurse through directories
+grep -l "error" *.log             # print only filenames with matches
+grep -o "[0-9]\+" file            # print only the matched part
+grep -q "ready" file              # quiet: status only, for 'if'
+</code></pre>
+
+<h3 id="grep-regex">Basic vs Extended Regex</h3>
+
+<pre><code class="language-bash line-numbers">grep    'abc\{3\}' f      # BRE: braces escaped
+grep -E 'abc{3}' f        # ERE: -E, readable
+grep -F 'a.b*c' f         # fixed string: no regex, fastest
+grep -E '^[0-9]{3}-[0-9]{4}$' phones
+</code></pre>
+
+<div class="alert alert-info shadow-sm">
+  Always quote the pattern. An unquoted <code>*</code> or <code>?</code> is expanded by the shell before <code>grep</code> ever sees it.
+</div>
+
+<h2 id="sed">sed — Stream Editor</h2>
+
+<h3 id="sed-substitute">Substitution</h3>
+
+<p><code>sed</code> edits a stream line by line. Substitution is its most common job.</p>
+
+<pre><code class="language-bash line-numbers">sed 's/foo/bar/' file          # first occurrence per line
+sed 's/foo/bar/g' file         # every occurrence (global)
+sed 's/foo/bar/2' file         # second occurrence only
+sed -n '3,7p' file             # print only lines 3..7
+sed '/^#/d' file               # delete comment lines
+sed -E 's/[0-9]+/N/g' file     # extended regex
+</code></pre>
+
+<h3 id="sed-inplace">In-Place Editing</h3>
+
+<pre><code class="language-bash line-numbers">sed -i 's/old/new/g' file            # GNU sed: edit the file, no output
+sed -i.bak 's/old/new/g' file        # GNU sed: keep file.bak as backup
+sed -i '' 's/old/new/g' file         # BSD/macOS sed requires an argument
+</code></pre>
+
+<div class="alert alert-warning shadow-sm">
+  GNU and BSD <code>sed -i</code> differ. For portable scripts write to a temp file and move it: <code>sed 's/a/b/g' f &gt; f.tmp &amp;&amp; mv f.tmp f</code>.
+</div>
+
+<p>Other useful commands: <code>-e</code> chains several expressions, and a leading address restricts the command to selected lines.</p>
+
+<pre><code class="language-bash line-numbers">sed -e '/^$/d' -e 's/[[:space:]]\+$//' file   # drop blanks, strip trailing space
+sed 's/^/  /' file                            # indent every line
+</code></pre>
+<!--TEXT-MORE-->
+﻿<h2 id="awk">awk — Fields &amp; Records</h2>
+
+<h3 id="awk-fields">Fields and Records</h3>
+
+<p><code>awk</code> splits each line into fields. <code>$1</code>, <code>$2</code> … are the fields; <code>$0</code> is the whole line; <code>NF</code> is the field count.</p>
+
+<pre><code class="language-bash line-numbers">awk '{ print $1 }' file                  # first column
+awk -F: '{ print $1, $3 }' /etc/passwd   # custom delimiter (colon)
+awk '{ print NR, $0 }' file              # number every line
+awk 'NF &gt; 0 { print }' file              # drop blank lines
+</code></pre>
+
+<h3 id="awk-patterns">Patterns and Blocks</h3>
+
+<pre><code class="language-bash line-numbers">awk '$3 &gt; 100 { print $1 }' data         # condition on a field
+awk '/ERROR/ { c++ } END { print c }' log   # count matches
+awk 'NR==1 { print "header: " $0 }' file
+</code></pre>
+
+<h3 id="awk-sum">Practical Aggregation</h3>
+
+<pre><code class="language-bash line-numbers"># Sum the third column and print the average
+awk '{ sum += $3; n++ } END { printf "%.2f\n", sum/n }' data
+
+# Join fields with a separator
+awk -F: '{ print $1 ": " $7 }' /etc/passwd
+
+# Group and total by first column (like a mini GROUP BY)
+awk '{ total[$1] += $2 } END { for (k in total) print k, total[k] }' sales
+</code></pre>
+
+<p>Unlike shell loops, <code>awk</code> reads a whole file in one process — often an order of magnitude faster than piping line by line.</p>
+
+<h2 id="tr-cut">tr &amp; cut</h2>
+
+<pre><code class="language-bash line-numbers">tr 'a-z' 'A-Z' &lt; file            # uppercase
+tr -d '\r' &lt; dos.txt &gt; unix.txt  # delete carriage returns
+tr -s ' ' &lt; file                 # squeeze repeated spaces
+cut -d: -f1 /etc/passwd          # first field
+cut -c1-10 file                  # first ten characters
+</code></pre>
+
+<h2 id="regex">Regular Expressions</h2>
+
+<h3 id="basic-regex">Basic vs Extended</h3>
+
+<table class="table table-bordered table-striped table-dark">
+  <tr><th>Token</th><th>Means</th><th>BRE</th><th>ERE</th></tr>
+  <tr><td><code>.</code></td><td>any character</td><td>yes</td><td>yes</td></tr>
+  <tr><td><code>*</code></td><td>zero or more</td><td>yes</td><td>yes</td></tr>
+  <tr><td><code>+</code></td><td>one or more</td><td><code>\+</code></td><td>yes</td></tr>
+  <tr><td><code>?</code></td><td>zero or one</td><td><code>\?</code></td><td>yes</td></tr>
+  <tr><td><code>|</code></td><td>alternation</td><td><code>\|</code></td><td>yes</td></tr>
+  <tr><td><code>( )</code></td><td>grouping</td><td><code>\( \)</code></td><td>yes</td></tr>
+  <tr><td><code>{n}</code></td><td>exactly n</td><td><code>\{n\}</code></td><td>yes</td></tr>
+</table>
+
+<h3 id="extended-regex">Anchors and Classes</h3>
+
+<pre><code class="language-bash line-numbers">grep -E '^[A-Za-z_][A-Za-z0-9_]*$' ids      # a valid identifier
+grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' dates # ISO date
+grep -E '[[:alnum:]]+@[[:alnum:].]+' mail    # crude e-mail match
+</code></pre>
+
+<h2 id="pitfalls">Pitfalls</h2>
+<ul>
+  <li>Unquoted patterns are globbed by the shell before the tool sees them.</li>
+  <li>BRE and ERE disagree on <code>+ ? | ( ) { }</code> — pass <code>-E</code> for readability.</li>
+  <li><code>sed -i</code> syntax differs between GNU and BSD — use a temp file for portability.</li>
+  <li>Regular expressions are not a parser. For structured data (JSON, XML) use a real tool.</li>
+</ul>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'bash',
+    topicId: 'text',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

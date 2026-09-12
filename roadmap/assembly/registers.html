@@ -2,31 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Assembly tutorial for beginners.">
+  <meta name="description" content="x86-64 registers explained: general-purpose registers, sub-register sizes, rsp/rbp/rip, the RFLAGS register, and the System V calling convention.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="assembly, language, programming, tutorial">
+  <meta name="keywords" content="sage, code, assembly, registers, rax, rsp, rip, rflags, calling convention, system v">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>ASM Registers</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>ASM Registers</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,57 +37,186 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="asm-registers">Registers</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Registers are the CPU's hands. Every value you compute passes through them, and every calling convention is really just an agreement about which register holds what. Learn this table once and most assembly becomes readable.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="asm-registers">ASM Registers</h2>
+        <h2 id="register-file">The Register File</h2>
+
+        <p>x86-64 gives you sixteen general-purpose registers, each 64 bits wide. They are called "general-purpose" because the CPU does not care what you keep in them — the roles below are conventions, not rules enforced by hardware.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>64-bit</th><th>32-bit</th><th>16-bit</th><th>8-bit</th><th>Traditional role</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>rax</code></td><td><code>eax</code></td><td><code>ax</code></td><td><code>al</code>/<code>ah</code></td><td>Accumulator; return value</td></tr>
+            <tr><td><code>rbx</code></td><td><code>ebx</code></td><td><code>bx</code></td><td><code>bl</code>/<code>bh</code></td><td>Base; callee-saved general use</td></tr>
+            <tr><td><code>rcx</code></td><td><code>ecx</code></td><td><code>cx</code></td><td><code>cl</code>/<code>ch</code></td><td>Counter (loop, shift counts)</td></tr>
+            <tr><td><code>rdx</code></td><td><code>edx</code></td><td><code>dx</code></td><td><code>dl</code>/<code>dh</code></td><td>Data; high half of multiply/divide</td></tr>
+            <tr><td><code>rsi</code></td><td><code>esi</code></td><td><code>si</code></td><td><code>sil</code></td><td>Source index (string ops)</td></tr>
+            <tr><td><code>rdi</code></td><td><code>edi</code></td><td><code>di</code></td><td><code>dil</code></td><td>Destination index (string ops)</td></tr>
+            <tr><td><code>rbp</code></td><td><code>ebp</code></td><td><code>bp</code></td><td><code>bpl</code></td><td>Base/frame pointer</td></tr>
+            <tr><td><code>rsp</code></td><td><code>esp</code></td><td><code>sp</code></td><td><code>spl</code></td><td>Stack pointer</td></tr>
+            <tr><td><code>r8</code> … <code>r15</code></td><td><code>r8d</code> …</td><td><code>r8w</code> …</td><td><code>r8b</code> …</td><td>Added by x86-64; no legacy names</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="sub-registers">Sub-Registers: The Same 64 Bits</h3>
+
+        <p>The names are not separate storage — they are windows onto the same register. <code>eax</code> is the low 32 bits of <code>rax</code>, <code>ax</code> the low 16, <code>al</code> the low 8. Writing to a narrow window leaves the bits above it unchanged, <em>except</em> for the 32-bit names, which clear the upper 32 bits to zero.</p>
+
+<pre><code class="language-nasm line-numbers">    mov  rax, 0x1122334455667788   ; rax = 11223344 55667788
+    mov  al,  0xFF                 ; low byte replaced: rax = 11223344 556677FF
+
+    mov  eax, 0x00000000           ; writing a 32-bit name ZEROES the top half:
+                                   ; rax = 00000000 00000000
+
+    ; This rule is why compilers frequently use the 32-bit form on purpose:
+    ; `mov eax, 5` is a shorter encoding than `mov rax, 5`.
+</code></pre>
+
+        <div class="text-center">
+          <img src="/roadmap/assembly/img/register-layout.svg" alt="Diagram of the x86-64 sub-register layout: rax contains eax, which contains ax, which contains al and ah" class="img-fluid protect rounded shadow border" width="720">
+          <p class="text-secondary small">Figure 1 — one register, five names, and the zeroing rule that catches everyone once.</p>
+        </div>
+
+        <h3 id="historical">Why the Odd Legacy Names</h3>
+
+        <p><code>ax</code> meant "accumulator", <code>bx</code> "base", <code>cx</code> "counter", <code>dx</code> "data" — names from the 16-bit era when each register had one job and instructions encoded that register preferentially. The <code>r8</code>–<code>r15</code> registers were added in 2003 with the 64-bit extension and have no such history.</p>
+
+        <p>Practical advice: do not name registers by their old role. Follow the calling convention instead, and use <code>r8</code>–<code>r11</code> as scratch space when you need somewhere temporary to work.</p>
 
 
-<div class="alert alert-secondary shadow-sm">
-To be replaced!
-</div>
+        <h2 id="special">Special-Purpose Registers</h2>
+
+        <p>Four registers are not general-purpose at all — the CPU uses them for its own bookkeeping, and misusing them corrupts the program's control flow.</p>
+
+        <h3 id="rip">rip — The Instruction Pointer</h3>
+
+        <p><code>rip</code> holds the address of the <em>next</em> instruction. You never assign to it directly; instead you change it with a jump, a call, or a return. It is what makes branching, loops, and function calls possible.</p>
+
+        <h3 id="rsp">rsp — The Stack Pointer</h3>
+
+        <p><code>rsp</code> points at the current <em>top</em> of the stack. On x86 the stack grows <strong>downward</strong>: <code>push</code> subtracts 8 from <code>rsp</code> and writes the value there; <code>pop</code> reads it and adds 8 back. Because <code>call</code> and <code>ret</code> use the same mechanism to store return addresses, <code>rsp</code> must be perfectly balanced — every push needs a matching pop.</p>
+
+<pre><code class="language-nasm line-numbers">    push    rax         ; rsp -= 8;  [rsp] = rax
+    push    rbx         ; rsp -= 8;  [rsp] = rbx
+    pop     rbx         ; rbx = [rsp];  rsp += 8
+    pop     rax         ; rax = [rsp];  rsp += 8   (LIFO order!)
+</code></pre>
+
+        <h3 id="rbp">rbp — The Frame Pointer</h3>
+
+        <p><code>rbp</code> is a general-purpose register with a convention: functions copy <code>rsp</code> into <code>rbp</code> on entry so that local variables keep fixed offsets even as <code>rsp</code> moves. Compilers may skip this optimization at higher levels, but hand-written assembly usually keeps the frame pointer for readability.</p>
+
+        <h2 id="flags">The Flags Register</h2>
+
+        <p><code>rflags</code> is not a number you compute with — it is a collection of single bits describing the result of the last arithmetic or logical operation. It is the bridge between arithmetic and control flow.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Flag</th><th>Name</th><th>Set when…</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>ZF</code></td><td>Zero</td><td>the result was exactly zero</td></tr>
+            <tr><td><code>SF</code></td><td>Sign</td><td>the result's top bit is 1 (negative, if signed)</td></tr>
+            <tr><td><code>CF</code></td><td>Carry</td><td>an unsigned result carried out of the top bit</td></tr>
+            <tr><td><code>OF</code></td><td>Overflow</td><td>a signed result has the wrong sign</td></tr>
+            <tr><td><code>PF</code></td><td>Parity</td><td>the low byte has an even number of 1 bits</td></tr>
+          </tbody>
+        </table>
+
+        <p>Conditional jumps do nothing but read these bits. <code>sub rax, rbx</code> followed by <code>je</code> means "jump if the subtraction produced zero", which is how an equality test is spelled in machine code. Because almost every arithmetic instruction sets the flags as a side effect, competent assembly avoids redundant <code>cmp</code> instructions.</p>
 
 
-<pre><code class="language-go line-numbers">
-// code example to be replaced with first example
-</code></code></code></pre>
+        <h2 id="abi">Registers and the Calling Convention</h2>
 
-<!-- work in progress-->
+        <p>When your code calls a function written by someone else — or when someone else's code calls yours — you both must agree on where arguments go, where the result comes back, and which registers must survive the call. That agreement is the <strong>calling convention</strong>; on Linux x86-64 it is the <em>System V AMD64 ABI</em>.</p>
 
-<hr>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Role</th><th>Registers</th><th>Must survive a call?</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>First six integer/pointer arguments</td><td><code>rdi</code>, <code>rsi</code>, <code>rdx</code>, <code>rcx</code>, <code>r8</code>, <code>r9</code></td><td>No — caller-saved</td></tr>
+            <tr><td>Return value</td><td><code>rax</code> (and <code>rdx</code> for a 128-bit result)</td><td>No — caller-saved</td></tr>
+            <tr><td>Scratch registers</td><td><code>rax</code>, <code>rcx</code>, <code>rdx</code>, <code>rsi</code>, <code>rdi</code>, <code>r8</code>–<code>r11</code></td><td>No — caller-saved</td></tr>
+            <tr><td>Preserved across calls</td><td><code>rbx</code>, <code>rbp</code>, <code>r12</code>–<code>r15</code>, <code>rsp</code></td><td>Yes — callee-saved</td></tr>
+            <tr><td>Stack pointer</td><td><code>rsp</code></td><td>Yes — must be restored exactly</td></tr>
+          </tbody>
+        </table>
 
-</main>
+        <p>The distinction is a contract, and breaking it produces bugs that appear far from the mistake:</p>
+
+        <ul>
+          <li><strong>Caller-saved</strong> (volatile): the callee may destroy these freely, so <em>you</em> must save them before a call if you still need the values.</li>
+          <li><strong>Callee-saved</strong> (non-volatile): if your function wants to use <code>rbx</code> or <code>r12</code>–<code>r15</code>, you must push them on entry and pop them before returning.</li>
+        </ul>
+
+<pre><code class="language-nasm line-numbers">my_func:
+    push    rbx                 ; we intend to use rbx, so preserve it
+    push    r12                 ; ...and r12
+
+    mov     rbx, rdi            ; now safe to clobber rbx and r12
+    mov     r12, rsi
+
+    ; ... do work, result in rax ...
+
+    pop     r12                 ; restore in reverse order (LIFO)
+    pop     rbx
+    ret
+</code></pre>
+
+        <h2 id="arm-registers">A Look at ARM64 Registers</h2>
+
+        <p>If you learn one register file, the others become easy to read. ARM64 names its thirty-one general-purpose registers <code>x0</code>–<code>x30</code>, and the same convention idea applies:</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Role</th><th>ARM64 register</th><th>x86-64 analogue</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Arguments 0–7 and return value</td><td><code>x0</code>–<code>x7</code></td><td><code>rdi</code>, <code>rsi</code>, … <code>rax</code> for the result</td></tr>
+            <tr><td>Link register (return address)</td><td><code>x30</code> / <code>lr</code></td><td>stored on the stack by <code>call</code></td></tr>
+            <tr><td>Stack pointer</td><td><code>sp</code></td><td><code>rsp</code></td></tr>
+            <tr><td>Zero register</td><td><code>xzr</code></td><td>none — write a throwaway register</td></tr>
+            <tr><td>Status flags</td><td><code>nzcv</code></td><td><code>rflags</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>The biggest structural difference: ARM has a dedicated <strong>link register</strong> holding the return address, while x86 pushes it onto the stack automatically. That single design choice explains a lot of ARM assembly's shape.</p>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li>x86-64 has sixteen 64-bit general-purpose registers; each one is addressable at 64, 32, 16, and 8 bits.</li>
+          <li>Writing to a 32-bit name like <code>eax</code> zeroes the upper half of <code>rax</code> — a detail that matters when your pointers look wrong.</li>
+          <li><code>rsp</code>, <code>rbp</code>, <code>rip</code>, and <code>rflags</code> are special: never repurpose them casually.</li>
+          <li>The System V ABI fixes argument registers, the return register, and which registers must be preserved across calls.</li>
+          <li>ARM64 uses <code>x0</code>–<code>x7</code> for arguments, <code>xzr</code> for a zero register, and <code>lr</code> for the return address.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/data.html">Data Definitions</a> — how values leave the registers and take up residence in memory.</p>
+
+
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'assembly',
@@ -99,6 +230,5 @@ To be replaced!
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

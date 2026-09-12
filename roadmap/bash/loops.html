@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Bash loops: for, while, until and select, plus break, continue and safe line-by-line file reading.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="bash, for, while, until, select, loop, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Loops & Iteration</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="bash-loops">Loops & Iteration</h1>
+
+<h2 id="for">for Loops</h2>
+
+<h3 id="word-list">Loop Over a Word List</h3>
+
+<p>The classic loop walks a list of words. Quote array expansions to keep elements intact.</p>
+
+<pre><code class="language-bash line-numbers">for fruit in apple banana cherry; do
+  echo "fruit: $fruit"
+done
+
+servers=(web1 web2 db1)
+for s in "${servers[@]}"; do
+  ping -c1 "$s" &gt;/dev/null &amp;&amp; echo "$s up" || echo "$s down"
+done
+</code></pre>
+
+<h3 id="c-style">C-Style Loop</h3>
+
+<p>When you need a counter, the arithmetic <code>for</code> reads like C — but note the double parentheses and the lack of <code>$</code> inside them.</p>
+
+<pre><code class="language-bash line-numbers">for ((i = 0; i &lt; 5; i++)); do
+  printf 'i=%d squared=%d\n' "$i" "$((i * i))"
+done
+</code></pre>
+
+<h3 id="range">Ranges and Brace Expansion</h3>
+
+<pre><code class="language-bash line-numbers">for n in {1..5}; do echo "$n"; done      # 1 2 3 4 5
+for n in {10..1..2}; do echo "$n"; done  # 10 8 6 4 2 (step -2)
+for c in {a..e}; do echo "$c"; done
+</code></pre>
+
+<div class="alert alert-info shadow-sm">
+  <code>{1..5}</code> is expanded <em>before</em> the loop runs, so it builds the whole list in memory. For huge ranges prefer the C-style loop.
+</div>
+
+<h3 id="glob-loop">Globbing Loop</h3>
+<pre><code class="language-bash line-numbers">shopt -s nullglob
+for f in *.log; do
+  echo "processing $f"
+done
+</code></pre>
+
+<h2 id="while">while Loops</h2>
+
+<h3 id="read-loop">Reading a File Line by Line</h3>
+
+<p>This is the single most important loop idiom in shell scripting. Note the three essential details: <code>IFS=</code>, <code>read -r</code>, and the redirection on <code>done</code>.</p>
+
+<pre><code class="language-bash line-numbers">while IFS= read -r line; do
+  printf 'line: %s\n' "$line"
+done &lt; data.txt
+</code></pre>
+
+<ul>
+  <li><code>IFS=</code> stops trimming leading/trailing whitespace.</li>
+  <li><code>read -r</code> stops the backslash from being eaten.</li>
+  <li>The redirection on <code>done</code> keeps the loop in the current shell.</li>
+</ul>
+
+<div class="alert alert-danger shadow-sm">
+  <code>cat file | while read …</code> runs the loop in a <strong>subshell</strong>. Variables set inside are lost. Redirect from the file instead: <code>while … ; done &lt; file</code>.
+</div>
+
+<h3 id="counters">Counters and Conditions</h3>
+
+<pre><code class="language-bash line-numbers">n=0
+while (( n &lt; 3 )); do
+  echo "attempt $n"
+  (( n++ ))
+done
+
+while [[ -n "$pending" ]]; do
+  process "$pending"
+  pending=""
+done
+</code></pre>
+
+<h3 id="infinite">Infinite Loops</h3>
+<pre><code class="language-bash line-numbers">while true; do
+  if ! check_service; then
+    restart_service
+  fi
+  sleep 30
+done
+</code></pre>
+
+<h2 id="until">until Loops</h2>
+
+<p><code>until</code> is the mirror image of <code>while</code>: it loops as long as the condition is <em>false</em>.</p>
+
+<pre><code class="language-bash line-numbers">until curl -sf http://localhost:8080/health &gt;/dev/null; do
+  echo "waiting for service..."
+  sleep 2
+done
+echo "service is up"
+</code></pre>
+
+<h2 id="select">select Menus</h2>
+
+<p><code>select</code> builds a numbered menu automatically and loops until you <code>break</code>. It reads from stdin, so it is for interactive scripts only.</p>
+
+<pre><code class="language-bash line-numbers">select choice in "List files" "Show date" "Quit"; do
+  case "$choice" in
+    "List files") ls ;;
+    "Show date")  date ;;
+    "Quit")       break ;;
+    *)            echo "invalid option" ;;
+  esac
+done
+</code></pre>
+
+<h2 id="control">break &amp; continue</h2>
+
+<pre><code class="language-bash line-numbers">for f in *.txt; do
+  [[ -s "$f" ]] || continue        # skip empty files
+  grep -q ERROR "$f" &amp;&amp; { echo "fatal: $f"; break; }
+  echo "checked $f"
+done
+
+for i in {1..3}; do
+  for j in {1..3}; do
+    (( i == j )) &amp;&amp; continue 2     # '2' skips the outer loop iteration
+    echo "$i-$j"
+  done
+done
+</code></pre>
+
+<p>The optional number after <code>break</code> or <code>continue</code> chooses how many loop levels to affect.</p>
+
+<h2 id="pitfalls">Pitfalls</h2>
+<ul>
+  <li>Unquoted <code>$var</code> in a <code>for</code> list splits on spaces — use an array and <code>"${arr[@]}"</code>.</li>
+  <li>Piping into <code>while</code> loses variables to the subshell — redirect instead.</li>
+  <li>Missing <code>-r</code> on <code>read</code> mangles Windows paths such as <code>C:\temp</code>.</li>
+  <li><code>for i in $(ls)</code> breaks on filenames with spaces; loop over a glob instead.</li>
+</ul>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'bash',
+    topicId: 'loops',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

@@ -2,31 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Assembly tutorial for beginners.">
+  <meta name="description" content="Assembly control flow: labels, jmp, conditional jumps, signed versus unsigned comparisons, building if/else and loops, and jump tables.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="assembly, language, programming, tutorial">
+  <meta name="keywords" content="sage, code, assembly, control flow, jmp, je, jne, jg, ja, loop, jump table">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>ASM Control</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>ASM Control Flow</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,57 +37,184 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="asm-control">Control Flow</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A CPU executes instructions in order. Every if, loop, and function call you have ever written is built from just two primitives: a jump, and a test of the flags register. This lesson shows how the high-level shapes map onto them.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="asm-control">ASM Control</h2>
+        <h2 id="jumps">Labels and Unconditional Jumps</h2>
+
+        <h3 id="labels">Labels</h3>
+
+        <p>A <strong>label</strong> marks a position in the code and gives it a name, which is how you refer to an address without computing it. Labels that begin with a dot are <em>local</em> — they belong to the previous non-local label, so you can reuse <code>.loop</code> in many functions without collision.</p>
+
+<pre><code class="language-nasm line-numbers">start:                 ; global label
+    xor  rax, rax
+.loop:                 ; local label, scoped to `start`
+    inc  rax
+    cmp  rax, 5
+    jl   .loop         ; jumps to start.loop
+    ret                 ; `start` and `.loop` are both reachable here
+
+other:                 ; a new global label
+.loop:                 ; a DIFFERENT .loop — no conflict with the one above
+    ret
+</code></pre>
+
+        <h3 id="jmp">jmp — Changing the Instruction Pointer</h3>
+
+<pre><code class="language-nasm line-numbers">    jmp  label           ; jump to a named position
+    jmp  rax             ; jump to the address held in a register (indirect)
+    jmp  [table + rcx*8] ; jump to the address stored in memory (jump table)
+</code></pre>
+
+        <p><code>jmp</code> is how you leave the straight line of instructions. The indirect forms — through a register or through memory — are what make function pointers, jump tables, and virtual dispatch possible.</p>
+
+        <h2 id="conditional">Conditional Jumps</h2>
+
+        <p>A conditional jump does exactly one thing: it inspects the flags register and decides whether to move <code>rip</code>. It does not compare anything itself — that is <code>cmp</code>'s job.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Condition (in C)</th><th>Signed jump</th><th>Unsigned jump</th><th>Meaning of the mnemonic</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>==</code></td><td><code>je</code></td><td><code>je</code></td><td>jump if equal (ZF = 1)</td></tr>
+            <tr><td><code>!=</code></td><td><code>jne</code></td><td><code>jne</code></td><td>jump if not equal</td></tr>
+            <tr><td><code>&lt;</code></td><td><code>jl</code></td><td><code>jb</code></td><td>less (signed) / below (unsigned)</td></tr>
+            <tr><td><code>&lt;=</code></td><td><code>jle</code></td><td><code>jbe</code></td><td>less-or-equal / below-or-equal</td></tr>
+            <tr><td><code>&gt;</code></td><td><code>jg</code></td><td><code>ja</code></td><td>greater (signed) / above (unsigned)</td></tr>
+            <tr><td><code>&gt;=</code></td><td><code>jge</code></td><td><code>jae</code></td><td>greater-or-equal / above-or-equal</td></tr>
+            <tr><td><code>== 0</code></td><td><code>jz</code></td><td><code>jz</code></td><td>jump if zero — same as <code>je</code></td></tr>
+            <tr><td>negative</td><td><code>js</code></td><td>—</td><td>jump if sign flag set</td></tr>
+            <tr><td>overflow</td><td><code>jo</code></td><td><code>jc</code></td><td>jump if overflow / carry</td></tr>
+          </tbody>
+        </table>
+
+        <div class="alert alert-warning shadow-sm">
+          <strong>The classic bug:</strong> choosing <code>jg</code> when the values are unsigned, or <code>ja</code> when they are signed. Both compile, both run, and one of them is silently wrong for negative or large values. Decide the signedness of your data <em>before</em> you write the jump.
+        </div>
 
 
-<div class="alert alert-secondary shadow-sm">
-To be replaced!
-</div>
+        <h2 id="ifelse">Building if / else</h2>
+
+        <p>High-level languages present <code>if</code> as a block that runs when a condition is true. Machine code inverts that: you jump <em>past</em> the block when the condition is false. Learning to think in negations is the single biggest mental adjustment in assembly.</p>
+
+<pre><code class="language-nasm line-numbers">    ; C:   if (rax &gt; 10) { a(); } else { b(); }
+
+    cmp  rax, 10
+    jle  .else            ; note the NEGATED condition: if NOT greater, skip a()
+    ; --- then-block: rax &gt; 10 ---
+    call a
+    jmp  .end             ; must jump over the else-block
+.else:
+    ; --- else-block ---
+    call b
+.end:
+</code></pre>
+
+        <p>Two habits avoid most control-flow bugs:</p>
+
+        <ul>
+          <li><strong>Negate the condition you jump on.</strong> Falling through should mean "the condition was true", because that is the common case.</li>
+          <li><strong>Never forget the jump over the else-block.</strong> Omitting it runs both branches, and it will look correct in a small test.</li>
+        </ul>
+
+        <h2 id="loops">Building Loops</h2>
+
+        <p>A loop is the same conditional jump, aimed backwards. The reliable pattern — used by compilers and recommended here — is to test at the top and jump out, rather than to test at the bottom.</p>
+
+<pre><code class="language-nasm line-numbers">    ; C:   for (i = 0; i &lt; 10; i++) { work(i); }
+    xor  rcx, rcx            ; i = 0
+.loop:
+    cmp  rcx, 10             ; i &lt; 10 ?
+    jge  .done               ; no -> exit the loop
+    ; --- loop body ---
+    ; work(i) goes here, using rcx as the counter
+    inc  rcx                 ; i++
+    jmp  .loop               ; back to the test
+.done:
+</code></pre>
+
+        <p>Testing at the top means a loop with zero iterations simply skips the body, which matches the semantics of every mainstream language. If you test at the bottom (<code>do { } while</code>), the body always runs at least once — correct for that construct, wrong for a <code>while</code>.</p>
+
+        <h3 id="loop-insn">The loop Instruction (and Why to Avoid It)</h3>
+
+        <p>x86 has a dedicated <code>loop</code> instruction that decrements <code>rcx</code> and jumps if it is not yet zero:</p>
+
+<pre><code class="language-nasm line-numbers">    mov  rcx, 10
+.repeat:
+    ; ... body ...
+    loop .repeat            ; rcx -= 1; if rcx != 0 jump back
+</code></pre>
+
+        <p>It looks elegant but is a trap for beginners: <code>loop</code> is <em>slower</em> than <code>dec</code> + <code>jnz</code> on every modern CPU, it requires the counter to be in <code>rcx</code> specifically, and <code>rcx</code> is caller-saved — so it cannot survive a function call. Prefer the compare-and-jump pattern above.</p>
 
 
-<pre><code class="language-go line-numbers">
-// code example to be replaced with first example
-</code></code></code></pre>
+        <h2 id="switch">Multi-Way Selection: Jump Tables</h2>
 
-<!-- work in progress-->
+        <p>A chain of compares is fine for two or three cases. For many cases — a parser dispatching on an opcode, a virtual machine's interpreter loop — the idiomatic solution is a <strong>jump table</strong>: an array of code addresses you index directly.</p>
 
-<hr>
+<pre><code class="language-nasm line-numbers">section .rodata
+    table   dq  .case0, .case1, .case2, .case3     ; 8 bytes per entry
+    TABLE_N equ ($ - table) / 8                    ; number of cases
 
-</main>
+section .text
+    ; rax holds the selector (0..3)
+    cmp  rax, TABLE_N
+    jae  .default                ; out of range -> default branch
+
+    lea  rbx, [rel table]        ; rbx = address of the table
+    jmp  [rbx + rax*8]           ; jump to the address stored at table[rax]
+
+.case0:
+    ; ... handle case 0 ...
+    jmp  .end
+.case1:
+    ; ... handle case 1 ...
+    jmp  .end
+.case2:
+    ; ...
+    jmp  .end
+.case3:
+    ; ...
+    jmp  .end
+.default:
+    ; ... handle anything else ...
+.end:
+</code></pre>
+
+        <p>Two details make this safe and fast. The bounds check (<code>jae .default</code>) is mandatory — without it, a bogus selector jumps into the middle of unrelated code. And the table holds <em>addresses</em>, so the elements must be <code>dq</code> (8 bytes) on x86-64.</p>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li>A label is a target; <code>jmp</code> moves execution to it unconditionally.</li>
+          <li>Conditional jumps read the flags; <code>cmp</code>/<code>test</code> set them.</li>
+          <li><strong>Signed and unsigned comparisons use different mnemonics</strong> — <code>jg</code>/<code>jl</code> vs <code>ja</code>/<code>jb</code> — even though both read the same flags.</li>
+          <li>An if/else is a <em>negated</em> conditional jump past the then-block; a loop is a conditional jump backwards.</li>
+          <li>Multi-way selection is a jump table of code addresses, always preceded by a bounds check.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/subprograms.html">Subprograms &amp; the Stack</a> — how <code>call</code> and <code>ret</code> turn jumps into functions.</p>
+
+
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'assembly',
@@ -99,6 +228,5 @@ To be replaced!
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>
