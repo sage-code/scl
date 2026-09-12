@@ -1,0 +1,380 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Swift optionals: nil, declaring optionals, if let, guard let, optional chaining, force unwrapping, implicitly unwrapped optionals, and failable initializers.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, swift, optionals, nil, if let, guard let, optional chaining, force unwrap">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Swift Optionals</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="swift-optionals">Optionals</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          An <strong>optional</strong> is a type that either holds a value or holds nothing at all — <code>nil</code>. By forcing you to acknowledge the missing case, Swift eliminates the most common crash in other languages: the null dereference.
+        </div>
+
+        <p>This lesson explains why optionals exist, the safe ways to unwrap them, and the two deliberate escape hatches — along with the situations in which each one is defensible.</p>
+
+        <h2 id="what">Nil &amp; Optional Types</h2>
+
+        <p>An optional <em>wraps</em> another type and is written with a question mark: <code>String?</code> is "a <code>String</code>, or nothing". Only optionals may ever be <code>nil</code>; every other type is guaranteed by the compiler to hold a real value.</p>
+
+        <h3 id="declaring">Declaring Optionals</h3>
+
+        <p>Appending <code>?</code> to the type creates an optional. An optional <code>var</code> starts out as <code>nil</code> automatically, while a non-optional variable must be given a value before it can be used.</p>
+
+        <pre><code class="language-swift line-numbers">var nickname: String? = nil      // an optional String holding nothing
+var score: Int? = 10             // an optional currently holding a value
+
+print(nickname == nil)            // prints: true
+print(score == nil)               // prints: false
+
+// An optional `var` is implicitly nil, no assignment needed
+var pending: Int?
+print(pending == nil)             // prints: true
+
+// A non-optional can never be nil
+var real: Int = 0
+// real = nil                     // ❌ compile error: cannot assign nil
+
+// Optionals compose with any type: collections, tuples, even functions
+let names: [String]? = ["Ada"]    // the whole array may be absent
+let lookup: ((String) -&gt; Int)? = nil
+print(names?.count ?? 0)          // prints: 1
+print(lookup == nil)              // prints: true
+</code></pre>
+
+        <h3 id="why">Why Optionals Exist</h3>
+
+        <p>Many operations have no guaranteed answer: a dictionary key may be absent, a string may not parse as a number, an array may be empty. Expressing "no value" in the <em>type</em> lets the compiler insist that you handle it.</p>
+
+        <pre><code class="language-swift line-numbers">// A dictionary lookup returns an optional because the key may be missing
+let ages = ["Ada": 36, "Linus": 54]
+print(ages["Ada"] ?? -1)          // prints: 36
+print(ages["Grace"] ?? -1)        // prints: -1 — key not present
+
+// Int(text) is failable: not every string is a number
+print(Int("42") ?? 0)             // prints: 42
+print(Int("swift") ?? 0)          // prints: 0
+
+// first and last are optional too: an empty array has neither
+let empty: [Int] = []
+print(empty.first ?? -1)          // prints: -1
+print(empty.last == nil)          // prints: true
+</code></pre>
+
+        <h2 id="unwrapping">Unwrapping Safely</h2>
+
+        <p>Unwrapping means reaching the value inside the optional. Swift provides three safe tools — conditional binding, the nil-coalescing operator, and optional chaining — and none of them can crash.</p>
+
+        <h3 id="if-let">if let &amp; guard let</h3>
+
+        <p>Conditional binding introduces a <em>new non-optional</em> constant that exists only inside the branch which proved the optional had a value. Use <code>if let</code> when you can carry on either way, and <code>guard let</code> when a missing value means leaving the scope.</p>
+
+        <pre><code class="language-swift line-numbers">let stored: String? = "Swift"
+
+if let stored {                     // shorthand binding (Swift 5.7+)
+    print("value: \(stored)")       // prints: value: Swift
+} else {
+    print("no value")
+}
+
+// Bind several optionals: the block runs only if all of them succeed
+let user: String? = "ada"
+let age: Int? = 36
+if let user, let age {
+    print("\(user) is \(age)")      // prints: ada is 36
+}
+
+// guard keeps the successful path flat and exits on failure
+func report(_ value: Int?) -&gt; String {
+    guard let value else { return "missing" }
+    return "got \(value)"           // `value` is a real Int from here on
+}
+print(report(nil))                  // prints: missing
+print(report(7))                    // prints: got 7
+</code></pre>
+
+        <h3 id="nil-coalescing">Nil-Coalescing (??)</h3>
+
+        <p>The <code>??</code> operator yields the wrapped value, or a fallback expression when the optional is <code>nil</code>. The fallback is <em>lazy</em>: Swift evaluates it only when it is actually needed, so an expensive default costs nothing when the value exists.</p>
+
+        <pre><code class="language-swift line-numbers">let port: Int? = nil
+print(port ?? 8080)                 // prints: 8080 — fallback used
+
+let configured: Int? = 443
+print(configured ?? 8080)           // prints: 443 — fallback skipped
+
+// Chaining ?? creates a series of fallbacks; the first non-nil wins
+let fromEnv: String? = nil
+let fromConfig: String? = nil
+print(fromEnv ?? fromConfig ?? "default")     // prints: default
+
+// Proof that the fallback is lazy
+func expensiveDefault() -&gt; Int {
+    print("computed")
+    return 1
+}
+print(configured ?? expensiveDefault())       // prints: 443 only
+</code></pre>
+
+        <h3 id="optional-chaining">Optional Chaining</h3>
+
+        <p>A question mark placed after an optional reaches inside it. If the value is <code>nil</code> the whole chain short-circuits to <code>nil</code> instead of crashing, and the result of the chain is itself optional.</p>
+
+        <pre><code class="language-swift line-numbers">struct Address { var city: String }
+struct Person { var address: Address? }
+
+let person = Person(address: Address(city: "London"))
+let homeless = Person(address: nil)
+
+print(person.address?.city ?? "unknown")      // prints: London
+print(homeless.address?.city ?? "unknown")    // prints: unknown — short-circuits
+
+// Chaining reaches methods and subscripts as well as properties
+print(person.address?.city.uppercased() ?? "?")   // prints: LONDON
+let list: [String]? = ["a", "b"]
+print(list?[0] ?? "none")                        // prints: a
+print(list?.count ?? 0)                          // prints: 2
+</code></pre>
+
+        <h2 id="force">Force Unwrapping &amp; IUOs</h2>
+
+        <p>Swift also offers two escape hatches that skip the checks entirely: the postfix <code>!</code> on an optional, and the implicitly unwrapped type <code>T!</code>. Both trade safety for brevity, so each one needs a justification you can state out loud.</p>
+
+        <h3 id="force-unwrap">Force Unwrapping</h3>
+
+        <p><code>!</code> asserts "this is not nil". When the assertion is wrong the program crashes immediately. That is defensible only when the invariant is guaranteed by construction — never for data that can legitimately be missing.</p>
+
+        <pre><code class="language-swift line-numbers">let label: String? = "ready"
+
+// ! asserts the value is not nil; a nil value would crash here
+print(label!)                        // prints: ready
+
+// Defensible: a literal we just built, where nil is impossible
+let year = "2024"
+print(Int(year)!)                    // prints: 2024
+
+// Not defensible: a lookup that can legitimately miss
+let ages = ["Ada": 36]
+// print(ages["Grace"]!)             // ❌ crash: unexpectedly found nil
+print(ages["Grace"] ?? 0)            // prints: 0 — always prefer this
+
+// A guard with a message is the readable alternative to `!`
+func port(from text: String) -&gt; Int {
+    guard let value = Int(text) else {
+        print("invalid port: \(text)")
+        return 8080
+    }
+    return value
+}
+print(port(from: "443"))             // prints: 443
+print(port(from: "abc"))             // prints: invalid port: abc, then 8080
+</code></pre>
+
+        <h3 id="implicitly-unwrapped">Implicitly Unwrapped Optionals</h3>
+
+        <p>A type written <code>T!</code> is still optional, but the compiler unwraps it automatically wherever you use it. It existed to serve two-phase initialization — a value guaranteed to be filled in before first use, such as a UI outlet.</p>
+
+        <pre><code class="language-swift line-numbers">// A view-like class whose property is set up right after construction
+final class ViewController {
+    var title: String!               // assigned by load(), before use
+
+    func load() { title = "Home" }
+    func show() -&gt; String { title.uppercased() }   // no ! needed here
+}
+
+let controller = ViewController()
+controller.load()
+print(controller.show())             // prints: HOME
+
+// It remains an optional, so it can still be inspected
+print(controller.title == nil)       // prints: false
+
+// The other classic case: a back-reference filled in after both objects exist
+final class Engine {
+    unowned var owner: Car!
+}
+final class Car {
+    let engine = Engine()
+    init() { engine.owner = self }   // the back-reference is set here
+}
+let car = Car()
+print(car.engine.owner === car)      // prints: true — same instance
+</code></pre>
+
+        <h2 id="practice">Optionals in Practice</h2>
+
+        <p>Two standard-library patterns catch newcomers off guard: the optional's own <code>map</code> and <code>flatMap</code> methods, and initializers that can fail. Both let optional handling stay inside an expression instead of spreading into branches.</p>
+
+        <h3 id="optional-map">map &amp; flatMap on Optionals</h3>
+
+        <p>An optional has its own <code>map</code>: it applies the transform when a value exists and returns <code>nil</code> without calling it otherwise. <code>flatMap</code> is the variant to use when the transform itself returns an optional, because it avoids producing a doubly-wrapped type.</p>
+
+        <pre><code class="language-swift line-numbers">let raw: String? = "42"
+
+// map applies the transform only when a value exists
+let doubled = raw.map { Int($0)! * 2 }
+print(doubled ?? 0)                            // prints: 84
+
+// With no value, map returns nil and never calls the closure
+let missing: String? = nil
+print(missing.map { Int($0)! * 2 } == nil)     // prints: true
+
+// flatMap suits transforms that already return an optional
+let text: String? = "abc"
+print(text.map { $0.count } ?? -1)             // prints: 3
+print(text.flatMap { Int($0) } == nil)         // prints: true, and type is Int?
+
+// compactMap strips the nils out of a whole sequence
+let inputs = ["1", "x", "3"]
+print(inputs.compactMap { Int($0) })           // prints: [1, 3]
+</code></pre>
+
+        <h3 id="failable-init">Failable Initializers</h3>
+
+        <p>An initializer written <code>init?</code> returns <code>nil</code> instead of throwing when its preconditions fail. The caller therefore receives an optional, and the usual unwrapping tools apply.</p>
+
+        <pre><code class="language-swift line-numbers">struct Temperature {
+    let celsius: Double
+
+    // init? returns nil for an impossible value instead of throwing
+    init?(celsius: Double) {
+        guard celsius &gt;= -273.15 else { return nil }   // below absolute zero
+        self.celsius = celsius
+    }
+
+    var fahrenheit: Double { celsius * 9 / 5 + 32 }
+}
+
+print(Temperature(celsius: 100)?.fahrenheit ?? 0)   // prints: 212.0
+print(Temperature(celsius: -300) == nil)            // prints: true
+
+// A failable initializer composes with compactMap to drop bad inputs
+let readings = [21.5, -500, 30.0].compactMap { Temperature(celsius: $0) }
+print(readings.count)                               // prints: 2
+</code></pre>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="pyramid">The Pyramid of Doom</h3>
+
+        <p>Binding one optional per level produces a staircase that hides the real logic. Optional chaining or a single <code>guard</code> expresses the same thing in one line and one indentation level.</p>
+
+        <pre><code class="language-swift line-numbers">struct Profile { var email: String? }
+struct Account { var profile: Profile? }
+
+let account = Account(profile: Profile(email: "ada@example.com"))
+
+// ❌ Nested optionals: three indentation levels to reach one value
+if let profile = account.profile {
+    if let email = profile.email {
+        if let first = email.first {
+            print(first)              // prints: a
+        }
+    }
+}
+
+// ✅ Optional chaining collapses the whole chain into one condition
+if let first = account.profile?.email?.first {
+    print(first)                      // prints: a
+}
+
+// ✅ guard flattens a function body: failures exit before the logic
+func emailLength(_ account: Account) -&gt; Int {
+    guard let profile = account.profile, let email = profile.email else {
+        return 0
+    }
+    return email.count
+}
+print(emailLength(account))           // prints: 15
+</code></pre>
+
+        <h3 id="crashing">When Force Unwrap Crashes</h3>
+
+        <p>Every "unexpectedly found nil" crash is a force unwrap whose invariant did not hold. The usual suspects are empty collections, user input that fails to parse, and properties that are not yet set. Replace the <code>!</code> at the boundary with an explicit case.</p>
+
+        <pre><code class="language-swift line-numbers">func average(_ values: [Double]) -&gt; Double {
+    // ❌ values.first! would crash on an empty array
+    // return values.reduce(0, +) / Double(values.count)
+
+    // ✅ make the empty case explicit instead of asserting
+    guard values.isEmpty == false else { return 0 }
+    return values.reduce(0, +) / Double(values.count)
+}
+print(average([2, 4, 6]))     // prints: 4.0
+print(average([]))            // prints: 0.0 — the crash became a defined result
+
+// The same mistake when parsing: the initializer legitimately returns nil
+let text = "not a number"
+// let value = Int(text)!     // ❌ crash: unexpectedly found nil
+print(Int(text) ?? 0)         // prints: 0 — degenerate input gets a default
+</code></pre>
+
+        <p>Optionals turn "this might be missing" into a fact the compiler makes you confront. Next, handle the failures that need more than a <code>nil</code> in <a href="/roadmap/swift/errors.html">Error Handling</a>.</p>
+
+  </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'swift',
+    topicId: 'optionals',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

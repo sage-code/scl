@@ -2,31 +2,34 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Template page for tutorials.">
+  <meta name="description" content="Swift variables and constants: let vs var, type inference, mutability, scope, and shadowing.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="rust, syntax">
+  <meta name="keywords" content="sage, code, swift, variables, constants, let, var, mutability">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Swift Tutorial</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>Swift Variables &amp; Constants</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,56 +38,204 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="swift-variables">Variables &amp; Constants</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Swift separates <em>what</em> a value is from <em>whether it can change</em>. Every binding starts with either <code>let</code> (constant) or <code>var</code> (variable). The compiler uses that choice to enforce safety, so it is one of the first things to get right.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="swift-tutorial">Swift Tutorial</h2>
+        <p>This lesson covers how to declare values, how Swift infers their type, when reassignment is legal, and how scope and shadowing decide which name you actually see.</p>
 
+        <h2 id="declaration">Declaring Values</h2>
 
-<div class="alert alert-secondary shadow-sm">
-Work in progress!
-</div>
+        <p>A declaration introduces a <strong>name</strong>, a <strong>type</strong>, and sometimes an <strong>initial value</strong>. The keyword in front of the name answers a single question: may this binding be reassigned after it is created?</p>
 
-<pre><code class="language-swift line-numbers">// code example to be replaced
-  func factorial(number: Int) -> Int {
-    if number == 0 {
-      return 1
-    } else {
-      return number * factorial(number - 1)
+        <h3 id="let">Constants with let</h3>
+
+        <p><code>let</code> creates a constant: once initialised, the binding can never point to a different value. Prefer <code>let</code> whenever the value does not need to change — it documents intent and lets the optimiser work harder.</p>
+
+        <pre><code class="language-swift line-numbers">let pi = 3.14159            // type Double is inferred from the literal
+let name = "Ada"            // type String
+let isReady = true          // type Bool
+
+// pi = 3.14                // ❌ compile error: cannot assign to a 'let' constant
+print(pi, name, isReady)    // prints: 3.14159 Ada true
+</code></pre>
+
+        <h3 id="var">Variables with var</h3>
+
+        <p><code>var</code> creates a mutable binding. Use it only when the value must change during the lifetime of the program, such as a running total or a loop counter.</p>
+
+        <pre><code class="language-swift line-numbers">var score = 0               // mutable Int
+score += 10                 // legal: var may be reassigned
+score += 5
+print(score)                // prints: 15
+</code></pre>
+
+        <p>Note that "constant" refers to the <em>binding</em>, not to the contents of a value. A <code>let</code> array cannot be reassigned or resized, but its elements still obey their own rules — this matters once you study collections.</p>
+
+        <h2 id="inference">Type Inference &amp; Annotation</h2>
+
+        <p>Swift is statically typed, yet you rarely write the type. The compiler infers it from the initial value, which keeps code short without giving up type safety.</p>
+
+        <h3 id="annotation">Explicit Type Annotation</h3>
+
+        <p>Write the type after a colon when the value cannot be inferred, when you want a wider or narrower type than the literal suggests, or when readability demands it.</p>
+
+        <pre><code class="language-swift line-numbers">let ratio: Double = 1        // literal 1 would infer Int; annotation forces Double
+let label: String = ""       // explicit type for an empty string
+var population: Int64 = 0    // wider integer than the default Int
+
+// let empty = []            // ❌ error: cannot infer the element type of []
+let emptyNames: [String] = []   // annotation supplies the missing element type
+print(ratio, label, population, emptyNames.count)
+</code></pre>
+
+        <h3 id="multiple">Multiple Bindings</h3>
+
+        <p>Several names can be declared on one line, and a single annotation applies to every name on that line.</p>
+
+        <pre><code class="language-swift line-numbers">var x = 1, y = 2, z = 3      // three Int bindings in one declaration
+var a: Double = 0, b: Double = 0   // one type for both names
+
+x += 1
+print(x, y, z, a, b)         // prints: 2 2 3 0.0 0.0
+</code></pre>
+
+        <h2 id="mutability">Mutability Rules</h2>
+
+        <p>Mutability is decided at declaration time and checked by the compiler, not at runtime. This removes a whole class of bugs where a value changes behind your back.</p>
+
+        <h3 id="reassign">Reassignment</h3>
+
+        <p>A <code>var</code> may be assigned any number of times, but the new value must have the same type as the original declaration.</p>
+
+        <pre><code class="language-swift line-numbers">var temperature = 20         // inferred Int
+temperature = 22             // fine: same type
+// temperature = 22.5        // ❌ error: cannot assign Double to Int
+print(temperature)           // prints: 22
+</code></pre>
+
+        <h3 id="immutable">Immutable by Choice</h3>
+
+        <p>Choosing <code>let</code> is a design decision: it tells every reader and the compiler that the name is fixed. Compiler optimisations and thread-safety reasoning both benefit.</p>
+
+        <pre><code class="language-swift line-numbers">let finalPrice = 99.90       // will never change
+// finalPrice = 89.90        // ❌ error: cannot assign to 'let' constant
+print(finalPrice)            // prints: 99.9
+</code></pre>
+
+        <h2 id="naming">Naming &amp; Scope</h2>
+
+        <p>The same identifier may exist in more than one scope. Understanding which declaration a name refers to prevents confusing bugs.</p>
+
+        <h3 id="conventions">Naming Conventions</h3>
+
+        <p>Values and functions use <code>lowerCamelCase</code>; types use <code>UpperCamelCase</code>. Names should describe purpose, not type: <code>elapsedSeconds</code> beats <code>intVar</code>.</p>
+
+        <pre><code class="language-swift line-numbers">let itemCount = 12           // purpose-first name, no type prefix
+var totalPrice = 0.0         // reads like a sentence when used
+print(itemCount, totalPrice)
+</code></pre>
+
+        <h3 id="scope">Scope &amp; Lifetime</h3>
+
+        <p>A name is visible from its declaration to the end of the enclosing block. Local values are destroyed when the block exits; top-level and global values live for the whole program.</p>
+
+        <pre><code class="language-swift line-numbers">let global = "I live for the whole program"
+
+func demo() {
+    let local = "I exist only during this call"
+    print(global, local)     // both are visible here
+}
+// print(local)              // ❌ error: 'local' is out of scope
+demo()
+</code></pre>
+
+        <h3 id="shadowing">Shadowing</h3>
+
+        <p>An inner declaration may reuse an outer name, hiding the outer one until the inner block ends. This is occasionally useful (a converted value keeps the same name) but easy to overuse.</p>
+
+        <pre><code class="language-swift line-numbers">let score = 10
+
+func adjusted() {
+    let score = score * 2    // shadows the outer 'score' inside this function
+    print(score)             // prints: 20
+}
+adjusted()
+print(score)                 // prints: 10 — the outer value is untouched
+</code></pre>
+
+        <h2 id="globals">Global &amp; Computed Values</h2>
+
+        <p>Not every stored value must be initialised up front. Swift offers lazy stored properties and computed properties so a value can be produced on demand.</p>
+
+        <h3 id="lazy">Lazy Stored Properties</h3>
+
+        <p><code>lazy</code> postpones initialisation until the property is first read. It is ideal for expensive work that may never be needed, and it must be declared with <code>var</code>.</p>
+
+        <pre><code class="language-swift line-numbers">struct Report {
+    lazy var summary: String = buildSummary()   // built only when first read
+
+    func buildSummary() -&gt; String {
+        return "expensive report"               // pretend this is slow work
     }
-  }
-  
-  let factorialOf5 = factorial(number: 5)
-  print(factorialOf5) // 120
-</code></code></pre>
+}
 
-<!-- work in progress-->
+var r = Report()             // summary is NOT built yet
+print(r.summary)             // built now, then cached: expensive report
+</code></pre>
 
-<hr>
+        <h3 id="computed">Computed Properties</h3>
 
-</main>
+        <p>A computed property stores no value of its own: it calculates the result each time it is read. Use it to expose a derived view of other stored data.</p>
+
+        <pre><code class="language-swift line-numbers">struct Rectangle {
+    var width = 4.0
+    var height = 3.0
+
+    var area: Double {       // recomputed on every access
+        return width * height
+    }
+}
+
+let rect = Rectangle()
+print(rect.area)             // prints: 12.0
+</code></pre>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="unused">Unused Variable Warnings</h3>
+
+        <p>Declaring a value you never use produces a compiler warning. If a value is intentionally discarded, replace the name with an underscore to silence the warning.</p>
+
+        <pre><code class="language-swift line-numbers">let _ = performSideEffect()  // underscore: result ignored on purpose
+
+func performSideEffect() -&gt; Int { return 0 }
+</code></pre>
+
+        <h3 id="letvar">Choosing let over var</h3>
+
+        <p>Reaching for <code>var</code> by default is a habit worth breaking. Start with <code>let</code>; the compiler will tell you when you truly need mutability, and every <code>let</code> you keep is one fewer thing that can change unexpectedly.</p>
+
+        <pre><code class="language-swift line-numbers">let userId = 42              // never changes → let, not var
+var sessionCount = 0          // genuinely changes → var is justified
+sessionCount += 1
+print(userId, sessionCount)  // prints: 42 1
+</code></pre>
+
+        <p>With declarations, inference, mutability, and scope in hand, you can move on to the types those values can hold: continue with <a href="/roadmap/swift/types.html">Data Types</a>.</p>
+
+  </main>
     </div>
   </div>
 
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 
@@ -104,9 +255,8 @@ Work in progress!
   };
 </script>
 <script src="/assets/js/sage.js" defer></script>
-<script src="/assets/js/progress.js" defer></script>
-<script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
 
 </body>
 </html>
+

@@ -1,0 +1,466 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Swift enumerations: declaring cases, exhaustive switch matching, raw values, associated values, recursive enums, CaseIterable, and protocol conformance.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, swift, enum, enumeration, cases, switch, raw value, associated value, CaseIterable, indirect, @unknown default">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Swift Enumerations</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="swift-enums">Enumerations</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          An enumeration names a <strong>closed set of cases</strong>. Because the compiler knows every case, it can prove that a <code>switch</code> covers them all, and each case may carry its own data. An enum is the natural way to model states, results, commands, and any value that is one of a few known alternatives.
+        </div>
+
+        <p>This lesson moves from the simplest case list to enums that carry data, map to raw values, and conform to protocols.</p>
+
+        <h2 id="basics">Enum Basics</h2>
+
+        <p>An enum replaces a loose collection of constants with one type that owns all its possibilities. Nowhere else in the type can be invented, and no integer code can be passed by mistake — the compiler only accepts the cases you declared.</p>
+
+        <h3 id="declare">Declaring an Enum</h3>
+
+        <p>Each <code>case</code> is a full-fledged value of the type, written with the shorthand dot syntax once Swift can infer the type from context. Cases that share behaviour may be written on one line, separated by commas.</p>
+
+        <pre><code class="language-swift line-numbers">// An enum owns a closed set of alternatives.
+enum Direction {
+    case north, south, east, west   // four cases on one line
+}
+
+// The type is inferred from the variable, so `.north` is enough.
+var heading = Direction.north
+heading = .east
+
+// An enum is a value type: assignment copies it, exactly like a struct.
+var other = heading
+other = .west
+print(heading)                      // east — `other` is a separate value
+
+// Enums compose with optionals: nil is "no direction at all", not a case.
+var favourite: Direction? = nil
+favourite = .south
+print(favourite == .south)          // true — Equatable is synthesised for enums
+</code></pre>
+
+        <h3 id="switch-enum">Matching with switch</h3>
+
+        <p>A <code>switch</code> over an enum needs no <code>default</code>, because the compiler can see that every case is handled. That is the practical payoff of a closed set: add a new case later and the compiler points at every switch that must now handle it.</p>
+
+        <pre><code class="language-swift line-numbers">let heading = Direction.north
+
+// All four cases are covered, so `default` is unnecessary — adding one here
+// produces a warning, because the compiler knows it can never be reached.
+switch heading {
+case .north:            print("up")
+case .south:            print("down")
+case .east, .west:      print("sideways")   // several cases may share an arm
+}
+
+// An arm may add a condition with `where` for finer distinctions.
+let angle = 45
+switch heading {
+case .east where angle < 90: print("north of east")
+case .east:                  print("due east")
+default:                     print("not east")   // `default` is back: not exhaustive now
+}
+
+// Since Swift 5.9 a switch is an expression, so its arms can produce the value.
+let arrow = switch heading {
+case .north: "↑"
+case .south: "↓"
+case .east:  "→"
+case .west:  "←"
+}
+print(arrow)   // ↑
+</code></pre>
+
+        <h3 id="iteration">Walking Every Case</h3>
+
+        <p>Sometimes you need to visit all cases — for a picker, a menu, or a validation test. Declaring <code>CaseIterable</code> makes the compiler publish a static array named <code>allCases</code>, and an array comes with the whole standard library.</p>
+
+        <pre><code class="language-swift line-numbers">// CaseIterable asks the compiler for a static list of every case.
+enum Compass: String, CaseIterable {
+    case north, south, east, west   // String is the raw-value type: see the next chapter
+}
+
+print(Compass.allCases.count)        // 4
+
+// Iteration replaces a hand-written list that could drift out of date.
+for direction in Compass.allCases {
+    print(direction.rawValue, terminator: " ")   // north south east west
+}
+print()
+
+// allCases is an ordinary array, so filter/map/sorted all work.
+let longNames = Compass.allCases.filter { $0.rawValue.count > 4 }
+print(longNames.map(\.rawValue))     // ["north", "south"]
+
+// Position of a case inside the order you declared it.
+if let index = Compass.allCases.firstIndex(of: .east) {
+    print(index)                     // 2
+}
+</code></pre>
+
+        <h2 id="raw-values">Raw Values</h2>
+
+        <p>A raw value is a constant attached to each case at declaration time. Unlike an associated value, it is not carried around at run time: it is part of the case's definition, unique across the enum, and perfect for exchanging data with the outside world.</p>
+
+        <h3 id="raw-int">Integer &amp; String Raw Values</h3>
+
+        <p>Declare the raw type after the enum name. For integers, one assignment continues automatically, counting up by one; for strings, the case name itself becomes the value.</p>
+
+        <pre><code class="language-swift line-numbers">// Int raw values are handy for wire protocols, files, and HTTP APIs.
+enum HTTPStatus: Int {
+    case ok = 200          // explicit start
+    case created           // 201 — automatically the previous value + 1
+    case moved = 301       // jump to a new explicit value
+    case notFound = 404
+}
+
+// String raw values default to the case name written verbatim.
+enum LogLevel: String {
+    case debug, info, warning, error
+}
+
+print(HTTPStatus.created.rawValue)   // 201
+print(HTTPStatus.moved.rawValue)     // 301 — the jump is respected
+print(LogLevel.warning.rawValue)     // warning
+
+// Raw-value types must be literal-convertible: String, Character, Int, Float,
+// Double. Two cases may never share the same raw value.
+</code></pre>
+
+        <h3 id="raw-init">Bridging with init?(rawValue:)</h3>
+
+        <p>Every enum with a raw type receives a failable initializer, <code>init?(rawValue:)</code>. It returns an optional because the incoming value may match no case at all — the same "maybe there is a value" idea you met in the Optionals lesson.</p>
+
+        <pre><code class="language-swift line-numbers">let status = HTTPStatus(rawValue: 404)      // Optional<HTTPStatus>
+print(status == .notFound)                  // true
+
+// The initializer is failable, so an unknown number is nil instead of a crash.
+let unknown = HTTPStatus(rawValue: 999)
+print(unknown)                              // nil
+
+// guard let turns "data from outside" into a real value or a handled edge case.
+func describe(_ code: Int) -> String {
+    guard let status = HTTPStatus(rawValue: code) else {
+        return "unexpected code \(code)"    // the branch most tutorials forget
+    }
+    return status == .ok ? "success" : "handled: \(status)"
+}
+
+print(describe(200))                        // success
+print(describe(503))                        // unexpected code 503
+</code></pre>
+
+        <h2 id="associated-values">Associated Values</h2>
+
+        <p>An associated value is data that the case itself carries, chosen per case and created when the value is created. This is what makes a Swift enum more than a list of names: the enum can describe a state <em>and</em> the details that state implies.</p>
+
+        <h3 id="assoc-def">Cases That Carry Data</h3>
+
+        <p>Each case declares its own payload in parentheses. Because the payload belongs to the case, an impossible combination simply cannot be written — there is no way to hold progress and an error at the same time.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/swift/img/enum-anatomy.svg" alt="Plain enum cases hold a raw value; cases with associated values carry a payload that a switch binds" width="780" class="img-fluid protect rounded shadow border">
+          <p class="text-secondary small">Figure 1 — a plain case stores a fixed raw value; a case with associated values carries a payload that the matching arm binds to a new constant.</p>
+        </div>
+
+        <pre><code class="language-swift line-numbers">// Each case declares the shape of the data it carries.
+enum Download {
+    case idle                              // no payload at all
+    case running(progress: Double)         // labelled payload: self-documenting
+    case finished(file: String)
+    case failed(code: Int, reason: String) // two payloads, different types
+}
+
+var state = Download.running(progress: 0.5)
+state = .failed(code: 404, reason: "not found")
+
+// The payload is part of the value. `.idle` is not "0% progress": it is the
+// absence of a download, which is why the two cannot be confused.
+</code></pre>
+
+        <p>Compare this with four class properties (<code>progress</code>, <code>file</code>, <code>code</code>, <code>reason</code>) plus a status field. That design allows a value that is "running" and "failed" simultaneously; the enum design makes it unrepresentable.</p>
+
+        <h3 id="assoc-match">Destructuring Patterns</h3>
+
+        <p>You read a payload by binding it in a pattern. A <code>switch</code> binds several payloads at once, <code>if case</code> tests one shape, and <code>where</code> adds a condition on the bound data.</p>
+
+        <pre><code class="language-swift line-numbers">func status(of state: Download) -> String {
+    switch state {
+    case .idle:
+        return "waiting"
+    case .running(let progress):
+        return "\(Int(progress * 100))%"          // one payload bound
+    case .finished(let file):
+        return "saved \(file)"
+    case .failed(let code, let reason):
+        return "error \(code): \(reason)"         // two payloads bound at once
+    }
+}
+
+print(status(of: .running(progress: 0.25)))       // 25%
+print(status(of: .failed(code: 500, reason: "timeout")))
+
+// `where` filters on the bound payload, so an arm can be as specific as you need.
+let state = Download.running(progress: 0.95)
+switch state {
+case .running(let progress) where progress > 0.9:
+    print("almost done")                          // this arm wins
+case .running(let progress):
+    print("in progress at \(progress)")
+default:
+    print("not downloading")
+}
+
+// `if case` and `guard case` test a single shape without a full switch.
+if case .running(let progress) = state {
+    print("progress is \(progress)")              // progress is 0.95
+}
+
+func isActive(_ state: Download) -> Bool {
+    guard case .running = state else { return false }   // no binding needed here
+    return true
+}
+print(isActive(state))                            // true
+</code></pre>
+
+        <h3 id="recursive">Recursive Enums</h3>
+
+        <p>An enum case may hold another value of the same enum — the natural shape for trees, lists, and expressions. The compiler needs to know the size of every type, so a self-referencing case must be marked <code>indirect</code>, which stores the payload behind a reference.</p>
+
+        <pre><code class="language-swift line-numbers">// Without `indirect` the compiler cannot compute a fixed size for the type:
+// each case would physically contain another whole value of itself.
+indirect enum Arithmetic {
+    case number(Double)
+    case sum(Arithmetic, Arithmetic)
+    case product(Arithmetic, Arithmetic)
+}
+
+// Build the tree for (3 + 4) * 2 by nesting cases directly.
+let expression = Arithmetic.product(
+    .sum(.number(3), .number(4)),
+    .number(2)
+)
+
+// Evaluation is a recursive function over the tree — one arm per shape.
+func evaluate(_ expression: Arithmetic) -> Double {
+    switch expression {
+    case .number(let value):
+        return value
+    case .sum(let left, let right):
+        return evaluate(left) + evaluate(right)      // recurse into the payloads
+    case .product(let left, let right):
+        return evaluate(left) * evaluate(right)
+    }
+}
+
+print(evaluate(expression))                          // 14.0
+</code></pre>
+
+        <h2 id="enums-protocols">Enums &amp; Protocols</h2>
+
+        <p>An enum cannot inherit from another enum, but it adopts protocols exactly like a struct or a class — that is how enums in Swift gain shared behaviour without a class hierarchy. Some conformances are free, such as <code>Equatable</code>, <code>Hashable</code>, and <code>CaseIterable</code>; others you implement once, in the enum itself.</p>
+
+        <h3 id="conform">Adopting a Protocol</h3>
+
+        <p>The protocol list follows the raw-value type, if any. Inside the enum, <code>self</code> is the current case, so a protocol requirement is implemented with one <code>switch</code> over the possibilities you declared.</p>
+
+        <pre><code class="language-swift line-numbers">// One conformance list, three capabilities: iteration, ordering, printing.
+enum Priority: Int, CaseIterable, Comparable, CustomStringConvertible {
+    case low = 1, normal, high
+
+    // CustomStringConvertible: control exactly how the value prints.
+    var description: String {
+        switch self {                 // `self` is the case currently held
+        case .low:    return "low"
+        case .normal: return "normal"
+        case .high:   return "high"
+        }
+    }
+
+    // Comparable needs a single operator; >, <=, >= are derived from it.
+    static func &lt; (lhs: Priority, rhs: Priority) -&gt; Bool {
+        lhs.rawValue &lt; rhs.rawValue   // the raw values define the order
+    }
+}
+
+print(Priority.high)                    // high — via `description`
+print(Priority.allCases.sorted())       // [low, normal, high]
+print(Priority.low &lt; .high)             // true
+
+// Hashable comes free, so an enum makes an excellent dictionary key.
+let weights: [Priority: Int] = [.low: 1, .normal: 5, .high: 9]
+print(weights[.normal] ?? 0)            // 5
+</code></pre>
+
+        <h3 id="unknown-default">@unknown default</h3>
+
+        <p>When you switch over an enum declared in a framework you do not own, the library may add a case in a future version. A plain <code>default</code> would absorb it silently and take the wrong branch; <code>@unknown default</code> asks the compiler to warn you on the next update, while still compiling today.</p>
+
+        <pre><code class="language-swift line-numbers">// `status` comes from another module, so its case list may grow later.
+func describe(_ status: HTTPStatus) -&gt; String {
+    switch status {
+    case .ok:       return "ok"
+    case .created:  return "created"
+    case .moved:    return "moved"
+    case .notFound: return "missing"
+    @unknown default:
+        // Compiles now; a future SDK triggers a warning here so the new case
+        // is not forgotten. It must be the last arm in the switch.
+        return "unrecognised status \(status.rawValue)"
+    }
+}
+
+// For an enum you own there is no need for this: list every case and let the
+// compiler point at each switch that a new case breaks.
+</code></pre>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <p>The two mistakes that cost beginners the most time are confusing raw values with associated values, and reaching for <code>default</code> when the compiler was trying to tell them something useful.</p>
+
+        <h3 id="raw-vs-assoc">Raw Values or Associated Values?</h3>
+
+        <p>The table separates the two mechanisms, which look similar in a declaration and behave nothing alike at run time.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Aspect</th><th>Raw value</th><th>Associated value</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Declared</td>
+              <td>Inside the enum, on the case name.</td>
+              <td>In parentheses on the case, supplied when a value is created.</td>
+            </tr>
+            <tr>
+              <td>Known when</td>
+              <td>At compile time, fixed forever.</td>
+              <td>At run time, and it may differ for every value.</td>
+            </tr>
+            <tr>
+              <td>Type</td>
+              <td>One literal-convertible type shared by all cases.</td>
+              <td>Any type, chosen per case — several payloads per case.</td>
+            </tr>
+            <tr>
+              <td>Uniqueness</td>
+              <td>Raw values must be unique across the enum.</td>
+              <td>No uniqueness rule; two values may carry equal payloads.</td>
+            </tr>
+            <tr>
+              <td>Access</td>
+              <td><code>case.rawValue</code> and <code>init?(rawValue:)</code>.</td>
+              <td>Pattern binding in <code>switch</code>, <code>if case</code>, or <code>guard case</code>.</td>
+            </tr>
+            <tr>
+              <td>Reach for it when</td>
+              <td>You exchange data with codes, JSON, files, or C APIs.</td>
+              <td>You model a state together with the data that state needs.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 id="exhaustive">Exhaustive Matching</h3>
+
+        <p>Three smaller rules round out the chapter: what automatic synthesis asks of your payloads, how to change the payload of a value you already hold, and why a <code>default</code> arm deserves suspicion.</p>
+
+        <pre><code class="language-swift line-numbers">struct Point: Equatable {
+    var x: Int
+    var y: Int
+}
+
+// Equatable is synthesised for an enum with associated values too, as long as
+// EVERY payload type is itself Equatable. Point is, so this compiles.
+enum Shape: Equatable {
+    case dot
+    case circle(radius: Double)
+    case square(Point)
+}
+
+print(Shape.circle(radius: 2) == .circle(radius: 2))                   // true
+print(Shape.square(Point(x: 0, y: 0)) == .square(Point(x: 0, y: 0)))   // true
+
+// final class Flag { }                        // not Equatable
+// enum Marker: Equatable { case flag(Flag) }  // error: synthesis impossible
+
+// A payload is not a stored property, so you cannot assign into it.
+var state = Download.running(progress: 0.5)
+// state.progress = 1.0               // error: no such member
+state = .running(progress: 1.0)      // replace the whole value instead
+</code></pre>
+
+        <p>When a <code>switch</code> will not compile, read the message: "switch must be exhaustive" plus the missing case names is the compiler listing work for you. Adding <code>default</code> silences that list and buys a silent wrong branch the day a new case appears. Handle the case; keep <code>default</code> for genuinely open-ended matching.</p>
+
+        <p>Practice: model a traffic light as an enum with a raw value holding the duration of each phase, add a method that returns the next phase, and let <code>switch</code> prove you handled every case. Then delete one arm and read the error the compiler gives you.</p>
+
+        <p>Enums give you closed sets and data-carrying cases; the next lesson, <a href="/roadmap/swift/protocols.html">Protocols</a>, shows how to state requirements that structs, classes, and enums can all satisfy — the mechanism that lets one function work with many types.</p>
+
+  </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'swift',
+    topicId: 'enums',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

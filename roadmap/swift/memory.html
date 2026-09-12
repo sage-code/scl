@@ -1,0 +1,578 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Swift memory management: automatic reference counting, strong, weak and unowned references, reference cycles, capture lists, deinit, and stack versus heap value semantics.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, swift, memory, arc, retain, release, strong, weak, unowned, reference cycle, capture list, deinit, copy on write">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Swift Memory Management</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="swift-memory">Memory Management</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Swift has no garbage collector. Class instances are kept alive by counting references to them: every new reference adds one, every reference that goes away subtracts one, and the instance is destroyed the moment the count reaches zero. This lesson teaches you to read that count in your head — and to notice the one pattern that breaks it.
+        </div>
+
+        <p>Structs have predictable lifetimes because they live in the scope that created them. Classes do not: an instance outlives the variable that made it whenever anything else still points at it. The bookkeeping that decides this is called <strong>ARC</strong> — Automatic Reference Counting.</p>
+
+        <h2 id="arc">ARC &amp; Reference Counting</h2>
+
+        <p>ARC is a compile-time decision, not a runtime scan. The compiler already knows every place a reference is created, copied, or destroyed, so it inserts a retain before each new reference and a release after each one ends. Nothing sweeps memory in the background, and nothing pauses your program.</p>
+
+        <h3 id="arc-basics">How ARC Counts</h3>
+
+        <p>You never call retain or release yourself; you observe them through the lifetime of the object. The example below prints when an instance appears and when it disappears, so the count is visible.</p>
+
+        <pre><code class="language-swift line-numbers">// A class is the only kind of type with a reference count, so it is the only
+// one that can be observed this way. `final` says "no subclass may change this".
+final class Logger {
+    let name: String
+
+    init(name: String) {
+        self.name = name
+        // Runs when the instance is created — count goes from 0 to 1.
+        print("create \(name)")
+    }
+
+    deinit {
+        // Runs when the count reaches 0. Structs have no deinit at all.
+        print("release \(name)")
+    }
+}
+
+var a: Logger? = Logger(name: "A")   // count 1   -> create A
+var b = a                            // count 2   -> a second holder
+a = nil                              // count 1   -> the object is still alive
+print(b!.name)                       // A         -> proof it survived
+b = nil                              // count 0   -> release A
+</code></pre>
+
+        <p>Two names referred to one object, and the object died only when the <em>last</em> name let go. That is the whole model: the count measures holders, not scope. Leaving a function is simply one way to stop being a holder.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/swift/img/arc-lifecycle.svg" alt="A class instance starts at retain count one, gains and loses holders as references are made and dropped, and is deinitialised when the count returns to zero" width="780" class="img-fluid protect rounded shadow border">
+          <p class="text-secondary small">Figure 1 — the count rises with each new holder and falls with each release; deinit runs exactly when the count reaches zero.</p>
+        </div>
+
+        <h3 id="deinit">Deinit &amp; Object Lifetime</h3>
+
+        <p><code>deinit</code> is the counterpart of <code>init</code>. It takes no arguments, cannot be called directly, and runs once — immediately before the memory is reclaimed. It is the right place to unregister the object somewhere else or to close a resource that ARC itself cannot close.</p>
+
+        <pre><code class="language-swift line-numbers">final class OpenFile {
+    let path: String
+
+    init(path: String) {
+        self.path = path
+        print("open \(path)")
+    }
+
+    func write(_ text: String) {
+        print("write to \(path): \(text)")
+    }
+
+    deinit {
+        // ARC frees the memory, but a file descriptor, a socket, or an observer
+        // registration must be closed by hand. That is what deinit is for.
+        print("close \(path)")
+    }
+}
+
+do {
+    let handle = OpenFile(path: "/tmp/log.txt")
+    handle.write("hello")
+    // `handle` goes out of scope at this closing brace: its reference ends,
+    // the count reaches 0, and deinit runs.
+}
+
+// A reference that is kept elsewhere outlives its scope, which is why lifetime
+// and scope are not the same thing.
+var kept: OpenFile? = OpenFile(path: "/tmp/keep.txt")
+print("still open")                  // this handle has NOT been closed yet
+kept = nil                           // now it closes
+</code></pre>
+
+        <p>Lifetime ends at the last release, not at the closing brace of the function that created the object. When timing matters — closing a file, stopping a timer — do not rely on scope; end the reference explicitly, or use <code>defer</code> for work that must happen when leaving the current scope.</p>
+
+        <h3 id="arc-cost">What ARC Costs</h3>
+
+        <p>Retain and release are cheap but not free, and they happen more often than beginners expect: passing a class instance to a function, storing it in a property, or putting it in an array all count as new references. Knowing where those operations land explains most performance questions about Swift class code.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr>
+              <th>Operation</th>
+              <th>Effect on the count</th>
+              <th>Typical cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Assign to another variable or property</td>
+              <td>+1, released when that holder is overwritten or destroyed</td>
+              <td>Atomic increment; the release happens at the end of the scope</td>
+            </tr>
+            <tr>
+              <td>Store in an array, dictionary, or set</td>
+              <td>+1 per element</td>
+              <td>Counted element by element; removing an element releases it</td>
+            </tr>
+            <tr>
+              <td>Capture strongly in a stored closure</td>
+              <td>+1 for as long as the closure lives</td>
+              <td>The most common source of accidental long lifetimes</td>
+            </tr>
+            <tr>
+              <td>Copy a struct that holds a class reference</td>
+              <td>+1 for the class inside each copy</td>
+              <td>Value semantics on the outside, counted references inside</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>Two consequences follow. First, a struct made only of value types costs nothing extra to copy; a struct holding a class reference does not have that property. Second, because the count is shared state, the increments are atomic — the one place where a value-oriented language pays for thread safety on every reference.</p>
+
+        <h2 id="ownership">Strong, Weak &amp; Unowned References</h2>
+
+        <p>A reference created by a plain assignment is a <strong>strong</strong> reference: it keeps the object alive. That default is what you want almost everywhere, and it is exactly what you must sometimes override, because two objects that hold each other strongly can never be released.</p>
+
+        <h3 id="strong">Strong References</h3>
+
+        <p>Ownership is expressed through strong references. A profile owning its account, an invoice owning its lines, a view owning its model — all are strong, and all mean "while I exist, you exist".</p>
+
+        <pre><code class="language-swift line-numbers">final class Account {
+    let id: String
+    init(id: String) { self.id = id }
+    deinit { print("account \(id) released") }
+}
+
+final class Profile {
+    let account: Account          // strong by default: the profile owns it
+
+    init(account: Account) {
+        self.account = account    // count +1 — the account now has two holders
+    }
+
+    deinit { print("profile released") }
+}
+
+var account: Account? = Account(id: "A-1")            // count 1
+var profile: Profile? = Profile(account: account!)    // count 2
+
+account = nil                      // count 1 — nothing is released
+print(profile!.account.id)         // A-1 — still reachable through the profile
+profile = nil                      // count 0 — "profile released", then "account A-1 released"
+</code></pre>
+
+        <p>Dropping the local name did not destroy the account, because the profile had become a second owner. Ownership is the point of a strong reference: it removes the question "is this still here?" from the caller's mind.</p>
+
+        <h3 id="weak">Weak References</h3>
+
+        <p>A <strong>weak</strong> reference points at an object without keeping it alive. It must be declared <code>var</code> and optional, because ARC sets it to <code>nil</code> automatically the instant the object is destroyed. That auto-nil behaviour is what makes a weak reference safe in one direction of a two-way relationship.</p>
+
+        <pre><code class="language-swift line-numbers">final class Node {
+    let value: Int
+    var children: [Node] = []
+
+    // The link back to the parent must not count as ownership: a strong
+    // `parent` here would create a cycle. `weak` breaks it.
+    weak var parent: Node?
+
+    init(value: Int) { self.value = value }
+}
+
+let root = Node(value: 0)
+let leaf = Node(value: 1)
+leaf.parent = root                  // does NOT raise root's count
+root.children.append(leaf)          // DOES raise leaf's count
+
+print(leaf.parent?.value ?? -1)     // 0 — the parent is alive, so the link works
+print(root.children.count)          // 1 — the child is owned by the parent
+</code></pre>
+
+        <p>Note the asymmetry, and the reason for it: the parent owns its children (strong), while a child merely knows its parent (weak). Trees, graphs, and delegation all use exactly this split. A weak reference can never cause a cycle, and a dangling weak reference is impossible — it becomes <code>nil</code> rather than invalid.</p>
+
+        <h3 id="unowned">Unowned References</h3>
+
+        <p>An <strong>unowned</strong> reference also does not raise the count, but it is not optional: Swift assumes the object is still there. That assumption is safe only when the object's lifetime is a strict superset of the reference's lifetime — a credit card never outliving its customer, a child node never outliving its parent.</p>
+
+        <pre><code class="language-swift line-numbers">final class Customer {
+    let name: String
+    var card: CreditCard?          // strong: the card belongs to the customer
+
+    init(name: String) { self.name = name }
+    deinit { print("customer \(name) released") }
+}
+
+final class CreditCard {
+    let number: Int
+    unowned let owner: Customer    // unowned: a card cannot exist without an owner
+
+    init(number: Int, owner: Customer) {
+        self.number = number
+        self.owner = owner         // count unchanged — a link, not ownership
+    }
+
+    var ownerName: String { owner.name }   // no unwrapping, no optional chaining
+}
+
+var ada: Customer? = Customer(name: "Ada")
+ada!.card = CreditCard(number: 4111, owner: ada!)
+print(ada!.card!.ownerName)        // Ada — reachable both ways, with no cycle
+ada = nil                          // "customer Ada released": the cycle never existed
+</code></pre>
+
+        <p>Both links are one-directional in ownership terms: the customer owns the card, and the card merely refers back to its owner. Reading it as a sentence is the test — "a card always has an owner, and the owner always outlives the card" holds here, so <code>unowned</code> is correct and the non-optional property keeps the code clean.</p>
+
+        <h3 id="choosing">Choosing a Reference Kind</h3>
+
+        <p>The three keywords are not interchangeable styles; each one encodes a claim about lifetimes. Getting the claim wrong shows up as a crash (<code>unowned</code> used after death) or as a leak (an unintended strong cycle), so decide deliberately.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr>
+              <th>Keyword</th>
+              <th>Keeps the object alive?</th>
+              <th>Type must be</th>
+              <th>When it is the right choice</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>(default) strong</td>
+              <td>Yes</td>
+              <td>Anything</td>
+              <td>You own the object, or you simply need it to stay alive</td>
+            </tr>
+            <tr>
+              <td><code>weak</code></td>
+              <td>No — set to <code>nil</code> when the object dies</td>
+              <td>Optional <code>var</code></td>
+              <td>The other object may outlive this one: delegates, back-references</td>
+            </tr>
+            <tr>
+              <td><code>unowned</code></td>
+              <td>No — a trap if the object already died</td>
+              <td>Non-optional</td>
+              <td>Lifetime is guaranteed to be longer; you want to avoid optionals</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>Default to <code>weak</code> when you only need to avoid a cycle, and reach for <code>unowned</code> only when the non-optional access genuinely simplifies the code and the lifetime claim is airtight. If you are unsure, <code>weak</code> fails softly while <code>unowned</code> fails loudly.</p>
+
+        <h2 id="cycles">Reference Cycles</h2>
+
+        <p>A reference cycle is a ring of strong references with no way in from the outside. The count of every object in the ring stays above zero because each member holds the next one, so no <code>deinit</code> ever runs and no memory is ever returned. ARC cannot detect this for you — this is the price of avoiding a tracing collector.</p>
+
+        <h3 id="cycle-basics">A Cycle by Hand</h3>
+
+        <p>The smallest useful cycle is two class instances pointing at each other. Read the example and count the holders of each object; the leak is visible before you run it.</p>
+
+        <pre><code class="language-swift line-numbers">final class Department {
+    let name: String
+    var head: Employee?                  // strong
+
+    init(name: String) { self.name = name }
+    deinit { print("department \(name) released") }
+}
+
+final class Employee {
+    let name: String
+    var department: Department?          // strong — this is the other half of the cycle
+
+    init(name: String) { self.name = name }
+    deinit { print("employee \(name) released") }
+}
+
+var d: Department? = Department(name: "Engineering")   // department count 1
+var e: Employee? = Employee(name: "Ada")               // employee count 1
+
+d?.head = e            // employee count 2 — the department holds the employee
+e?.department = d      // department count 2 — and the employee holds the department
+
+d = nil                // department count 1 — still alive
+e = nil                // employee count 1 — still alive
+// Neither deinit ever prints: the two instances hold each other forever.
+</code></pre>
+
+        <p>The fix is a one-word change: make <code>department</code> in <code>Employee</code> a <code>weak var department: Department?</code>. The employee then knows its department without owning it, the ring is broken, and both <code>deinit</code> methods run. The rule of thumb: in a two-way relationship, exactly one side owns.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/swift/img/retain-cycle.svg" alt="Two instances holding each other strongly keep both retain counts above zero so neither is ever deinitialised, while replacing one side with a weak reference breaks the ring" width="780" class="img-fluid protect rounded shadow border">
+          <p class="text-secondary small">Figure 2 — two strong links form a ring that ARC cannot break; a single weak link on the back-reference turns it into a tree.</p>
+        </div>
+
+        <h3 id="closure-cycles">Cycles in Closures</h3>
+
+        <p>The second classic cycle does not look like a cycle at all, because a closure does not have a visible property pointing back. A closure that captures <code>self</code> strongly, stored in a property of that same object, is a cycle: the object owns the closure, and the closure owns the object.</p>
+
+        <pre><code class="language-swift line-numbers">final class Ticker {
+    var seconds = 0
+    var tick: (() -> Void)?          // the object owns the closure
+
+    func start() {
+        // The closure body mentions `self`, so it captures `self` STRONGLY.
+        // Combined with `tick` above, that is a cycle.
+        tick = { self.seconds += 1 }
+    }
+
+    deinit { print("ticker released") }
+}
+
+var t: Ticker? = Ticker()
+t?.start()
+t = nil
+// Nothing prints. The ticker is still alive because its own property holds a
+// closure that holds the ticker. Use `[weak self]` to break the ring.
+</code></pre>
+
+        <p>The tell-tale sign is a closure stored in a property of the type it captures — event handlers, completion blocks, timers, observers. A closure that is passed and used immediately (like a call to <code>map</code>) is not stored, so it cannot form this cycle.</p>
+
+        <h3 id="capture-lists">Capture Lists</h3>
+
+        <p>A capture list is written in square brackets before the parameter list and decides how each captured value enters the closure. Naming <code>self</code> there changes ownership from strong to weak or unowned and breaks the ring.</p>
+
+        <pre><code class="language-swift line-numbers">final class Ticker {
+    var seconds = 0
+    var tick: (() -> Void)?
+
+    func start() {
+        // [weak self] — self enters as an Optional. If the object died, the
+        // optional chain silently skips the body, so there is nothing to crash.
+        tick = { [weak self] in
+            self?.seconds += 1
+        }
+    }
+}
+
+final class Counter {
+    var value = 0
+    var reported: (() -> Void)?
+
+    func start() {
+        // [unowned self] — no optional to unwrap. Correct only when the closure
+        // cannot outlive the object; it traps if the object is already gone.
+        reported = { [unowned self] in
+            value += 1          // explicit capture also lets us use `value` directly
+        }
+    }
+}
+
+// A capture list can also copy a VALUE at creation time, which is a neat way to
+// freeze a loop variable for use later.
+var handlers: [() -> Int] = []
+for i in 1...3 {
+    handlers.append { [i] in i * 10 }    // each closure keeps its own `i`
+}
+print(handlers.map { $0() })             // [10, 20, 30]
+</code></pre>
+
+        <p>Three uses, one syntax: <code>[weak self]</code> for a reference that may disappear, <code>[unowned self]</code> for one that cannot, and <code>[i]</code> to snapshot a value. When a closure is stored, reach for the capture list first; strong is what you get only by saying nothing.</p>
+
+        <h2 id="values">Value Types &amp; Copy-on-Write</h2>
+
+        <p>Not all memory is managed by counting. Structs, enums, tuples, and the standard collections are value types: they are copied when assigned, and the copy is independent by construction. Understanding where each kind of value lives explains both the performance and the safety of Swift code.</p>
+
+        <h3 id="stack-heap">Stack &amp; Heap</h3>
+
+        <p>A value type is stored where it is used — inline in a local variable, or inside the struct that contains it. A class instance is allocated on the heap and reached through a reference, which is why only class instances need retention counting.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Value type (struct, enum, tuple)</th>
+              <th>Reference type (class, closure)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>What does assignment do?</td>
+              <td>Copies the value; the two variables are independent</td>
+              <td>Copies the reference; both names see one instance</td>
+            </tr>
+            <tr>
+              <td>Who frees the memory?</td>
+              <td>The scope that owns the value</td>
+              <td>ARC, at the last release</td>
+            </tr>
+            <tr>
+              <td>Can it be a cycle?</td>
+              <td>No — value semantics cannot form a ring</td>
+              <td>Yes, through strong references or stored closures</td>
+            </tr>
+            <tr>
+              <td>Can it be mutated from elsewhere?</td>
+              <td>No — mutation is visible only through the local copy</td>
+              <td>Yes — anyone holding the reference shares the state</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>The practical rule this table encodes: prefer structs for data, and use classes only when shared identity, inheritance, or reference counting is genuinely required. Fewer classes means fewer cycles, fewer lifetime questions, and quieter concurrency.</p>
+
+        <h3 id="cow">Copy-on-Write</h3>
+
+        <p>Copying on assignment sounds expensive for an array of a million elements, so Swift's collections use <strong>copy-on-write</strong>: a copy shares the buffer until one side mutates, and only then is the buffer duplicated. The result is value semantics with the performance of a reference.</p>
+
+        <pre><code class="language-swift line-numbers">// Arrays, dictionaries, sets, and strings share storage until one copy is mutated.
+var a = [1, 2, 3]        // one buffer, one owner
+var b = a                // two variables, still ONE buffer — nothing was copied
+b.append(4)              // b is about to change, so it takes its own copy first
+
+print(a)                 // [1, 2, 3] — untouched, as value semantics promises
+print(b)                 // [1, 2, 3, 4]
+
+// Passing an array to a function is likewise cheap: it is shared, not copied.
+func total(_ numbers: [Int]) -> Int {
+    numbers.reduce(0, +)             // read-only: the buffer is never duplicated
+}
+print(total(a))                      // 6
+</code></pre>
+
+        <p>You can build the same behaviour for your own struct: keep the shared part in a class, and duplicate it only when the struct is no longer the sole owner of that object.</p>
+
+        <pre><code class="language-swift line-numbers">final class Storage {
+    var values: [Int]
+    init(values: [Int]) { self.values = values }
+}
+
+struct IntBox {
+    private var box: Storage
+
+    init(_ values: [Int]) { box = Storage(values: values) }
+
+    mutating func append(_ value: Int) {
+        // `isKnownUniquelyReferenced` is true only while this struct is the sole
+        // owner of the storage object. If a copy exists, duplicate the storage
+        // first so the other copy keeps its own values.
+        if !isKnownUniquelyReferenced(&amp;box) {
+            box = Storage(values: box.values)     // right side is read before the assign
+        }
+        box.values.append(value)
+    }
+
+    var count: Int { box.values.count }
+}
+
+var first = IntBox([1, 2, 3])
+var second = first                       // shares the storage for now
+second.append(4)                         // second is no longer the unique owner -> copy
+
+print(first.count)                       // 3
+print(second.count)                      // 4
+</code></pre>
+
+        <p>This is the pattern behind the standard library's containers, and it is the reason a struct containing only value types can be copied freely while a struct containing shared mutable state needs a plan. If you write <code>isKnownUniquelyReferenced</code> yourself, every mutating accessor must check it — one missed check silently shares state between copies.</p>
+
+        <h2 id="pitfalls">Pitfalls &amp; Practice</h2>
+
+        <p>Most memory bugs are not exotic; they are one of a handful of patterns that look harmless in a diff. Learn to recognise them by shape, because the compiler will not warn you about any of them.</p>
+
+        <h3 id="pitfall-list">Common Pitfalls</h3>
+
+        <pre><code class="language-swift line-numbers">// 1. Storing a closure that touches `self` without a capture list.
+//    If that closure lives in a property of `self`, you built a cycle.
+// controller.onDone = { self.finish() }           // leaks
+controller.onDone = { [weak self] in self?.finish() }   // fixed
+
+// 2. A delegate held strongly. Delegates are almost always back-references:
+//    the object delegate is owned by someone else, so the link must be weak.
+weak var delegate: RouterDelegate?
+
+// 3. Two-way "parent" links left strong by accident. One side owns the other;
+//    choose which one, and make the other weak or unowned.
+
+// 4. Expecting deinit to run at a particular moment. It runs at the last
+//    release, which may be much later than the end of the scope — or never,
+//    if a cycle exists. Use `defer` when the timing must be guaranteed.
+
+// 5. Assuming a copied struct is fully independent when it holds a class.
+//    struct Wrapper { var cache: Cache }      // the copy shares the class
+//    var w2 = w1                              // mutating w2.cache affects w1 too
+
+// 6. Caching without a policy. A dictionary that only ever grows is a leak
+//    even though ARC is working perfectly — use a size limit or weak keys.
+</code></pre>
+
+        <p>Notice that only the last item is about the language. The rest are design decisions: who owns what, and for how long. Write the answer to that question down next to the property, and the leak disappears.</p>
+
+        <h3 id="memory-lab">Practice Lab</h3>
+
+        <p>Try these on a playground (or in the <a href="/roadmap/swift/demo_examples.html">Lab Examples</a>) — each one is short enough to run in a single file, and each one teaches a different half of the model.</p>
+
+        <ol>
+          <li><strong>Count the holders.</strong> Write three classes that log creation and destruction, link them so that the middle one is owned by both others, and predict the order of the log lines before running it.</li>
+          <li><strong>Break a ring.</strong> Build the <code>Department</code>/<code>Employee</code> cycle above, prove the leak by watching for the missing <code>deinit</code> output, then fix it with a single <code>weak</code> and prove the fix.</li>
+          <li><strong>Closure ownership.</strong> Give a class a stored closure that captures <code>self</code>. Run it, then change the closure to <code>[weak self]</code> and compare what the program prints at teardown.</li>
+          <li><strong>Own your COW.</strong> Implement <code>IntBox</code> with <code>isKnownUniquelyReferenced</code>, then remove the uniqueness check and show that two boxes now share state.</li>
+          <li><strong>Measure the copy.</strong> Create an array of one hundred thousand integers, assign it to a second variable, and reason about why the assignment is instant while the first <code>append</code> costs time.</li>
+        </ol>
+
+        <p>Reference counting is the foundation of everything that comes next. Phase 4 continues with <a href="/roadmap/swift/concurrency.html">Concurrency</a>, where the same ownership rules reappear as the question every concurrent design must answer: which piece of state belongs to which thread.</p>
+
+  </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'swift',
+    topicId: 'memory',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

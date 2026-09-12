@@ -21,7 +21,6 @@ class TopicLoader {
     this.treeNodesById = new Map();
     this.treeNodesBySection = new Map();
     this.activeSectionId = '';
-    this._navIdCounter = 0;
     this._lastVisibleSectionId = '';
     this._lastSavedSectionId = '';
     this._lastSavedCollapsedSignature = '';
@@ -57,18 +56,16 @@ class TopicLoader {
     return `node-${String(sectionKey).replace(/[^a-zA-Z0-9_-]/g, '_')}-${path}`;
   }
 
-  createProgressControl(link, sectionKey) {
-    const progressControl = document.createElement('input');
-    progressControl.type = 'checkbox';
-    progressControl.className = 'nav-progress-checkbox';
-    progressControl.tabIndex = -1;
-    progressControl.setAttribute('aria-hidden', 'true');
-    progressControl.dataset.isTrackable = 'true';
-    progressControl.dataset.link = link;
-    progressControl.dataset.sectionKey = sectionKey;
-    this._navIdCounter += 1;
-    progressControl.id = `nav-${this.topicId}-${this._navIdCounter}`;
-    return progressControl;
+  createTitleIcon() {
+    const titleIcon = document.createElement('span');
+    titleIcon.className = 'nav-title-icon';
+    titleIcon.innerHTML =
+      '<svg class="bi-nav-title" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">' +
+      '<rect x="1.5" y="3" width="13" height="2.6" rx="0.6"></rect>' +
+      '<rect x="1.5" y="7.6" width="9" height="1.7" rx="0.5" opacity="0.62"></rect>' +
+      '<rect x="1.5" y="11.2" width="6" height="1.7" rx="0.5" opacity="0.62"></rect>' +
+      '</svg>';
+    return titleIcon;
   }
 
   createToggleButton(nodeId, expanded) {
@@ -137,7 +134,6 @@ class TopicLoader {
 
       const navItems = await response.json();
       bookmarkList.innerHTML = '';
-      this._navIdCounter = 0;
       this.renderNavItems(navItems, bookmarkList, 0, 'root');
       this.decorateSidebarTree(bookmarkList);
       this.removeSidebarChrome();
@@ -167,12 +163,16 @@ class TopicLoader {
       const sectionKey = link.slice(1);
       const nodeId = this.buildNodeId(sectionKey, nodePath);
       const expanded = hasChildren ? this.isTreeLevelExpandedByDefault(level) : false;
+      const isTitle = item.role === 'title';
 
       const li = document.createElement('li');
-      li.className = 'nav-item mb-2 nav-tree-item';
+      li.className = `nav-item mb-2 nav-tree-item${isTitle ? ' nav-title-item' : ''}`;
       li.dataset.nodeId = nodeId;
       li.dataset.sectionKey = sectionKey;
       li.dataset.treeLevel = String(level);
+      if (isTitle) {
+        li.dataset.role = 'title';
+      }
       if (hasChildren) {
         li.dataset.hasChildren = 'true';
       }
@@ -184,11 +184,11 @@ class TopicLoader {
 
       if (hasChildren) {
         row.appendChild(this.createToggleButton(nodeId, expanded));
+      } else if (isTitle) {
+        row.appendChild(this.createTitleIcon());
       } else {
         row.appendChild(this.createFileIcon());
       }
-
-      row.appendChild(this.createProgressControl(link, sectionKey));
 
       const navLink = document.createElement('a');
       navLink.href = link;
@@ -281,14 +281,8 @@ class TopicLoader {
       row.dataset.nodeId = li.dataset.nodeId;
       row.dataset.sectionKey = sectionKey;
 
-      let hiddenProgress = row.querySelector('input[data-is-trackable="true"]');
-      if (!hiddenProgress) {
-        hiddenProgress = this.createProgressControl(`#${sectionKey}`, sectionKey);
-        row.insertBefore(hiddenProgress, row.firstChild);
-      } else {
-        hiddenProgress.className = 'nav-progress-checkbox';
-        hiddenProgress.dataset.link = `#${sectionKey}`;
-        hiddenProgress.dataset.sectionKey = sectionKey;
+      if (li.dataset.role === 'title') {
+        li.classList.add('nav-title-item');
       }
 
       const childList = li.querySelector(':scope > ul');
@@ -313,8 +307,9 @@ class TopicLoader {
           }
         }
       } else {
+        const hasTitleIcon = !!row.querySelector('.nav-title-icon');
         let fileIcon = row.querySelector('.nav-file-icon');
-        if (!fileIcon) {
+        if (!fileIcon && !hasTitleIcon) {
           fileIcon = this.createFileIcon();
           row.insertBefore(fileIcon, row.firstChild);
         }
@@ -354,7 +349,6 @@ class TopicLoader {
       const level = Number.parseInt(li.dataset.treeLevel || '0', 10) || 0;
       const childList = li.querySelector(':scope > .nav-tree-children');
       const toggle = row.querySelector('.nav-tree-toggle');
-      const progressControl = row.querySelector('.nav-progress-checkbox');
       const parentList = li.parentElement;
       const parentNodeId =
         parentList && parentList !== bookmarkList
@@ -370,7 +364,6 @@ class TopicLoader {
         link,
         toggle,
         childList,
-        progressControl,
         parentNodeId,
         hasChildren: !!childList
       };
@@ -403,11 +396,6 @@ class TopicLoader {
 
       const sectionId = link.dataset.sectionKey || '';
       this.activateSection(sectionId, { scrollPage: false, focusLink: false, persist: true });
-      const node = this.treeNodesBySection.get(sectionId);
-      if (node && node.progressControl && !node.progressControl.checked) {
-        node.progressControl.checked = true;
-        node.progressControl.dispatchEvent(new Event('change', { bubbles: true }));
-      }
     });
 
     bookmarkList.addEventListener('keydown', (event) => {
@@ -611,7 +599,22 @@ class TopicLoader {
       return window.sageCourseIdForLab(this.labId, this.roadmapCourseId);
     }
 
-    return this.labId;
+    // Labs no longer load lab-progress-bridge.js, so fall back to the same
+    // legacy lab-id -> course-id map it exposed (shared/legacy labs only).
+    const legacyCourseIds = {
+      engineering: 'cse-main',
+      cse: 'cse-main',
+      dba: 'dba-main',
+      dsa: 'dsa-main',
+      dsl: 'dsl-main',
+      hpc: 'HPC-main',
+      osd: 'osd-main',
+      pgp: 'pgp-main',
+      sml: 'sml-main',
+      tek: 'tek-main'
+    };
+    const labKey = String(this.labId || '').toLowerCase();
+    return legacyCourseIds[labKey] || this.labId;
   }
 
   getLocalNavStateKey() {
@@ -905,15 +908,6 @@ class TopicLoader {
       }
     }
 
-    if (typeof initializeProgressTracking === 'function') {
-      initializeProgressTracking({
-        labId: this.labId,
-        topicId: this.topicId,
-        roadmapCourseId: this.roadmapCourseId,
-        checkboxSelector: '#bookmark-list input[data-is-trackable="true"]'
-      });
-    }
-
     await this.restoreNavigationState();
     this.startLastReadTracking();
 
@@ -923,14 +917,6 @@ class TopicLoader {
     });
 
     this.initializeMobileToggle();
-
-    if (window.sageStartTopicReadTracking) {
-      window.sageStartTopicReadTracking({
-        labId: this.labId,
-        topicId: this.topicId,
-        roadmapCourseId: this.roadmapCourseId
-      });
-    }
   }
 }
 

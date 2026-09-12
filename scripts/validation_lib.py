@@ -14,6 +14,11 @@ from pathlib import Path
 H1_RE = re.compile(r"<h1\b", re.IGNORECASE)
 H2_RE = re.compile(r"<h2\b", re.IGNORECASE)
 
+# Marker on the first sidebar entry: the page-title leaf that points at the
+# page's <h1>. Mirrored in scripts/tools/gen_topic_sidebars.py (TITLE_ROLE),
+# which is the tool that emits it.
+TITLE_ROLE = "title"
+
 
 def read_text(path: Path) -> str:
     """Read a file leniently; encoding issues surface as content checks, not crashes."""
@@ -39,6 +44,13 @@ def sidebar_issues(data, rel: str) -> list:
       fails: it breaks tree navigation in assets/js/topic-loader.js.
     - Missing "title" only warns: topic-loader.js falls back to a formatted
       section name (item.title || this.formatTopicName(sectionKey)).
+    - The FIRST entry should be the page-title leaf
+      `{ "title": ..., "link": "#<h1-id>", "role": "title" }`
+      pointing at the page's <h1> (manual/ARCHITECTURE.md §"Topic sidebar JSON").
+      A missing one warns — content debt, backfillable by
+      scripts/tools/gen_topic_sidebars.py. A present but malformed one fails:
+      topic-loader.js only renders '#'-anchored leaves, so a title leaf without
+      an anchor (or with children) would be dead navigation.
     """
     issues: list = []
 
@@ -61,6 +73,19 @@ def sidebar_issues(data, rel: str) -> list:
             if isinstance(child, dict) and "link" not in child:
                 issues.append(("fail", f"{rel}: sidebar child missing 'link'"))
             walk(child, depth + 1)
+
+    if data:
+        first = data[0]
+        if not (isinstance(first, dict) and first.get("role") == TITLE_ROLE):
+            # Covers both a sidebar with no title link at all and a legacy title
+            # link that predates the marker — same fix for either: add the tag.
+            issues.append(
+                ("warn", f"{rel}: first sidebar entry is not tagged as the page-title leaf ('role': '{TITLE_ROLE}')")
+            )
+        elif first.get("children") is not None:
+            issues.append(("fail", f"{rel}: page-title leaf must not carry 'children'"))
+        elif not str(first.get("link", "")).startswith("#"):
+            issues.append(("fail", f"{rel}: page-title leaf needs a '#' anchor link"))
 
     for entry in data:
         walk(entry, 0)

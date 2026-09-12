@@ -1,0 +1,390 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Swift generics: generic functions and types, type parameters, constraints with where clauses, associated types, conditional conformance, and choosing between generics and protocols.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, swift, generics, type parameter, constraint, where clause, associated type, conditional conformance, opaque">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Swift Generics</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="swift-generics">Generics</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Generics let one piece of code work with many types while keeping full type safety. You write the algorithm once with a <strong>type parameter</strong> standing in for the type, and the compiler produces a specialised version that is as fast as hand-written code — no boxing, no casts.
+        </div>
+
+        <p>This lesson builds generic functions and types, states what a type parameter must be able to do, and ends with the rule that decides between a generic and a protocol.</p>
+
+        <h2 id="basics">Generic Functions &amp; Types</h2>
+
+        <p>A type parameter is a placeholder written in angle brackets after the name. Inside the body it behaves like a real type: you can store it, return it, and pass it on — but you cannot assume anything the compiler has not been told.</p>
+
+        <h3 id="generic-func">Generic Functions</h3>
+
+        <p>A generic function declares its type parameter in <code>&lt;…&gt;</code> right after the function name. Swift infers that parameter from the arguments, so callers never see the angle brackets at all.</p>
+
+        <pre><code class="language-swift line-numbers">// `T` stands for whatever type the caller supplies: one body, every type.
+func firstOrNil&lt;T&gt;(_ items: [T]) -&gt; T? {
+    items.isEmpty ? nil : items[0]      // `T` is only stored and returned, never assumed
+}
+
+print(firstOrNil([1, 2, 3]) ?? 0)       // 1   — T inferred as Int
+print(firstOrNil(["a", "b"]) ?? "-")    // a   — T inferred as String
+
+// The duplication this replaces: one copy per element type, identical bodies.
+func firstInt(_ items: [Int]) -&gt; Int? { items.isEmpty ? nil : items[0] }
+func firstString(_ items: [String]) -&gt; String? { items.isEmpty ? nil : items[0] }
+
+// Inference works from the arguments; an explicit instantiation is also legal.
+let numbers = [10, 20]
+print(firstOrNil(numbers) ?? 0)             // 10 — inferred
+print(firstOrNil&lt;Double&gt;([1.5]) ?? 0)       // 1.5 — explicit type argument
+</code></pre>
+
+        <h3 id="generic-type">Generic Types</h3>
+
+        <p>The same placeholder may be attached to a struct, class, or enum. Every use of the type fixes the parameter to one concrete type, so <code>Stack&lt;Int&gt;</code> and <code>Stack&lt;String&gt;</code> are two different types generated from one source.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/swift/img/generic-substitution.svg" alt="One generic Stack type produces Stack of Int and Stack of String when the type parameter is fixed" width="780" class="img-fluid protect rounded shadow border">
+          <p class="text-secondary small">Figure 1 — one generic definition, one concrete type per substitution; a constraint narrows which types are allowed to be substituted at all.</p>
+        </div>
+
+        <pre><code class="language-swift line-numbers">// A generic type stores values whose type is fixed when the type is used.
+struct Stack&lt;Element&gt; {
+    private var storage: [Element] = []     // the array is generic as well
+
+    // `mutating` because Stack is a struct: push changes the value itself.
+    mutating func push(_ item: Element) {
+        storage.append(item)
+    }
+
+    // Returning an optional keeps "the stack may be empty" honest.
+    mutating func pop() -&gt; Element? {
+        storage.popLast()
+    }
+
+    var isEmpty: Bool { storage.isEmpty }
+    var count: Int { storage.count }
+}
+
+var ints = Stack&lt;Int&gt;()            // Element is now Int, everywhere in this instance
+ints.push(1)
+ints.push(2)
+print(ints.pop() ?? 0)             // 2
+print(ints.count)                  // 1
+
+var words = Stack&lt;String&gt;()        // a separate type, from the same source
+words.push("swift")
+print(words.pop() ?? "-")          // swift
+
+// print(ints.push("no"))          // error: a String is not an Int
+</code></pre>
+
+        <h3 id="naming">Type Parameters &amp; Naming</h3>
+
+        <p>The compiler does not care about the name of a type parameter, but your reader does. Use a single capital letter for "any type", and a descriptive name once the parameter has a role in the design.</p>
+
+        <pre><code class="language-swift line-numbers">// T and U: plain "any type" parameters, used when the function is generic in
+// the truest sense — it works for everything.
+func swapped&lt;T, U&gt;(_ pair: (T, U)) -&gt; (U, T) {
+    (pair.1, pair.0)
+}
+print(swapped((1, "one")))         // ("one", 1)
+
+// Descriptive names describe the ROLE the value plays in the type.
+struct Pair&lt;Key, Value&gt; {
+    var key: Key
+    var value: Value
+}
+
+let entry = Pair(key: "age", value: 30)
+print(entry.value)                 // 30 — Value is Int here, Key is String
+
+// Two parameters of the same name mean the SAME type — this is how a function
+// states that both arguments must match.
+func firstMatch&lt;T: Equatable&gt;(_ items: [T], lookingFor target: T) -&gt; T? {
+    items.first { $0 == target }   // `==` is legal only because of the constraint
+}
+print(firstMatch([1, 2, 3], lookingFor: 2) ?? 0)   // 2
+</code></pre>
+
+        <h2 id="constraints">Constraints</h2>
+
+        <p>A type parameter starts out knowing nothing. A constraint tells the compiler what it must be able to do, which is what unlocks operators, comparisons, and generic algorithms. Constraints are the price of using a capability, and they should be paid only where needed.</p>
+
+        <h3 id="where-clause">Stating Requirements</h3>
+
+        <p>The shorthand form puts the requirement after a colon: <code>&lt;T: Numeric&gt;</code>. The longer <code>where</code> clause states a requirement after the signature, which is the only readable way to express several conditions at once.</p>
+
+        <pre><code class="language-swift line-numbers">// The constraint is what makes `+` and the starting zero legal.
+func total&lt;T: Numeric&gt;(_ items: [T]) -&gt; T {
+    items.reduce(0, +)
+}
+
+print(total([1, 2, 3]))          // 6
+print(total([1.5, 2.5]))         // 4.0
+// print(total(["a"]))           // error: String does not conform to Numeric
+
+// The same requirement written with a `where` clause.
+func largest&lt;T&gt;(_ items: [T]) -&gt; T? where T: Comparable {
+    items.max()                  // `>` exists because of the constraint
+}
+print(largest([3, 9, 4]) ?? 0)   // 9
+
+// Several conditions at once — where the `&lt;T: ...&gt;` form stops being readable.
+// Here each element of an array must itself be a Collection of Equatable values.
+func firstRepeated&lt;C&gt;(_ list: [C]) -&gt; C.Element? where C: Collection, C.Element: Equatable {
+    for item in list {
+        if list.filter({ $0.contains(item) }).count &gt; 1 { return item }
+    }
+    return nil
+}
+</code></pre>
+
+        <p>Do not add a constraint you never use. Each one removes types from the set that can call your function, so an unconstrained <code>T</code> is strictly more reusable — add <code>Equatable</code> the moment you write <code>==</code>, and not one line earlier.</p>
+
+        <h3 id="associatedtype">Associated Types</h3>
+
+        <p>A protocol cannot have a plain type parameter, so it declares an <code>associatedtype</code> instead: a named role that each conforming type fills in with a concrete type. Inside the protocol, that role behaves like any other type.</p>
+
+        <pre><code class="language-swift line-numbers">// `Item` is a role, not a concrete type: the conforming type decides.
+protocol Container {
+    associatedtype Item
+
+    mutating func append(_ item: Item)
+    var count: Int { get }
+    subscript(index: Int) -&gt; Item { get }
+}
+
+// A generic type fills the role with its own type parameter.
+struct Stack&lt;Element&gt;: Container {
+    private var storage: [Element] = []
+
+    mutating func append(_ item: Element) { storage.append(item) }
+
+    var count: Int { storage.count }
+
+    subscript(index: Int) -&gt; Element { storage[index] }
+}
+
+// A generic function can now accept ANY container and still know the element
+// type: `C.Item` is spelled out at the call site's type.
+func firstItem&lt;C: Container&gt;(_ container: C) -&gt; C.Item? {
+    container.count &gt; 0 ? container[0] : nil
+}
+
+var stack = Stack&lt;Int&gt;()
+stack.append(7)
+print(firstItem(stack) ?? 0)      // 7 — Item was inferred as Int from Element
+
+// Arrays already conform to an equivalent protocol, so the same function works
+// on them without any change.
+print(firstItem([1, 2, 3]) ?? 0)  // 1
+</code></pre>
+
+        <h3 id="same-type">Same-Type Constraints</h3>
+
+        <p>Conformance says "must be able to". A same-type constraint says "must be exactly this, and the same as that other one". Written with <code>==</code>, it ties two type parameters together and is the tool for functions that combine two different generic types.</p>
+
+        <pre><code class="language-swift line-numbers">// A.Item == B.Item requires the two containers to hold the SAME element type,
+// while the container types themselves are free to differ.
+func copies&lt;A, B&gt;(_ source: A, into destination: B) -&gt; Bool
+    where A: Container, B: Container, A.Item == B.Item {
+    source.count &lt;= destination.count       // only counts are compared here
+}
+
+var stack = Stack&lt;Int&gt;()
+stack.append(1)
+
+print(copies(stack, into: [1, 2, 3]))       // true — Stack&lt;Int&gt;.Item == Int
+// print(copies(stack, into: ["a"]))        // error: Int is not String
+
+// Inside an extension, `Self` may carry the constraint instead.
+extension Stack where Self: Container, Element: Equatable {
+    func contains(_ element: Element) -&gt; Bool {
+        storage.contains(element)           // `==` is available for Element now
+    }
+}
+print(stack.contains(1))                    // true
+</code></pre>
+
+        <h2 id="extending">Extending Generic Types</h2>
+
+        <p>Generic types are extended like any other, but the extension may declare conditions. That is how a generic type gains a capability only for the substitutions where the capability makes sense — the feature the standard library uses to make arrays of equatable elements equatable.</p>
+
+        <h3 id="conditional-ext">Conditional Conformance</h3>
+
+        <p>A conditional extension adds a protocol conformance that exists only when the type parameter satisfies a further condition. The conformance appears and disappears with the substitution, so unsupported cases simply do not compile.</p>
+
+        <pre><code class="language-swift line-numbers">// The extension lives in the same file as Stack, so the private storage is
+// reachable; that is the usual arrangement for a generic type and its extensions.
+extension Stack: Equatable where Element: Equatable {
+    static func == (lhs: Stack&lt;Element&gt;, rhs: Stack&lt;Element&gt;) -&gt; Bool {
+        lhs.storage == rhs.storage          // arrays of Equatable compare element-wise
+    }
+}
+
+var a = Stack&lt;Int&gt;()
+a.push(1)
+var b = Stack&lt;Int&gt;()
+b.push(1)
+print(a == b)                               // true
+
+// Stack of a non-Equatable element has no `==` at all: the conformance is
+// simply absent, and the compiler says so at the call site.
+// final class Blob { }
+// Stack&lt;Blob&gt;() == Stack&lt;Blob&gt;()            // error: no `==` for this substitution
+</code></pre>
+
+        <h3 id="specialized">Specialized Extensions</h3>
+
+        <p>An extension may also add members for one particular substitution. The capability exists only where it is meaningful, which keeps the generic type small without giving up convenience.</p>
+
+        <pre><code class="language-swift line-numbers">// Extra members only where the element can be ordered.
+extension Stack where Element: Comparable {
+    var maximum: Element? { storage.max() }
+}
+
+// Extra members for one concrete substitution — occasionally worth its weight.
+extension Stack where Element == String {
+    func joined(separator: String = " ") -&gt; String {
+        storage.joined(separator: separator)
+    }
+}
+
+var numbers = Stack&lt;Int&gt;()
+numbers.push(3)
+numbers.push(9)
+print(numbers.maximum ?? 0)          // 9
+// Stack&lt;Bool&gt;() has no `maximum`: Bool is not Comparable
+
+var words = Stack&lt;String&gt;()
+words.push("swift")
+words.push("is")
+words.push("fast")
+print(words.joined())                // swift is fast
+        <h2 id="design">Generics in Practice</h2>
+
+        <p>You now have four ways to write code that works with more than one type. They are not interchangeable: each one trades flexibility against cost in a different way, and the table is the shortest summary of that trade.</p>
+
+        <h3 id="protocol-or-generic">Generic, any, or Concrete?</h3>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Approach</th><th>What it costs</th><th>Use it when</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Concrete type</td>
+              <td>Nothing — the simplest code to read and debug.</td>
+              <td>Only one type will ever be used.</td>
+            </tr>
+            <tr>
+              <td>Generic parameter <code>&lt;T: P&gt;</code></td>
+              <td>No box; one specialised implementation per type, so build time and code size grow.</td>
+              <td>The algorithm is identical for every conforming type.</td>
+            </tr>
+            <tr>
+              <td><code>any P</code> (existential)</td>
+              <td>A box and a witness-table lookup per call; the value is copied into the box.</td>
+              <td>Values of several conforming types must be stored together.</td>
+            </tr>
+            <tr>
+              <td><code>some P</code> (opaque)</td>
+              <td>No box, but the type is fixed once and hidden from callers.</td>
+              <td>A function returns one internal type you prefer not to expose.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>Start concrete. Move to a generic parameter when a second type appears. Reach for <code>any</code> only when you genuinely must mix types in one collection or one stored property.</p>
+
+        <h3 id="pitfalls">Common Pitfalls</h3>
+
+        <pre><code class="language-swift line-numbers">// 1. An unconstrained type parameter supports no operations. You cannot add,
+//    compare, or print it — add the smallest constraint that enables the code.
+
+// 2. Every constraint shrinks the set of types that can call the function.
+//    Write `==` before you write `Equatable`, never the other way around.
+
+// 3. `some` names exactly ONE concrete type, so two return paths must agree.
+//    Use `any` when the concrete type genuinely varies at run time.
+
+// 4. A generic type cannot be used with its parameters unfixed:
+// var stack = Stack()               // error: generic parameter 'Element' not inferred
+var stack: Stack&lt;Int&gt; = Stack()      // fine: the annotation supplies the type
+
+// 5. Prefer a generic parameter to `Any` plus a downcast: `Any` discards type
+//    safety, while a generic keeps it and is usually just as fast.
+</code></pre>
+
+        <p>Practice: write a generic <code>minMax&lt;T: Comparable&gt;(_:)</code> that returns both the smallest and the largest element of an array as a labelled tuple. Then add a conditional extension so your <code>Stack</code> conforms to <code>CustomStringConvertible</code> only when <code>Element</code> does, and check that <code>print(stack)</code> works for <code>Stack&lt;Int&gt;</code> but not for a stack of plain classes.</p>
+
+        <p>Generics complete the type system: value and reference types, enums, protocols, and type parameters. Phase 4 turns to the runtime — <a href="/roadmap/swift/memory.html">Memory Management</a> explains how ARC keeps class instances alive, which is what decides when a <code>deinit</code> finally runs.</p>
+
+  </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'swift',
+    topicId: 'generics',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,301 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Swift strings: creation, interpolation, mutability, Unicode, indices, and common string operations.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, swift, strings, interpolation, unicode, substring">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Swift Strings</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="swift-strings">Strings</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          In Swift a <code>String</code> is a <strong>value type</strong> built from Unicode <em>grapheme clusters</em>, not raw bytes. That design makes text handling correct for every human language — at the cost of a few habits carried over from C or Java.
+        </div>
+
+        <p>This lesson covers how to build strings, embed values, mutate them safely, and work with characters, indices, and substrings.</p>
+
+        <h2 id="creation">Creating Strings</h2>
+
+        <p>Strings are created from literals, from interpolation, from other strings, or from a repeat count. The literal syntax is the one you will use constantly.</p>
+
+        <h3 id="literals">String Literals</h3>
+
+        <p>A string literal is text surrounded by double quotes. Escape sequences let you embed characters that cannot be typed literally.</p>
+
+        <pre><code class="language-swift line-numbers">let plain = "Hello, Swift"        // ordinary literal
+let escaped = "Line 1\nLine 2"    // \n is a newline escape
+let quote = "She said \"hi\""     // \" embeds a double quote
+let empty = ""                    // empty but valid
+
+print(plain)                      // prints: Hello, Swift
+print(empty.isEmpty)              // prints: true
+</code></pre>
+
+        <h3 id="multiline">Multiline Strings</h3>
+
+        <p>Triple quotes create a multiline string. The closing delimiter's indentation decides how much leading whitespace is stripped from every line.</p>
+
+        <pre><code class="language-swift line-numbers">let poem = """
+    Roses are red,
+    violets are blue.
+    """
+print(poem)                       // prints two lines without the indentation
+</code></pre>
+
+        <h3 id="raw">Raw Strings</h3>
+
+        <p>Wrapping the literal in <code>#</code> disables escape sequences, which is convenient for regular expressions, Windows paths, and LaTeX.</p>
+
+        <pre><code class="language-swift line-numbers">let path = #"C:\Users\dev\file.txt"#   // backslashes stay literal
+
+// #...# raw strings combine with interpolation by adding the same number of hashes
+let name = "Ada"
+let rawInterp = #"Hello \#(name)"#     // \#(...) interpolates inside a raw string
+print(path)
+print(rawInterp)                       // prints: Hello Ada
+</code></pre>
+
+        <h2 id="interpolation">String Interpolation</h2>
+
+        <p>Interpolation embeds the textual form of a value directly inside a literal, using the <code>\( … )</code> syntax. It is more readable than manual concatenation and works with any type.</p>
+
+        <h3 id="basic">Embedding Values</h3>
+
+        <p>Anything that can be printed can be interpolated — not just names, but whole expressions.</p>
+
+        <pre><code class="language-swift line-numbers">let name = "Ada"
+let age = 36
+
+let greeting = "Hello, \(name)! You are \(age)."   // names
+let calc = "2 + 3 = \(2 + 3)"                      // an expression is allowed
+
+print(greeting)                                    // prints: Hello, Ada! You are 36.
+print(calc)                                        // prints: 2 + 3 = 5
+</code></pre>
+
+        <h3 id="format">Formatting Numbers</h3>
+
+        <p>Interpolation uses a type's default description. When you need fixed decimals or zero padding, use <code>String(format:)</code> from Foundation.</p>
+
+        <pre><code class="language-swift line-numbers">import Foundation
+
+let pi = 3.14159
+print(String(format: "%.2f", pi))      // prints: 3.14 — two decimals
+
+let n = 42
+print(String(format: "%04d", n))       // prints: 0042 — zero-padded to width 4
+</code></pre>
+
+        <h2 id="mutability">Mutating &amp; Concatenating</h2>
+
+        <p>A <code>String</code> declared with <code>var</code> is mutable; one declared with <code>let</code> is frozen. Concatenation and append are <em>mutating</em> operations, so they require a variable.</p>
+
+        <h3 id="concat">Concatenation &amp; Append</h3>
+
+        <p>Use <code>+=</code> to join two strings and <code>append(_:)</code> to add a character or string to the end of an existing value.</p>
+
+        <pre><code class="language-swift line-numbers">var message = "Hello"
+message += ", world"          // concatenation with +=
+message.append("!")           // append a Character or a String
+print(message)                // prints: Hello, world!
+print(message.count)          // prints: 13 — grapheme count, not byte count
+</code></pre>
+
+        <h3 id="varlet">var vs let Strings</h3>
+
+        <p>Choosing <code>let</code> for text that never changes prevents accidental mutation and lets the compiler share the storage instead of copying it.</p>
+
+        <pre><code class="language-swift line-numbers">let fixed = "cannot change"
+// fixed += "!"              // ❌ error: cannot use mutating member on immutable value
+
+var growing = "can change"
+growing += "!"                // fine
+print(fixed, growing)         // prints: cannot change can change!
+</code></pre>
+
+        <h2 id="unicode">Characters &amp; Unicode</h2>
+
+        <p>Swift treats a string as a collection of <em>characters</em>, where one character is a full grapheme cluster. This is why <code>count</code> returns the number of things a human would call characters, not the number of bytes or scalars.</p>
+
+        <h3 id="characters">Characters</h3>
+
+        <p>Iterating a string yields <code>Character</code> values. Build a <code>Character</code> from a single-element string literal, and convert between the two types explicitly.</p>
+
+        <pre><code class="language-swift line-numbers">let word = "Swift"
+for ch in word {                    // each step yields a Character
+    print(ch, terminator: " ")      // prints: S w i f t
+}
+print()                             // finish the line
+
+let first = word.first ?? "?"       // Optional&lt;Character&gt; → "S"
+let asString = String(first)        // Character → String
+print(asString)                     // prints: S
+</code></pre>
+
+        <h3 id="grapheme">Grapheme Clusters</h3>
+
+        <p>Some visible characters are built from several Unicode scalars joined by combining marks. Swift counts the visible result as a single character, which avoids splitting text mid-symbol.</p>
+
+        <pre><code class="language-swift line-numbers">let flag = "🇷🇴"                    // two regional indicators, ONE character
+let family = "👨‍👩‍👧"                 // several scalars joined, ONE character
+let accent = "e\u{301}"             // "e" + combining acute → é
+
+print(flag.count, family.count)     // prints: 1 1
+print(accent.count)                 // prints: 1 — still one grapheme
+print(accent == "é")                // prints: true — canonical equivalence
+</code></pre>
+
+        <h3 id="indices">String Indices</h3>
+
+        <p>Because characters have variable byte length, a string cannot be indexed by an integer. Use <code>startIndex</code>, <code>endIndex</code>, and <code>index(_:offsetBy:)</code> instead.</p>
+
+        <pre><code class="language-swift line-numbers">let text = "Swift"
+
+let start = text.startIndex
+let second = text.index(after: start)          // index of the 2nd character
+print(text[second])                            // prints: w
+
+let third = text.index(start, offsetBy: 2)
+print(text[third])                             // prints: i
+
+// A range gives a Substring — a view, not a copy
+let slice = text[start..&lt;third]
+print(slice)                                   // prints: Sw
+print(String(slice))                           // convert when you need a String
+</code></pre>
+
+        <h2 id="operations">Common Operations</h2>
+
+        <p>Day-to-day string work is mostly searching, splitting, and replacing. The standard library plus Foundation cover almost every case without writing a manual loop.</p>
+
+        <h3 id="search">Searching &amp; Substrings</h3>
+
+        <p><code>contains</code> answers a yes/no question; <code>range(of:)</code> returns the location as an optional, because the text may not be present.</p>
+
+        <pre><code class="language-swift line-numbers">let sentence = "The quick brown fox"
+
+print(sentence.contains("fox"))       // prints: true
+print(sentence.hasPrefix("The"))      // prints: true
+print(sentence.hasSuffix("fox"))      // prints: true
+
+if let r = sentence.range(of: "quick") {          // Optional&lt;Range&gt;
+    let offset = sentence.distance(from: sentence.startIndex, to: r.lowerBound)
+    print("found at index \(offset)")             // prints: found at index 4
+}
+</code></pre>
+
+        <h3 id="split">Splitting &amp; Joining</h3>
+
+        <p><code>split(separator:)</code> returns an array of <code>Substring</code> values — lightweight views into the original text. <code>joined(separator:)</code> does the reverse.</p>
+
+        <pre><code class="language-swift line-numbers">let csv = "red,green,blue"
+let parts = csv.split(separator: ",")          // [Substring]
+print(parts.count, parts[0])                   // prints: 3 red
+
+let joined = parts.joined(separator: " | ")    // Substring array → String
+print(joined)                                  // prints: red | green | blue
+</code></pre>
+
+        <h3 id="replace">Replacing Text</h3>
+
+        <p>Replacement returns a new string, so assign the result. Foundation's variant handles whole words and supports options such as case-insensitivity.</p>
+
+        <pre><code class="language-swift line-numbers">import Foundation
+
+var text = "I like apples"
+text = text.replacingOccurrences(of: "apples", with: "oranges")
+print(text)                                    // prints: I like oranges
+</code></pre>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="count-perf">Counting in Loops</h3>
+
+        <p><code>count</code> is not stored — it walks the grapheme clusters each time. Calling it inside a loop turns linear work into quadratic work, so compute it once.</p>
+
+        <pre><code class="language-swift line-numbers">let sentence = "The quick brown fox"
+let n = sentence.count              // compute ONCE, reuse below
+for i in 0..&lt;n {
+    _ = i                           // pretend to use the index
+}
+print(n)                            // prints: 19
+</code></pre>
+
+        <h3 id="index-safety">Index Out of Range</h3>
+
+        <p>An index is only valid for the string it came from. Using one string's index on another compiles but traps at runtime, so derive indices fresh for each value.</p>
+
+        <pre><code class="language-swift line-numbers">let a = "abc"
+let b = "xyz"
+let idx = a.index(a.startIndex, offsetBy: 1)
+print(a[idx])                       // prints: b
+// print(b[idx])                    // ❌ trap: index belongs to a different string
+</code></pre>
+
+        <p>You can now shape and search text confidently. Move on to <a href="/roadmap/swift/collections.html">Collections</a> to store many values at once.</p>
+
+  </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'swift',
+    topicId: 'strings',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

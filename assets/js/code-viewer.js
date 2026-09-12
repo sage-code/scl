@@ -113,6 +113,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         'html': 'html',
         'json': 'json',
         'dart': 'dart',
+        // Swift — the grammar is bundled in assets/prism.js (see its download header)
+        'swift': 'swift',
         'cs': 'csharp',
         'csharp': 'csharp',
         'c': 'c',
