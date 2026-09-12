@@ -17,8 +17,8 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Canonical topic link: `/roadmap/<track>/<topic>.html`; track root `/roadmap/<track>/`. Never relative links or `/cse/...` style roots.
 
 ## Sidebar JSON (`roadmap/<track>/data/<topic>.json`)
-- Hierarchical and title-rooted. Preferred shape: the FIRST entry is the page title — `{ "title": "<H1 text>", "link": "#<h1-id>", "role": "title", "children": [ <H2 chapters> ] }` — the folder that contains every topic; each H2 owns a `children` array of H3 anchors. Legacy shape (childless `role: "title"` leaf + flat H2 chapters) stays valid on older tracks.
-- Links are local anchors (`#section`). Titles short and factual (plain `&`, no entities). Generate it from the page: `python scripts/tools/gen_topic_sidebars.py roadmap/<track>/<topic>.html`.
+- Template-defined (no reference track; scaffold at `assets/topic_sidebar_template.json`): the page title is the ONLY top-level entry — `{ "title": "<H1 text>", "link": "#<h1-id>", "children": [ <H2 chapters> ] }` — and each H2 owns a `children` array of H3 anchors. That is three collapsible levels in the sidebar (title → chapter → section); the title is an ordinary folder with no `role` key and no special glyph. An H2 with no H3 below it is a leaf chapter (omit `children`), not an empty folder. Legacy shape (childless `role: "title"` leaf + flat H2 chapters) still renders on older tracks but warns as content debt; migrate with `python scripts/tools/migrate_sidebars.py --track <track>`.
+- Links are local anchors (`#section`). Titles short and factual (plain `&`, no entities). Generate a new page's sidebar from the page: `python scripts/tools/gen_topic_sidebars.py roadmap/<track>/<topic>.html`; convert an existing track: `python scripts/tools/migrate_sidebars.py --track <track>`; check a track with `python scripts/tools/verify_sidebars.py <track>`.
 
 ## Curriculum standard
 - Step-by-step fundamentals → production; progressive executable examples; common pitfalls; trade-offs; mini-lab practice.
@@ -38,13 +38,13 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 
 ## Practice & Demo (required for every track)
 - Single-file demos live in `roadmap/<track>/demo/NN_name.<ext>`, numbered and grouped by category.
-- Create `demo_examples.html` + `data/demo_examples.json` (flat TITLED entries) listing demos by category, each linked to `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<file>`.
+- Create `demo_examples.html` + `data/demo_examples.json` (template shape: the page title is the root folder and each category is a leaf chapter) listing demos by category, each linked to `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<file>`.
 - Add a `demo_examples` row to the track `index.html` under a "Practice & Demo" phase.
 - New languages: extend `assets/js/code-viewer.js` `langMap`; the code viewer and topic pages share the single bundle `assets/prism.js` (register the grammar there) — no per-page component files are loaded.
 
 ## Track blueprint & asset reuse
 
-- Model the track on `roadmap/csharp/` (reference implementation): index phases dashboard, lessons, `demo_examples.html`, `samples.html`, dedicated `references.html`.
+- Model the track on the documented pattern and templates (`manual/ARCHITECTURE.md` §Roadmap Blueprint; `assets/roadmap_template.html`, `assets/topic_template.html`, `assets/topic_sidebar_template.json`) — no track is the reference implementation: index phases dashboard, lessons, `demo_examples.html`, `samples.html`, dedicated `references.html`.
 - Register every new/moved topic in `index.html` under the right phase; topic numbers stay sequential — inserting renumbers later rows and phase headers.
 - References list only on the track index and `references.html`; never add a per-page References section.
 - Diagrams are language-specific: reuse a shared `assets/images/*.svg` (source path `/images/<name>.svg`) only as a language-agnostic primitive that faithfully matches this language. Otherwise author a NEW SVG in `roadmap/<track>/img/<name>.svg` (or `projects/<project>/img/`). Never copy a shared SVG into the track.

@@ -6,11 +6,13 @@ ROOT is the page title and whose branches are the page's chapters. Hand-writing 
 JSON invites drift, so this tool derives it straight from the page: the page stays
 the single source of truth and `topic-loader.js` always finds a matching anchor.
 
-Preferred ("title-as-root") shape — a page with an anchorable `<h1>`:
+Canonical shape — the single-root folder, template-defined in
+`manual/ARCHITECTURE.md` §"Topic sidebar JSON — template" (scaffold:
+`assets/topic_sidebar_template.json`), for a page with an anchorable `<h1>`:
 
     [
       {
-        "title": "<H1 text>", "link": "#<h1-id>", "role": "title",
+        "title": "<H1 text>", "link": "#<h1-id>",
         "children": [
           {
             "title": "<H2 text>", "link": "#<h2-id>",
@@ -20,17 +22,23 @@ Preferred ("title-as-root") shape — a page with an anchorable `<h1>`:
       }
     ]
 
-The `<h1>` is the top-level node — the folder that CONTAINS every topic — and it
-carries `"role": "title"`, so tools and validators recognise the page title without
-relying on position. A page may declare more than one `<h1>`: each one opens a new
-top-level root and claims the `<h2>` sections that follow it, so a document with two
-titles yields two sibling trees.
+The `<h1>` is the ONLY top-level node: an ordinary, collapsible folder that contains
+every topic, exactly as a chapter folder contains its sub-sections. That gives the
+reader three navigation levels — title, then chapter, then sub-section — and nothing
+in the JSON marks the title as special: there is no `"role"` key and no positional
+marker. `topic-loader.js` and `build.js` render every node that has `children` as a
+collapsible folder, so the title folds away like any other folder.
+
+A page may declare more than one `<h1>`: each one opens a new top-level root and
+claims the `<h2>` sections that follow it, so a document with two titles yields two
+sibling trees. A multi-root sidebar is the one case a reader cannot see as a single
+title folder.
 
 Legacy fallback — a page with no `<h1>`, or whose `<h1>` has no `id` (so it cannot
-be anchored): the title root is omitted with a warning and the `<h2>` chapters are
-emitted flat at the top level, exactly as the pre-title-root contract produced them.
-Older tracks keep working unchanged until they are regenerated; converting a track
-to the title-as-root shape is therefore opt-in per track.
+be anchored): the root is omitted with a warning and the `<h2>` chapters are emitted
+flat at the top level, which is the shape older tracks still use. Those flat sidebars
+are content debt — regenerating a page whose `<h1>` is anchorable converts it to the
+single-root folder, which is why migration proceeds one track at a time.
 
 Demo-example pages (`<track>/demo_examples.html`) and references pages
 (`<track>/references.html`) mix expanded chapters with plain leaf sections: pass
@@ -57,13 +65,6 @@ import sys
 HEADING_RE = re.compile(r"<h([123])\s+id=\"([^\"]+)\"[^>]*>(.*?)</h\1>", re.S | re.I)
 H1_RE = re.compile(r"<h1\b[^>]*>(.*?)</h1>", re.S | re.I)
 
-# Value of the marker key that tags a title node. On the title-as-root shape it
-# sits on every top-level `<h1>` root; on the legacy shape it sits on the
-# childless title leaf. topic-loader.js ignores unknown keys, so the marker is
-# pure metadata: it lets tools and validators recognise the page title without
-# relying on position.
-TITLE_ROLE = "title"
-
 
 def clean_title(raw: str) -> str:
     """Heading markup -> plain title text (tags stripped, entities decoded)."""
@@ -74,12 +75,12 @@ def clean_title(raw: str) -> str:
 def build_sidebar(page: pathlib.Path, mixed: bool = False):
     """Return (entries, errors, warning) for one topic page.
 
-    On the title-as-root shape every anchorable `<h1>` becomes a top-level node
-    tagged `"role": "title"` whose `children` are the `<h2>` chapters that follow
-    it (each chapter owning its `<h3>` anchors) — the page title is the folder that
-    contains every topic. Pages with no anchorable `<h1>` fall back to the legacy
-    shape (flat `<h2>` chapters, no title root) and report a warning, not an error,
-    so old tracks keep regenerating exactly as before.
+    Every anchorable `<h1>` becomes a top-level root folder whose `children` are the
+    `<h2>` chapters that follow it (each chapter owning its `<h3>` anchors) — the page
+    title is an ordinary collapsible folder that contains every topic. Pages with no
+    anchorable `<h1>` fall back to the legacy flat shape (top-level `<h2>` chapters,
+    no root) and report a warning, not an error, so old tracks keep regenerating
+    exactly as before.
 
     `mixed=True` is for demo-example and references pages: an `<h2>` without
     `<h3>` children becomes a leaf section instead of an error, while an `<h2>`
@@ -101,8 +102,8 @@ def build_sidebar(page: pathlib.Path, mixed: bool = False):
             errors.append(f"empty heading title for #{anchor}")
             continue
         if level == "1":
-            # Each <h1> opens a new root that contains the chapters after it.
-            last_root = {"title": title, "link": f"#{anchor}", "role": TITLE_ROLE, "children": []}
+            # Each <h1> opens a new root folder that contains the chapters after it.
+            last_root = {"title": title, "link": f"#{anchor}", "children": []}
             last_chapter = None
             entries.append(last_root)
             title_roots.append(last_root)
@@ -127,9 +128,9 @@ def build_sidebar(page: pathlib.Path, mixed: bool = False):
 
     warning = None
     if not has_h1:
-        warning = "no <h1> found — legacy flat sidebar (title root omitted)"
+        warning = "no <h1> found — legacy flat sidebar (root folder omitted)"
     elif not title_roots:
-        warning = "h1 has no id — legacy flat sidebar (title root omitted)"
+        warning = "h1 has no id — legacy flat sidebar (root folder omitted)"
 
     if not chapters:
         errors.append("no <h2> chapters found")
@@ -139,7 +140,7 @@ def build_sidebar(page: pathlib.Path, mixed: bool = False):
                 errors.append(f"chapter {chapter['link']} has no <h3> children")
         for root in title_roots:
             if not root["children"]:
-                errors.append(f"title root {root['link']} contains no <h2> topics")
+                errors.append(f"root folder {root['link']} contains no <h2> topics")
     return entries, errors, warning
 
 
@@ -149,8 +150,6 @@ def _format_leaf(entry, indent: str) -> list:
         f'"title": {json.dumps(entry["title"], ensure_ascii=False)}',
         f'"link": "{entry["link"]}"',
     ]
-    if "role" in entry:
-        parts.append(f'"role": {json.dumps(entry["role"], ensure_ascii=False)}')
     return [f"{indent}{{ {', '.join(parts)} }}"]
 
 
@@ -169,8 +168,6 @@ def _format_node(entry, depth: int) -> list:
     lines = [f"{indent}{{"]
     lines.append(f'{prop}"title": {json.dumps(entry["title"], ensure_ascii=False)},')
     lines.append(f'{prop}"link": "{entry["link"]}",')
-    if "role" in entry:
-        lines.append(f'{prop}"role": {json.dumps(entry["role"], ensure_ascii=False)},')
     lines.append(f'{prop}"children": [')
     for index, child in enumerate(children):
         child_lines = _format_node(child, depth + 1)
@@ -183,16 +180,21 @@ def _format_node(entry, depth: int) -> list:
 
 
 def count_tree(entries) -> tuple:
-    """Return (chapters, leaves) for a sidebar tree, at any nesting depth."""
+    """Return (chapters, leaves) BELOW the root folder(s), at any nesting depth.
+
+    A sidebar whose every top-level entry carries `children` is the single-root
+    folder shape: those entries are the page title(s), so they are skipped and the
+    chapters are counted from their children down.
+    """
+    roots = entries
+    if entries and all(entry.get("children") is not None for entry in entries):
+        roots = [child for entry in entries for child in entry["children"]]
+
     chapters = leaves = 0
-    for entry in entries:
+    for entry in roots:
         children = entry.get("children")
         if children is None:
-            continue
-        if entry.get("role") == TITLE_ROLE:
-            child_chapters, child_leaves = count_tree(children)
-            chapters += child_chapters
-            leaves += child_leaves
+            leaves += 1
         else:
             chapters += 1
             leaves += len(children)
@@ -202,10 +204,10 @@ def count_tree(entries) -> tuple:
 def render(entries) -> str:
     """Serialize with one child per line, matching the hand-written house style.
 
-    Leaves (a childless title node and every section on a flat demo-example page)
-    are emitted as compact single-line objects; nodes with `children` keep the
-    expanded multi-line form and nest recursively, so a title-as-root tree
-    (h1 -> h2 -> h3) round-trips like the hand-written files.
+    Leaves (a section on a flat demo-example page) are emitted as compact
+    single-line objects; nodes with `children` keep the expanded multi-line form
+    and nest recursively, so a single-root folder tree (h1 -> h2 -> h3)
+    round-trips like the hand-written sidecars in the repository.
     """
     lines = ["["]
     for index, entry in enumerate(entries):
@@ -248,15 +250,15 @@ def main() -> int:
             continue
 
         chapters, leaves = count_tree(entries)
-        has_title = any(e.get("role") == TITLE_ROLE for e in entries)
-        title_note = "" if has_title else " [no title root]"
+        rooted = bool(entries) and all(e.get("children") is not None for e in entries)
+        root_note = "" if rooted else " [no root folder]"
 
         target = page.parent / "data" / f"{page.stem}.json"
         new_text = render(entries)
         old_text = target.read_text(encoding="utf-8") if target.is_file() else ""
 
         if old_text == new_text:
-            print(f"[SAME] {target}: {chapters} chapters / {leaves} leaves{title_note} — unchanged")
+            print(f"[SAME] {target}: {chapters} chapters / {leaves} leaves{root_note} — unchanged")
             continue
 
         if args.dry_run:
@@ -267,11 +269,11 @@ def main() -> int:
                 tofile=f"{target} (proposed)",
             )
             sys.stdout.writelines(diff)
-            print(f"[DRY ] {target}: would write {chapters} chapters / {leaves} leaves{title_note}")
+            print(f"[DRY ] {target}: would write {chapters} chapters / {leaves} leaves{root_note}")
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(new_text, encoding="utf-8")
-            print(f"[OK  ] {target}: wrote {chapters} chapters / {leaves} leaves{title_note}")
+            print(f"[OK  ] {target}: wrote {chapters} chapters / {leaves} leaves{root_note}")
 
     if warnings:
         print(f"\n{warnings} page(s) have no anchor-able <h1>; legacy flat shape emitted")

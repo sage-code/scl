@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Prepend the page-title link as the FIRST entry of every topic sidebar JSON.
 
-Convention (see manual/ARCHITECTURE.md "Topic sidebar JSON — shape"):
-the first sidebar entry is a leaf
-{ "title": "<H1 text>", "link": "#<h1-id>", "role": "title" }
-pointing at the topic page's <h1>, so the user can always click back to the
-top of the lab. The h2/h3 tree keeps two levels only.
+LEGACY SHAPE ONLY — this tool writes the reverted "childless title leaf" form:
 
-Superseded for new work by scripts/tools/gen_topic_sidebars.py, which derives the
-whole sidebar (title leaf included) from the page; this script remains only to
-retrofit the hand-written C-track data files, whose h1 texts are irregular.
+    { "title": "<H1 text>", "link": "#<h1-id>", "role": "title" }
+
+The canonical sidebar now is the SINGLE-ROOT FOLDER, where the page title is the
+only top-level entry and carries the chapters in `children`
+(see manual/ARCHITECTURE.md "Topic sidebar JSON — shape"). This script exists solely
+to patch the hand-written C-track data files, whose h1 texts are irregular, while
+that track keeps its flat sidebar; it is NOT how new sidebars are produced.
+
+To migrate a page to the canonical shape, regenerate from the page itself:
+
+    python scripts/tools/gen_topic_sidebars.py roadmap/<track>/*.html
 
 Usage:
   python scripts/tools/add_sidebar_title_entries.py            # dry-run

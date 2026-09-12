@@ -15,7 +15,7 @@ Executor = DeepSeek V4 Flash. Execute ONE micro-spec at a time. Precise, minimal
 - Validation gate in order: `trace.sh npm run test` → `trace.sh npm run build` → `trace.sh npm run check`.
 - After roadmap content work, regenerate tracking status: `trace.sh python tracking/generate_roadmaps_status.py`.
 
-- Track blueprint: model on the C# reference track (phases, page inventory, references page); inserting a topic renumbers later index rows and phase headers.
+- Track blueprint: follow the pattern and templates (`assets/roadmap_template.html`, `assets/topic_template.html`, `assets/topic_sidebar_template.json`; `manual/ARCHITECTURE.md` §Roadmap Blueprint) — no track is the reference; phases, page inventory, references page; inserting a topic renumbers later index rows and phase headers.
 - Diagrams, not copies: check `assets/images/*.svg` for a language-agnostic primitive (control-flow + HPC sets) that genuinely fits this language. If it misrepresents the language's construct, author a NEW SVG in `roadmap/<track>/img/` (or `projects/<project>/img/`). Never clone a shared SVG into the track.
 - References: never add a per-page References section; keep lists on the track index and `references.html`.
 ## After — pass the task back to Plan

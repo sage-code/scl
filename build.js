@@ -718,13 +718,23 @@ function getLabIdFromRoute(route) {
   return route;
 }
 
-// Hand-authored heading glyph for the sidebar page-title leaf (`role: "title"`).
-// Bootstrap Icons ships no "nav title" glyph, so the SVG is inlined instead of a
-// font icon. A bold top rule over two lighter, shorter rules reads as the page
-// title / "back to top" and deliberately has no page outline so it is never
-// mistaken for the `bi-file-earmark-text` leaf icon.
+// Hand-authored heading glyph for the LEGACY sidebar page-title leaf
+// (`role: "title"` on un-migrated tracks). The single-root model needs no glyph:
+// there the page title is an ordinary folder and wears the standard toggle. The
+// glyph is a bold top rule over two lighter, shorter rules — the page title / "back
+// to top" reading — with no page outline, so it is never mistaken for the
+// `bi-file-earmark-text` leaf icon.
 const TITLE_ICON =
   '<span class="nav-title-icon"><svg class="bi-nav-title" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><rect x="1.5" y="3" width="13" height="2.6" rx="0.6"></rect><rect x="1.5" y="7.6" width="9" height="1.7" rx="0.5" opacity="0.62"></rect><rect x="1.5" y="11.2" width="6" height="1.7" rx="0.5" opacity="0.62"></rect></svg></span>';
+
+// Sidebar expansion state, mirrored by topic-loader.js
+// (isTreeLevelExpandedByDefault): the page title (level 0) and its chapters
+// (level 1) render open, so title -> chapter -> sub-section is browsable without a
+// single click, and every deeper level starts folded. The runtime re-applies the
+// same rule on load, so the static markup ships already correct.
+function isSidebarLevelExpanded(level) {
+  return level <= 1;
+}
 
 function renderSidebarItems(items, state = { index: 0 }, level = 0) {
   let html = "";
@@ -748,8 +758,9 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
     const nodeId = `node-${sectionKey}-static-${state.index}`;
     const hasChildren = Array.isArray(item.children) && item.children.length > 0;
     const isTitle = item.role === "title";
+    const expanded = hasChildren && isSidebarLevelExpanded(level);
     const icon = hasChildren
-      ? `<button type="button" class="nav-tree-toggle" data-node-id="${nodeId}" aria-expanded="${level === 0 ? "true" : "false"}" aria-label="${level === 0 ? "Collapse topic folder" : "Expand topic folder"}"><i class="bi ${level === 0 ? "bi-folder2-open" : "bi-folder2"}" aria-hidden="true"></i></button>`
+      ? `<button type="button" class="nav-tree-toggle" data-node-id="${nodeId}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${expanded ? "Collapse topic folder" : "Expand topic folder"}"><i class="bi ${expanded ? "bi-folder2-open" : "bi-folder2"}" aria-hidden="true"></i></button>`
       : isTitle
         ? TITLE_ICON
         : '<span class="nav-file-icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>';
@@ -761,7 +772,7 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
     html += `</div>`;
 
     if (hasChildren) {
-      html += `<ul class="list-unstyled ms-4 mt-1 nav-tree-children${level === 0 ? "" : " is-collapsed"}" data-sidebar-group="children" data-sidebar-level="${level + 1}" data-parent-node-id="${nodeId}" role="group">`;
+      html += `<ul class="list-unstyled ms-4 mt-1 nav-tree-children${expanded ? "" : " is-collapsed"}" data-sidebar-group="children" data-sidebar-level="${level + 1}" data-parent-node-id="${nodeId}" role="group">`;
       html += renderSidebarItems(item.children, state, level + 1);
       html += "</ul>";
     }

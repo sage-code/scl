@@ -1,31 +1,34 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
-    <meta charset="utf-8">
-    <meta name="description" content="Template page for tutorials.">
-    <meta name="author" content="Elucian Moise">
-    <meta name="keywords" content="language, syntax, programming, tutorial">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-    <!-- Website title -->
-    <title>Tutorial</title>
-
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-    <link rel="icon" type="image/png"  href="/images/favicon.ico">
-    <!-- Prism Highlighter -->
-    <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-    <script src="/assets/prism.js">></script>
-    <!-- custom css -->
-    <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-    </head>
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia expressions and operators: arithmetic, integer vs float division, chained comparisons, short-circuit logic, bitwise operators, and broadcasting.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, expressions, operators, arithmetic, comparison, logical, short circuit, bitwise, broadcasting">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Expressions &amp; Operators</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -34,453 +37,572 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
+        <h1 id="julia-expressions">Expressions &amp; Operators</h1>
 
-<h2 id="expressions">Expressions</h2>
+        <div class="alert alert-secondary shadow-sm">
+          In most languages a statement <em>does</em> something while an expression <em>produces</em> something. Julia collapses that distinction: <strong>everything is an expression</strong>, so everything has a value — a block, an <code>if</code>, a loop, even an assignment. Operators are then just functions wearing familiar syntax, which is why you can broadcast them across an array or pass <code>+</code> itself to another function.
+        </div>
 
-<div class="alert alert-secondary shadow-sm">
-Page description. To be replaced!
-</div>
+        <p>This lesson builds from the ground up. It starts with the expression model, then covers arithmetic (and the integer-division trap that catches Python programmers), comparisons and their chaining, logic and short-circuit evaluation, bit manipulation, and finally broadcasting — the feature that turns <code>a .+ b</code> into a loop for you, and the single biggest reason Julia code looks unlike C.</p>
 
-<h2 id="variables">Variables</h2>
+        <h2 id="everything-expression">Everything Is an Expression</h2>
 
-<p>When you wish to declare a variable in Julia you use Duck typing. For this you use a type literal to provide enough information to the compiler to derive the type. Once the type is established you can use the variable in expressions. In Julia evening is an expression.</p>
+        <p>An expression produces a value; a statement performs an action. In C, Java, or Python these are different categories: <code>if</code> is a statement, the ternary <code>?:</code> is an expression, and you cannot bind an <code>if</code> to a name. Julia has no such split. Blocks, conditionals, loops, and even type definitions are expressions, each evaluating to a value.</p>
 
-<pre><code class="language-julia">message = "Hello World"</code></pre>
+        <h3 id="value-of-block">The Value of a Block</h3>
 
-<p>The message is a string variable having value "Hello World". Observe that we do not use keyword "var" like in JavaScript or other languages. Also in Julia a variable can be re-purpose. The type can be changed when the variable is assigned using "=" symbol. A new value of a different type can be assigned.</p>
+        <p>A <code>begin ... end</code> block evaluates to its last expression, and so does a function body. This is the mechanism behind Julia's concise function syntax, and behind the fact that a function with no explicit <code>return</code> still hands back the final computed value.</p>
+
+        <pre><code class="language-julia line-numbers"># A block is worth its final expression.
+x = begin
+    1 + 1
+    2 + 2
+    3 + 3        # ← so the block is worth 6
+end
+x                # 6
+
+# An `if` is an expression: the value of the chosen branch is the result.
+grade = if x &gt; 5
+    "pass"
+else
+    "fail"
+end
+grade            # "pass"
+</code></pre>
+
+        <h3 id="chained-assignment">Assignment Is an Expression</h3>
+
+        <p>Assignment evaluates to the value assigned, so assignments nest and chain. That is legal and occasionally elegant, but production code keeps one assignment per line — chaining hides where a value was born.</p>
+
+        <pre><code class="language-julia line-numbers">a = b = c = 1     # all three are 1; each assignment is worth 1
+(a = 2) + 1       # 3 — the assignment produced 2
+
+# Because `if` returns a value, this reads well:
+cached = haskey(dict, key) ? dict[key] : compute(key)
+</code></pre>
+
+        <p>One practical consequence: since the last expression of a function body is its result, a stray trailing expression silently becomes the return value. If a function's final line is <code>println(...)</code>, the function returns <code>nothing</code> — usually harmless, occasionally a bug that surfaces three calls later.</p>
+
+        <h2 id="arithmetic">Arithmetic Operators</h2>
+
+        <p>Arithmetic operators are ordinary functions in disguise: <code>a + b</code> parses as <code>+(a, b)</code>. That means you can broadcast them, pass them as arguments (<code>map(*, v, 2)</code>), or add methods for your own types. The full set matters mainly for the integer-division family, which is much richer than in C or Python.</p>
+
+        <h3 id="arith-table">Operator Reference</h3>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Expression</th>
+              <th>Name</th>
+              <th>Meaning / notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>+x</code></td><td>unary plus</td><td>identity — returns <code>x</code> unchanged</td></tr>
+            <tr><td><code>-x</code></td><td>unary minus</td><td>additive inverse</td></tr>
+            <tr><td><code>x + y</code></td><td>binary plus</td><td>addition</td></tr>
+            <tr><td><code>x - y</code></td><td>binary minus</td><td>subtraction</td></tr>
+            <tr><td><code>x * y</code></td><td>times</td><td>multiplication; on arrays it is the matrix product</td></tr>
+            <tr><td><code>x / y</code></td><td>divide</td><td><strong>true division</strong> — always returns a float</td></tr>
+            <tr><td><code>x \ y</code></td><td>inverse divide</td><td>equals <code>y / x</code>; reads naturally for matrix solves</td></tr>
+            <tr><td><code>x ^ y</code></td><td>power</td><td>exponentiation; <code>2^-1</code> gives <code>0.5</code></td></tr>
+            <tr><td><code>div(x, y)</code></td><td>integer division</td><td>quotient truncated toward zero</td></tr>
+            <tr><td><code>fld(x, y)</code></td><td>floor division</td><td>quotient rounded toward −∞</td></tr>
+            <tr><td><code>rem(x, y)</code></td><td>remainder</td><td>remainder whose sign follows the dividend <code>x</code></td></tr>
+            <tr><td><code>mod(x, y)</code></td><td>modulo</td><td>remainder whose sign follows the divisor <code>y</code></td></tr>
+            <tr><td><code>x % y</code></td><td>percent</td><td>operator form of <code>rem</code> — <em>not</em> modulo</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="integer-vs-float-div">Integer vs Float Division</h3>
+
+        <p>The most common arithmetic surprise for newcomers is that <code>/</code> returns a float even when both operands are integers. Julia refuses to truncate silently: integer division must be requested with <code>div</code> or <code>÷</code>. The second surprise is the <code>rem</code> versus <code>mod</code> split — the two differ exactly when the operands carry different signs.</p>
+
+        <pre><code class="language-julia line-numbers">7 / 2            # 3.5 — Float64, although both operands are Int
+7 ÷ 2            # 3   — integer division (÷ is typed \div then Tab)
+div(7, 2)        # 3   — truncates toward zero
+fld(7, 2)        # 3
+
+div(-7, 2)       # -3  — toward zero
+fld(-7, 2)       # -4  — toward minus infinity
+
+# rem takes the dividend's sign; mod takes the divisor's sign.
+rem(-7, 2)       # -1  (same sign as -7)
+mod(-7, 2)       #  1  (same sign as 2)
+-7 % 2           # -1  — % is rem, not mod
+</code></pre>
+
+        <p>Reach for <code>mod</code> when wrapping around a cycle — clock arithmetic, circular buffers, hashing into a fixed number of buckets — because its result always shares the divisor's sign and so never becomes a negative index. Reach for <code>div</code> when splitting items into fixed-size groups, and for <code>fld</code> when you need the mathematically consistent quotient for negative values.</p>
+
+        <h3 id="power-roots">Powers and Precedence</h3>
+
+        <p>Both <code>^</code> and its operator aliases are functions too, and Julia keeps arithmetic precedence close to mathematics: exponentiation binds tighter than multiplication, which binds tighter than addition. The one rule worth memorising is that power is <em>right</em>-associative, so <code>2^3^2</code> means <code>2^(3^2)</code> and not <code>(2^3)^2</code>.</p>
+
+        <pre><code class="language-julia line-numbers">2^3^2            # 512 — right-associative: 2^(3^2) = 2^9
+(2^3)^2          # 64  — force the other grouping with parentheses
+
+2^-1             # 0.5 — a negative exponent always yields a float
+sqrt(2)          # 1.4142135623730951
+√2               # same function; √ is typed \sqrt then Tab
+cbrt(27)         # 3.0
+abs(-3)          # 3
+
+1 + 2 * 3        # 7 — * before +
+(1 + 2) * 3      # 9 — parentheses keep the intent unmistakable
+</code></pre>
+
+        <h3 id="update-assign">Update Assignment</h3>
+
+        <p>Every binary arithmetic and bitwise operator has an updating form made by appending <code>=</code>: <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>^=</code>, <code>%=</code>, <code>÷=</code>, <code>&amp;=</code>, <code>|=</code>, <code>⊻=</code>, <code>&gt;&gt;=</code>, <code>&lt;&lt;=</code>. The name is slightly misleading: unlike C, <code>x += 1</code> is <em>not</em> an in-place memory update. It expands to <code>x = x + 1</code>, so the binding may even change type.</p>
+
+        <pre><code class="language-julia line-numbers">count = 0
+count += 1        # count = count + 1 → 1
+count *= 10       # count = count * 10 → 10
+count ÷= 3        # count = count ÷ 3 → 3
+
+# Because it is a rebinding, the type may change:
+x = 1
+x /= 2            # x = x / 2 → 0.5; x is now a Float64, not an Int
+typeof(x)         # Float64
+</code></pre>
+
+        <p>That last example is a genuine trap: <code>/=</code> quietly turns an integer counter into a float, which then breaks array indexing. When you need true in-place mutation of array contents, use the dotted <code>.+=</code> described in the broadcasting section below.</p>
+
+        <h2 id="comparison">Comparisons and Chaining</h2>
+
+        <p>Comparisons produce <code>Bool</code>, and Julia has two features that most languages lack: chained comparisons that read like mathematics, and a four-way family of equality tests that separate <em>value</em>, <em>type</em>, <em>identity</em>, and <em>numeric approximation</em>.</p>
+
+        <h3 id="comparison-table">Comparison Operators</h3>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Operator</th>
+              <th>Name</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>==</code></td><td>equality</td><td>value equality, may cross numeric types (<code>1 == 1.0</code>)</td></tr>
+            <tr><td><code>!=</code> / <code>≠</code></td><td>inequality</td><td>negation of <code>==</code> (<code>≠</code> is <code>\ne</code> + Tab)</td></tr>
+            <tr><td><code>&lt;</code></td><td>less than</td><td>ordering; not defined for all types</td></tr>
+            <tr><td><code>&lt;=</code> / <code>≤</code></td><td>less than or equal</td><td></td></tr>
+            <tr><td><code>&gt;</code></td><td>greater than</td><td></td></tr>
+            <tr><td><code>&gt;=</code> / <code>≥</code></td><td>greater than or equal</td><td></td></tr>
+            <tr><td><code>===</code></td><td>egal / identity</td><td>same object, or equal bits for immutable values</td></tr>
+            <tr><td><code>isequal(x, y)</code></td><td>hash-consistent equality</td><td>treats <code>NaN</code> as equal to itself; used by <code>Dict</code> and <code>Set</code></td></tr>
+            <tr><td><code>≈</code></td><td>approximate equality</td><td><code>isapprox</code>; <code>≈</code> is <code>\approx</code> + Tab</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="chained-comparison">Chained Comparison</h3>
+
+        <p>Julia lets you write mathematical chains directly: <code>0 &lt; x &lt; 10</code> works as it reads, and — importantly — <code>x</code> is evaluated only once. Python also allows chaining, but C and Java do not: there, <code>0 &lt; x &lt; 10</code> compiles to <code>(0 &lt; x) &lt; 10</code> and is always true because a boolean equals 1. In Julia you write the chain once and it compiles to the correct conjunction.</p>
+
+        <pre><code class="language-julia line-numbers">x = 5
+0 &lt; x &lt; 10            # true — exactly what it looks like
+
+# The chain is rewritten as (0 &lt; x) &amp;&amp; (x &lt; 10), so x is evaluated once.
+calls = Ref(0)
+f() = (calls[] += 1; 5)      # a function with an observable side effect
+0 &lt; f() &lt; 10                 # true, and calls[] is 1 — f ran once, not twice
+
+# Mixed comparisons chain too:
+1 ≤ x ≤ 10            # true for x between 1 and 10 inclusive
+"a" &lt;= "b" &lt;= "c"    # true — strings have lexicographic order
+</code></pre>
+
+        <p>Chaining is not only prettier; it avoids repeating a function call. Compare <code>0 &lt; f(x) &lt; 10</code> with the manual <code>0 &lt; f(x) &amp;&amp; f(x) &lt; 10</code>, which silently calls <code>f</code> twice and would break outright for a function with side effects.</p>
+
+        <h3 id="equality-vs-identity">Equality, Identity, and Approximation</h3>
+
+        <p>Julia splits what most languages call "equals" into four distinct questions. Choosing the wrong one is a frequent source of subtle bugs, especially because <code>==</code> compares values recursively for collections.</p>
+
+        <pre><code class="language-julia line-numbers">1 == 1.0          # true  — value equality across numeric types
+1 === 1.0         # false — different types are not identical
+
+a = [1, 2, 3]
+b = [1, 2, 3]
+a == b            # true  — same contents
+a === b           # false — two distinct arrays in memory
+a === a           # true  — the very same object
+
+0.1 + 0.2 == 0.3            # false — floating-point rounding
+0.1 + 0.2 ≈ 0.3             # true  — approximate comparison
+isapprox(0.1 + 0.2, 0.3)    # true
+
+-0.0 == 0.0        # true  — numerically equal
+-0.0 === 0.0       # false — different bit patterns
+</code></pre>
+
+        <p>The rule of thumb: use <code>==</code> for ordinary value comparisons, <code>===</code> when you mean "the same object" or want to distinguish <code>1</code> from <code>1.0</code>, and <code>≈</code> for any result that came out of floating-point arithmetic. Use <code>isequal</code> when you need an equality that agrees with hashing — that is what dictionaries use internally, which is why <code>Dict(NaN =&gt; 1)[NaN]</code> finds its entry while <code>NaN == NaN</code> is false.</p>
+
+        <h3 id="nan-comparison">NaN, Missing, and Three-Valued Logic</h3>
+
+        <p><code>NaN</code> (not a number) and <code>missing</code> (absent data) both break the assumption that a comparison returns a plain <code>Bool</code>. <code>NaN</code> compares false against everything, including itself; <code>missing</code> propagates through comparisons as <code>missing</code> rather than failing.</p>
+
+        <pre><code class="language-julia line-numbers">NaN == NaN        # false — IEEE 754 semantics
+NaN != NaN        # true  — the only value unequal to itself
+
+# Test for NaN with the predicate, never with ==
+isnan(NaN)        # true
+isnan(1.0)        # false
+
+# missing propagates instead of throwing
+missing == 1      # missing
+missing &gt; 1       # missing
+ismissing(missing)      # true
+
+# Use the three-valued operators for data with missing values
+true &amp; missing    # missing
+true | missing    # true  — short-circuits to a known answer
+coalesce(missing, 0)    # 0 — the second value stands in for missing
+</code></pre>
+
+        <p>Sorting and filtering data that contains <code>missing</code> requires the <code>skipmissing</code> wrapper, which is covered in <a href="/roadmap/julia/collections.html">Collections</a>. The essential habit is that <code>isnan</code>, <code>ismissing</code>, and <code>skipmissing</code> <em>ask the question</em> where <code>==</code> would just return <code>false</code> or <code>missing</code> and hide the problem.</p>
+
+        <h2 id="logic">Logic and Short-Circuiting</h2>
+
+        <p>Boolean logic in Julia uses <code>&amp;&amp;</code>, <code>||</code>, and <code>!</code>. The two binary operators <em>short-circuit</em>: the right operand may never be evaluated at all. That property is not an optimisation detail — it is a control-flow tool, and it is why idioms like <code>x != 0 &amp;&amp; 1/x &gt; 0.5</code> are safe.</p>
+
+        <h3 id="boolean-ops">Boolean Operators</h3>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>A</th>
+              <th>B</th>
+              <th><code>A &amp;&amp; B</code></th>
+              <th><code>A || B</code></th>
+              <th><code>!A</code></th>
+              <th><code>!B</code></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>false</td><td>false</td><td>false</td><td>false</td><td>true</td><td>true</td></tr>
+            <tr><td>false</td><td>true</td><td>false</td><td>true</td><td>true</td><td>false</td></tr>
+            <tr><td>true</td><td>false</td><td>false</td><td>true</td><td>false</td><td>true</td></tr>
+            <tr><td>true</td><td>true</td><td>true</td><td>true</td><td>false</td><td>false</td></tr>
+          </tbody>
+        </table>
+
+        <p>Unlike C, Julia has no implicit conversion from integers to booleans. <code>1 &amp;&amp; true</code> is a type error, and <code>if 1 ... end</code> is rejected outright. The only numbers that may stand in for a condition are… none; a condition must be a <code>Bool</code> (or <code>missing</code>, which raises at the point of branching). Use <code>!= 0</code> or <code>!isempty(x)</code> to say what you mean.</p>
+
+        <pre><code class="language-julia line-numbers">true &amp;&amp; true      # true
+true || false     # true
+!true             # false
+
+# No integer-to-Bool coercion — this is a deliberate safety feature.
+1 &amp;&amp; true        # ERROR: TypeError: non-boolean (Int64) used in boolean context
+if 1 end          # ERROR: TypeError
+
+# Say what you mean instead:
+if 1 != 0 end     # fine
+if !isempty([1]) end
+</code></pre>
+
+        <h3 id="short-circuit">Short-Circuit Evaluation</h3>
+
+        <p><code>A &amp;&amp; B</code> evaluates <code>B</code> only when <code>A</code> is true; <code>A || B</code> evaluates <code>B</code> only when <code>A</code> is false. Two consequences follow. First, guard clauses become safe. Second, the operators return one of their <em>operands</em> rather than a coerced boolean — a behaviour borrowed from Lisp that makes default-value idioms concise.</p>
+
+        <pre><code class="language-julia line-numbers"># 1. Guard clauses: the division never runs when x is zero.
+x = 0
+x != 0 &amp;&amp; 1 / x &gt; 0.5      # false — and no division happened at all
+# (Without the guard this would be Inf &gt; 0.5, which is true, not an error.)
+
+# 2. The result is the deciding operand, not a coerced Bool.
+1 &lt; 2 &amp;&amp; "yes"             # "yes"
+1 &gt; 2 || "fallback"        # "fallback"
+a = nothing
+b = a === nothing || a     # b is true here — read carefully, see the note below
+</code></pre>
+
+        <div class="alert alert-warning">
+          <strong>Read that last line once more.</strong> <code>a === nothing</code> is <code>true</code>, so <code>||</code> short-circuits and returns <code>true</code> — not <code>a</code>. The idiom only works in the other order: <code>a === nothing || return a</code>. When you want a default value, use the ternary, or <code>something</code> when the absent value is <code>nothing</code> — see <a href="/roadmap/julia/control.html#defaults">Control Flow</a>.
+        </div>
+
+        <p>The non-short-circuiting forms <code>&amp;</code> and <code>|</code> exist as well: they always evaluate both sides, which is what you want for element-wise operations on arrays and for three-valued logic with <code>missing</code>. Choosing between them is discussed in the next section.</p>
+
+        <h3 id="bitwise-ops">Bitwise Operators</h3>
+
+        <p>Bitwise operators work on the binary representation of integers and are the fastest operations in the language. They are the right tool for flags, masks, hashing, and low-level protocols — and the wrong tool for logic, because their precedence sits <em>above</em> comparison operators and quietly changes what a condition means.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Expression</th>
+              <th>Name</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>~x</code></td><td>bitwise not</td><td>flips every bit</td></tr>
+            <tr><td><code>x &amp; y</code></td><td>bitwise and</td><td>both bits set</td></tr>
+            <tr><td><code>x | y</code></td><td>bitwise or</td><td>either bit set</td></tr>
+            <tr><td><code>xor(x, y)</code> / <code>x ⊻ y</code></td><td>bitwise xor</td><td><code>⊻</code> is <code>\xor</code> + Tab; the old <code>$</code> form is deprecated</td></tr>
+            <tr><td><code>x &lt;&lt; y</code></td><td>shift left</td><td>multiplies by 2<sup>y</sup></td></tr>
+            <tr><td><code>x &gt;&gt; y</code></td><td>arithmetic shift right</td><td>sign-preserving; divides by 2<sup>y</sup></td></tr>
+            <tr><td><code>x &gt;&gt;&gt; y</code></td><td>logical shift right</td><td>fills with zeros regardless of sign</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">x = 0b1100        # 12 in binary (0b prefix is a binary literal)
+y = 0b1010        # 10
+
+x &amp; y             # 0b1000 = 8   (and)
+x | y             # 0b1110 = 14  (or)
+xor(x, y)         # 0b0110 = 6   (xor)
+x ⊻ y             # 0b0110 = 6   (same operator, unicode form)
+~x                # -13 — two's complement, so every bit flips
+
+1 &lt;&lt; 4            # 16  — shift left is multiply by 2^4
+256 &gt;&gt; 4          # 16  — shift right is divide by 2^4
+-8 &gt;&gt; 1           # -4  — arithmetic shift keeps the sign
+-8 &gt;&gt;&gt; 1          # huge positive number — logical shift fills with zeros
+</code></pre>
+
+        <h3 id="boolean-as-int">Booleans Are Integers</h3>
+
+        <p><code>Bool</code> is a subtype of <code>Integer</code> in Julia, so <code>true</code> is <code>1</code> and <code>false</code> is <code>0</code> for the purposes of arithmetic and summation. This is deliberate, and it is what makes <code>sum(x &gt; 3 for x in v)</code> a concise way to count matching elements. Note the asymmetry with the section above: a <code>Bool</code> may be used <em>as a number</em>, but a number may not be used <em>as a condition</em>.</p>
+
+        <pre><code class="language-julia line-numbers">true + true       # 2
+true * 5          # 5
+false - true      # -1
+Bool(1)           # true
+Int(true)         # 1
+
+# Count how many elements satisfy a predicate — a common idiom.
+values = [1, 5, 9, 2, 7]
+sum(values .&gt; 3)          # 3 — the comparison mask summed
+count(&gt;(3), values)       # 3 — the explicit, clearer form
+
+# Bitwise flags: one bit per option
+flags = 0b0001
+flags |= 0b0100           # set bit 2 → 0b0101
+(flags &amp; 0b0100) != 0     # true — test bit 2 (parenthesised on purpose)
+</code></pre>
+
+        <p>Parenthesising the mask test is not strictly required — in Julia <code>&amp;</code> binds tighter than <code>!=</code>, so the unparenthesised form happens to mean the same thing. In Python it does not, and the equivalent line silently becomes <code>flags &amp; (0b0100 != 0)</code>. When you move between the two languages, keep the parentheses and the question never arises.</p>
 
 
-<hr>
+        <h2 id="broadcasting">Broadcasting</h2>
 
-<h2 id="arithmetic-operators">Arithmetic Operators</h2>
+        <p>Every operator and every function has a <em>broadcasting</em> form, written with a dot: <code>.+</code>, <code>.*</code>, <code>.^</code>, or more generally <code>f.(x)</code>. Broadcasting applies the operation element-wise over containers, aligning their shapes and stretching any dimension of length one. It replaces the explicit loop, and because the compiler fuses chained dotted operations into a single pass, it is often both shorter <em>and</em> faster than the loop it replaces.</p>
 
-<p>The following operators are supported on all primitive numeric types:</p>
+        <h3 id="dot-syntax">The Dot Syntax</h3>
 
-<table class="table table-striped table-bordered table-dark">
-  <tbody>
-  <tr>
-    <th>Expression</th>
-    <th>Name</th>
-    <th>Description</th>
-  </tr>
-  <tr>
-    <td>+x</td>
-    <td>unary plus</td>
-    <td>the identity operation</td>
-  </tr>
-  <tr>
-    <td>-x</td>
-    <td>unary minus</td>
-    <td>maps values to their additive inverses</td>
-  </tr>
-  <tr>
-    <td>x + y</td>
-    <td>binary plus</td>
-    <td>performs addition</td>
-  </tr>
-  <tr>
-    <td>x &ndash; y</td>
-    <td>binary minus</td>
-    <td>performs subtraction</td>
-  </tr>
-  <tr>
-    <td>x * y</td>
-    <td>times</td>
-    <td>performs multiplication</td>
-  </tr>
-  <tr>
-    <td>x / y</td>
-    <td>divide</td>
-    <td>performs division</td>
-  </tr>
-  <tr>
-    <td>x \ y</td>
-    <td>inverse divide</td>
-    <td>equivalent to y / x</td>
-  </tr>
-  <tr>
-    <td>x ^ y</td>
-    <td>power</td>
-    <td>raises x to the y power</td>
-  </tr>
-  <tr>
-    <td>x % y</td>
-    <td>remainder</td>
-    <td>equivalent to rem(x,y)</td>
-  </tr>
-  </tbody>
-</table>
+        <p>A dot in front of a function name means "apply this element-wise". In front of an operator the dot fuses with the operator symbol itself. The array is not iterated by a Python-style loop written in the interpreter — the operation is compiled once for the whole call.</p>
 
+        <div class="text-center my-3">
+          <img src="/roadmap/julia/img/julia-broadcasting.svg" alt="Broadcasting: array plus scalar reuses the scalar for each element; a 3-by-1 column plus a 1-by-3 row produces a 3-by-3 result" width="920" class="img-fluid rounded shadow border">
+          <p class="small text-secondary mt-2">Broadcasting aligns shapes from the right; a length-1 axis stretches to match the other operand. Top: a scalar is reused for every element. Bottom: a column plus a row produces the full 3×3 outer sum.</p>
+        </div>
 
-  <h2 id="bitwise-operators">Bitwise Operators</h2>
+        <pre><code class="language-julia line-numbers">a = [1, 2, 3]
+b = [10, 20, 30]
 
-  <p>These operators are performing fast low-level operations on bits on native integer types.</p>
-  <div>
-  <table class="table table-striped table-bordered table-dark">
-  <thead>
-  <tr>
-  <th>Expression</th>
-  <th>Name</th>
-  </tr>
-  </thead>
-  <tbody>
-  <tr>
-  <td>~x</td>
-  <td>bitwise not</td>
-  </tr>
-  <tr>
-  <td>x &amp; y</td>
-  <td>bitwise and</td>
-  </tr>
-  <tr>
-  <td>x | y</td>
-  <td>bitwise or</td>
-  </tr>
-  <tr>
-  <td>x $ y</td>
-  <td>bitwise xor exclusive or: (deprecated)</td>
-  </tr>
-  <tr>
-  <td>x &gt;&gt;&gt; y</td>
-  <td>logical shift right</td>
-  </tr>
-  <tr>
-  <td>x &gt;&gt; y</td>
-  <td>arithmetic shift right</td>
-  </tr>
-  <tr>
-  <td>x &lt;&lt; y</td>
-  <td>logical/arithmetic shift left</td>
-  </tr>
-  </tbody>
-  </table>
-</div>
+a .+ b            # [11, 22, 33] — element-wise addition
+a .* b            # [10, 40, 90] — element-wise multiplication
+a .^ 2            # [1, 4, 9]     — squaring via broadcasting
+a .+ 10           # [11, 12, 13]  — a scalar stretches over the whole array
 
-<h2 id="modifiers">Modifiers</h2>
+# The plain forms mean linear algebra instead:
+a + b             # MethodError — two 1-D arrays cannot be added as vectors
+[1 2; 3 4] * [1, 2]   # matrix-vector product, NOT element-wise
 
-<p>Every binary arithmetic and bitwise operator also has an updating version that assigns the result of the operation back into its left operand. The updating version of the binary operator is formed by placing equal symbol "=" immediately after the operator like this:</p>
+# Any function can be broadcast:
+sqrt.([1, 4, 9])              # [1.0, 2.0, 3.0]
+abs.([-1, 2, -3])             # [1, 2, 3]
+join.(string.("x", 1:3), "-") # ["x1-", "x2-", "x3-"]
 
-<pre><code class="language-julia">+=, -=, *=, /=, ^=, %=, ~=, &amp;=, $=, &gt;&gt;=, &lt;&lt;=</code></pre>
+# Broadcasting over two different shapes aligns from the right:
+[10, 20, 30] .+ [1 2 3]       # 3×3 matrix: every pair summed
+</code></pre>
 
-<div class="alert alert-warning"><b>Note:</b> The update operator is not in-place operator like it is in C. What it means is the variable on the left side can change its type and value in the same time. So these operators are actually version of assign operator.</div>
+        <h3 id="broadcast-fusion">Fused Broadcasts</h3>
 
-<pre><code class="language-julia">x *= 2 #is equivalent to x = x * 2</code></pre>
+        <p>Chained dotted operations are merged by the compiler into one loop over the data, so intermediate arrays are never allocated. Fusion is automatic: if every operation in the expression carries the dot, the whole expression is a single broadcast. Introducing one undotted call — even something as ordinary as <code>sum(...)</code> — breaks the chain and materialises a temporary array.</p>
 
-<h2 id="comparison-operators">Comparison Operators</h2>
+        <pre><code class="language-julia line-numbers">x = rand(1_000_000)
 
-<p>A numeric comparison can be used into a conditional expression. It has a result of type Boolean that is true or false.</p>
-<div>
-<table class="table table-striped table-bordered table-dark">
-<tbody>
-<tr>
-<th>Operator</th>
-<th>Name</th>
-</tr>
-<tr>
-<td>==</td>
-<td>equality</td>
-</tr>
-<tr>
-<td>!=, &ne;</td>
-<td>inequality (disjunctive)</td>
-</tr>
-<tr>
-<td>&lt;</td>
-<td>less than</td>
-</tr>
-<tr>
-<td>&lt;=, &le;</td>
-<td>less than or equal to</td>
-</tr>
-<tr>
-<td>&gt;</td>
-<td>greater than</td>
-</tr>
-<tr>
-<td>&gt;=, &ge;</td>
-<td>greater than or equal to</td>
-</tr>
-</tbody>
-</table>
-</div>
+# ✅ Fused: one pass over x, no intermediate arrays.
+y = @. x^2 + 3x + 1          # @. adds a dot to every operator in the line
 
-<h2 id="logical-operators">Logical Operators</h2>
+# Equivalent, written out by hand:
+y = x.^2 .+ 3 .* x .+ 1
 
-<p>Logical operators and comparison operators can be combined to create logical expressions that evaluate to true or false.</p>
-<div>
-<table class="table table-striped table-bordered table-dark">
-<tbody>
-<tr>
-<th>Operator</th>
-<th>Name</th>
-</tr>
-<tr>
-<td>&amp;&amp;</td>
-<td>AND</td>
-</tr>
-<tr>
-<td>||</td>
-<td>OR</td>
-</tr>
-<tr>
-<td>!</td>
-<td>NOT</td>
-</tr>
-</tbody>
-</table>
-</div>
+# ❌ Two passes and one temporary vector from the middle expression.
+y = x.^2 .+ sum(3 .* x) .+ 1
 
-<h2 id="table-of-truth">Table of Truth</h2>
+# Bracket the whole call to broadcast it:
+y = sqrt.(x .^ 2 .+ 1)
+</code></pre>
 
-<p>In Julia Boolean values are: true, false. We cant use 1 and 0 like in other languages. Next is a combination of possible values for A, B and the result of several basic expressions. A&amp;&amp;B meaning A and B, A||B meaning A or B then !A meaning negation of A an then !B meaning negation of B. If you are not familiar with these expressions then you need to look into Boolean algebra.</p>
-<div>
-<table class="table table-striped table-bordered table-dark">
-<thead>
-<tr>
-<th>A</th>
-<th>B</th>
-<th>A&amp;&amp;B</th>
-<th>A||B</th>
-<th>!A</th>
-<th>!B</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>false</td>
-<td>false</td>
-<td>false</td>
-<td>false</td>
-<td>true</td>
-<td>true</td>
-</tr>
-<tr>
-<td>false</td>
-<td>true</td>
-<td>false</td>
-<td>true</td>
-<td>true</td>
-<td>0</td>
-</tr>
-<tr>
-<td>true</td>
-<td>false</td>
-<td>false</td>
-<td>true</td>
-<td>false</td>
-<td>true</td>
-</tr>
-<tr>
-<td>true</td>
-<td>true</td>
-<td>true</td>
-<td>true</td>
-<td>false</td>
-<td>false</td>
-</tr>
-</tbody>
-</table>
-</div>
+        <div class="alert alert-primary">
+          The <code>@.</code> macro from the standard library rewrites the following expression by inserting dots everywhere it can. It is the shortest way to write a fused computation and the safest way to avoid forgetting one dot — a missing dot in a long expression is the most common broadcasting mistake.
+        </div>
 
-<h2 id="punctuation">Punctuation</h2>
+        <h3 id="broadcast-inplace">In-Place and Assignment Forms</h3>
 
-<p>In the next table we present a mingle of symbols used by Julia for different purposes. Some are operators but some are just conventions.</p>
-<div>
-<table class="table table-striped table-bordered table-dark">
-<thead>
-<tr>
-<th>symbol</th>
-<th>meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>@m</td>
-<td>invoke macro m; followed by space-separated expressions</td>
-</tr>
-<tr>
-<td>!</td>
-<td>prefix "not" operator</td>
-</tr>
-<tr>
-<td>a!( )</td>
-<td>at the end of a function name, ! indicates that a function modifies its argument(s)</td>
-</tr>
-<tr>
-<td>#</td>
-<td>begin single line comment</td>
-</tr>
-<tr>
-<td>#=</td>
-<td>begin multi-line comment (these are nestable)</td>
-</tr>
-<tr>
-<td>=#</td>
-<td>end multi-line comment</td>
-</tr>
-<tr>
-<td>$</td>
-<td>string and expression interpolation</td>
-</tr>
-<tr>
-<td>%</td>
-<td>remainder operator</td>
-</tr>
-<tr>
-<td>^</td>
-<td>exponent operator</td>
-</tr>
-<tr>
-<td>&amp;</td>
-<td>bitwise and</td>
-</tr>
-<tr>
-<td>&amp;&amp;</td>
-<td>short-circuiting Boolean "and"</td>
-</tr>
-<tr>
-<td>|</td>
-<td>bitwise or</td>
-</tr>
-<tr>
-<td>||</td>
-<td>short-circuiting Boolean "or"</td>
-</tr>
-<tr>
-<td>⊻</td>
-<td>bitwise xor operator (use to be $ but I think it was changed)</td>
-</tr>
-<tr>
-<td>*</td>
-<td>number multiplication, matrix multiplication, string concatenation</td>
-</tr>
-<tr>
-<td>()</td>
-<td>the empty tuple</td>
-</tr>
-<tr>
-<td>~</td>
-<td>bitwise "not" operator</td>
-</tr>
-<tr>
-<td>\</td>
-<td>backslash operator</td>
-</tr>
-<tr>
-<td>&lsquo;</td>
-<td>complex transpose operator Aᴴ</td>
-</tr>
-<tr>
-<td>a[]</td>
-<td>array indexing</td>
-</tr>
-<tr>
-<td>[,]</td>
-<td>vertical concatenation</td>
-</tr>
-<tr>
-<td>[;]</td>
-<td>also vertical concatenation</td>
-</tr>
-<tr>
-<td>[ ]</td>
-<td>with space-separated expressions, horizontal concatenation</td>
-</tr>
-<tr>
-<td>T{ }</td>
-<td>parametric type instantiation</td>
-</tr>
-<tr>
-<td>;</td>
-<td>statement separator</td>
-</tr>
-<tr>
-<td>,</td>
-<td>separate function arguments or tuple components</td>
-</tr>
-<tr>
-<td>?</td>
-<td>3-argument conditional operator (conditional ? if_true : if_false)</td>
-</tr>
-<tr>
-<td>""</td>
-<td>delimit string literals</td>
-</tr>
-<tr>
-<td>"</td>
-<td>delimit character literals</td>
-</tr>
-<tr>
-<td>` `</td>
-<td>delimit external process (command) specifications</td>
-</tr>
-<tr>
-<td>&hellip;</td>
-<td>splice arguments into a function call or declare a varargs function or type</td>
-</tr>
-<tr>
-<td>.</td>
-<td>access named fields in objects/modules</td>
-</tr>
-<tr>
-<td>a:b</td>
-<td>range a, a+1, a+2, &hellip;, b</td>
-</tr>
-<tr>
-<td>a:s:b</td>
-<td>range a, a+s, a+2s, &hellip;, b</td>
-</tr>
-<tr>
-<td>:</td>
-<td>index an entire dimension (1:end)</td>
-</tr>
-<tr>
-<td>::</td>
-<td>type annotation, depending on context</td>
-</tr>
-<tr>
-<td>: ( )</td>
-<td>quoted expression</td>
-</tr>
-<tr>
-<td>:a</td>
-<td>symbol a</td>
-</tr>
-<tr>
-<td>&lt;:</td>
-<td>sub-type operator</td>
-</tr>
-<tr>
-<td>&gt;:</td>
-<td>supertype operator (reverse of subtype operator)</td>
-</tr>
-<tr>
-<td>===</td>
-<td>equal comparison operator</td>
-</tr>
-</tbody>
-</table>
-</div>
+        <p>The dotted assignment operators <code>.+=</code>, <code>.-=</code>, <code>.*=</code> and friends are the true in-place operations that the plain <code>+=</code> is not: they overwrite the elements of the existing array rather than rebinding the name to a new one. That distinction matters whenever another part of the program holds a reference to the same array.</p>
 
-<!-- work in progress-->
+        <pre><code class="language-julia line-numbers">a = [1.0, 2.0, 3.0]
+b = a               # b and a refer to the SAME array
 
-  <hr>
-  
-  
+b .+= 10            # in-place: elements of the shared array are updated
+a                   # [11.0, 12.0, 13.0] — a sees the change
 
-  </main>
+c = [1.0, 2.0, 3.0]
+d = c
+d += [10.0, 10.0, 10.0]   # rebinding: creates a new array
+c                   # [1.0, 2.0, 3.0] — unchanged
+d                   # [11.0, 12.0, 13.0] — a different array
+
+# .+= also avoids allocating, which matters inside a hot loop:
+f!(v) = (v .*= 2; v)      # the ! convention signals in-place mutation
+</code></pre>
+
+        <h2 id="precedence">Precedence and Readability</h2>
+
+        <p>Precedence decides which operator grabs its operands first. Julia's order is close to mathematics and close to C, with two deliberate improvements: comparisons chain instead of nesting, and <code>&amp;</code>/<code>|</code> bind tighter than comparisons, so mask tests mean what they say. You almost never need the full table — but you do need to recognise the two or three places where the compiler's grouping is not the one you assumed.</p>
+
+        <h3 id="precedence-table">Precedence Table</h3>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th>Operators</th>
+              <th>Associativity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1 — syntax</td><td><code>.</code> <code>::</code></td><td>left</td></tr>
+            <tr><td>2 — exponent</td><td><code>^</code></td><td><strong>right</strong></td></tr>
+            <tr><td>3 — unary</td><td><code>+ - √ ! ~</code></td><td>prefix (right)</td></tr>
+            <tr><td>4 — bitshift</td><td><code>&lt;&lt;</code> <code>&gt;&gt;</code> <code>&gt;&gt;&gt;</code></td><td>left</td></tr>
+            <tr><td>5 — multiplicative</td><td><code>* / % &amp; \ ÷</code></td><td>left</td></tr>
+            <tr><td>6 — additive</td><td><code>+ - | ⊻</code></td><td>left</td></tr>
+            <tr><td>7 — comparison</td><td><code>&lt; &lt;= &gt; &gt;= == != === !== ≈</code></td><td>chainable</td></tr>
+            <tr><td>8 — logical and</td><td><code>&amp;&amp;</code></td><td>left, short-circuits</td></tr>
+            <tr><td>9 — logical or</td><td><code>||</code></td><td>left, short-circuits</td></tr>
+            <tr><td>10 — ternary</td><td><code>? :</code></td><td>right</td></tr>
+            <tr><td>11 — assignment</td><td><code>=</code> <code>+=</code> <code>-=</code> <code>.+=</code> …</td><td>right</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># Level 2 beats level 5: exponentiation first.
+2 * 3^2               # 18, not 36
+
+# Unary minus is level 3 and ^ is level 2, so ^ wins the operand.
+-2^2                  # -4  (i.e. -(2^2)), unlike some calculators
+(-2)^2                # 4   — parenthesise when you mean this
+
+# Levels 5 and 6: &amp; binds tighter than +, which surprises C programmers.
+1 + 2 &amp; 3             # 3 — parsed as 1 + (2 &amp; 3), not (1 + 2) &amp; 3
+
+# Level 7 is chainable; levels 8-10 are not, so the ternary needs no parens here.
+x = 5
+0 &lt; x &lt; 10            # true
+x &gt; 0 ? "pos" : "neg" # "pos"
+</code></pre>
+
+        <h3 id="punctuation">Symbols and Punctuation</h3>
+
+        <p>Julia reuses a small set of symbols for several purposes, and a few of them are conventions rather than operators. The table below collects the ones you will meet in ordinary code.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>@m</code></td><td>invoke macro <code>m</code>; followed by space-separated expressions</td></tr>
+            <tr><td><code>!</code> prefix</td><td>logical negation operator</td></tr>
+            <tr><td><code>f!()</code></td><td>naming convention: the function mutates its argument(s)</td></tr>
+            <tr><td><code>'</code></td><td>adjoint (conjugate transpose) — <code>A'</code></td></tr>
+            <tr><td><code>::T</code></td><td>type assertion on a value, or type constraint on a field/parameter</td></tr>
+            <tr><td><code>:sym</code></td><td><code>Symbol</code> literal — an interned name, not a string</td></tr>
+            <tr><td><code>-&gt;</code></td><td>anonymous function: <code>x -&gt; x^2</code></td></tr>
+            <tr><td><code>$</code></td><td>interpolation inside strings and quoted expressions</td></tr>
+            <tr><td><code>...</code></td><td>splat / slurp in argument lists</td></tr>
+            <tr><td><code>=&gt;</code></td><td><code>Pair</code> constructor — used by dictionaries and named tuples</td></tr>
+            <tr><td><code>;</code></td><td>separates statements on one line; inside brackets it separates array rows or keyword arguments</td></tr>
+            <tr><td><code>#</code> / <code>#= =#</code></td><td>line comment / nestable block comment</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="dot-vs-plain">Forgetting the Dot — or Adding It</h3>
+
+        <p>The dot is not decoration: <code>*</code> is a matrix product while <code>.*</code> is element-wise, and <code>^</code> on a matrix means repeated matrix multiplication while <code>.^</code> squares each entry. Mixing them up produces either a <code>DimensionMismatch</code> or — worse — a numerically plausible wrong answer.</p>
+
+        <pre><code class="language-julia line-numbers">A = [1 2; 3 4]
+
+A * A             # [7 10; 15 22]  — true matrix product
+A .* A            # [1 4; 9 16]    — element-wise squares
+A^2               # [7 10; 15 22]  — same as A * A
+A .^ 2            # [1 4; 9 16]    — element-wise, no linear algebra
+
+# Scalar-exponent vs element-wise exponent, again:
+A^0.5             # ERROR or matrix square root — never what a beginner wants
+A .^ 0.5          # element-wise square root — almost always the intent
+</code></pre>
+
+        <h3 id="and-or-trap">Mixing &amp;&amp; with Bitwise Operators</h3>
+
+        <p><code>&amp;&amp;</code> and <code>&amp;</code> are different operators with different guarantees: only the first short-circuits. Writing <code>&amp;</code> where you meant <code>&amp;&amp;</code> is not a syntax error — it compiles and runs, and simply evaluates the right-hand side even when the left already decided the answer. In a loop that right-hand side might be an expensive call or one that assumes a precondition.</p>
+
+        <pre><code class="language-julia line-numbers">v = Int[]
+len = length(v)
+
+# ❌ Both sides evaluate: indexing an empty array raises BoundsError.
+len &gt; 0 &amp; v[1] &gt; 0        # ERROR
+
+# ✅ Short-circuit: the second test never runs when len is 0.
+len &gt; 0 &amp;&amp; v[1] &gt; 0      # false, no error
+
+# The same rule inside a condition:
+if len &gt; 0 &amp;&amp; v[1] &gt; 0
+    println("first element is positive")
+end
+</code></pre>
+
+        <h3 id="float-equality">Comparing Floats with ==</h3>
+
+        <p>Floating-point arithmetic is not exact, so <code>==</code> on computed floats is a coin flip. Every quantity that arrives through a division, a square root, or a sum of decimals should be compared with <code>≈</code> and an explicit tolerance.</p>
+
+        <pre><code class="language-julia line-numbers">0.1 + 0.2 == 0.3              # false
+0.1 + 0.2 ≈ 0.3               # true
+
+# Control the tolerance when the magnitudes are unusual.
+isapprox(1e10, 1e10 + 1)                 # true by default relative tolerance
+isapprox(1e10, 1e10 + 1; atol = 0)       # false — demand absolute exactness
+
+# Testing exact zero after cancellation is the classic trap.
+x = 1e-16
+x == 0                        # false, although the value is "zero" for the physics
+
+# The safe pattern
+abs(x) &lt; 1e-12               # true — an explicit tolerance you chose yourself
+</code></pre>
+
+        <p>Choose the tolerance deliberately: <code>1e-12</code> is reasonable for double precision with order-1 magnitudes, but a relative test with <code>rtol</code> is more robust when values span many orders of magnitude. Whatever you pick, writing it down is the point — an implicit default hides the assumption.</p>
+
+        <p>With expressions, comparisons, logic, bit manipulation, and broadcasting in hand, you have the complete vocabulary for computing single values and whole arrays at once. Next: <a href="/roadmap/julia/control.html">Control Flow</a> turns these expressions into decisions, and then <a href="/roadmap/julia/loops.html">Loops &amp; Iteration</a> repeats them.</p>
+
+      </main>
     </div>
   </div>
 
   <hr>
-
   <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
@@ -504,6 +626,4 @@ Page description. To be replaced!
 <script src="/assets/js/topic-loader.js" defer></script>
 
 </body>
-</html>
-  <script src="/sage.js"></script>
 </html>

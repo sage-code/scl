@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Normalize Bash track sidebar JSON to start at the h2 level.
+"""OBSOLETE — do not run. It removes the page-title root the template requires.
 
-Topic sidebars in every other track (e.g. roadmap/csharp/data/*.json) begin at
-the first <h2>; the page <h1> is not listed. The Bash sidebars were generated
-with a leading h1 entry (link "#bash-<topic>"). This script removes that entry
-so the sidebar mirrors the h2/h3 structure, and is idempotent.
+Historical context: this script was written when sidebars were expected to start at
+the first <h2>, so it STRIPPED a leading `<h1>` entry (link "#bash-<topic>") from the
+Bash sidecars. The template has since flipped: the page title IS the root folder
+(manual/ARCHITECTURE.md §"Topic sidebar JSON — template", scaffold
+`assets/topic_sidebar_template.json`). Running this script now deletes exactly the
+node the contract requires, so it refuses to act unless the obsolete flag is passed.
+
+Use instead:
+    python scripts/tools/migrate_sidebars.py --track <track> [--dry-run]
+    python scripts/tools/verify_sidebars.py <track>
 
 Usage:
-    python scripts/tools/normalize_bash_sidebars.py [--dry-run]
+    python scripts/tools/normalize_bash_sidebars.py --apply-obsolete --dry-run   # refuse-by-default escape hatch
 """
 from __future__ import annotations
 
@@ -23,7 +29,15 @@ DATA = ROOT / "roadmap" / "bash" / "data"
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--apply-obsolete", action="store_true",
+                    help="run the obsolete strip anyway (it removes the required title root)")
     args = ap.parse_args()
+
+    if not args.apply_obsolete:
+        print("OBSOLETE TOOL: it strips the page-title root the template requires.\n"
+              "Use scripts/tools/migrate_sidebars.py (convert) or "
+              "scripts/tools/gen_topic_sidebars.py (author) instead.")
+        return 2
 
     if not DATA.is_dir():
         sys.exit(f"ERROR: data directory not found: {DATA}")

@@ -56,13 +56,13 @@ class TopicLoader {
     return `node-${String(sectionKey).replace(/[^a-zA-Z0-9_-]/g, '_')}-${path}`;
   }
 
-  // Page title = the root of the sidebar tree: a childless legacy title leaf, or
-  // — on the title-as-root shape — the collapsible folder that contains every
-  // topic. The glyph is a folder carrying the root-directory slash: a single
-  // outline folder (tab + body, in the same visual family as the `bi-folder2`
-  // tree toggles, but stroked instead of filled so it reads lighter than a real
-  // folder node) with one bold "/" inside its front panel. The slash is inset so
-  // it never touches the outline - no overlap, no halo, legible down to 16px.
+  // Legacy title leaf glyph — kept only for un-migrated tracks whose sidebar JSON
+  // still leads with a childless `role: "title"` entry (an anchor, not a folder).
+  // The single-root model never reaches this path: there the `<h1>` is an ordinary
+  // collapsible folder wearing the standard green `bi-folder2` toggle, so the title
+  // drops the special glyph below and folds like any chapter. The glyph itself is a
+  // stroked outline folder with a slash in its front panel — distinct from both the
+  // `bi-folder2` toggles and the `bi-file-earmark-text` section icon.
   // Two paths only.
   createTitleIcon() {
     const titleIcon = document.createElement('span');
@@ -75,33 +75,10 @@ class TopicLoader {
     return titleIcon;
   }
 
-  // A `role: "title"` node that carries children is the tree ROOT: the page
-  // title as a folder that contains every topic (the Dart-style header). It
-  // reuses the same toggle machinery as an h2 folder, but wears the gold root
-  // glyph instead of the green `bi-folder2` chevron, so the title still reads as
-  // distinct from the chapters nested under it.
-  createTitleToggleButton(nodeId, expanded) {
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'nav-tree-toggle nav-title-root';
-    toggle.dataset.nodeId = nodeId;
-    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    toggle.setAttribute('aria-label', this.titleToggleLabel(expanded));
-    toggle.innerHTML = this.createTitleIcon().innerHTML;
-    return toggle;
-  }
-
-  titleToggleLabel(expanded) {
-    return expanded ? 'Collapse topics' : 'Expand topics';
-  }
-
-  // The title root collapses its topics, chapter folders collapse their
-  // sub-sections — same control, different spoken label.
-  toggleLabel(node, expanded) {
-    const isTitle = !!(node && node.li && node.li.dataset.role === 'title');
-    return isTitle
-      ? this.titleToggleLabel(expanded)
-      : (expanded ? 'Collapse topic folder' : 'Expand topic folder');
+  // One spoken label for every folder. In the single-root model the page title is an
+  // ordinary folder, so it gets the same wording as a chapter.
+  toggleLabel(expanded) {
+    return expanded ? 'Collapse topic folder' : 'Expand topic folder';
   }
 
   createToggleButton(nodeId, expanded) {
@@ -123,10 +100,11 @@ class TopicLoader {
   }
 
   isTreeLevelExpandedByDefault(level) {
-    // Two levels open by default: the page title (level 0 — the root folder) and
-    // its chapters (level 1). Before the title-as-root shape the chapters WERE
-    // level 0, so they opened by default; keeping levels 0-1 open preserves that
-    // "the whole lab is visible" reading with the title now sitting above them.
+    // The single-root model gives the reader three levels: the page title is the
+    // root folder (level 0), its chapters are folders (level 1), and their sections
+    // are the leaves (level 2). Title and chapters open by default so the whole lab
+    // is visible on load; anything deeper starts folded, and every folder — the title
+    // included — can be collapsed by the reader.
     return level <= 1;
   }
 
@@ -222,9 +200,11 @@ class TopicLoader {
       row.dataset.nodeId = nodeId;
       row.dataset.sectionKey = sectionKey;
 
-      if (isTitle && hasChildren) {
-        row.appendChild(this.createTitleToggleButton(nodeId, expanded));
-      } else if (hasChildren) {
+      // Every node with children is an ordinary collapsible folder — the page title
+      // included, since it is just the root of the single-root model. A childless
+      // legacy `role: "title"` entry keeps the outline title glyph because it anchors
+      // the page title rather than a section.
+      if (hasChildren) {
         row.appendChild(this.createToggleButton(nodeId, expanded));
       } else if (isTitle) {
         row.appendChild(this.createTitleIcon());
@@ -335,19 +315,17 @@ class TopicLoader {
         childList.setAttribute('role', 'group');
         childList.classList.toggle('is-collapsed', !expanded);
 
-        const isTitleNode = li.dataset.role === 'title';
+        // Inside this branch the node has children, so it is a folder: it must carry
+        // the standard toggle, whoever rendered the markup (build.js renders it, and
+        // this repairs a hand-written sidebar that forgot one).
         let toggle = row.querySelector('.nav-tree-toggle');
         if (!toggle) {
-          toggle = isTitleNode
-            ? this.createTitleToggleButton(li.dataset.nodeId, expanded)
-            : this.createToggleButton(li.dataset.nodeId, expanded);
+          toggle = this.createToggleButton(li.dataset.nodeId, expanded);
           row.insertBefore(toggle, row.firstChild);
         } else {
           toggle.dataset.nodeId = li.dataset.nodeId;
           toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-          toggle.setAttribute('aria-label', isTitleNode
-            ? this.titleToggleLabel(expanded)
-            : (expanded ? 'Collapse topic folder' : 'Expand topic folder'));
+          toggle.setAttribute('aria-label', this.toggleLabel(expanded));
           const icon = toggle.querySelector('i');
           if (icon) {
             icon.className = `bi ${expanded ? 'bi-folder2-open' : 'bi-folder2'}`;
@@ -560,7 +538,7 @@ class TopicLoader {
     const nextExpanded = typeof forceExpanded === 'boolean' ? forceExpanded : currentlyCollapsed;
     node.childList.classList.toggle('is-collapsed', !nextExpanded);
     node.toggle.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
-    node.toggle.setAttribute('aria-label', this.toggleLabel(node, nextExpanded));
+    node.toggle.setAttribute('aria-label', this.toggleLabel(nextExpanded));
 
     const icon = node.toggle.querySelector('i');
     if (icon) {
