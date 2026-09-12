@@ -34,8 +34,8 @@ Before editing content at scale, verify these generated outputs after build:
 
 Before creating or updating roadmap topic pages, verify sidebar navigation shape:
 
-1. Each topic page has one `h1`, multiple `h2`, and multiple `h3` under every `h2`.
-2. Matching `roadmap/<track>/<topic>.json` is hierarchical, not flat: each `h2` item must include a `children` array of `h3` anchors.
+1. Each topic page has at least one `h1` (several allowed — each roots its own tree), multiple `h2`, and multiple `h3` under every `h2`.
+2. Matching `roadmap/<track>/<topic>.json` is hierarchical, not flat: the page title (`h1`, `role: "title"`) roots the tree and contains its `h2` items, each `h2` carrying a `children` array of `h3` anchors. The legacy childless-title-leaf + flat-`h2` shape stays valid for older tracks.
 3. Do not publish flat JSON lists for topic sidebars; flat lists break tree navigation semantics in `assets/js/topic-loader.js`.
 
 ## Architecture Rules
