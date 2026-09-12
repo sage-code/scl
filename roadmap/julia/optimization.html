@@ -1,0 +1,695 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Optimization in Julia: linear, integer, mixed-integer and nonlinear programming with JuMP, Convex.jl and Optim.jl, plus infeasibility diagnosis and reproducible solves.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, optimization, jump, linear programming, milp, nonlinear, convex, optim, solver, constraints, infeasibility">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Optimization &amp; JuMP</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-optimization">Optimization &amp; JuMP</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Optimization is where a model stops describing the world and starts prescribing a decision: how much to produce, where to route a truck, which candidate to schedule first. Julia's answer is <strong>JuMP</strong> — a modelling language embedded in Julia that writes the equations the way a textbook does, then hands them to a solver that does the arithmetic.
+        </div>
+
+        <p>The lesson is organised by problem class, because the class decides everything: which solver can be used, whether the answer is guaranteed optimal, and how long the search will take. Linear and convex problems are solved to proven optimality in seconds; a mixed-integer or non-convex problem may consume an hour and still return "feasible, not proven optimal". Knowing which one you are writing is the difference between a tool and a lottery.</p>
+        <p>The lesson is organised by problem class, because the class decides everything: which solver can be used, whether the answer is guaranteed optimal, and how long the search will take. Linear and convex problems are solved to proven optimality in seconds; a mixed-integer or non-convex problem may consume an hour and still return "feasible, not proven optimal". Knowing which one you are writing is the difference between a tool and a lottery.</p>
+
+        <h2 id="optimization-basics">Optimization in Julia</h2>
+
+        <p>Begin with the classification, because it constrains every later choice.</p>
+
+        <h3 id="problem-classes">Problem Classes</h3>
+
+        <p>Each class is defined by the shape of the objective and the constraints. The shape determines what a solver can promise you.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Class</th><th>Objective and constraints</th><th>What a solver can promise</th></tr></thead>
+          <tbody>
+            <tr><td>LP — linear programming</td><td>Linear both</td><td>A proven global optimum, fast, in polynomial time</td></tr>
+            <tr><td>MILP — mixed-integer linear</td><td>Linear, some variables integer</td><td>Global optimum or a bound on how far the incumbent is from it</td></tr>
+            <tr><td>QP / convex</td><td>Convex objective, convex constraints</td><td>Global optimum; any local solution is the global one</td></tr>
+            <tr><td>NLP — nonlinear</td><td>Arbitrary smooth functions</td><td>Usually a local optimum only</td></tr>
+            <tr><td>Non-convex / combinatorial</td><td>Discrete structure, many local optima</td><td>Nothing general — a good answer and no guarantee</td></tr>
+          </tbody>
+        </table>
+
+        <p>The practical reading: if you can state the problem linearly or convexly, do that. You exchange modelling freedom for a guarantee, and the guarantee is usually worth more than the fidelity.</p>
+
+        <h3 id="optimization-ecosystem">The Ecosystem</h3>
+
+        <p>Julia separates the model from the solver. One model file, many solvers — the same code runs on an open-source solver on your laptop and a commercial one on the cluster.</p>
+
+        <pre><code class="language-julia line-numbers"># The layers
+#   JuMP.jl        → the modelling language (variables, constraints, objective)
+#   MathOptInterface → the interface both JuMP and solvers speak
+#   a solver       → the arithmetic: HiGHS, GLPK, Ipopt, Cbc, Gurobi, CPLEX
+
+using JuMP
+using HiGHS                # open source LP/MILP solver
+using Ipopt                # open source nonlinear solver
+
+# A solver choice is one line — the model above it does not change
+model = Model(HiGHS.Optimizer)
+model = Model(Ipopt.Optimizer)
+# model = Model(Gurobi.Optimizer)          # same model, a commercial solver
+
+# Look at what is available in this environment
+#   ] add JuMP HiGHS Ipopt
+#   using JuMP; JuMP.installed_solvers()
+</code></pre>
+
+        <p>This separation is the reason JuMP is worth learning instead of a solver's own API: a model that took a day to write is not tied to a licence, a vendor, or a version.</p>
+
+        <h3 id="objective-functions">Objective Functions and Feasibility</h3>
+
+        <p>Every optimization problem has the same three parts. State them explicitly before writing code — the discipline prevents most modelling errors.</p>
+
+        <pre><code class="language-julia line-numbers"># The three parts, in words first:
+#
+#   DECISION VARIABLES  what we choose       x₁, x₂ ≥ 0
+#   OBJECTIVE           what we want         minimise  3x₁ + 2x₂
+#   CONSTRAINTS         what is allowed      x₁ + x₂ ≥ 10
+#                                           2x₁ +  x₂ ≥ 12
+#
+# In JuMP:
+
+using JuMP, HiGHS
+
+model = Model(HiGHS.Optimizer)
+
+@variable(model, x1 &gt;= 0)
+@variable(model, x2 &gt;= 0)
+
+@objective(model, Min, 3x1 + 2x2)
+
+@constraint(model, c1, x1 + x2 &gt;= 10)
+@constraint(model, c2, 2x1 + x2 &gt;= 12)
+
+optimize!(model)
+
+termination_status(model)      # OPTIMAL
+objective_value(model)         # 24.0
+value(x1), value(x2)           # (2.0, 8.0)
+
+# Always check the status before reading values: a failed solve also has
+# an incumbent, and it is usually nonsense.
+</code></pre>
+
+        <p>Naming constraints (<code>c1</code>, <code>c2</code>) costs nothing and pays immediately: solvers report infeasibility and dual values by name, and a name is far easier to act on than "row 7".</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-opt-classes.svg" class="figure-img img-fluid rounded" alt="A decision tree of optimization problem classes: continuous branch to linear, quadratic and convex problems that yield a proven global optimum in seconds; mixed-integer branch to MILP and MINLP that yield an optimum with an optimality gap in minutes to hours; nonlinear branch to non-convex NLP that yields only a local optimum whose quality depends on the starting point.">
+          <figcaption class="figure-caption text-secondary">Classification first: the class, not the code, decides what the solver can promise.</figcaption>
+        </figure>
+
+        <h2 id="linear-programming">Linear Programming with JuMP</h2>
+
+        <p>An LP is the friendliest problem in optimization: any local optimum is global, the answer is exact, and a solver will prove it. Most production planning models are LPs or nearly so.</p>
+
+        <h3 id="building-model">Building a Production Model</h3>
+
+        <p>A realistic example: choose production quantities for several products to maximise profit, subject to machine hours and demand limits.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP, HiGHS
+
+# Data
+products   = [:widget, :gadget, :sprocket]
+profit     = Dict(:widget =&gt; 12.0, :gadget =&gt; 9.0, :sprocket =&gt; 15.0)
+hours      = Dict(:widget =&gt; 0.5,  :gadget =&gt; 1.0, :sprocket =&gt; 1.5)   # per unit
+demand_max = Dict(:widget =&gt; 100,  :gadget =&gt; 120, :sprocket =&gt; 60)
+machine_hours = 200.0
+
+model = Model(HiGHS.Optimizer)
+set_silent(model)
+
+# Continuous variables with bounds, created from data — no copy-paste
+@variable(model, 0 &lt;= x[p in products] &lt;= demand_max[p])
+
+# Objective: total profit, written as a sum over the index set
+@objective(model, Max, sum(profit[p] * x[p] for p in products))
+
+# Constraint: the shared resource
+@constraint(model, machine_use, sum(hours[p] * x[p] for p in products) &lt;= machine_hours)
+
+optimize!(model)
+
+termination_status(model)          # OPTIMAL
+objective_value(model)             # the maximum profit
+value.(x)                          # the quantities, one per product
+value(machine_use)                 # hours actually used
+dual(machine_use)                  # the shadow price of one extra hour
+</code></pre>
+
+        <p>The <code>dual</code> of the resource constraint is the number a manager actually wants: the increase in profit per additional machine hour. It is free to compute and it answers the question everyone asks after "what is the optimum?".</p>
+
+        <h3 id="constraints-bounds">Constraints, Bounds and Index Sets</h3>
+
+        <p>Real models have constraints per product, per period, or per pair. JuMP expresses them as comprehensions over index sets, not loops of copy-pasted lines.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP, HiGHS
+
+model = Model(HiGHS.Optimizer)
+
+weeks = 1:4
+items = [:a, :b]
+
+@variable(model, x[i in items, t in weeks] &gt;= 0)
+@variable(model, 0 &lt;= inv[i in items, t in weeks] &lt;= 50)
+
+# Inventory balance: stock carries over, demand is met from stock
+demand = Dict((:a, 1) =&gt; 10, (:a, 2) =&gt; 12, (:b, 1) =&gt; 8, (:b, 2) =&gt; 9)
+@constraint(model, balance[i in items, t in weeks],
+    inv[i, t] == x[i, t] + (t == first(weeks) ? 0 : inv[i, t-1]) - get(demand, (i, t), 0)
+)
+
+# Capacity that links items: total production per week is limited
+@constraint(model, cap[t in weeks], sum(x[i, t] for i in items) &lt;= 30)
+
+# Absolute value via two linear inequalities — the standard trick
+@variable(model, deviation[t in weeks] &gt;= 0)
+@constraint(model, dev_pos[t in weeks], deviation[t] &gt;= x[:a, t] - 15)
+@constraint(model, dev_neg[t in weeks], deviation[t] &gt;= 15 - x[:a, t])
+
+# Every constraint and variable is named and enumerable
+num_variables(model)
+num_constraints(model; count_variable_in_set_constraints = false)
+</code></pre>
+
+        <p>The inventory-balance constraint shows how a <code>t == first(weeks)</code> conditional keeps an initial condition inside the same formula. That avoids an off-by-one bug that is otherwise invisible until the model reports an impossible optimum.</p>
+
+        <h3 id="solving-interpreting">Solving and Interpreting Results</h3>
+
+        <p>Reading a solution properly means reading the status, the objective, the variables, and the duals — in that order.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP, HiGHS
+
+optimize!(model)
+
+# 1. Status first — everything else depends on it
+termination_status(model)         # OPTIMAL | INFEASIBLE | DUAL_INFEASIBLE | TIME_LIMIT | ...
+primal_status(model)              # FEASIBLE_POINT | NO_SOLUTION
+dual_status(model)
+
+if termination_status(model) == MOI.OPTIMAL
+    @info "solved" profit = objective_value(model) hours = value(machine_use)
+elseif termination_status(model) == MOI.INFEASIBLE
+    # Ask the solver which constraints conflict
+    compute_conflict!(model)
+    for (F, S) in list_of_constraint_types(model)
+        for con in all_constraints(model, F, S)
+            if MOI.get(model, MOI.ConstraintConflictStatus(), con) != MOI.NOT_IN_CONFLICT
+                @warn "conflicting constraint" name = name(con)
+            end
+        end
+    end
+end
+
+# 2. Sensitivity: what would one more unit of the resource be worth?
+dual(machine_use)                 # shadow price
+reduced_cost(x[:widget])          # how far this product is from being worth making
+
+# 3. Solution quality when there is no guarantee
+objective_value(model)            # the incumbent
+MOI.get(model, MOI.RelativeGap()) # for MIP: how far from proven optimal
+</code></pre>
+
+        <p><code>compute_conflict!</code> is the single most useful debugging tool in LP work. "Infeasible" alone tells you nothing; a list of the constraints that cannot hold together tells you exactly which business rule contradicts which.</p>
+
+        <h2 id="integer">Integer and Mixed-Integer Programming</h2>
+
+        <p>The moment a variable must be an integer — a number of machines, a yes/no decision — the problem becomes combinatorial and the guarantee changes shape.</p>
+
+        <h3 id="integer-variables">Binary and Integer Variables</h3>
+
+        <p>Two variable kinds cover almost every discrete model: an integer count and a binary on/off switch.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP, HiGHS
+
+model = Model(HiGHS.Optimizer)
+
+# Integer counts (units produced, trucks used, staff scheduled)
+@variable(model, n_machines &gt;= 0, Int)
+
+# Binary decisions (open a facility, assign a task, select a candidate)
+@variable(model, open_a, Bin)
+@variable(model, open_b, Bin)
+
+# The standard big-M link: produce only if the facility is open
+M = 1000.0
+@variable(model, 0 &lt;= output_a &lt;= M * open_a)
+@variable(model, 0 &lt;= output_b &lt;= M * open_b)
+
+# Fixed cost plus variable cost
+fixed  = 500.0
+margin = 3.0
+@objective(model, Max, margin * (output_a + output_b) - fixed * (open_a + open_b))
+
+@constraint(model, demand, output_a + output_b &gt;= 120)
+
+optimize!(model)
+
+# Check how close the answer is to PROVEN optimal
+gap = MOI.get(model, MOI.RelativeGap())        # 0.0 means proven optimal
+@info "MIP result" profit = objective_value(model) gap = gap open = (value(open_a), value(open_b))
+</code></pre>
+
+        <p>Choose <code>M</code> as tightly as the data allows. A big-M far larger than the real capacity makes the linear relaxation very weak, and a weak relaxation is why a MIP that should take a second takes an hour.</p>
+
+        <h3 id="scheduling">Scheduling and Assignment Models</h3>
+
+        <p>The assignment model is the canonical integer program: match workers to shifts, tasks to machines, items to bins — one matrix of binaries and one constraint per row and per column.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP, HiGHS
+
+workers = [:ana, :bogdan, :carla]
+shifts  = [:mon, :tue, :wed]
+cost = Dict((:ana, :mon) =&gt; 10, (:ana, :tue) =&gt; 12, (:ana, :wed) =&gt; 11,
+            (:bogdan, :mon) =&gt; 9, (:bogdan, :tue) =&gt; 14, (:bogdan, :wed) =&gt; 10,
+            (:carla, :mon) =&gt; 8, (:carla, :tue) =&gt; 9,  (:carla, :wed) =&gt; 12)
+
+model = Model(HiGHS.Optimizer)
+
+# x[w, s] = 1 when worker w covers shift s
+@variable(model, x[w in workers, s in shifts], Bin)
+
+# Each shift covered exactly once
+@constraint(model, cover[s in shifts], sum(x[w, s] for w in workers) == 1)
+
+# Each worker takes at most two shifts
+@constraint(model, load[w in workers], sum(x[w, s] for s in shifts) &lt;= 2)
+
+# No worker on both Tuesday and Wednesday (a fairness rule)
+@constraint(model, no_consecutive[w in workers], x[w, :tue] + x[w, :wed] &lt;= 1)
+
+@objective(model, Min, sum(cost[(w, s)] * x[w, s] for w in workers, s in shifts))
+
+optimize!(model)
+
+if termination_status(model) == MOI.OPTIMAL
+    for s in shifts
+        w = only(w for w in workers if value(x[w, s]) &gt; 0.5)
+        println(s, " → ", w)
+    end
+end
+
+# Extracting the solution back into a data structure is part of the model:
+# a solution nobody can read is a solution nobody will act on.
+</code></pre>
+
+        <p>Note the shape of the extraction loop: from a matrix of binaries to a plain list of assignments. That conversion is where domain rules get re-checked before anybody trusts the schedule.</p>
+
+        <h3 id="mip-pitfalls">MIP Pitfalls</h3>
+
+        <p>Integer programs fail in ways that look like solver bugs but are almost always modelling problems.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>Solve runs for hours</td><td>Weak LP relaxation from a huge big-M</td><td>Tighten <code>M</code> to the real bound</td></tr>
+            <tr><td>No feasible solution found</td><td>An equality constraint is over-restrictive</td><td>Relax to <code>&lt;=</code>/<code>&gt;=</code>, or run <code>compute_conflict!</code></td></tr>
+            <tr><td>Solution is fractional</td><td>Variables declared continuous by accident</td><td>Add <code>Int</code> or <code>Bin</code> and re-check the values</td></tr>
+            <tr><td>Memory exhausted</td><td>Too many binaries (thousands × thousands)</td><td>Reformulate: aggregate, add valid inequalities, drop symmetry</td></tr>
+            <tr><td>Equivalent optima, different answers daily</td><td>Symmetry in the model</td><td>Add a symmetry-breaking constraint</td></tr>
+            <tr><td>Answer differs from a colleague's</td><td>Different solver version or gap tolerance</td><td>Record solver, version, and <code>RelativeGap</code> with the result</td></tr>
+          </tbody>
+        </table>
+
+        <p>The last row is the practical reason to log solver settings: an integer program has no unique "the answer" unless the optimality gap is zero, and two runs at different tolerances legitimately differ.</p>
+
+        <h2 id="nonlinear">Nonlinear and Convex Optimization</h2>
+
+        <p>When the objective or a constraint is nonlinear, the guarantees change — and the model class you choose decides whether you get the global optimum or a local one.</p>
+
+        <h3 id="optim-roots">Optim.jl and Roots.jl</h3>
+
+        <p>For unconstrained or simply-constrained nonlinear problems, <code>Optim.jl</code> is lighter than JuMP and gives you direct control over the algorithm.</p>
+
+        <pre><code class="language-julia line-numbers">using Optim
+
+# Unconstrained: the Rosenbrock function with the classic valley
+rosenbrock(x) = (1.0 - x[1])^2 + 100.0 * (x[2] - x[1]^2)^2
+
+result = optimize(rosenbrock, [-1.2, 1.0], NelderMead())
+result = optimize(rosenbrock, [-1.2, 1.0], BFGS())          # needs a gradient
+result = optimize(rosenbrock, [-1.2, 1.0], LBFGS())         # limited-memory BFGS
+
+Optim.minimizer(result)     # the point found
+Optim.minimum(result)       # the function value there
+
+# Supplying the gradient yourself is faster and more accurate
+function rosenbrock_g!(G, x)
+    G[1] = -2(1 - x[1]) - 400x[1]*(x[2] - x[1]^2)
+    G[2] = 200(x[2] - x[1]^2)
+    return G
+end
+optimize(rosenbrock, rosenbrock_g!, [-1.2, 1.0], BFGS())
+
+# Or let automatic differentiation do it
+using ForwardDiff
+optimize(rosenbrock, [-1.2, 1.0], BFGS(); autodiff = :forward)
+
+# Box constraints
+optimize(rosenbrock, [0.0, 0.0], [1.0, 1.0], [0.5, 0.5], Fminbox(LBFGS()))
+
+# Root finding is the one-dimensional cousin
+using Roots
+find_zero(x -&gt; x^3 - 2x - 5, 2.0)          # a root near 2
+find_zero(sin, (3.0, 4.0))                 # bracketed
+</code></pre>
+
+        <p>The distinction to carry forward: <code>Optim.jl</code> solves the mathematical problem directly, while JuMP is for problems you want to express declaratively and solve with an industrial solver. Both are normal Julia code; there is no wrong choice, only a fit.</p>
+
+        <h3 id="nlp-jump">Nonlinear Models in JuMP</h3>
+
+        <p>JuMP handles nonlinear expressions directly: write the function as you would in Julia, and give the solver a starting point.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP, Ipopt
+
+model = Model(Ipopt.Optimizer)
+set_silent(model)
+
+@variable(model, 0.1 &lt;= x &lt;= 10, start = 1.0)
+@variable(model, 0.1 &lt;= y &lt;= 10, start = 1.0)
+
+# A nonlinear objective: a cost curve with economies of scale
+@objective(model, Min, 100 / x + 50 / y + 2 * x + 3 * y)
+
+# A nonlinear constraint: the production function
+@constraint(model, production, x^0.6 * y^0.4 &gt;= 8)
+
+# A squared-slack form keeps ill-conditioned constraints well behaved
+@variable(model, slack &gt;= 0)
+@constraint(model, smooth, slack^2 == x^2 + y^2 - 20)
+
+optimize!(model)
+
+termination_status(model)     # LOCALLY_SOLVED for a non-convex model
+value(x), value(y)
+
+# The starting point is part of the model
+set_start_value(x, 5.0)
+set_start_value(y, 2.0)
+
+# For a non-convex objective, run from several starts and compare
+using Random
+best = nothing
+for seed in 1:10
+    Random.seed!(seed)
+    set_start_value(x, rand() * 10)
+    set_start_value(y, rand() * 10)
+    optimize!(model)
+    if termination_status(model) == MOI.LOCALLY_SOLVED
+        v = objective_value(model)
+        best = isnothing(best) || v &lt; best.value ? (value = v, x = value(x), y = value(y)) : best
+    end
+end
+</code></pre>
+
+        <p>The multi-start loop is the honest answer to non-convexity. There is no algorithm that finds the global optimum of an arbitrary nonlinear function, so the practical strategy is many starts plus proof that the best of them is stable under perturbation.</p>
+
+        <h3 id="gradients">Gradients, AD and Solver Tuning</h3>
+
+        <p>Solver performance in nonlinear work is dominated by derivative information, and Julia can supply it automatically.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP, Ipopt, ForwardDiff, Enzyme
+
+# JuMP can differentiate the model itself
+set_attribute(model, "hessian_approximation", "limited-memory")
+
+# Or register derivatives explicitly for a custom function
+f(x) = exp(-x[1]^2 - x[2]^2)
+register(model, :f, 2, f; autodiff = true)
+
+# Automatic differentiation packages, by use case
+#   ForwardDiff.jl   → forward mode: best for few inputs, many outputs
+#   ReverseDiff.jl   → reverse mode: best for many inputs, one output (gradients)
+#   Enzyme.jl        → reverse mode on compiled code, very fast, handles mutation
+
+using ForwardDiff
+g = ForwardDiff.gradient(f, [1.0, 2.0])
+H = ForwardDiff.hessian(f, [1.0, 2.0])
+
+# Tolerance and iteration settings — record them with the result
+set_optimizer_attribute(model, "tol", 1e-8)
+set_optimizer_attribute(model, "max_iter", 3000)
+set_optimizer_attribute(model, "print_level", 0)
+
+# Reading the report is part of solving
+raw_status(model)                       # "Solve_Succeeded"
+dual_status(model)                      # are the multipliers available?
+result_count(model)                     # > 1 means several solutions were returned
+objective_value(model; result = 2)      # inspect the alternative
+</code></pre>
+
+        <p><code>result_count(model)</code> is easy to overlook and occasionally saves a week: when a solver returns several solutions, the first is not necessarily the one your colleagues expect, and the alternatives are often a better trade-off in practice.</p>
+
+        <h2 id="convex">Convex Modelling</h2>
+
+        <p>A convex problem has one property that changes everything: every local optimum is the global optimum. If a problem can be reformulated as convex without inventing lies about the world, that reformulation is the most valuable line of code in the project.</p>
+
+        <h3 id="convex-jl">Convex.jl and Disciplined Programming</h3>
+
+        <p><code>Convex.jl</code> enforces convexity as you write, by refusing expressions that break the rules. That refusal is the feature.</p>
+
+        <pre><code class="language-julia line-numbers">using Convex, SCS
+
+# Variables
+x = Variable(3)
+
+# A convex objective: least squares
+A = randn(10, 3); b = randn(10)
+problem = minimize(sumsquares(A * x - b))
+solve!(problem, SCS.Optimizer)
+evaluate(x)
+
+# Norms and penalties are first-class
+problem = minimize(norm(A * x - b, 2) + 0.1 * norm(x, 1))     # L2 + L1
+solve!(problem, SCS.Optimizer)
+
+# Constraints build the feasible set
+problem = minimize(sumsquares(x - [1.0, 2.0, 3.0]),
+                   [ sum(x) == 1, x &gt;= 0 ])
+
+# Convex.jl refuses non-convex expressions at construction time:
+#   maximize(sin(x[1]))         # ERROR: sin is not convex or concave
+#   minimize(x[1] * x[2])       # ERROR: the product of two variables is not convex
+
+# Status and solution
+problem.status                # OPTIMAL | INFEASIBLE | UNBOUNDED
+problem.optval                # the optimal objective value
+evaluate(x)                   # the optimal point
+</code></pre>
+
+        <p>Reading a "not convex" error as a modelling message rather than an API quirk is the skill here. It means the problem as stated has multiple local optima, and the answer you get will depend on where the solver started.</p>
+
+        <h3 id="why-convex">Recognising and Using Convexity</h3>
+
+        <p>Three practical tests decide whether a formulation is convex, and each one has a standard repair when it fails.</p>
+
+        <pre><code class="language-julia line-numbers"># 1. Objective: sum of convex functions is convex.
+#    ||Ax - b||², ||x||₂, ||x||₁, max(x, 0), exp(x), -log(x) are convex.
+#    -log(x) is convex for x &gt; 0 — which is why log-likelihood
+#    maximisation becomes a convex MINIMISATION.
+
+# 2. Constraints: the feasible set must be convex.
+#    affine equality, ||x|| ≤ c, x ≥ 0, second-order cones, PSD cones.
+
+# 3. The classic reformulations
+#    |x| = z          →  z ≥ x, z ≥ -x        (two linear inequalities)
+#    max(a, b) = z    →  z ≥ a, z ≥ b         (epigraph form)
+#    x·y              →  bilinear: NOT convex; fix one variable or linearise
+#    l0 "count nonzeros" → use the l1 norm as a convex surrogate (LASSO)
+
+# Why this matters in practice: the L1 surrogate
+using Convex, SCS
+n = 50; k = 5
+A = randn(30, n); x_true = zeros(n); x_true[1:k] .= 1.0
+b = A * x_true
+
+x_l1 = Variable(n)
+solve!(minimize(norm(A * x_l1 - b, 2) + 0.5 * norm(x_l1, 1)), SCS.Optimizer)
+count(!iszero, round.(evaluate(x_l1); digits = 4))    # ≈ k recovered
+</code></pre>
+
+        <p>The LASSO example is the canonical trade: the honest objective (count nonzeros) is combinatorial, and the convex surrogate (the L1 norm) produces almost the same answer in milliseconds with a guarantee attached.</p>
+
+        <h3 id="modelling-tricks">Modelling Tricks Worth Knowing</h3>
+
+        <p>These six patterns appear in almost every real model. Each converts a statement that looks non-linear into one a solver can handle.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>What you want</th><th>How to write it</th><th>Linearity</th></tr></thead>
+          <tbody>
+            <tr><td>Absolute value of a variable</td><td><code>z &gt;= x; z &gt;= -x</code> with <code>z</code> in the objective</td><td>Stays linear</td></tr>
+            <tr><td>Minimum of two quantities</td><td><code>z &lt;= a; z &lt;= b</code> with <code>z</code> maximised</td><td>Stays linear</td></tr>
+            <tr><td>Either/or constraint</td><td>Binary <code>y</code>, big-M: <code>x &lt;= M·y + c</code></td><td>Introduces a binary</td></tr>
+            <tr><td>At least <em>k</em> of <em>n</em> options</td><td><code>sum(y) &gt;= k</code> over binaries</td><td>Cardinality</td></tr>
+            <tr><td>Fixed cost if used</td><td><code>cost·y</code> with <code>x &lt;= M·y</code></td><td>Fixed-charge</td></tr>
+            <tr><td>Piecewise-linear cost</td><td>SOS2 variables or convex-combination with binaries</td><td>Stays linear</td></tr>
+          </tbody>
+        </table>
+
+        <p>The first two rows are the ones to remember for LP work: an absolute value or a minimum in the objective costs nothing and keeps the model linear, provided the objective pushes the auxiliary variable in the right direction.</p>
+
+        <h2 id="practice">From Model to Decision</h2>
+
+        <p>A model that solves is not yet a model that can be trusted. The last chapter is about validation, infeasibility, and reproducibility.</p>
+
+        <h3 id="infeasibility">Diagnosing Infeasibility and Unboundedness</h3>
+
+        <p>Three statuses other than OPTIMAL account for the vast majority of modelling failures, and each has a specific first move.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP, HiGHS, MathOptInterface
+const MOI = MathOptInterface
+
+# INFEASIBLE: no point satisfies all constraints
+#   1. Relax constraints one at a time and see which one unlocks a solution
+#   2. Ask the solver for an Irreducible Infeasible Subsystem (IIS)
+compute_conflict!(model)
+MOI.get(model, MOI.ConflictStatus())          # CONFLICT_FOUND
+for (F, S) in list_of_constraint_types(model)
+    for con in all_constraints(model, F, S)
+        MOI.get(model, MOI.ConstraintConflictStatus(), con) != MOI.NOT_IN_CONFLICT &&
+            println("in conflict: ", name(con))
+    end
+end
+
+# The usual culprits, in order of frequency:
+#   - an equality that should be an inequality
+#   - demand exceeding the sum of all capacities
+#   - a lower bound above an upper bound after a unit conversion
+#   - a big-M too small for a genuine, allowed state
+
+# DUAL_INFEASIBLE / UNBOUNDED: the objective can be improved forever
+#   check for a variable with no upper bound in a maximisation
+
+# TIME_LIMIT / ITERATION_LIMIT: an answer exists, but is not proven optimal
+gap = MOI.get(model, MOI.RelativeGap())
+@info "time limit reached" incumbent = objective_value(model) gap = gap
+</code></pre>
+
+        <p>The distinction between "infeasible" and "unbounded" is worth internalising: infeasible means your rules contradict each other; unbounded means you forgot a rule entirely.</p>
+
+        <h3 id="validation">Validating a Model</h3>
+
+        <p>Five checks catch nearly every modelling error before anybody reads the solution.</p>
+
+        <pre><code class="language-julia line-numbers">using JuMP
+
+# 1. SIZE: does the model have the number of parts you expect?
+num_variables(model)
+num_constraints(model; count_variable_in_set_constraints = false)
+
+# 2. FEASIBILITY OF A KNOWN POINT: feed it in and ask.
+#    If the current plan is infeasible, the model or the data is wrong.
+for (v, val) in [(x[1], 10.0), (x[2], 5.0)]
+    set_start_value(v, val)
+end
+# or test the constraints directly against a known plan
+
+# 3. SANITY OF THE RELAXATION: for a MIP, the LP relaxation must not be
+#    worse than the integer optimum — if it is, a bound is mis-set.
+
+# 4. NUMERICAL SCALING: coefficients spanning many orders of magnitude are
+#    a warning. Rescale so that costs and resources have similar magnitude.
+
+# 5. SOLUTION REVIEW BY A DOMAIN EXPERT: print the plan in domain terms
+#    (not variable values) and ask a human whether it is plausible.
+result = DataFrame(worker = workers, shift = shifts, assigned = value.(x))
+
+# A model that fails check 2 is usually a unit error. A model that fails
+# check 3 has a big-M that is too small, silently cutting off real solutions.
+</code></pre>
+
+        <p>Check 3 is the subtle one: an incorrectly tight big-M excludes legitimate solutions without ever reporting infeasibility, and the result is simply a worse optimum that looks perfectly normal.</p>
+
+        <h3 id="optimization-pitfalls">Common Pitfalls</h3>
+
+        <p>Each of these produces an answer, which is exactly why they are dangerous.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Pitfall</th><th>Consequence</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>Reading values without checking <code>termination_status</code></td><td>Reporting a value from a failed solve</td><td>Branch on the status before touching <code>value()</code></td></tr>
+            <tr><td>Units mixed inside one constraint</td><td>Scaling problems, nonsensical optima</td><td>Normalise to a single unit per model</td></tr>
+            <tr><td>Objective missing a real cost</td><td>The optimum is cheap in the model, expensive in life</td><td>Include every cost the decision-maker pays</td></tr>
+            <tr><td>Hard constraints for soft preferences</td><td>Infeasibility on a perfectly reasonable day</td><td>Add a slack variable with a penalty in the objective</td></tr>
+            <tr><td>Optimality gap ignored in a MIP</td><td>An "optimal" answer that is 5% off</td><td>Report the gap, or set <code>RelativeGap</code> to 0</td></tr>
+            <tr><td>Non-convex model solved once</td><td>A local optimum presented as the answer</td><td>Multi-start and compare, or reformulate convexly</td></tr>
+            <tr><td>Solver version unrecorded</td><td>Results that cannot be reproduced</td><td>Log solver, version, tolerances, and gap</td></tr>
+          </tbody>
+        </table>
+
+        <p>The unifying habit is simple: treat the status, the gap, and the model size as part of the result. A number without them is an opinion.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> Classify the problem before modelling: LP, convex and quadratic problems give a proven global optimum, mixed-integer problems give an optimum with a gap, and non-convex nonlinear problems give only a local optimum that depends on the starting point. JuMP separates the model from the solver — variables with <code>@variable</code>, the goal with <code>@objective</code>, rules with <code>@constraint</code>, then <code>optimize!</code> and a status check before reading any value. Integer models need tight big-M values, the assignment pattern, and symmetry handling. Use <code>compute_conflict!</code> for infeasibility, duals and shadow prices for sensitivity, <code>Optim.jl</code> and <code>Roots.jl</code> for direct numerical work, <code>Convex.jl</code> when disciplined convex modelling applies, and validate every model against a known feasible plan before trusting its optimum.
+        </div>
+
+        <p>Next, expose a model to the world: <a href="/roadmap/julia/web.html">Web &amp; APIs</a> turns a computation into a service.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'optimization',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

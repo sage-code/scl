@@ -1,0 +1,869 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia parallelism: tasks and the scheduler, @async and @sync, channels and pipelines, @threads, data races, locks, atomics, and measuring speedup.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, concurrency, parallelism, tasks, async, sync, threads, spawn, channel, data race, lock, atomic, taskpool, julia_num_threads">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Parallelism &amp; Async</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-parallel">Parallelism &amp; Async</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Julia separates two ideas that other languages often blur. A <em>task</em> is a unit of work the scheduler can suspend and resume; a <em>thread</em> is a CPU core that executes work. Tasks give you overlap for work that waits — file, network, database. Threads give you overlap for work that computes. Both live in the same language, and confusing them causes either no speedup at all or a race condition.
+        </div>
+
+        <p>This lesson builds the model from the scheduler up. You start with tasks and why they make I/O-heavy programs fast without extra cores, then move to threads and the memory-safety rules that come with them. The last chapters cover the patterns that scale — split, work, merge — and the classic bugs: races, deadlocks, and oversubscription.</p>
+
+        <h2 id="concurrency-model">The Concurrency Model</h2>
+
+        <p>Before writing a single <code>@spawn</code> you need to know what the runtime does when two pieces of work are alive at once. Julia's answer is a cooperative scheduler over tasks, which are cheap enough to create thousands of.</p>
+
+        <h3 id="tasks-and-scheduler">Tasks and the Scheduler</h3>
+
+        <p>A <code>Task</code> holds a function and its own stack. The scheduler runs a task until it yields — on I/O, on a lock, or on an explicit <code>yield()</code> — then switches to another ready task on the same thread. Handing control back is cooperative, not preemptive.</p>
+
+        <pre><code class="language-julia line-numbers"># A task is an object, not a thread
+t = Task(() -&gt; println("running in a task"))
+typeof(t)                             # Task
+
+# Schedule it and let the scheduler run it
+schedule(t)
+wait(t)                               # wait for completion
+
+# istaskdone / istaskfailed report the state afterwards
+istaskdone(t)                         # true
+istaskfailed(t)                       # false
+
+# A task yields voluntarily: other ready tasks get a turn
+function polite(id)
+    for step in 1:3
+        println("task $id step $step")
+        yield()
+    end
+end
+
+@sync begin                            # run both to completion
+    schedule(Task(() -&gt; polite(1)))
+    schedule(Task(() -&gt; polite(2)))
+end
+
+# Tasks are cheap: this creates ten thousand of them
+tasks = [Task(() -&gt; sum(1:100)) for _ in 1:10_000]
+foreach(schedule, tasks)
+foreach(wait, tasks)
+
+# Inspect the current task and the thread it runs on
+current_task()                        # Task (running)
+Threads.threadid()                    # 1 when Julia started without threads
+</code></pre>
+
+        <p>Two properties follow from cooperation. A task that never yields blocks its thread, so CPU-heavy code inside <code>@async</code> delays everything else on that thread; and because tasks are cheap, the idiomatic style is many small tasks rather than a fixed worker pool.</p>
+
+        <h3 id="async-await">@async, @sync, and wait</h3>
+
+        <p><code>@async</code> schedules a task immediately on the current thread; <code>@sync</code> waits for every task created inside its block. Together they are the shortest way to overlap independent waits.</p>
+
+        <pre><code class="language-julia line-numbers"># Overlapping two waits: total time is the slower one, not the sum
+function fetch_slow(name, seconds)
+    sleep(seconds)                     # sleep yields the thread
+    "$name done"
+end
+
+@time begin
+    a = fetch_slow("a", 0.5)
+    b = fetch_slow("b", 0.5)
+    (a, b)
+end                                    # ~1.0 s — sequential
+
+@time @sync begin
+    ta = @async fetch_slow("a", 0.5)
+    tb = @async fetch_slow("b", 0.5)
+    (fetch(ta), fetch(tb))
+end                                    # ~0.5 s — overlapped
+
+# @sync is the block form of "wait for all of them"
+@sync begin
+    for i in 1:5
+        @async println("job $i finished")
+    end
+end                                    # returns only when all five are done
+
+# fetch returns the task's value; wait discards it
+t = @async 6 * 7
+fetch(t)                               # 42
+
+# An unhandled error inside an async task surfaces when it is waited on
+bad = @async error("boom")
+# wait(bad)                            # TaskFailedException wrapping the error
+
+# A comprehension of async tasks is the usual shape for fan-out
+urls = ["a", "b", "c"]
+tasks = [@async fetch_slow(u, 0.1) for u in urls]
+fetch.(tasks)                          # ["a done", "b done", "c done"]
+</code></pre>
+
+        <p>The rule of thumb: <code>@async</code> for waiting, never for computing. If the body is a tight loop, <code>@async</code> buys nothing except a delayed scheduler — the threads chapter replaces it with <code>@threads</code>.</p>
+
+        <h3 id="io-vs-cpu">I/O-Bound vs CPU-Bound Work</h3>
+
+        <p>Which tool to use is decided by one question: while this work is in progress, is the CPU busy or idle? Tasks exploit idle time; threads exploit idle cores.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-task-timeline.svg" class="figure-img img-fluid rounded" alt="Upper panel: one thread running three tasks by taking turns. Lower panel: the same work split into four chunks running on four threads simultaneously, so the wall time is about one quarter of the total work.">
+          <figcaption class="figure-caption text-secondary">Tasks overlap waiting; threads overlap computing.</figcaption>
+        </figure>
+
+        <pre><code class="language-julia line-numbers"># I/O-BOUND: the CPU is idle while waiting — @async is the right tool
+function download_all(urls)
+    @sync [@async download(url) for url in urls]
+end
+
+# CPU-BOUND: the CPU is saturated — only more cores help
+function total_work(v)
+    s = 0.0
+    @inbounds for x in v
+        s += sin(x)^2 + cos(x)^2       # real arithmetic: nothing waits
+    end
+    s
+end
+
+# Check what you actually have before choosing
+Threads.nthreads()                     # 1 unless Julia was started with -t
+
+# A quick experiment: substitute sleep for the suspicious call.
+# Faster in wall-clock time → the work was waiting.
+# Unchanged → the work is computing, and needs threads.
+</code></pre>
+
+        <p>One more distinction matters at the boundary: the number of tasks you can overlap is limited by the external resource, not by Julia. Two hundred concurrent HTTP requests will spend their time waiting on the server, so bound the concurrency rather than creating everything at once.</p>
+
+        <h2 id="tasks">Working with Tasks</h2>
+
+        <p>Beyond <code>@async</code>, Julia gives you four tools for structured task work: <code>@spawn</code> to place work, <code>@sync</code> to join it, <code>Task</code> to hold results, and <code>Channel</code> to pass data between tasks.</p>
+
+        <h3 id="spawn-fetch">@spawn and fetch</h3>
+
+        <p><code>@spawn</code> creates a <code>Task</code> and schedules it on an available thread from the default pool. <code>fetch</code> blocks until it finishes and returns its value, which turns a collection of tasks into a collection of results.</p>
+
+        <pre><code class="language-julia line-numbers"># @spawn can land on any thread of the default pool
+t = @spawn sum(1:1_000)
+fetch(t)                              # 500500
+
+# Many independent pieces: spawn them all, then collect
+function chunk_sum(v, k)
+    parts = [@spawn sum(@view v[k:min(k + 249, length(v))]) for k in 1:250:length(v)]
+    sum(fetch, parts)
+end
+
+chunk_sum(collect(1:1000), 1)          # 500500
+
+# bind: keep the value on one task for repeated calls
+t = @spawn myrand()
+fetch(t)                               # draws once
+fetch(t)                               # the SAME value — the task is memoised
+
+# A failed task keeps its exception: fetch rethrows it here
+bad = @spawn error("nope")
+# fetch(bad)                           # TaskFailedException
+
+# istaskdone / istaskfailed let you poll without blocking
+t2 = @spawn (sleep(0.2); "late")
+istaskdone(t2)                         # false immediately after spawning
+wait(t2)
+istaskdone(t2)                         # true
+</code></pre>
+
+        <p>Because <code>fetch</code> is a synchronisation point, the usual shape is "spawn everything first, fetch afterwards". Fetching inside the loop that spawns turns parallel work back into sequential work.</p>
+
+        <h3 id="sync-and-errors">@sync and Error Propagation</h3>
+
+        <p>Errors in concurrent code are the hard part: one task failing must not leave the others running silently forever. <code>@sync</code> propagates the first failure after all its tasks stop, which is what makes it safe to use around a fan-out.</p>
+
+        <pre><code class="language-julia line-numbers"># @sync waits for all tasks; the first error is rethrown afterwards
+@sync begin
+    for i in 1:5
+        @async begin
+            i == 3 &amp;&amp; error("task $i failed")
+            println("task $i ok")
+        end
+    end
+end
+# All five run, tasks 1,2,4,5 print, then the error from task 3 is raised here.
+
+# Catch it outside the block when you want to continue
+try
+    @sync begin
+        for i in 1:3
+            @async i == 2 &amp;&amp; error("boom $i")
+        end
+    end
+catch e
+    e isa TaskFailedException            # the wrapper
+    e.task                               # the task that failed
+    e.task.exception                     # the original exception
+end
+
+# A failed task also prints a warning unless it is waited for
+t = @async error("unobserved")
+# the runtime reports: "Task failed to start" / unhandled TaskFailedException
+
+# fetch_all style: run everything, collect errors instead of stopping
+function try_all(f, xs)
+    tasks = [@async try; (f(x), nothing); catch e; (nothing, e); end for x in xs]
+    results = fetch.(tasks)
+    (values = first.(results), errors = last.(results))
+end
+
+try_all(x -&gt; x == 2 ? error("two") : x * 10, [1, 2, 3])
+# values = (10, nothing, 30), errors = (nothing, ErrorException("two"), nothing)
+
+# Always wait for tasks you created: an abandoned task keeps running
+</code></pre>
+
+        <p>Prefer the collect-errors pattern over fire-and-forget when processing many items. A batch job that reports "3 of 1000 failed" is far more useful than one that dies on the first bad input.</p>
+
+        <h3 id="channels">Channels and Producer-Consumer</h3>
+
+        <p>A <code>Channel</code> is a task-safe queue. One task puts work in, another takes it out, and <code>take!</code> blocks when empty — which makes channels the natural way to build pipelines and to bound concurrency.</p>
+
+        <pre><code class="language-julia line-numbers"># A channel with a buffer communicates between tasks
+ch = Channel{Int}(10)                  # capacity 10: put! blocks when full
+
+producer = @async for i in 1:5
+    put!(ch, i)                        # back-pressure when the buffer is full
+end
+
+consumer = @async begin
+    while isopen(ch) || isready(ch)
+        println("got ", take!(ch))     # take! blocks while empty
+    end
+end
+
+wait(producer)
+close(ch)                              # tells consumers no more items are coming
+wait(consumer)
+
+# The channel-as-iterator form is shorter and handles closing for you
+function generate(n)
+    Channel{Int}(n) do ch               # do-block: the channel closes at the end
+        for i in 1:n
+            put!(ch, i * i)
+        end
+    end
+end
+
+for square in generate(4)
+    print(square, " ")                 # 1 4 9 16
+end
+
+# A pipeline: each stage is a task, data flows through channels
+function pipeline(xs)
+    src = Channel{Int}(16) do ch
+        foreach(x -&gt; put!(ch, x), xs)
+    end
+    doubled = Channel{Int}(16) do ch
+        for x in src
+            put!(ch, 2x)
+        end
+    end
+    [x for x in doubled]
+end
+
+pipeline(1:5)                          # [2, 4, 6, 8, 10]
+</code></pre>
+
+        <p>Channels express two things functions cannot: a bounded buffer (back-pressure, so a fast producer cannot exhaust memory) and a stream (a consumer that starts working before the producer has finished). Both are standard tools for data pipelines.</p>
+
+        <h2 id="threads">Multithreading</h2>
+
+        <p>Threads are where real parallel speedup appears, and where correctness stops being automatic. Shared memory is the whole point and the whole problem: two threads writing one location is a data race, and Julia does not stop you.</p>
+
+        <h3 id="thread-pool">@threads and the Thread Pool</h3>
+
+        <p>Julia starts with one thread unless you ask for more. <code>JULIA_NUM_THREADS=4</code> or <code>julia -t 4</code> gives four; <code>-t auto</code> uses the machine's cores. <code>@threads</code> then splits a loop across them.</p>
+
+        <pre><code class="language-julia line-numbers"># Start Julia with threads:  julia -t 4   (or -t auto)
+Threads.nthreads()                     # 4
+Threads.nthreads(:default)             # the default pool size
+Threads.nthreads(:interactive)         # the interactive pool (1 by default)
+
+using Base.Threads
+
+# @threads distributes loop iterations over the pool
+function par_double!(v)
+    @threads for i in eachindex(v)
+        v[i] *= 2                       # disjoint writes: safe
+    end
+    v
+end
+
+par_double!(collect(1:8))              # [2, 4, 6, 8, 10, 12, 14, 16]
+
+# Which thread did each iteration run on?
+@threads for i in 1:8
+    println("i=$i on thread $(threadid())")
+end
+
+# Work with a scheduling strategy when the iterations differ in cost
+@threads :dynamic for i in 1:8         # pull-based: good for uneven work
+    heavy_step(i)
+end
+
+# Round-robin is the default; :greedy and :static are also available
+@threads :static for i in 1:8
+    light_step(i)
+end
+
+# An explicit task pool balances by hand
+tasks = [Threads.@spawn heavy_step(i) for i in 1:8]
+foreach(wait, tasks)
+</code></pre>
+
+        <p>Pick the strategy by the shape of the work: <code>:static</code> when every iteration costs the same, <code>:dynamic</code> when they do not, and explicit <code>@spawn</code> when you need results or finer control than a loop gives.</p>
+
+        <h3 id="data-races">Data Races and Locks</h3>
+
+        <p>A data race is two threads touching the same memory with no ordering between them, and at least one writing. The result is not a random value — it is undefined behaviour, often an <em>almost</em> correct total that is harder to debug than a crash.</p>
+
+        <pre><code class="language-julia line-numbers">using Base.Threads
+
+# WRONG: two threads increment one shared counter
+function race_bad(v)
+    total = 0
+    @threads for i in eachindex(v)
+        total += v[i]                  # read-modify-write: lost updates
+    end
+    total
+end
+
+race_bad(fill(1, 10_000))              # usually less than 10000 — a lost-update race
+
+# FIX 1: per-thread accumulators — no sharing during the loop
+function race_fixed(v)
+    partials = zeros(Int, nthreads())
+    @threads for i in eachindex(v)
+        partials[threadid()] += v[i]   # each thread owns its slot
+    end
+    sum(partials)
+end
+
+race_fixed(fill(1, 10_000))            # 10000 — always correct
+
+# FIX 2: a lock around the shared update
+function race_locked(v)
+    total = 0
+    lk = ReentrantLock()
+    @threads for i in eachindex(v)
+        lock(lk) do
+            total += v[i]              # only one thread inside at a time
+        end
+    end
+    total
+end
+
+# lock do ... end releases even if the body throws — always prefer it
+# to lock()/unlock() pairs.
+
+# FIX 3: atomics (next section) when the operation is a single update
+</code></pre>
+
+        <p>The per-thread accumulator is the pattern worth memorising: give every thread its own slot, then combine at the end. Locks are correct but serialise the loop, so they turn a parallel loop into a slower sequential one.</p>
+
+        <h3 id="atomics-and-reduction">Atomics and Parallel Reduction</h3>
+
+        <p>When the shared state really is needed, use types that make the update indivisible. <code>Threads.Atomic</code> and the atomic array give you that without a lock, at the cost of only supporting simple operations.</p>
+
+        <pre><code class="language-julia line-numbers">using Base.Threads
+
+# Atomic values: fetch_add, atomic_add!, atomic_cas! are indivisible
+function atomic_sum(v)
+    total = Atomic{Int}(0)
+    @threads for i in eachindex(v)
+        atomic_add!(total, v[i])       # no lock, no lost update
+    end
+    total[]
+end
+
+atomic_sum(fill(1, 10_000))            # 10000
+
+# Atomic fields inside an array element (parallel safety without a lock)
+a = Atomic{Int}(0)
+a[]                                    # 0
+atomic_add!(a, 5)
+a[]                                    # 5
+atomic_cas!(a, 5, 0)                   # compare-and-swap; returns the old value
+a[]                                    # 0
+
+# For arrays: @atomic on a plain array in Julia 1.7+
+counts = zeros(Int, 4)
+@threads for i in 1:100
+    @atomic counts[mod1(i, 4)] += 1    # atomic array element update
+end
+sum(counts)                            # 100
+
+# A map-reduce with tasks: split into chunks, reduce sequentially
+function par_mapreduce(f, op, v; ntasks = nthreads())
+    n = length(v)
+    step = cld(n, ntasks)
+    parts = [Threads.@spawn begin
+                 s = mapreduce(f, op, @view v[k:min(k + step - 1, n)])
+                 s
+             end for k in 1:step:n]
+    mapreduce(fetch, op, parts)
+end
+
+par_mapreduce(x -&gt; x^2, +, collect(1:1000))    # 333833500
+</code></pre>
+
+        <p>Use atomics for counters and flags, per-thread accumulation for totals, and locks only for compound invariants. That order keeps the loop parallel while staying correct.</p>
+
+        <h2 id="patterns">Parallel Patterns</h2>
+
+        <p>Three patterns cover most real parallel code. Each is a different answer to the same two questions: how do I divide the work, and how do I put the answers back together?</p>
+
+        <h3 id="split-work-merge">Split, Work, Merge</h3>
+
+        <p>The general shape is always the same: cut the input into independent pieces, process each piece with no shared state, then combine the partial results in a deterministic order. Making the merge deterministic is what keeps the output reproducible.</p>
+
+        <pre><code class="language-julia line-numbers">using Base.Threads
+
+# Split a vector into chunks of a given size
+chunks(v, n) = [@view v[k:min(k + n - 1, length(v))] for k in 1:n:length(v)]
+
+# Merge in a fixed order: results do not depend on which thread was faster
+function par_sum_split(v; nchunks = nthreads())
+    step = cld(length(v), nchunks)
+    parts = [Threads.@spawn sum(c) for c in chunks(v, step)]
+    sum(fetch.(parts))                 # ordered merge
+end
+
+par_sum_split(collect(1:1000), nchunks = 4)     # 500500
+
+# The same skeleton for a pipeline of independent files
+function process_files(paths; workers = nthreads())
+    results = Vector{Any}(undef, length(paths))
+    @threads for i in eachindex(paths)
+        results[i] = process_one(paths[i])    # each slot written by one task
+    end
+    results                            # index order preserved, not completion order
+end
+
+# And for a map that returns a value per element
+function par_map(f, v)
+    out = similar(v, typeof(f(first(v))))
+    @threads for i in eachindex(v)
+        out[i] = f(v[i])
+    end
+    out
+end
+
+par_map(x -&gt; x^2, [1, 2, 3, 4])        # [1, 4, 9, 16]
+
+# Writing into results[i] instead of push! is what keeps it safe:
+# a shared growing vector would need a lock.
+</code></pre>
+
+        <p>Note the two safety rules embedded in that skeleton: write to a different index per iteration, and merge through a sequential reduction. Both avoid shared mutable state without a lock.</p>
+
+        <h3 id="bounded-concurrency">Bounded Concurrency</h3>
+
+        <p>Spawning ten thousand tasks against an external service will fail: the bottleneck is the service, and unbounded concurrency turns a throughput problem into a reliability problem. Bound it by keeping only a fixed number of tasks alive.</p>
+
+        <pre><code class="language-julia line-numbers">using Base.Threads
+
+# Keep at most n tasks in flight; wait for the oldest before adding more
+function bounded_work(items, f, n)
+    results = Vector{Any}(undef, length(items))
+    running = Dict{Int, Task}()
+    for (i, item) in enumerate(items)
+        running[i] = Threads.@spawn f(item)
+        if length(running) &gt;= n
+            done, task = first(running)     # dictionary order is fine: just throttle
+            results[done] = fetch(task)
+            delete!(running, done)
+        end
+    end
+    for (i, task) in running
+        results[i] = fetch(task)
+    end
+    results
+end
+
+bounded_work(1:10, x -&gt; x * 2, 3)       # [2, 4, ..., 20], at most 3 at a time
+
+# A semaphore is the cleaner idiom for the same idea
+sem = Base.Semaphore(4)                  # at most four concurrent holders
+function with_limit(f, x)
+    Base.acquire(sem)
+    try
+        f(x)
+    finally
+        Base.release(sem)                # released even if f throws
+    end
+end
+
+# A channel of tokens is the third common form
+tokens = Channel{Nothing}(4) do ch
+    while true
+        put!(ch, nothing)                # the buffer size IS the limit
+    end
+end
+</code></pre>
+
+        <p>Pick the form that matches the shape of your code: <code>Semaphore</code> for scattered calls, a bounded spawn window for a loop over a large collection, and a token channel for a producer/consumer pipeline.</p>
+
+        <h3 id="grain-size">Grain Size and Overhead</h3>
+
+        <p>Parallelism has a cost: creating a task, scheduling it, and merging results. If one unit of work costs less than that overhead, adding threads makes the program slower — a trap that appears as "my parallel version takes longer".</p>
+
+        <pre><code class="language-julia line-numbers">using Base.Threads
+
+tiny(v) = @threads for i in eachindex(v); v[i] + 1; end
+
+# Each iteration is a few nanoseconds; four threads make it slower
+@btime tiny($(rand(10_000)))
+
+# Fix: parallelise OUTSIDE the loop and let each chunk be substantial
+function coarse(v; nchunks = nthreads())
+    step = cld(length(v), nchunks)
+    @sync for k in 1:step:length(v)
+        Threads.@spawn @inbounds for i in k:min(k + step - 1, length(v))
+            v[i] + 1
+        end
+    end
+end
+
+@btime coarse($(rand(100_000)))         # few chunks, each big enough to pay for itself
+
+# Rules of thumb for deciding the chunk size:
+#   - a chunk should take at least ~10 μs of real work
+#   - use cld(len, nthreads) as a starting point, then measure
+#   - if the parallel version is not faster at 10^5 elements, the grain is too small
+
+# Nested parallelism is usually a mistake: an outer @threads with an inner
+# @threads oversubscribes the pool and adds scheduling cost without extra cores
+</code></pre>
+
+        <p>Measure with the same benchmark you used for the sequential version, and treat "faster with threads" as a hypothesis to prove rather than an assumption. Below roughly ten microseconds of work per chunk, serial code usually wins.</p>
+
+        <h2 id="pitfalls">Concurrency Pitfalls</h2>
+
+        <p>Concurrent bugs are different from ordinary bugs: they appear under load, disappear under the debugger, and often produce a wrong number instead of an error. These three cover most of what you will meet.</p>
+
+        <h3 id="oversubscription">Oversubscription and Shared State</h3>
+
+        <p>Each layer of the stack wants to use every core: your <code>@threads</code>, BLAS, the garbage collector, and the operating system's scheduler. When they all try at once, performance falls off a cliff instead of scaling.</p>
+
+        <pre><code class="language-julia line-numbers">using LinearAlgebra
+
+# BLAS uses its own thread pool: parallel Julia + threaded BLAS oversubscribes
+BLAS.get_num_threads()                 # often equal to the machine's cores
+
+# Set it to 1 when YOU are providing the parallelism
+BLAS.set_num_threads(1)
+
+# And check the environment the process actually sees
+Threads.nthreads()
+Sys.CPU_THREADS
+
+# Shared state that is not obviously shared: the classic examples
+Random.seed!(1234)
+# rand() called from several threads is task-local in Julia 1.7+, but a
+# shared Random.default_rng() is NOT thread-safe in older code.
+# The safe pattern is a per-thread generator:
+using Random
+rngs = [MersenneTwister(seed) for seed in 1:nthreads()]
+myrand(i) = rand(rngs[threadid()])     # one generator per thread
+
+# Other shared resources people forget about
+#   - println: interleaves unless you take stdout_lock
+#   - a global mutable Dict used as a cache
+#   - an open file handle reused from several tasks
+lock(Base.stdout_lock) do
+    println("this line stays whole")
+end
+
+# The habit that prevents the class: name the shared resource,
+# then decide who owns it.
+</code></pre>
+
+        <p>Before blaming your own code for poor scaling, check the thread count of every library you call. A single BLAS call that spawns sixteen threads while your loop spawns eight is a common cause of "parallel is slower".</p>
+
+        <h3 id="deadlocks">Deadlocks and Blocked Threads</h3>
+
+        <p>A deadlock is a cycle of waits: task A holds a resource B needs, task B holds one A needs, and neither can proceed. A single blocked thread can also stall a whole program when the pool is one thread.</p>
+
+        <pre><code class="language-julia line-numbers">using Base.Threads
+
+# DEADLOCK: two locks acquired in opposite orders
+l1, l2 = ReentrantLock(), ReentrantLock()
+
+function worker_a()
+    lock(l1) do
+        sleep(0.01)                    # gives the other task a chance to take l2
+        lock(l2) do
+            println("a done")
+        end
+    end
+end
+
+function worker_b()
+    lock(l2) do
+        sleep(0.01)
+        lock(l1) do                   # waits forever for l1 held by worker_a
+            println("b done")
+        end
+    end
+end
+
+# @sync begin; @async worker_a(); @async worker_b(); end   # DEADLOCK — avoid
+
+# FIX: always acquire locks in one global order
+function worker_b_fixed()
+    lock(l1) do                        # same order as worker_a
+        sleep(0.01)
+        lock(l2) do
+            println("b done")
+        end
+    end
+end
+
+# A thread pool of one plus a blocking wait is the other classic stall:
+# Threads.@spawn then wait inside another @spawn can starve the pool.
+# Keep at least one interactive thread for the REPL and the scheduler:
+#   julia -t 4,1        # 4 default threads + 1 interactive
+
+# Timeouts turn a hang into an error you can see
+t = @async sleep(10)
+timedwait(() -&gt; istaskdone(t), 1.0)    # returns false after 1 second
+</code></pre>
+
+        <p>Two habits prevent nearly all deadlocks: acquire multiple locks in one documented global order, and never wait for a task from inside a task that could be blocking the only thread that could run it.</p>
+
+        <h3 id="thread-safety">Thread Safety of Libraries</h3>
+
+        <p>A function is thread-safe when calling it from two threads at once is guaranteed to behave. Most Julia functions are — pure functions and anything operating on private data — but I/O, caches, and mutable globals usually are not.</p>
+
+        <pre><code class="language-julia line-numbers">using Base.Threads
+
+# SAFE: pure computation on private data
+function safe_kernel(v)
+    s = 0.0
+    @inbounds for x in v
+        s += x^2
+    end
+    s
+end
+
+# SAFE: writing to disjoint indices
+function safe_inplace!(out, v)
+    @threads for i in eachindex(v)
+        out[i] = sqrt(abs(v[i]))       # out[i] and v[i] are this iteration's own
+    end
+    out
+end
+
+# UNSAFE: a memo cache shared between threads
+const CACHE = Dict{Int, Int}()         # mutation from two threads corrupts it
+function cached_bad(n)
+    get!(CACHE, n) do
+        n^2
+    end
+end
+# FIX: per-thread caches, or a lock around the dictionary access
+lock(Base.ReentrantLock()) do
+    cached_bad(9)
+end
+
+# UNSAFE: printing in interleaved fragments
+# @threads for i in 1:100; print(i, " "); end     # output can interleave
+
+# UNSAFE: closing a resource another task still uses
+# io = open(path); @async read(io); close(io)     # race on the handle
+
+# A quick rule of thumb for the API you are calling:
+#   - all arguments are read-only, no globals touched → safe
+#   - writes only to memory owned by the current iteration → safe
+#   - touches a global, a file, or a shared cache → verify the docs first
+</code></pre>
+
+        <p>Treat every shared mutable object as a design decision rather than an accident. Either give it an owner (one thread writes) or protect it (lock or atomic); everything else is a bug waiting for the right timing.</p>
+
+        <h2 id="choosing">Choosing the Right Tool</h2>
+
+        <p>Julia offers several tools that all claim to make things "parallel". The table below maps the shape of your problem to the one that fits, so you do not have to remember the whole landscape.</p>
+
+        <h3 id="decision-guide">A Decision Guide</h3>
+
+        <p>Start from the nature of the work and the size of the pieces, and the choice is usually obvious. The two questions that decide everything: does the work wait or compute, and are the pieces big enough to pay for the overhead?</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Problem</th><th>Tool</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Many HTTP/database calls</td><td><code>@async</code> + <code>@sync</code> + <code>Channel</code></td><td>The CPU is idle while waiting; tasks overlap the waiting</td></tr>
+            <tr><td>Independent CPU-heavy items</td><td><code>@threads</code> or <code>Threads.@spawn</code></td><td>Only more cores help; tasks would not overlap anything</td></tr>
+            <tr><td>Uneven CPU work per item</td><td><code>@threads :dynamic</code></td><td>Pull-based scheduling balances slow items</td></tr>
+            <tr><td>A stream with several stages</td><td><code>Channel</code> pipeline</td><td>Back-pressure and overlap between stages</td></tr>
+            <tr><td>Limited external capacity</td><td><code>Semaphore</code> or bounded spawn window</td><td>Protects the service and your memory</td></tr>
+            <tr><td>Work on other machines</td><td><code>Distributed.@spawn</code>, <code>pmap</code></td><td>Threads share one address space; processes do not</td></tr>
+            <tr><td>Thousands of tiny iterations</td><td>Nothing — keep it serial</td><td>Overhead exceeds the work</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># The decision in two lines of code
+io_bound(xs) = (@sync [@async handle(x) for x in xs])       # waits
+cpu_bound(xs) = (@threads for x in xs; crunch(x); end)      # computes
+
+# And the measurement that validates the choice
+using BenchmarkTools
+@btime sum(seq_map(crunch, $xs))          # baseline: one thread
+@btime sum(par_map(crunch, $xs))          # with threads: -t auto
+</code></pre>
+
+        <h3 id="measuring-speedup">Measuring Speedup</h3>
+
+        <p>Speedup is the sequential time divided by the parallel time, and it should be reported with the machine and thread count attached. Anything above the core count means the baseline was measured badly.</p>
+
+        <pre><code class="language-julia line-numbers">using BenchmarkTools, Base.Threads
+
+function speedup_report(f_seq, f_par, x)
+    t_seq = @belapsed $f_seq($x)
+    t_par = @belapsed $f_par($x)
+    (threads = nthreads(), sequential = t_seq, parallel = t_par, speedup = t_seq / t_par)
+end
+
+# Run the report at several sizes: the small sizes show the overhead
+for n in (1_000, 10_000, 100_000, 1_000_000)
+    x = rand(n)
+    r = speedup_report(seq_map_crunch, par_map_crunch, x)
+    println(n, " → ", round(r.speedup, digits = 2), "× on ", r.threads, " threads")
+end
+
+# Reading the numbers
+#   speedup &lt; 1        → the grain is too small, or the code is memory-bound
+#   speedup ≈ 1        → a shared resource is serialising the work
+#   speedup ≈ threads  → healthy: the work is genuinely parallel
+#   speedup &gt; threads  → the baseline was measured cold, or it allocates
+
+# Efficiency is the more honest figure: speedup / nthreads
+efficiency(sp, nt) = sp / nt             # 0.8 means 80% of the possible gain
+
+# Always record the thread count with the result — a speedup without
+# a machine description is not reproducible.
+</code></pre>
+
+        <p>Report speedup together with the thread count and the input size, and always compare against a warmed-up sequential baseline. A table of numbers without those three facts is not evidence of anything.</p>
+
+        <h3 id="production-settings">Production Settings</h3>
+
+        <p>Threading in production is mostly configuration: how many threads the process gets, which pool they belong to, and whether the libraries around you also spawn threads.</p>
+
+        <pre><code class="language-julia line-numbers"># Thread count comes from the command line or the environment
+#   julia -t 8 script.jl
+#   JULIA_NUM_THREADS=8 julia script.jl
+#   julia -t auto script.jl          # one per logical core
+#   julia -t 8,2 script.jl           # 8 default + 2 interactive threads
+
+# The interactive pool keeps the REPL responsive while work runs
+Threads.nthreads(:interactive)         # 2 with the setting above
+
+# Inside a container: be explicit, do not guess
+#   docker run --cpus=4 ... julia -t 4 app.jl
+
+# Turn off the other thread pools you are not using
+using LinearAlgebra
+BLAS.set_num_threads(1)
+
+# Logging from threads: the standard logger is thread-safe in Julia 1.9+,
+# but writes can still interleave between the message and its metadata.
+using Logging
+@info "worker" thread = Threads.threadid()
+
+# A startup sanity check worth keeping in production code
+function report_threads()
+    nt = Threads.nthreads()
+    nt &gt; 1 || @warn "running single-threaded: pass -t N or set JULIA_NUM_THREADS"
+    nt
+end
+
+report_threads()
+
+# And keep one sequential path for correctness testing: run the parallel
+# result against it on small inputs, in CI, on every change.
+@assert par_sum_split(collect(1:100)) == sum(1:100)
+</code></pre>
+
+        <p>A parallel program you cannot reproduce is worse than a slower one you can. Keep the sequential implementation as the reference in your test suite, and assert that the parallel version agrees with it.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> Tasks are cooperative units of work scheduled on threads: <code>@async</code> and <code>@sync</code> overlap waiting for I/O, <code>@spawn</code> and <code>fetch</code> place work anywhere in the pool, and <code>Channel</code> builds bounded pipelines with back-pressure. Threads are cores: start them with <code>-t</code> or <code>JULIA_NUM_THREADS</code>, and use <code>@threads</code> (or <code>Threads.@spawn</code>) for CPU-bound loops. Never write shared memory unsynchronised — accumulate per thread, use <code>Atomic</code> for single updates, and locks only for compound invariants. Match the grain to the overhead, bound concurrency against external services, and always measure speedup against a warmed sequential baseline.
+        </div>
+
+        <p>Threads and processes are the two ways to scale on one machine. The next lesson goes further out: <a href="/roadmap/julia/gpu.html">GPU &amp; Distributed Computing</a> covers worker processes across machines and thousands of cores on a graphics card.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'parallel',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

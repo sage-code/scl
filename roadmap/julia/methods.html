@@ -1,0 +1,675 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia methods and multiple dispatch: generic functions, specificity rules, ambiguity, optional and keyword arguments, extending functions, traits, and type piracy.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, methods, multiple dispatch, generic function, specificity, ambiguity, keyword arguments, traits, type piracy">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Methods &amp; Multiple Dispatch</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-methods">Methods &amp; Multiple Dispatch</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          In Julia a function is not one block of code but a <em>generic function</em> that owns many <em>methods</em>. A call is routed to the method whose argument types fit best, and that choice happens before the method runs. This is multiple dispatch, and it is the reason Julia needs no virtual methods, no interfaces, and no visitor pattern.
+        </div>
+
+        <p>The previous lesson taught you to define types; this one teaches you how behaviour attaches to them. You will see how methods are declared, how specificity selects a winner, what happens when two signatures are equally good, how optional and keyword arguments generate extra methods, and how packages extend each other's functions without touching the original code. The chapter on patterns shows how dispatch replaces design patterns you may know from object-oriented languages, and the pitfalls chapter covers the two failure modes you will actually hit: ambiguity and arguments typed too loosely.</p>
+
+        <h2 id="functions-and-methods">Functions and Methods</h2>
+
+        <p>The distinction between a function and a method is the first thing to internalise. A function is a name; methods are the implementations stored under that name, keyed by their argument type signature.</p>
+
+        <h3 id="generic-functions">One Generic Function, Many Methods</h3>
+
+        <p><code>typeof(+)</code> is not a closure or a pointer — it is an object of type <code>typeof(+)</code>, a generic function with well over a hundred methods for numbers, strings, arrays, dates, and anything a package adds later. Writing <code>+</code> for your own type does not replace the built-in; it adds one more method to the same function.</p>
+
+        <pre><code class="language-julia line-numbers"># + is a single generic function with a large method table
+typeof(+)                  # typeof(+)
+length(methods(+))         # a large number, growing with every loaded package
+
+# Every method declares a signature over argument types
+m = which(+, (Int, Int))   # the method used for 1 + 1
+m.sig                      # Tuple{typeof(+), Int64, Int64} — a signature, not a body
+
+# A generic function with no methods is legal and normal
+function describe end       # an empty generic function used by packages as an API
+
+describe(1)                 # ERROR: MethodError — no methods defined yet
+
+# Adding methods later works because the name already exists
+describe(x::Int) = "integer $x"
+describe(x::String) = "text: $x"
+describe(1)                 # "integer 1"
+describe("hi")              # "text: hi"
+
+# The generic function is now the shared entry point for both methods
+methods(describe)           # 2 methods
+</code></pre>
+
+        <p>Declaring <code>function describe end</code> is a deliberate design move, not a curiosity: it publishes a name and a docstring so other packages can attach methods in their own files, and it keeps <code>MethodError</code> messages informative when a type is missing an implementation.</p>
+
+        <h3 id="defining-methods">Defining Methods</h3>
+
+        <p>The long and short forms are equivalent; annotation of arguments is what creates a new method. Two definitions with different type signatures coexist, while two definitions with the same signature replace each other — a rule worth remembering while experimenting in the REPL.</p>
+
+        <pre><code class="language-julia line-numbers"># Long form
+function scale(x::Number, factor::Number)
+    x * factor
+end
+
+# Short form — identical semantics
+scale(x::Int, factor::Int) = x * factor
+
+# A method with no type annotations accepts anything
+scale(x, factor) = "cannot scale $x"
+
+scale(2.0, 3.0)            # 6.0 — the Number method
+scale(2, 3)                # 6   — the Int method, which is more specific
+scale("two", 3)            # "cannot scale two" — the untyped fallback
+
+# Methods for the same name live in one table, ordered by specificity
+methods(scale)             # 3 methods: (Any, Any), (Number, Number), (Int, Int)
+
+# The body of a methods list tells you the file and line of each definition
+for m in methods(scale)
+    println(m.sig)
+end
+</code></pre>
+
+        <p>Note how the untyped fallback never interferes: it exists so unhandled types produce a helpful message instead of a bare <code>MethodError</code>. That pattern — a specific method, an abstract method, and a total fallback — scales well across a whole package.</p>
+
+        <h3 id="methods-introspection">Inspecting Methods</h3>
+
+        <p>When a call behaves unexpectedly, ask which method ran rather than guessing. Julia offers several tools for exactly this, and they are worth learning early because dispatch decisions are made by the compiler, not by reading order in a file.</p>
+
+        <pre><code class="language-julia line-numbers">using InteractiveUtils      # @which, @code_typed and friends
+
+scale(2, 3)
+
+@which scale(2, 3)          # points at the (Int, Int) method
+@which scale(2.0, 3.0)      # points at the (Number, Number) method
+@which scale("a", "b")      # points at the (Any, Any) method
+
+# The three-argument form reports which method a call WOULD use
+which(scale, (Int, Int))
+
+# The signature of a method, fully qualified
+m = which(scale, (Int, Int))
+m.sig                       # Tuple{typeof(scale), Int64, Int64}
+
+# hasmethod answers the question without running anything
+hasmethod(scale, Tuple{Int, Int})       # true
+hasmethod(scale, Tuple{Symbol, Int})    # true — the fallback accepts it
+
+# For performance questions, look at the inferred code instead
+@code_typed scale(2, 3)
+</code></pre>
+
+        <p><code>@which</code> is the fastest way out of a dispatch mystery, and <code>hasmethod</code> is the tool for validating call sites in tests: assert that the method you expect exists before asserting what it returns.</p>
+
+        <h2 id="dispatch">How Dispatch Works</h2>
+
+        <p>Dispatch is a comparison of signatures. Julia takes the types of the arguments at the call site and finds the most specific method that accepts them, using subtype relationships rather than any kind of number or declaration order.</p>
+
+        <h3 id="dispatch-order">Specificity and Method Order</h3>
+
+        <p>A method A is more specific than B when every type in A's signature is a subtype of the corresponding type in B's. The order in which you wrote the definitions is irrelevant — only the types matter. The diagram below shows the three-level ladder you will write most often.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-method-specificity.svg" class="figure-img img-fluid rounded" alt="Left: three methods for f listed from the exact Int match down to the Any fallback, with the Int method winning. Right: two overlapping two-argument methods that make a call ambiguous until a third Int, Int method breaks the tie.">
+          <figcaption class="figure-caption text-secondary">Specificity picks the winner; equal specificity is an error, not a coin toss.</figcaption>
+        </figure>
+
+        <pre><code class="language-julia line-numbers">f(x::Int) = "exact Int"
+f(x::Number) = "some Number"
+f(x) = "anything else"
+
+f(3)          # "exact Int"      — Int is a subtype of Number, fastest match wins
+f(3.5)        # "some Number"    — Float64 is not an Int, but is a Number
+f("three")    # "anything else"  — only the fallback accepts a String
+
+# Definition order does not change the outcome
+f(x) = "anything else"           # redefining the fallback does not steal Int calls
+f(3)          # "exact Int"
+
+# A narrower type added later wins immediately
+f(x::Int8) = "exact Int8"
+f(Int8(3))    # "exact Int8"
+f(3)          # "exact Int"      — Int64 still matches Int, not Int8
+
+# Check the winner instead of guessing
+@which f(Int16(3))               # ...(x::Number) — Int16 promotes into the Number method
+</code></pre>
+
+        <p>Note the direction of the ladder: write the narrowest method first, then progressively broader ones, and end with an untyped fallback only if you want a friendly message. The compiler does the ordering for you.</p>
+
+        <h3 id="where-dispatch">Dispatch on Several Arguments</h3>
+
+        <p>Dispatch considers every argument at once — that is the "multiple" in multiple dispatch, and it is where Julia differs most from single-dispatch languages. Two arguments give you a two-dimensional grid of methods, and the winner must be at least as specific as any other candidate in <em>all</em> positions.</p>
+
+        <pre><code class="language-julia line-numbers"># A two-argument grid: shape x colour
+abstract type Shape end
+struct Circle   &lt;: Shape; r::Float64; end
+struct Square   &lt;: Shape; side::Float64; end
+struct Triangle &lt;: Shape; base::Float64; height::Float64; end
+abstract type Colour end
+struct RGB &lt;: Colour; r::Int; g::Int; b::Int; end
+struct HSV &lt;: Colour; h::Int; s::Int; v::Int; end
+
+paint(s::Circle, c::RGB) = "circle painted"
+paint(s::Square, c::RGB) = "square painted"
+paint(s::Shape, c::Colour) = "shape painted generically"
+
+paint(Circle(1.0), RGB(1, 0, 0))         # "circle painted" — both arguments fit the specific method
+paint(Triangle(1.0, 1.0), HSV(0, 1, 1))  # "shape painted generically" — only the broad method fits
+
+# Methods can also dispatch on the container, not only on its elements
+total(xs::Vector{Int}) = sum(xs)
+total(xs::Vector{T}) where {T &lt;: Number} = sum(xs)
+total(xs::AbstractVector) = "unsupported vector"
+
+total([1, 2, 3])                    # 6 — Vector{Int} is the most specific
+total([1.5, 2.5])                   # 4.0 — Vector{Float64} matches the unionall method
+
+# Dispatch on the number of arguments is dispatch too
+area(s::Square) = s.side^2
+area(w::Number, h::Number) = w * h
+
+area(Square(2.0))                   # 4.0
+area(3.0, 4.0)                      # 12.0
+</code></pre>
+
+        <p>That second block is the idiom for generic collections: a concrete-element method for the fast path, a parametric method for the general case, and an abstract method for containers you cannot handle yet. Chapter 5 returns to it as a pattern.</p>
+
+        <h3 id="ambiguity">Ambiguity</h3>
+
+        <p>Sometimes two methods both apply and neither is more specific. Julia refuses to guess and raises a <code>MethodError</code> naming the ambiguity. The cure is a method that is narrower than both, which also documents the intended behaviour.</p>
+
+        <pre><code class="language-julia line-numbers">f(a::Int, b::Number) = "a is Int"
+f(a::Number, b::Int) = "b is Int"
+
+f(1, 2)                # ERROR: MethodError. Ambiguous: both methods apply equally
+
+# Neither signature is more specific: Int/Number is not a subtype of Number/Int
+# because the two positions disagree. Add the intersection explicitly.
+f(a::Int, b::Int) = "both are Int"
+f(1, 2)                # "both are Int"
+
+# The other methods still work for mixed arguments
+f(1, 2.5)              # "a is Int"
+f(1.5, 2)              # "b is Int"
+
+# Detect ambiguity in tests before users find it
+methods(f)             # four methods now; the REPL warns when a pair overlaps
+
+# Remove the tiebreaker and the call fails again — ambiguity is a runtime error
+# f(1, 2)              # ERROR: MethodError: ambiguous
+</code></pre>
+
+        <p>Julia warns you about this before you run anything: redefining a method in the REPL prints <em>possible method call error(s)</em> whenever the new definition creates an overlap with an existing one. Treat that warning as an error, and add the intersection method it asks for.</p>
+
+        <h2 id="optional-args">Optional and Keyword Arguments</h2>
+
+        <p>Most real functions accept a variable number of arguments. Julia implements that with default positional arguments — which generate extra methods — and with keyword arguments, which do not participate in dispatch at all. Both facts have practical consequences.</p>
+
+        <h3 id="default-positional">Default Positional Arguments</h3>
+
+        <p>A default value is shorthand: Julia generates one method per combination of supplied arguments, all delegating to the full version. That is why defaults cost nothing at runtime, and why they must always come last in the parameter list.</p>
+
+        <pre><code class="language-julia line-numbers">function greet(name::String, greeting::String = "Hello", punct::String = "!")
+    "$greeting, $name$punct"
+end
+
+# Three methods were generated automatically
+methods(greet)         # (String,), (String, String), (String, String, String)
+
+greet("Ada")                        # "Hello, Ada!"
+greet("Ada", "Hi")                  # "Hi, Ada!"
+greet("Ada", "Hi", ".")             # "Hi, Ada."
+
+# Defaults may depend on earlier arguments
+function make_grid(rows::Int, cols::Int = rows)
+    (rows, cols)
+end
+
+make_grid(3)                        # (3, 3)
+make_grid(3, 5)                     # (3, 5)
+
+# A default argument can be omitted only from the right
+greet(greeting = "Hi")              # ERROR: MethodError — use keywords for this
+</code></pre>
+
+        <p>If you find yourself wanting to skip a positional argument in the middle, that is the signal to switch to keyword arguments — they exist precisely for that case.</p>
+
+        <h3 id="keyword-args">Keyword Arguments</h3>
+
+        <p>Keyword arguments are written after a semicolon, may be supplied in any order, and have their own defaults. Crucially, a function with keywords still has a single method: the keywords are collected into a named tuple, so they cannot be dispatched on.</p>
+
+        <pre><code class="language-julia line-numbers">function greet(name::String; greeting::AbstractString = "Hello", punct::AbstractString = "!")
+    "$greeting, $name$punct"
+end
+
+# One method only
+length(methods(greet))              # 1
+
+greet("Ada")                        # "Hello, Ada!"
+greet("Ada"; punct = ".")           # "Hello, Ada."
+greet("Ada", greeting = "Hi")       # "Hi, Ada!" — semicolon optional at a call site
+
+# Sloppy keywords are an error, not silently ignored
+greet("Ada"; hola = "Hi")           # ERROR: MethodError: unsupported keyword argument
+
+# Keyword stuffing: pass a named tuple through
+opts = (greeting = "Hey", punct = "...")
+greet("Ada"; opts...)               # "Hey, Ada..."
+
+# Dispatch happens on the positional part only
+greet(name::Symbol; greeting = "Hello") = "$greeting, symbol $name"
+greet(:ada)                         # "Hello, symbol ada" — the Symbol method
+greet("Ada")                        # "Hello, Ada!"      — the String method
+</code></pre>
+
+        <p>The last example is the key rule: two methods may have identical keywords and still be different methods, because keywords are not part of the signature. Type them loosely and validate inside, or convert to a positional argument if dispatch must depend on them.</p>
+
+        <h3 id="splat-and-varargs">Splatting and Varargs</h3>
+
+        <p>Varargs parameters and splatting call sites are the flexible middle ground: they let a function accept any number of arguments while still dispatching on the ones you care about.</p>
+
+        <pre><code class="language-julia line-numbers"># Varargs: xs is a tuple of the remaining arguments
+sum_all(xs...) = sum(xs)
+sum_all()                           # 0
+sum_all(1, 2, 3, 4)                 # 10
+
+# Typed varargs dispatch on the element type
+join_strings(sep::String, parts::String...) = join(parts, sep)
+join_strings("-", "a", "b", "c")    # "a-b-c"
+
+# Mixing a required argument with varargs is common
+function report(title::String, lines::String...)
+    title * "\n" * join(lines, "\n")
+end
+
+# Splat at the call site spreads a collection into the parameters
+args = [1, 2, 3]
+sum_all(args...)                    # 6
+join_strings("-", ["a", "b"]...)    # "a-b"
+
+# Keywords can be splatted too, which is how options travel through wrappers
+opts = (greeting = "Hi",)
+greet("Ada"; opts...)
+</code></pre>
+
+        <p>One warning from the performance chapter: a varargs method is a single method that receives a tuple, so it will not specialise per arity as aggressively as separate methods. For two or three arguments, write explicit methods instead.</p>
+
+        <h2 id="extending">Extending and Sharing Methods</h2>
+
+        <p>Methods belong to functions, and functions belong to modules — but any module may add methods to a function it did not define, as long as it owns at least one of the types involved. That single rule is what makes the ecosystem composable, and it has exactly one well-known abuse.</p>
+
+        <h3 id="adding-methods">Adding Methods to Existing Functions</h3>
+
+        <p>You extend a function by importing it and defining a new method. Writing <code>Base.show</code> and writing <code>import Base: show</code> then <code>show</code> are equivalent for methods, but the imported form is clearer about what you are doing: adding to an existing function rather than defining a new one.</p>
+
+        <pre><code class="language-julia line-numbers">struct Money
+    amount::Float64
+    currency::String
+end
+
+# Extending printing for your own type
+import Base: show, +, ==
+
+function show(io::IO, m::Money)
+    print(io, m.currency, " ", round(m.amount; digits = 2))
+end
+
+Money(19.5, "EUR")            # prints as  EUR 19.5
+
+# Extending arithmetic: line up the argument types
++(a::Money, b::Money) = a.currency == b.currency ? Money(a.amount + b.amount, a.currency) :
+                        throw(ArgumentError("currency mismatch"))
++(a::Money, x::Number) = Money(a.amount + x, a.currency)
++(x::Number, a::Money) = a + x          # symmetry matters
+
+Money(10.0, "EUR") + Money(5.0, "EUR")  # EUR 15.0
+Money(10.0, "EUR") + 2.5                # EUR 12.5
+2.5 + Money(10.0, "EUR")                # EUR 12.5
+
+# Extending equality requires extending hash for container correctness
+==(a::Money, b::Money) = a.currency == b.currency &amp;&amp; a.amount == b.amount
+import Base: hash
+hash(m::Money, h::UInt) = hash(m.amount, hash(m.currency, h))
+</code></pre>
+
+        <p>Notice the symmetry line: when you add <code>+(Money, Number)</code>, also add <code>+(Number, Money)</code>. Users write both orders, and Julia will not guess that one implies the other.</p>
+
+        <h3 id="type-piracy">Type Piracy</h3>
+
+        <p>Type piracy is defining a method whose function <em>and</em> whose argument types all come from other packages. It works, it compiles, and it silently changes behaviour for every other user of those packages — the classic case being a new method for <code>Base.isequal</code> on two standard types.</p>
+
+        <pre><code class="language-julia line-numbers"># Piracy: Base.isequal belongs to Base, Int belongs to Base —
+# this module owns nothing in the signature.
+import Base: isequal
+isequal(a::Int, b::Int) = a % 10 == b % 10      # 11 == 21 becomes true for everyone
+
+# Legal: at least one type is yours
+struct Celsius; t::Float64; end
+import Base: isequal
+isequal(a::Celsius, b::Celsius) = a.t == b.t    # fine — Celsius is owned here
+
+# Legal and common: your type combined with a library type
+struct Wrapped; io::IO; end
+import Base: write
+write(w::Wrapped, x) = write(w.io, string(x))   # fine — Wrapped is owned here
+
+# The safe alternative to piracy: define your own function instead
+approx_equal(a::Int, b::Int; mod = 10) = a % mod == b % mod
+approx_equal(11, 21)                            # true, and nobody else is affected
+</code></pre>
+
+        <p>If a pirated method seems necessary, the fix is usually a new function in your own namespace, or a wrapper type that makes one of the arguments yours. Both preserve composability, which is the property that makes Julia's ecosystem usable at all.</p>
+
+        <h3 id="interface-contract">Interfaces Are Informal</h3>
+
+        <p>Julia has no <code>interface</code> keyword. An interface is a documented set of methods a type must implement, checked by calling them rather than by the compiler. That is more flexible than it sounds, because failure is precise: calling a missing method names the exact signature that is absent.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Interface</th><th>Methods a type must provide</th><th>Typical implementers</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Iteration</td><td><code>iterate</code> (plus <code>eltype</code>, <code>IteratorSize</code>)</td><td>arrays, ranges, generators</td></tr>
+            <tr><td>Indexing</td><td><code>getindex</code>, <code>size</code>, <code>length</code></td><td>arrays, dictionaries, custom matrices</td></tr>
+            <tr><td>Display</td><td><code>show(io, x)</code></td><td>almost every type in the ecosystem</td></tr>
+            <tr><td>Conversion</td><td><code>convert</code>, <code>promote_rule</code></td><td>numbers, dates, units</td></tr>
+            <tr><td>Comparison</td><td><code>==</code>, <code>hash</code>, <code>isless</code></td><td>values used as keys or sorted</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># A minimal iterable: implement iterate and the for-loop protocol works
+struct Countdown
+    from::Int
+end
+
+function Base.iterate(c::Countdown, state = c.from)
+    state &lt; 1 &amp;&amp; return nothing              # no more elements
+    (state, state - 1)                        # element, next state
+end
+
+collect(Countdown(3))        # [3, 2, 1]
+[c^2 for c in Countdown(4)]  # [16, 9, 4, 1]
+
+# Anything that defines iterate is usable by every function that consumes iterators
+sum(Countdown(4))            # 10
+first(Countdown(5))          # 5
+
+# A missing method names itself, which is the entire error message you need
+struct Broken; end
+iterate(Broken())            # ERROR: no method matching iterate(::Broken)
+</code></pre>
+
+        <p>Because interfaces are informal, packages document them in docstrings and test them with a conformance suite. When you implement one, add a test that exercises each required method — that test <em>is</em> your interface declaration.</p>
+
+        <h2 id="patterns">Dispatch Patterns in Practice</h2>
+
+        <p>Because dispatch is the only mechanism Julia has, a few patterns appear constantly in real packages. Learning to recognise them turns unfamiliar library code into something you can read.</p>
+
+        <h3 id="traits">Traits: Dispatch on Capabilities</h3>
+
+        <p>A trait is a function that answers a question about a type, returning a value the dispatcher can use. It lets you choose behaviour by capability rather than by ancestry — the standard library does this with <code>IteratorSize</code> and <code>IteratorEltype</code>.</p>
+
+        <pre><code class="language-julia line-numbers"># Traits are plain functions returning a small, dispatchable value
+abstract type Storage end
+struct Dense  &lt;: Storage end
+struct Sparse &lt;: Storage end
+struct Lazy   &lt;: Storage end
+
+storage_kind(::AbstractArray) = Dense()
+storage_kind(::SparseMatrixCSC) = Sparse()   # SparseMatrixCSC lives in SparseArrays.jl
+storage_kind(::AbstractRange) = Lazy()
+
+# Behaviour is selected by the trait, not by the concrete type
+function how_to_sum(x)
+    kind = storage_kind(x)
+    how_to_sum(kind, x)               # dispatch on the trait value
+end
+
+how_to_sum(::Dense, x) = sum(x)
+how_to_sum(::Sparse, x) = nnz(x) == 0 ? zero(eltype(x)) : sum(x)
+how_to_sum(::Lazy, x) = sum(x)        # closed form, no storage at all
+
+how_to_sum([1, 2, 3])                 # 6
+how_to_sum(1:10)                      # 55
+
+# New capabilities are added by new trait values, never by editing old methods
+struct GpuArray &lt;: AbstractArray end
+storage_kind(::GpuArray) = Dense()
+</code></pre>
+
+        <p>The other common trait style uses <code>Val</code> and types rather than singleton instances, which keeps the choice in the type domain and lets the compiler fold it away. Either way, the trait is a function of a type — package authors rely on this to support types that do not exist yet.</p>
+
+        <h3 id="container-pattern">The Container Pattern</h3>
+
+        <p>Functions that operate on collections are usually written as a small ladder: one method per level of concreteness. Getting the ladder right means your function works on arrays, ranges, views, and anyone else's container without changes.</p>
+
+        <pre><code class="language-julia line-numbers"># Level 1: the most specific, fastest path
+row_sum(m::Matrix{Float64}) = sum(m; dims = 2)
+
+# Level 2: the same algorithm for any element type
+row_sum(m::AbstractMatrix{T}) where {T &lt;: Number} = sum(m; dims = 2)
+
+# Level 3: a general fallback that still works, just slower
+row_sum(m::AbstractMatrix) = [sum(@view m[i, :]) for i in axes(m, 1)]
+
+# Level 4: a friendly error for anything else
+row_sum(x) = throw(ArgumentError("row_sum expects a matrix, got $(typeof(x))"))
+
+row_sum([1.0 2.0; 3.0 4.0])   # [3.0, 7.0]
+row_sum([1 2; 3 4])           # [3, 7]
+row_sum("not a matrix")       # ERROR: ArgumentError: row_sum expects a matrix
+
+# The same ladder applied to a predicate argument
+count_if(f::F, xs::AbstractVector) where {F &lt;: Function} = count(f, xs)
+count_if(f, xs) = count(f, xs)     # any iterable works too
+count_if(isodd, [1, 2, 3, 4])      # 2
+</code></pre>
+
+        <p>Write the ladder in that order and you get three things at once: optimal performance for the common case, generality for everything else, and a readable error instead of <code>MethodError</code> when a caller misunderstands the API.</p>
+
+        <h3 id="dispatch-cost">What Dispatch Costs</h3>
+
+        <p>Dispatch is decided once per call site, at compile time, through type inference. When the argument types are concrete, the call is a direct jump — there is no lookup table consulted at runtime. Only when a type cannot be inferred does dispatch become dynamic, and that is a type-instability problem, not a dispatch problem.</p>
+
+        <pre><code class="language-julia line-numbers">function add_all(xs)
+    total = 0
+    for x in xs
+        total += x          # x is inferred as the element type of xs
+    end
+    total
+end
+
+@code_warntype add_all([1, 2, 3])       # total::Int64 — fully inferred
+@code_warntype add_all(Any[1, 2, 3])    # total::Any   — element type is Any
+
+# Union splitting: a small union is resolved at compile time
+function maybe(x::Union{Int, Nothing})
+    x === nothing ? 0 : x + 1
+end
+
+@code_warntype maybe(1)                 # no dispatch, the branch is eliminated
+
+# A large union or an abstract field forces a real runtime lookup
+function loose(x)
+    x isa Int ? x + 1 : "other"         # the compiler keeps both paths
+end
+
+@code_warntype loose(1)
+</code></pre>
+
+        <p>The practical rule: dispatch on types you can name, keep argument types concrete, and use <code>@code_warntype</code> when you suspect a hot loop is paying for a dynamic lookup. Packages such as <code>Traceur</code>, <code>BenchmarkTools</code>, and <code>@code_typed</code> give you the detail when a profile points at dispatch.</p>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <p>Three habits cause most dispatch bugs: leaving arguments untyped where a type was meant, assuming that a method definition replaces the function, and branching inside a body instead of outside it. Each has a mechanical diagnosis.</p>
+
+        <h3 id="too-loose-arguments">Arguments Typed Too Loosely</h3>
+
+        <p>An untyped argument accepts everything, which means a fallback method silently swallows call sites you did not intend. This is the polite version of a dispatch bug: no error, wrong branch, hard to find in a large program.</p>
+
+        <pre><code class="language-julia line-numbers"># The fallback hides every mistake
+process(x) = "unhandled: $(typeof(x))"
+process(x::Int) = x * 2
+
+process(3)          # 6
+process(3.0)        # "unhandled: Float64"  — did you intend this?
+process("3")        # "unhandled: String"   — or should this be an error?
+
+# A typed set of methods is more honest: an abstract type still documents intent
+render(x::AbstractString) = "text: $x"
+render(x::Number) = "number: $x"
+# no untyped method — unknown types raise MethodError with the exact signature
+
+render(3.0)         # "number: 3.0"
+render(:sym)        # ERROR: MethodError: no method matching render(::Symbol)
+
+# When flexibility is real, use a type parameter and pass it through
+identity_of(x::T) where {T} = (x, T)
+identity_of(3.0)    # (3.0, Float64)
+identity_of("a")    # ("a", String)
+</code></pre>
+
+        <p>The rule: write a fallback only when you genuinely want one, and prefer an abstract type to no annotation at all. A <code>MethodError</code> at the call site is worth more than a mystery string in a log.</p>
+
+        <h3 id="redefinition">Redefinition and Stale Sessions</h3>
+
+        <p>Defining a method with the same signature twice replaces the old one; defining it with a new signature adds a method. In a long REPL session or a precompiled package, that difference explains behaviour which "cannot happen".</p>
+
+        <pre><code class="language-julia line-numbers">f(x::Int) = "first definition"
+f(x::Int) = "second definition"     # replaces: same signature
+
+f(1)                                # "second definition" — one method, not two
+length(methods(f))                  # 1
+
+f(x::Float64) = "added"             # adds: different signature
+length(methods(f))                  # 2
+
+# Inside a script, the last definition in the file wins, in file order.
+# Inside a precompiled package, methods are fixed when the package is built.
+Pkg.precompile()                    # after editing a package's methods
+</code></pre>
+
+        <p>When you fight a stale method, restart the session or precompile: Julia's method table is per-process, and a definition from an earlier experiment stays visible until the module is reloaded.</p>
+
+        <h3 id="branching-inside">Branching Inside Instead of Dispatching Outside</h3>
+
+        <p>The most common design smell in Julia code is a chain of <code>if x isa ...</code> inside one function body. It works, but it hides the extension point, defeats specialisation, and makes the method table invisible.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Inside the body (avoid)</th><th>As methods (prefer)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>if x isa Cat ... elseif x isa Dog ...</code></td><td><code>speak(c::Cat) = ...</code>, <code>speak(d::Dog) = ...</code></td></tr>
+            <tr><td>The file must change for every new type</td><td>A new type adds a method, no edits elsewhere</td></tr>
+            <tr><td>The compiler sees one generic body with <code>Any</code> inside</td><td>Each method is specialised on concrete types</td></tr>
+            <tr><td><code>@which</code> shows one large method</td><td><code>@which</code> names the exact implementation</td></tr>
+            <tr><td>Errors say "unexpected type"</td><td>Errors name the missing signature</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># Before: one function, every type known in advance
+function sound(animal)
+    if animal isa Dog
+        "woof"
+    elseif animal isa Cat
+        "meow"
+    else
+        "unknown animal"
+    end
+end
+
+# After: one method per type, open for extension
+abstract type Animal end
+struct Dog &lt;: Animal end
+struct Cat &lt;: Animal end
+
+sound(::Dog) = "woof"
+sound(::Cat) = "meow"
+sound(::Animal) = "some animal noise"   # default for types that accept the contract
+
+struct Cow &lt;: Animal end
+sound(::Cow) = "moo"                    # one line; nothing else in the file changes
+
+sounds = [Dog(), Cat(), Cow()]
+sound.(sounds)                          # ["woof", "meow", "moo"]
+</code></pre>
+
+        <p>Refactoring <code>if isa</code> chains into methods is the highest-value change you can make in Julia code: it shortens the file, opens it for extension, and gives the compiler a concrete type at every call site.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> A generic function owns many methods, and a call is routed by the types of all its arguments — the narrowest matching method wins, equal specificity is an error, and definition order is irrelevant. Default positional arguments generate extra methods, while keyword arguments do not take part in dispatch at all. Extend functions by importing them, avoid type piracy by owning at least one argument type, and remember that interfaces are informal contracts verified by calling them. In practice, dispatch replaces <code>if isa</code> chains, traits select behaviour by capability, and a container ladder covers fast, generic, and unsupported cases in four short methods.
+        </div>
+
+        <p>You can now define types and attach behaviour to them. Next: <a href="/roadmap/julia/generics.html">Parametric Types &amp; Generics</a> generalises both, so a single definition serves every element type without giving up speed.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'methods',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,866 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Web services in Julia: the HTTP.jl client and server, Genie.jl applications, routing, JSON REST endpoints, async request handling, WebSockets, authentication and deployment basics.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, http, genie, web, rest, json, api, routing, websocket, authentication, async, deployment">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Web &amp; APIs</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-web">Web &amp; APIs</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A web service in Julia is not an afterthought bolted onto a numerical language. <code>HTTP.jl</code> gives you a client and a server in the same process, <code>Genie.jl</code> adds routing, sessions and templates, and the task scheduler from the parallelism lesson handles thousands of concurrent requests without a thread per connection.
+        </div>
+
+        <p>This lesson covers both sides of the wire: calling somebody else's API from a script, and exposing your own computation as an endpoint. The second half is where Julia has a genuine advantage — a service that performs a simulation, an optimization, or a statistical model can run that code in-process, with no queue, no serialisation of intermediate state, and no second language in the stack.</p>
+
+        <h2 id="http">HTTP with HTTP.jl</h2>
+
+        <p>The same package is a client and a server. Starting with the client is the fastest way to learn the API, because you can test against any public service.</p>
+
+        <h3 id="http-client">Making Requests</h3>
+
+        <p><code>HTTP.request</code> handles every verb; <code>HTTP.get</code> and friends are the convenient shortcuts.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP
+
+# The simplest call
+r = HTTP.get("https://httpbin.org/get")
+r.status                       # 200
+String(r.body)                 # the response body as text
+
+# Any verb, any body
+r = HTTP.post("https://httpbin.org/post", ["Content-Type" =&gt; "application/json"],
+              """{"name": "Ada"}""")
+r = HTTP.put("https://httpbin.org/put", [], "payload")
+r = HTTP.delete("https://httpbin.org/delete")
+
+# With headers, query parameters and timeouts
+r = HTTP.get("https://api.example.com/search";
+    query      = ["q" =&gt; "julia", "limit" =&gt; "10"],
+    headers    = ["Authorization" =&gt; "Bearer $token", "Accept" =&gt; "application/json"],
+    readtimeout = 10,
+)
+
+# Measure what a slow endpoint costs you
+r = HTTP.get("https://api.example.com/slow"; request_timeout = 30)
+
+# Streaming a large response instead of buffering it
+open("data.csv", "w") do io
+    HTTP.get("https://example.com/big.csv"; response_stream = io)
+end
+</code></pre>
+
+        <p>The timeout arguments are not optional in production code. A client without a timeout turns one slow dependency into an outage of your own service, because the request you are waiting on holds a connection of yours.</p>
+
+        <h3 id="building-requests">Reusing Clients and Connections</h3>
+
+        <p>Recreating a connection for each call wastes a TLS handshake. A persistent client keeps the connection pool warm.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP
+
+# One client, many requests: the connection is reused
+client = HTTP.Client()
+for path in ("/a", "/b", "/c")
+    r = HTTP.get("https://api.example.com$path"; client = client)
+    @info "fetched" path = path status = r.status
+end
+close(client)
+
+# Or wrap a set of requests in a client block
+HTTP.open("GET", "https://example.com") do io
+    println(HTTP.get(io; readtimeout = 5))
+end
+
+# Retry with backoff — the realistic way to call a flaky endpoint
+function get_with_retry(url; attempts = 3, base_delay = 0.5)
+    for attempt in 1:attempts
+        try
+            return HTTP.get(url; readtimeout = 10)
+        catch err
+            attempt == attempts && rethrow()
+            delay = base_delay * 2^(attempt - 1)
+            @warn "request failed, retrying" attempt = attempt delay = delay err = err
+            sleep(delay)
+        end
+    end
+end
+
+# Retry only what is safe to retry: a GET or an idempotent PUT — never a POST
+# that charges a card, unless the API itself supports idempotency keys.
+</code></pre>
+
+        <p>The closing rule matters commercially. Retrying a non-idempotent request is how a payment is taken twice; an idempotency key supplied by the client is how well-designed APIs make that impossible.</p>
+
+        <h3 id="handling-responses">Handling Responses and Errors</h3>
+
+        <p>An HTTP call can fail in three different ways — transport, status code, and body content — and each needs its own handling.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP, JSON3
+
+function fetch_json(url)
+    # 1. Transport errors throw; make them explicit
+    r = try
+        HTTP.get(url; readtimeout = 10, status_exception = false)
+    catch err
+        @error "transport failure" url = url err = err
+        return nothing
+    end
+
+    # 2. Status codes: 4xx is your fault, 5xx is theirs, 3xx is a redirect
+    if r.status == 404
+        @warn "not found" url = url
+        return nothing
+    elseif 500 &lt;= r.status &lt; 600
+        @error "server error" url = url status = r.status
+        return nothing
+    elseif r.status != 200
+        @error "unexpected status" url = url status = r.status
+        return nothing
+    end
+
+    # 3. Body content can be malformed even with a 200
+    try
+        return JSON3.read(String(r.body))
+    catch err
+        @error "invalid JSON" url = url err = err body = first(String(r.body), 200)
+        return nothing
+    end
+end
+
+# Inspect a response without exceptions, for debugging
+r = HTTP.get("https://httpbin.org/status/418"; status_exception = false)
+r.status                       # 418
+HTTP.header(r)                 # the headers as a Vector of Pairs
+</code></pre>
+
+        <p>Logging the first 200 characters of a malformed body is the detail that turns an hour of guessing into a one-line diagnosis. The service changed its response shape, and the evidence is in the log.</p>
+
+        <h2 id="services">Writing a Service</h2>
+
+        <p>A server is a function from a request to a response. Everything else — routing, sessions, templates — is convenience built on that idea.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-web-stack.svg" class="figure-img img-fluid rounded" alt="The request path through a Julia service: a client sends a request to an HTTP.jl server, which dispatches it through a router to a handler, which reads a database or runs a model and returns a JSON response back along the same path; a concurrency layer runs one task per request and an operational layer supplies logging and health checks.">
+          <figcaption class="figure-caption text-secondary">One process from socket to computation: router and handler in the middle, concurrency and operations around them.</figcaption>
+        </figure>
+
+        <h3 id="plain-http-server">A Server with HTTP.jl Alone</h3>
+
+        <p>Before reaching for a framework, see how little is required. This is a complete, working JSON API.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP, JSON3
+
+# Handlers take a request and return a response
+function items_handler(req::HTTP.Request)
+    params = HTTP.queryparams(HTTP.URI(req.target))
+    id = parse(Int, get(params, "id", "1"))
+
+    # ... look the item up ...
+    body = JSON3.write((id = id, name = "item-$id", value = id * 6))
+    return HTTP.Response(200, ["Content-Type" =&gt; "application/json"], body)
+end
+
+function health_handler(req::HTTP.Request)
+    return HTTP.Response(200, "ok")
+end
+
+# Routing is an if-chain until you need something better
+function route(req::HTTP.Request)
+    if req.method == "GET" &amp;&amp; startswith(req.target, "/items")
+        return items_handler(req)
+    elseif req.method == "GET" &amp;&amp; req.target == "/health"
+        return health_handler(req)
+    else
+        return HTTP.Response(404, "not found")
+    end
+end
+
+# Serve forever, with the router plugged in
+HTTP.serve(route, "0.0.0.0", 8080)
+
+# Or serve in the background so the REPL stays usable
+server = HTTP.serve!(route, "0.0.0.0", 8080)
+close(server)                      # graceful shutdown
+</code></pre>
+
+        <p>This file is worth keeping as a reference: it makes the framework unnecessary for small services, and it makes the framework's behaviour obvious when you do adopt one.</p>
+
+        <h3 id="genie">Genie.jl Applications</h3>
+
+        <p>Genie adds the parts a growing service needs: a router with parameters, controllers, templates, sessions, and a REPL that can edit a running app.</p>
+
+        <pre><code class="language-julia line-numbers">using Genie, Genie.Router, Genie.Requests, Genie.Renderer.Json
+
+# Routes with path parameters and typed access to the request
+route("/hello") do
+    "Hello, world"
+end
+
+route("/items/:id") do
+    id = parse(Int, params(:id))
+    json((id = id, name = "item-$id"))
+end
+
+route("/search", method = GET) do
+    q = getpayload(:q, "")
+    json((query = q, results = String[]))
+end
+
+# Group routes under a common prefix and a common pipeline
+route("/api/v1/health") do
+    json((status = "ok", version = "1.0.0"))
+end
+
+# A controller class keeps handlers out of the routes file
+module ItemsController
+using Genie.Router, Genie.Requests, Genie.Renderer.Json
+
+function index()
+    json((items = [], total = 0))
+end
+
+function show()
+    id = parse(Int, params(:id))
+    json((id = id))
+end
+end
+
+route("/items", ItemsController.index, method = GET)
+route("/items/:id", ItemsController.show, method = GET)
+
+# Start the server (or `up()` in the REPL to reload on change)
+Genie.up(8080)
+</code></pre>
+
+        <p>The <code>up()</code> workflow is what makes Genie pleasant during development: routes and handlers reload without restarting the process, so the edit-test loop is measured in seconds rather than in precompilation time.</p>
+
+        <h3 id="templates">Templates and Static Files</h3>
+
+        <p>When the service must also serve pages, Genie's view layer is available; when it must not, keep the service JSON-only.</p>
+
+        <pre><code class="language-julia line-numbers">using Genie, Genie.Renderer.Html
+
+# A page rendered from a template with variables
+route("/items/page") do
+    html(:items; items = load_items(), title = "Items")
+end
+
+# public/ holds static files: Genie serves them without a route
+#   public/css/app.css      →  GET /css/app.css
+#   public/index.html       →  GET /
+
+# Inline HTML when a template is overkill
+route("/ping") do
+    html("&lt;h1&gt;pong&lt;/h1&gt;")
+end
+
+# Rule of thumb:
+#   an API for other programs → JSON only, no templates
+#   a small admin page       → server-rendered HTML, no JavaScript build
+#   a rich application       → JSON API plus a separate front end
+</code></pre>
+
+        <p>The last rule prevents the most common architectural regret: a service that started as an API and grew a template layer, a static pipeline and an asset build, until it is two applications in one repository.</p>
+
+        <h2 id="rest">JSON, REST and Validation</h2>
+
+        <p>An API is a contract. The contract is expressed in three things: the shape of the JSON, the meaning of the status codes, and what happens when the input is wrong.</p>
+
+        <h3 id="json">JSON in Julia</h3>
+
+        <p><code>JSON3.jl</code> reads JSON into Julia structures and writes Julia values back, without an intermediate dictionary in the common case.</p>
+
+        <pre><code class="language-julia line-numbers">using JSON3
+
+# Read: a JSON object behaves like a named tuple
+data = JSON3.read("""{"id": 7, "tags": ["a", "b"], "score": 91.5}""")
+data.id                # 7
+data.tags              # ["a", "b"]
+data[:score]           # 91.5
+
+# Existence and defaults, since a missing key is not an error
+get(data, :missing, nothing)
+
+# Write: any Julia value with a natural mapping
+JSON3.write((id = 7, ok = true, items = [1, 2, 3]))
+JSON3.write(DataFrame(x = 1:2, y = ["a", "b"]))
+
+# Structs map to objects — the typed way to define an API payload
+using StructTypes
+
+struct Item
+    id    :: Int
+    name  :: String
+    score :: Float64
+end
+StructTypes.StructType(::Type{Item}) = StructTypes.Struct()
+
+JSON3.write(Item(1, "widget", 91.5))
+item = JSON3.read("""{"id":1,"name":"widget","score":91.5}""", Item)
+item.name              # "widget", parsed into the struct
+
+# Round-tripping with types is the point: an untyped Dict lets a typo
+# in a field name travel all the way into production.
+</code></pre>
+
+        <p>The struct-based form is worth the extra four lines: it turns "the client changed the field name" from a silent <code>nothing</code> into a parse error at the boundary, where it is cheap to see.</p>
+
+        <h3 id="rest-design">Designing REST Endpoints</h3>
+
+        <p>A small set of conventions removes most of the discussion from API design.</p>
+
+        <pre><code class="language-julia line-numbers"># RESOURCES, not actions
+#   GET    /items           → list          (200)
+#   GET    /items/7         → one           (200 or 404)
+#   POST   /items           → create        (201 + Location header)
+#   PUT    /items/7         → replace       (200 or 204)
+#   PATCH  /items/7         → partial edit  (200)
+#   DELETE /items/7         → remove        (204 or 404)
+
+# Handlers that follow the conventions
+using HTTP, JSON3
+
+function create_item(req::HTTP.Request)
+    body = JSON3.read(String(req.body), Item)
+    id   = store!(body)                                 # returns the new key
+    return HTTP.Response(201,
+        ["Content-Type" =&gt; "application/json",
+         "Location"     =&gt; "/items/$id"],
+        JSON3.write((id = id)))
+end
+
+function not_found(req::HTTP.Request)
+    HTTP.Response(404, ["Content-Type" =&gt; "application/json"],
+                  JSON3.write((error = "not_found", message = "no such item")))
+end
+
+# STATUS CODES THAT MEAN SOMETHING
+#   200 ok  · 201 created  · 204 no content
+#   400 malformed request  · 401 unauthenticated  · 403 forbidden
+#   404 not found  · 409 conflict  · 422 validation failed  · 429 too many requests
+#   500 your bug  · 503 dependency down
+
+# PAGINATION: never return an unbounded list
+#   GET /items?limit=50&amp;offset=100
+#   response: { items: [...], total: 1234, limit: 50, offset: 100 }
+</code></pre>
+
+        <p>The pagination rule is the one that bites in production: an endpoint that returns "all items" works fine with a hundred rows and takes down the database with a million.</p>
+
+        <h3 id="validation">Validating Input</h3>
+
+        <p>Every field that arrives from the network is hostile until proven otherwise. Validate once, at the boundary, and keep the rest of the code free of defensive checks.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP, JSON3
+
+struct ItemInput
+    name  :: String
+    score :: Float64
+end
+
+function parse_item(body::AbstractString)
+    data = try
+        JSON3.read(body)
+    catch
+        return (ok = false, error = "malformed JSON")
+    end
+
+    haskey(data, :name)  || return (ok = false, error = "name is required")
+    haskey(data, :score) || return (ok = false, error = "score is required")
+
+    name = string(data.name)
+    isempty(strip(name)) &amp;&amp; return (ok = false, error = "name must not be empty")
+
+    score = try
+        Float64(data.score)
+    catch
+        return (ok = false, error = "score must be a number")
+    end
+    (0.0 &lt;= score &lt;= 100.0) || return (ok = false, error = "score must be between 0 and 100")
+
+    return (ok = true, value = ItemInput(name, score))
+end
+
+# In the handler, validation failure is a 422 with a reason — never a 500
+function post_item(req::HTTP.Request)
+    parsed = parse_item(String(req.body))
+    if !parsed.ok
+        return HTTP.Response(422, ["Content-Type" =&gt; "application/json"],
+                             JSON3.write((error = "validation_failed", detail = parsed.error)))
+    end
+    item = parsed.value
+    HTTP.Response(201, JSON3.write((name = item.name)))
+end
+
+# Rules that keep validation honest:
+#   - reject unknown fields rather than ignoring them silently
+#   - cap the request body size before parsing it
+#   - never echo user input back into an error message unescaped
+</code></pre>
+
+        <p>Distinguishing 422 from 400 is a courtesy to clients: 400 says "your request is not valid HTTP or JSON", 422 says "the JSON is fine, but the values are not acceptable". Good clients act on that difference.</p>
+
+        <h2 id="concurrency">Concurrency in Services</h2>
+
+        <p>A web service spends most of its life waiting: for a database, for another API, for a disk. Julia's task scheduler makes that waiting nearly free — and the skill is knowing which work must not share a thread.</p>
+
+        <h3 id="async-handling">Async Request Handling</h3>
+
+        <p>Each request runs in its own task. Blocking I/O yields; CPU-bound work does not.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP
+
+# HTTP.jl already serves each connection in a task, so a handler that
+# awaits I/O does not block other requests.
+function slow_handler(req::HTTP.Request)
+    a = @async fetch_from_service_a()      # both requests start
+    b = @async fetch_from_service_b()
+    results = (fetch(a), fetch(b))         # then we wait for both
+    HTTP.Response(200, join(results, "\n"))
+end
+
+# Bounded concurrency: at most 8 outbound calls at a time
+const SEM = Base.Semaphore(8)
+function bounded_fetch(url)
+    Base.acquire(SEM)
+    try
+        return HTTP.get(url; readtimeout = 5)
+    finally
+        Base.release(SEM)                  # always released, even on error
+    end
+end
+
+# Fan out over many items without launching thousands of tasks
+function fetch_many(urls)
+    tasks = [@async bounded_fetch(u) for u in urls]
+    return fetch.(tasks)
+end
+
+# THE RULE THAT MATTERS
+#   I/O-bound handler  → @async / async I/O          (thousands of requests)
+#   CPU-bound handler  → Threads.@spawn with N≈cores (a few concurrent jobs)
+
+# A CPU-bound handler on the async scheduler blocks every request on that
+# thread. Start Julia with threads, then move the work:
+#   julia --threads=4 server.jl
+using Base.Threads
+function heavy_handler(req::HTTP.Request)
+    t = Threads.@spawn expensive_computation(job_id(req))
+    HTTP.Response(200, string(fetch(t)))
+end
+</code></pre>
+
+        <p>The distinction between these two calls — <code>@async</code> and <code>Threads.@spawn</code> — is the difference between a service that scales to a thousand slow clients and one that freezes under a single expensive computation.</p>
+
+        <h3 id="database">Databases and Connection Pools</h3>
+
+        <p>A database connection is a shared, stateful resource. Concurrent handlers must not share one connection without either a pool or a lock.</p>
+
+        <pre><code class="language-julia line-numbers">using SQLite, DBInterface, DataFrames
+
+# One connection, one writer: SQLite serialises writes anyway.
+# Guard it with a lock rather than letting tasks interleave statements.
+const DB = SQLite.DB("app.db")
+const DB_LOCK = ReentrantLock()
+
+function get_item(id::Int)
+    lock(DB_LOCK) do
+        row = DBInterface.execute(DB, "SELECT * FROM items WHERE id = ?", (id,))
+        DataFrame(row)
+    end
+end
+
+# For a server database (PostgreSQL via LibPQ.jl), use a pool instead
+using LibPQ
+const POOL = LibPQ.ConnectionPool("host=localhost dbname=app", 10)
+
+function query_items()
+    LibPQ.with_connection(POOL) do conn
+        DataFrame(LibPQ.execute(conn, "SELECT * FROM items LIMIT 50"))
+    end
+end
+
+# Rules that prevent connection exhaustion:
+#   - a pool size matched to the database's limit, not to traffic
+#   - always release in a `finally` block or a `do` block
+#   - prepared statements for anything called per request
+#   - timeouts on queries, so one slow query cannot hold a connection
+</code></pre>
+
+        <p>The <code>do</code>-block pattern is the safest form: the connection is returned even if the query throws. Hand-managed acquire/release pairs are how a service runs out of connections at 3 a.m.</p>
+
+        <h3 id="background-jobs">Background Work and Cancellation</h3>
+
+        <p>Work that takes longer than a request should not happen inside the request. Queue it, return <code>202 Accepted</code>, and let the client poll.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP, JSON3, Dates
+
+# A naive in-process job queue — enough for one node, and honest about it
+const JOBS  = Dict{String,NamedTuple}()
+const QUEUE = Channel{String}(100)
+
+function submit_job(spec)
+    id = string(hash((spec, now())))
+    JOBS[id] = (status = "queued", result = nothing, submitted = now())
+    put!(QUEUE, id)
+    return id
+end
+
+# A worker task started once, at boot
+function worker_loop()
+    for id in QUEUE
+        job = JOBS[id]
+        JOBS[id] = (job..., status = "running")
+        try
+            result   = run_analysis(id)                # the slow part
+            JOBS[id] = (job..., status = "done", result = result)
+        catch err
+            @error "job failed" id = id err = err
+            JOBS[id] = (job..., status = "failed", result = nothing)
+        end
+    end
+end
+@async worker_loop()
+
+# The HTTP surface for it
+route("/jobs", POST) do
+    id = submit_job(JSON3.read(String(req.body)))
+    HTTP.Response(202, JSON3.write((id = id, status = "queued")))
+end
+
+route("/jobs/:id", GET) do
+    id = params(:id)
+    haskey(JOBS, id) || return HTTP.Response(404, "unknown job")
+    JSON3.write(JOBS[id])
+end
+
+# What this design gives you
+#   202 Accepted instead of a request that times out
+#   a status the client can poll without blocking anything
+#   one place where slow work is bounded — the single worker
+
+# What it does NOT give you: survival across a restart, or a second node.
+# For those, use a real queue (Redis, RabbitMQ) — the interface above is
+# the same shape, only the Channel becomes a network resource.
+</code></pre>
+
+        <p>The closing comment is the important one: the in-process queue is a fine first design and a poor last one. Advertising its limits in the code prevents a team from discovering them during an incident.</p>
+
+        <h2 id="protocols">Beyond Plain HTTP</h2>
+
+        <p>Three capabilities separate a toy API from a service a real client can build on: push, typed queries, and identity.</p>
+
+        <h3 id="websockets">WebSockets</h3>
+
+        <p>A WebSocket is a long-lived, bidirectional connection — the right tool when the server must push without being asked.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP, HTTP.WebSockets
+
+# The server: keep a set of live connections and write to them
+const CLIENTS = Set{WebSockets.WebSocket}()
+
+function ws_handler(ws::WebSockets.WebSocket)
+    push!(CLIENTS, ws)
+    try
+        for msg in ws                       # iterate incoming frames
+            @info "client said" msg = msg
+            WebSockets.send(ws, "echo: $msg")
+        end
+    finally
+        delete!(CLIENTS, ws)                # always drop the closed connection
+        @info "client disconnected" remaining = length(CLIENTS)
+    end
+end
+
+HTTP.serve("0.0.0.0", 8081) do req::HTTP.Request
+    if HTTP.WebSockets.isupgrade(req)
+        WebSockets.open(ws_handler, req)
+        return
+    end
+    HTTP.Response(404, "not a websocket endpoint")
+end
+
+# Broadcast to everyone from anywhere in the process
+function broadcast_message(text)
+    dead = WebSockets.WebSocket[]
+    for ws in CLIENTS
+        try
+            WebSockets.send(ws, text)
+        catch
+            push!(dead, ws)                 # a failed send means a lost client
+        end
+    end
+    foreach(ws -&gt; delete!(CLIENTS, ws), dead)
+end
+</code></pre>
+
+        <p>The <code>finally</code> block and the dead-client sweep are not decoration: a WebSocket server that leaks closed connections eventually refuses new ones, and the failure appears hours after the bug that caused it.</p>
+
+        <h3 id="graphql-grpc">GraphQL, gRPC and Binary Protocols</h3>
+
+        <p>REST is the default, not the only option. Two alternatives solve specific problems well.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Protocol</th><th>What it gives you</th><th>Choose it when</th></tr></thead>
+          <tbody>
+            <tr><td>REST + JSON</td><td>Universally understood, cacheable, easy to debug</td><td>The default choice, especially for public APIs</td></tr>
+            <tr><td>GraphQL</td><td>The client states the fields it wants; one endpoint</td><td>Many clients with different data needs</td></tr>
+            <tr><td>gRPC</td><td>Binary, schema-driven, streaming, code generation</td><td>Service-to-service calls, performance-sensitive</td></tr>
+            <tr><td>WebSocket</td><td>Server push over one long connection</td><td>Live updates, chat, progress streams</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># gRPC with Julia: define the schema once, generate both sides
+#   item.proto
+#     service Items {
+#       rpc Get (GetRequest) returns (Item);
+#       rpc Stream (GetRequest) returns (stream Item);
+#     }
+#
+# then generate the Julia stubs and implement the service:
+function get_item(req)
+    Item(id = req.id, name = "item-$(req.id)")
+end
+
+# The payoff is the generated code: client and server agree on the
+# message types because neither of them wrote them by hand.
+
+# In practice for a Julia service:
+#   REST/JSON  → external clients, documentation, browser access
+#   gRPC       → internal calls between your own services
+#   WebSocket  → progress and live data to a user interface
+</code></pre>
+
+        <p>A service may legitimately use two of these. What it should not do is invent its own transport: every protocol in the table already has clients, tooling, and debugging aids that a bespoke format will never acquire.</p>
+
+        <h3 id="authentication">Authentication and Rate Limiting</h3>
+
+        <p>Two questions must be answered before a service is exposed: who is calling, and how often may they call.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP, JSON3, SHA
+
+# 1. Bearer token check, as middleware around the handler
+function authorize(req::HTTP.Request)
+    header = HTTP.header(req, "Authorization", "")
+    startswith(header, "Bearer ") || return (ok = false, code = 401, msg = "missing token")
+    token = split(header, ' ')[2]
+    haskey(TOKENS, token) || return (ok = false, code = 401, msg = "invalid token")
+    return (ok = true, user = TOKENS[token])
+end
+
+function protected_handler(req::HTTP.Request)
+    auth = authorize(req)
+    auth.ok || return HTTP.Response(auth.code, auth.msg)
+    HTTP.Response(200, JSON3.write((user = auth.user, data = [])))
+end
+
+# 2. Never store passwords as they arrive: salt, then hash
+salt   = rand(UInt8, 16)
+stored = SHA.sha256(vcat(salt, Vector{UInt8}("user-password")))
+
+# Prefer Argon2 or bcrypt from the ecosystem for real deployments:
+# a single SHA-256 round is fast, and fast is the wrong property for passwords.
+
+# 3. Rate limiting: a token bucket per client, in memory
+const BUCKETS = Dict{String,Tuple{Float64,Float64}}()      # tokens, last refill
+const RATE, CAPACITY = 5.0, 20.0                           # per second, burst
+
+function allow_request(client)
+    tokens, last = get(BUCKETS, client, (CAPACITY, time()))
+    now_t  = time()
+    tokens = min(CAPACITY, tokens + (now_t - last) * RATE)
+    if tokens &lt; 1.0
+        BUCKETS[client] = (tokens, now_t)
+        return false
+    end
+    BUCKETS[client] = (tokens - 1.0, now_t)
+    return true
+end
+
+# Answer 429 with a Retry-After header so clients back off gracefully
+#   HTTP.Response(429, ["Retry-After" =&gt; "1"], "too many requests")
+</code></pre>
+
+        <p>Serving over TLS is not optional once passwords or tokens are involved: put the Julia service behind a reverse proxy such as nginx or Caddy, terminate TLS there, and let the proxy forward plain HTTP on the loopback interface.</p>
+
+        <h2 id="deploy">Deploying a Julia Service</h2>
+
+        <p>A service is not finished when it answers a request locally. It is finished when somebody else can start it, watch it, and stop it.</p>
+
+        <h3 id="configuration">Configuration, Secrets and Startup</h3>
+
+        <p>Configuration comes from the environment; secrets never come from the repository.</p>
+
+        <pre><code class="language-julia line-numbers"># config.jl — one place where the environment is read
+struct Config
+    host      :: String
+    port      :: Int
+    database  :: String
+    log_level :: Symbol
+    workers   :: Int
+end
+
+function load_config()
+    Config(
+        get(ENV, "APP_HOST", "127.0.0.1"),
+        parse(Int, get(ENV, "PORT", "8080")),
+        get(ENV, "DATABASE_URL", "sqlite://app.db"),     # never hard-code a password
+        Symbol(get(ENV, "LOG_LEVEL", "info")),
+        parse(Int, get(ENV, "APP_WORKERS", "1")),
+    )
+end
+
+const CFG = load_config()
+
+# Typing the configuration means a mistyped PORT fails at boot, not at the
+# first request: `parse(Int, ...)` above is the whole mechanism.
+
+@info "configuration loaded" host = CFG.host port = CFG.port
+</code></pre>
+
+        <p>The typed <code>Config</code> struct turns configuration errors into a startup failure. A service that refuses to boot because <code>PORT</code> is not a number is much easier to operate than one that fails on the first request at 2 a.m.</p>
+
+        <h3 id="health-checks">Logging, Health and Shutdown</h3>
+
+        <p>Three endpoints and one signal are what an orchestrator needs from you.</p>
+
+        <pre><code class="language-julia line-numbers">using HTTP, JSON3
+
+# 1. Liveness: is the process alive?
+route("/health") do
+    HTTP.Response(200, "ok")
+end
+
+# 2. Readiness: can it do its job? Check dependencies, cheaply.
+route("/ready") do
+    db_ok = try
+        DBInterface.execute(DB, "SELECT 1")
+        true
+    catch
+        false
+    end
+    HTTP.Response(db_ok ? 200 : 503, JSON3.write((database = db_ok)))
+end
+
+# 3. Structured request logging as middleware
+function log_requests(handler)
+    return function (req::HTTP.Request)
+        t0  = time_ns()
+        res = try
+            handler(req)
+        catch err
+            @error "unhandled exception" path = req.target err = err
+            HTTP.Response(500, "internal error")
+        end
+        @info "request" method = req.method path = req.target status = res.status ms = round((time_ns() - t0) / 1e6, digits = 1)
+        return res
+    end
+end
+
+# 4. Graceful shutdown: on an interrupt, stop accepting and drain
+server = HTTP.serve!(log_requests(route), CFG.host, CFG.port)
+try
+    while true
+        sleep(3600)
+    end
+catch err
+    err isa InterruptException || rethrow()
+    @info "draining connections"
+    close(server)                      # stop accepting, finish in-flight work
+    @info "shutdown complete"
+end
+</code></pre>
+
+        <p>Logging one line per request with a duration is the cheapest observability there is. When the service becomes slow, that log tells you which endpoint and how slow — before any monitoring system is installed.</p>
+
+        <h3 id="web-pitfalls">Common Pitfalls</h3>
+
+        <p>The mistakes below are the standard reasons a Julia service works locally and fails in production.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Pitfall</th><th>Consequence</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>CPU work inside an <code>@async</code> handler</td><td>Every request on that thread stalls</td><td><code>Threads.@spawn</code> with <code>--threads=N</code></td></tr>
+            <tr><td>No timeout on outbound calls</td><td>One slow dependency becomes your outage</td><td><code>readtimeout</code> on every call</td></tr>
+            <tr><td>Global mutable state shared across requests</td><td>Data races and cross-request bugs</td><td>Locks, per-request state, or a database</td></tr>
+            <tr><td>Compiling on the first request</td><td>Seconds of latency at the worst moment</td><td>Precompile and warm the paths you care about</td></tr>
+            <tr><td>Returning an unbounded list</td><td>Memory spikes and slow responses</td><td>Paginate everything</td></tr>
+            <tr><td>Logging secrets or full request bodies</td><td>Credentials in log aggregators</td><td>Log identifiers and status, not payloads</td></tr>
+            <tr><td>No health endpoint</td><td>An orchestrator cannot tell live from dead</td><td><code>/health</code> and <code>/ready</code></td></tr>
+            <tr><td>Hard-coded ports and passwords</td><td>One image cannot serve two environments</td><td>Read everything from the environment</td></tr>
+          </tbody>
+        </table>
+
+        <p>Each of these is a one-line fix and a multi-hour incident. Adopting them at the start costs an afternoon; retrofitting them during an outage costs the outage.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> <code>HTTP.jl</code> is both client and server: set timeouts on every call, reuse a <code>Client</code> for connection pooling, retry only idempotent requests, and handle transport errors, status codes and malformed bodies separately. A minimal service is a router plus handlers; <code>Genie.jl</code> adds controllers, templates and hot reloading when the service grows. Define API payloads as structs, follow REST conventions, return honest status codes, paginate every list, and validate all input at the boundary with 422 on failure. Serve I/O-bound handlers with <code>@async</code> and CPU-bound work with <code>Threads.@spawn</code>, guard shared database connections with a pool or a lock, and move slow work to a queue behind <code>202 Accepted</code>. Add WebSockets only when you need push, choose gRPC for internal calls, gate everything behind token authentication and rate limiting, and finish with environment-based configuration, structured request logging, <code>/health</code> and <code>/ready</code> endpoints, and a graceful shutdown on signal.
+        </div>
+
+        <p>Next, ship it: <a href="/roadmap/julia/deployment.html">Deployment &amp; Packaging</a> turns a working service into a release.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'web',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

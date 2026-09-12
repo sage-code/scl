@@ -1,0 +1,908 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia metaprogramming: quoting, Expr objects, eval and world age, writing hygienic macros, @generated functions, and macro debugging.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, metaprogramming, macro, quote, expr, eval, hygiene, gensym, macroexpand, generated functions, ast">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Metaprogramming &amp; Macros</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-metaprogramming">Metaprogramming &amp; Macros</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          In Julia a program is also data. <code>:(a + b)</code> does not add anything — it returns a tree you can inspect, rewrite and evaluate later. A macro is an ordinary function that receives such a tree while your file is being parsed, and returns another tree in its place. Macros therefore run <em>before</em> your program runs, which is exactly why they can add syntax that no function call could express.
+        </div>
+
+        <p>This lesson starts with the representation: how Julia stores <code>a + b</code> as an <code>Expr</code>, and how quoting and interpolation let you build one. From there you move to <code>eval</code> and world age, then to writing real macros — hygiene, escaping, and debugging with <code>macroexpand</code>. The last two chapters cover the patterns the ecosystem itself uses (<code>@time</code>, <code>@inbounds</code>, <code>@generated</code>) and the mistakes that make macro code unreadable.</p>
+
+        <h2 id="code-as-data">Code as Data</h2>
+
+        <p>To write macros you first need to see what the parser produces. Nothing about that representation is magic: expressions are instances of one struct, with a head symbol and a list of arguments, and they print back as the code you wrote.</p>
+
+        <h3 id="expr-objects">Expr Objects</h3>
+
+        <p>Every parsed construct that is not a literal becomes an <code>Expr</code>. Numbers, strings and symbols stay as themselves, which is why a tree is described as "atoms plus calls". <code>dump</code> shows the raw structure that <code>Meta.show_sexpr</code> prints in Lisp form.</p>
+
+        <pre><code class="language-julia line-numbers"># A literal is not an Expr — it is itself
+typeof(1)                     # Int64
+typeof(:x)                    # Symbol — a name, not a value
+
+# A call is an Expr with head :call and three arguments
+ex = :(x + 2 * y)
+typeof(ex)                    # Expr
+ex.head                       # :call — what kind of node this is
+ex.args                       # Any[:+, :x, Expr(:call, :*, 2, :y)]
+
+# The nested multiplication is its own Expr
+ex.args[3].head               # :call
+ex.args[3].args               # Any[:*, 2, :y]
+
+# dump prints the same tree without the sugar
+dump(ex)
+#   Expr
+#     head: Symbol call
+#     args: Array{Any}((3,))
+#       1: Symbol +
+#       2: Symbol x
+#       3: Expr
+#         head: Symbol call
+#         args: Array{Any}((3,))
+#           1: Symbol *
+#           2: Int64 2
+#           3: Symbol y
+
+# Several heads you will meet while rewriting trees
+:(x = 1).head                # :(=)   assignment
+:(a[i]).head                 # :ref   indexing
+:(f(x)).head                 # :call  function call
+:(x ? a : b).head            # :if    ternary lowers to a condition
+:(function f() end).head     # :function
+:(struct P end).head         # :struct
+</code></pre>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-expr-tree.svg" class="figure-img img-fluid rounded" alt="The source text x + 2 * y parses into an outer Expr with head call holding the symbol +, the symbol x, and a nested Expr for the multiplication, whose own arguments are the symbol * and the literals 2 and y.">
+          <figcaption class="figure-caption text-secondary">Quoting produces the tree; only <code>eval</code> turns a tree back into a result.</figcaption>
+        </figure>
+
+        <p>Because the tree is data, you can walk it with recursion and answer structural questions: is this node a call, what is the function name, how many arguments does it take. Tooling built on that ability is what makes features such as automatic differentiation and domain-specific languages possible in Julia.</p>
+
+        <h3 id="quoting">Quoting and Interpolation</h3>
+
+        <p>A colon in front of an expression quotes it: the parser builds the tree and hands it back instead of evaluating it. Inside a quoted block, <code>$</code> splices a value or another expression back in, which is how you turn a template into a concrete tree.</p>
+
+        <pre><code class="language-julia line-numbers"># Quote: build the tree, do not run it
+q = :(2 + 3)                  # Expr(:call, :+, 2, 3)
+eval(q)                       # 5 — evaluation is a separate step
+
+# Quote a block with begin ... end
+block = quote
+    a = 1
+    b = 2
+    a + b
+end
+block.head                    # :block
+
+# Interpolation splices a value in as a literal
+n = 7
+:(x + $n)                     # Expr(:call, :+, :x, 7)
+
+# Interpolation can also splice a whole subtree
+term = :(2 * y)
+:(x + $term)                  # Expr(:call, :+, :x, Expr(:call, :*, 2, :y))
+
+# Without interpolation you get the symbol, not the value
+:(x + n)                      # Expr(:call, :+, :x, :n)
+
+# Interpolating a symbol is how templates build names
+name = :total
+f = :(function $(name)() 0 end)   # defines a function called total
+
+# Build symbols at runtime for generated names
+Symbol("a", "b")              # :ab — the function form
+Symbol("counter_", 1)         # :counter_1
+</code></pre>
+
+        <p>The distinction between <code>:n</code> and <code>$n</code> is the single most important detail of metaprogramming: the first is a name in the generated code, the second is the current value of a variable in your program. Mixing them up produces code that compiles and then fails for reasons that look impossible.</p>
+
+        <h3 id="inspect-rewrite">Inspecting and Rewriting a Tree</h3>
+
+        <p>A macro is a rewrite rule. Writing one by hand therefore means: pattern-match on <code>head</code> and <code>args</code>, build a replacement, and return it. The next example is a complete, useful rewrite — a function that collects every called name in an expression.</p>
+
+        <pre><code class="language-julia line-numbers"># Collect every function name called inside an expression
+function called_names(ex)
+    names = Symbol[]
+    walk(e) = begin
+        if e isa Expr
+            if e.head === :call &amp;&amp; e.args[1] isa Symbol
+                push!(names, e.args[1])       # the callee's name
+            end
+            foreach(walk, e.args)             # recurse into every argument
+        end
+    end
+    walk(ex)
+    unique(names)
+end
+
+called_names(:(f(g(x)) + h(y)))     # [:f, :g, :h]
+called_names(:(sin(x) + cos(y)))    # [:sin, :cos]
+
+# Replacing a subtree: turn every `+` into a call to `myadd`
+function rename_calls(ex, from::Symbol, to::Symbol)
+    ex isa Expr || return ex                  # atoms are returned unchanged
+    args = map(a -&gt; rename_calls(a, from, to), ex.args)
+    ex.head === :call &amp;&amp; ex.args[1] === from &amp;&amp; return Expr(:call, to, args...)
+    Expr(ex.head, args...)
+end
+
+rename_calls(:(a + b + c), :+, :myadd)
+# :(myadd(myadd(a, b), c))
+
+# Structural predicates from Base.Meta keep the intent readable
+using Base.Meta: isexpr
+isexpr(:(f(x)), :call)              # true
+
+# Dot access and subscripts survive quoting — they are just Expr heads
+:(a.b).head                         # :.
+:(a[i]).head                        # :ref
+</code></pre>
+
+        <p>Two habits keep tree code honest: always handle the atom case first, and always reconstruct with <code>Expr(head, args...)</code> rather than mutating shared nodes. Trees built by quoting are ordinary mutable objects, and mutating one that other code still references produces bugs that surface in unrelated places.</p>
+
+        <h2 id="eval">Evaluating Code</h2>
+
+        <p>Building a tree achieves nothing until something runs it. <code>eval</code> does that in a module of your choice, but it comes with a rule about time — world age — that explains most surprises people hit when they first use it.</p>
+
+        <h3 id="eval-scope">eval and Scope</h3>
+
+        <p><code>eval</code> always evaluates in a module, and by default that is the module where the call is written. Understanding that is what lets you define functions in <code>Main</code> from a helper module, or evaluate an expression inside your own namespace without leaking into the caller's.</p>
+
+        <pre><code class="language-julia line-numbers"># eval runs a tree in the current module
+eval(:(a = 10))
+a                             # 10 — the assignment happened here
+
+# Explicit module target: define something in Main from anywhere
+eval(Main, :(greet() = "hello"))
+greet()                       # "hello"
+
+# A tree can come from a string — dynamic code from a configuration file
+src = "f(x) = x^2"
+eval(Meta.parse(src))
+f(5)                          # 25
+
+# Parsing is explicit; there is no implicit eval of strings
+Meta.parse("1 + 1")           # :(1 + 1) — still a tree
+
+# And a tree can be passed around before it is evaluated
+make_adder(n) = :(x -&gt; x + $n)
+add3 = eval(make_adder(3))    # a closure built from a template
+add3(10)                      # 13
+
+# Code that returns code is the normal shape of a small DSL
+macro define_accessors(name)
+    field = QuoteNode(name)
+    quote
+        $(esc(Symbol("get_", name)))() = $(esc(name))
+        $(esc(Symbol("set_", name)))(v) = ($(esc(name)) = v)
+    end
+end
+</code></pre>
+
+        <p>Prefer passing a module explicitly when the helper is reusable. Code that calls bare <code>eval</code> inside <code>Main</code> is nearly impossible to move into a package later, because every name it created lived in the wrong namespace.</p>
+
+        <h3 id="world-age">World Age</h3>
+
+        <p>Julia distinguishes the world where code is being <em>compiled</em> from the world where it is <em>running</em>. A method defined by <code>eval</code> during a call belongs to a newer world, and the call already being executed cannot see it — that is the <code>MethodError</code> known as a world-age error.</p>
+
+        <pre><code class="language-julia line-numbers"># This pattern fails: the method is defined after the call was compiled
+function define_late()
+    eval(:(late() = 42))
+    return late()          # ERROR: MethodError — late is not visible yet
+end
+
+# Fix 1: finish defining, then call from a fresh top-level call
+function define_now()
+    eval(:(late() = 42))
+    return nothing
+end
+define_now()
+late()                     # 42 — a new top-level call sees the newest world
+
+# Fix 2: Base.invokelatest runs immediately in the newest world (slower)
+function define_and_call()
+    eval(:(late2() = 7))
+    return Base.invokelatest(late2)
+end
+define_and_call()          # 7
+
+# Macros never hit world age: they run at parse time, before compilation
+macro double(x)
+    return :(2 * $(esc(x)))
+end
+@double 21                 # 42 — expanded, then compiled as one unit
+
+# Rule of thumb
+#   top level or include → eval is fine
+#   inside a function    → define with eval and call from the caller,
+#                          or use invokelatest
+</code></pre>
+
+        <p>World age is the reason metaprogramming in Julia is written with macros far more often than with <code>eval</code>. A macro's output becomes part of the enclosing function and is compiled with everything else, so the timing question never arises.</p>
+
+        <h3 id="macroexpand">Macro Expansion</h3>
+
+        <p>Before writing macros, learn to read expansion. <code>@macroexpand</code> shows what a macro call turns into without running it, and the function form <code>macroexpand</code> does the same for a tree you built in code.</p>
+
+        <pre><code class="language-julia line-numbers"># See what a macro produces, without evaluating it
+@macroexpand @time 1 + 1
+# quote
+#     local t0 = time_ns()
+#     local val = 1 + 1
+#     local t1 = time_ns()
+#     ...
+# end
+
+# Expansion of one of your own macros
+macro twice(x)
+    return :($(esc(x)) + $(esc(x)))
+end
+@macroexpand @twice a          # :(a + a)
+
+# The programmatic form works on a tree
+ex = macroexpand(Main, :(@twice b))
+ex                             # :(b + b)
+
+# Expansion is recursive by default: nested macros are already gone
+macro first_probe(x) :(second_probe) end
+macro second_probe()
+    :("probe")
+end
+macroexpand(Main, :(@first_probe 1))    # "probe"
+</code></pre>
+
+        <p>When a macro behaves unexpectedly, expansion is your debugger: run <code>@macroexpand</code>, compare the printed tree with what you intended, and the mistake is usually visible in one screen. The next chapter puts that loop to work while writing macros from scratch.</p>
+
+        <h2 id="macros">Writing Macros</h2>
+
+        <p>A macro is a function in a special calling convention: it receives the unevaluated argument trees and must return a tree. That is the whole contract, and it is what makes macros both powerful and easy to misuse.</p>
+
+        <h3 id="macro-definition">Defining a Macro</h3>
+
+        <p>Define with <code>macro</code>, call with <code>@</code>. Arguments arrive as <code>Expr</code> or literal values, never evaluated, and the value you return is what the call site becomes.</p>
+
+        <pre><code class="language-julia line-numbers"># The simplest useful macro: repeat an expression n times
+macro repeat_n(n, x)
+    return quote
+        for _ in 1:$(esc(n))          # esc: use the CALLER's n
+            $(esc(x))                 # esc: use the CALLER's x
+        end
+    end
+end
+
+count = 0
+@repeat_n 3 (count += 1)              # runs the block three times
+count                                 # 3
+
+# Arguments really are trees — inspect before rewriting
+macro show_tree(x)
+    @info "received" expression = x typeof = typeof(x)    # runs at COMPILE time
+    return esc(x)
+end
+@show_tree 1 + 2                      # info printed while compiling; result 3
+
+# A macro can take any number of arguments and can accept a block
+macro labelled(label, body)
+    return quote
+        println($(esc(label)), ": ", $(esc(body)))
+    end
+end
+
+@labelled "answer" (6 * 7)            # prints "answer: 42"
+
+# The do-block form passes the block as the first argument
+macro run_twice(body)
+    return quote
+        $(esc(body))
+        $(esc(body))
+    end
+end
+
+@run_twice begin
+    println("hello")
+end
+
+# Macros do NOT dispatch on types: everything is a tree
+macro kind_of(x)
+    return QuoteNode(typeof(x))       # baked in as a literal value
+end
+@kind_of 1 + 1                        # Expr (:call)
+@kind_of "text"                       # String
+</code></pre>
+
+        <p>Two consequences follow from the contract. First, a macro that returns a value instead of a tree produces a confusing <code>TypeError</code> at the call site; second, because macro arguments are not evaluated, a macro can accept syntax that would be a syntax error in a function — a block, an assignment, or an unbound name.</p>
+
+        <h3 id="hygiene">Hygiene and esc</h3>
+
+        <p>Macros are hygienic: names a macro introduces are renamed so they cannot collide with the caller's variables. When the macro is <em>supposed</em> to use a caller variable, you say so explicitly with <code>esc</code>.</p>
+
+        <pre><code class="language-julia line-numbers"># Hygiene: the macro's own `tmp` cannot clash with the caller's tmp
+macro hygienic_sum(x)
+    return quote
+        tmp = $(esc(x))               # tmp belongs to the macro
+        tmp + tmp
+    end
+end
+
+tmp = 100
+@hygienic_sum 5                       # 10 — the caller's tmp is untouched
+tmp                                   # 100
+
+# What the rename looks like: a gensym'd symbol
+macro show_gensym()
+    quote
+        local y = 1
+    end
+end
+@macroexpand @show_gensym()           # contains a name like ##y#251
+
+# The macro cannot see the caller's variable without esc
+macro bad_double(x)
+    return :(2 * x)                   # ERROR: x is undefined at the call site
+end
+# @bad_double n                       # UndefVarError: x
+
+# Fix: escape the caller's expression
+macro good_double(x)
+    return :(2 * $(esc(x)))
+end
+n = 21
+@good_double n                        # 42
+
+# Escape the whole block when the macro is a template around user code
+macro timeit(body)
+    return quote
+        local t0 = time_ns()
+        local val = $(esc(body))      # user code keeps the caller's scope
+        local t1 = time_ns()
+        println("elapsed ms: ", (t1 - t0) / 1e6)
+        val
+    end
+end
+
+@timeit sum(1:1_000_000)              # prints a time, returns the sum
+
+# gensym builds a guaranteed-unique name by hand when needed
+macro counter()
+    local name = gensym(:counter)
+    return quote
+        $name = get($(esc(:dict)), "k", 0)   # escaped: caller's dict
+    end
+end
+</code></pre>
+
+        <p>The rule to remember: escape the caller's <em>expressions</em>, and never escape the macro's own temporaries. Escaping too much reintroduces collisions; escaping too little produces <code>UndefVarError</code> for names the caller expected to work.</p>
+
+        <h3 id="debugging-macros">Debugging a Macro</h3>
+
+        <p>Macro errors surface at compile time, often far from the call, so the workflow is: expand, read, fix. Keeping the tree-building logic in ordinary functions makes the tree testable without ever compiling a macro.</p>
+
+        <pre><code class="language-julia line-numbers"># Expand one level at a time while developing
+@macroexpand1 @repeat_n 3 (count += 1)      # shows only this macro's output
+@macroexpand @repeat_n 3 (count += 1)       # shows the fully expanded result
+
+# Put the rewriting in a plain function: it can be unit tested
+build_double(x) = :(2 * $(esc(x)))
+
+macro good_double(x)
+    return build_double(x)
+end
+
+# Test the builder directly — no macro involved
+build_double(:n)                             # :(2 * n)
+
+# Print and return: a throwaway probe while writing a macro
+macro probe(x)
+    println("probe got: ", x)                # compile-time output
+    return esc(x)
+end
+@probe 1 + 1                                 # prints "probe got: 1 + 1", yields 2
+
+# A helper that dumps a tree to a file is easier to read than long prints
+dump_tree(ex) = open("tree.txt", "w") do io
+    show(io, MIME("text/plain"), ex)
+end
+
+# Common failure: returning a non-Expr from a macro
+macro oops(x)
+    return 42                                # ERROR: invalid macro result
+end
+# @oops 1                                  # expected Expr, got Int64
+
+# Common failure: unbalanced escaping shows as a giant expansion
+macro noisy(x)
+    return quote
+        $(esc(x)) + $(esc(x)) + $(esc(x))
+    end
+end
+@macroexpand @noisy a + b                    # :(a + b + a + b + a + b)
+</code></pre>
+
+        <p>Two symptoms identify most macro bugs immediately: an expansion that references a name you never wrote means you forgot <code>esc</code>, and an expansion that looks correct but fails with <code>UndefVarError</code> means the macro's own temporary escaped. Reading <code>@macroexpand</code> tells you which one you have.</p>
+
+        <h2 id="macro-patterns">Macro Patterns</h2>
+
+        <p>Real macros fall into a handful of shapes. Recognising them lets you copy a proven design instead of inventing one — and, just as usefully, lets you see when a macro is not needed at all.</p>
+
+        <h3 id="validation-macros">Validation Macros</h3>
+
+        <p>The most common macro is shorthand for a check that should disappear in production. <code>@assert</code> is the built-in version; writing your own shows how a message, a condition, and a level are baked into the call site.</p>
+
+        <pre><code class="language-julia line-numbers"># Assert with a message and the offending value shown
+macro check(cond)
+    return quote
+        if !($(esc(cond)))
+            throw(ArgumentError("check failed: " * $(string(cond))))
+        end
+        nothing
+    end
+end
+
+function ratio(a, b)
+    @check b != 0
+    return a / b
+end
+
+ratio(6, 3)                  # 2.0
+# ratio(6, 0)               # ArgumentError: check failed: b != 0
+
+# The condition's TEXT is baked in at compile time — that is a macro's advantage
+macro check2(cond, msg)
+    return quote
+        $(esc(cond)) || throw(ArgumentError($(esc(msg)) * " (" * $(string(cond)) * ")"))
+    end
+end
+
+# Guard-clause macro used at the top of functions
+macro require(cond)
+    quote
+        $(esc(cond)) || error("precondition failed")
+    end
+end
+
+f(x) = (@require x &gt; 0; sqrt(x))
+# f(-1)                      # ErrorException: precondition failed
+
+# A macro that validates its own ARGUMENTS at compile time catches typos early
+macro enum_def(name, values)
+    values isa Expr || error("expected a tuple of symbols")
+    syms = values.args
+    ex = Expr(:block)
+    for s in syms
+        push!(ex.args, :(const $(esc(s)) = $(QuoteNode(s))))
+    end
+    return ex
+end
+
+@enum_def Color (red, green, blue)
+red                          # :red — already a constant, no runtime cost
+</code></pre>
+
+        <p>Validation macros earn their place because they capture information no function can: the source text of the condition. That text is available only at expansion time, which is precisely why <code>@assert</code> is a macro rather than a function.</p>
+
+        <h3 id="loop-macros">Unrolling and Scope Macros</h3>
+
+        <p>The second family generates repetitive code from a compact description — unrolled loops, per-field initialisers, or a batch of small accessor functions. The value comes from code that is tedious rather than conceptually hard.</p>
+
+        <pre><code class="language-julia line-numbers"># Unroll a fixed-length loop at expansion time
+macro unroll(n, body)
+    n isa Int || return :(error("unroll needs an integer literal"))
+    ex = Expr(:block)
+    for i in 1:n
+        push!(ex.args, :($(esc(body))($i)))     # body is a function of i
+    end
+    return ex
+end
+
+trace = Int[]
+emit(i) = push!(trace, i)
+@unroll 4 emit
+trace                                        # [1, 2, 3, 4] — no loop at runtime
+
+# Define several variables in the CALLER's scope using esc on the names
+macro defvars(names...)
+    ex = Expr(:block)
+    for name in names
+        push!(ex.args, :(($(esc(name)) = 0)))
+    end
+    return ex
+end
+
+@defvars a b c
+(a, b, c)                                    # (0, 0, 0)
+
+# Per-field accessors: a real pattern for struct-heavy code
+macro accessors(T, fields...)
+    T = esc(T)
+    ex = Expr(:block)
+    for f in fields
+        fname = QuoteNode(f)
+        getter = esc(Symbol("get_", f))
+        setter = esc(Symbol("set_", f))
+        push!(ex.args, :($getter(x) = getfield(x, $fname)))
+        push!(ex.args, :($setter(x, v) = setfield!(x, $fname, v)))
+    end
+    return ex
+end
+
+mutable struct Person
+    name::String
+    age::Int
+end
+
+@accessors Person name age
+p = Person("Ana", 30)
+get_name(p)                                  # "Ana"
+set_age(p, 31)
+p.age                                        # 31
+
+# The generated code is ordinary code — @code_lowered shows the unrolled block
+@code_lowered trace
+</code></pre>
+
+        <p>Unrolling only pays when the count is known at parse time, which is exactly what a literal argument guarantees. Keep such macros small: a generated function offers the same idea with the type system behind it, and it is usually easier to reason about.</p>
+
+        <h3 id="generated-functions">Generated Functions</h3>
+
+        <p>A <code>@generated</code> function runs its body once at compile time, sees the argument <em>types</em>, and returns the code to use for those types. It is metaprogramming inside the type system: no <code>eval</code>, no world age, and the result is fully specialised.</p>
+
+        <pre><code class="language-julia line-numbers"># Sum any tuple: the compiler sees the length and emits a straight sum
+@generated function tsum(t::Tuple)
+    exprs = [:(getfield(t, $i)) for i in 1:fieldcount(t)]   # no loop survives
+    return Expr(:call, :+, exprs...)
+end
+
+tsum((1, 2, 3))                # 6
+tsum((1.5, 2.5))               # 4.0
+@code_lowered tsum((1, 2))     # the body is just 1 + 2 — nothing to unroll
+
+# The body runs at COMPILE time and must return a tree
+@generated function describe(x)
+    return QuoteNode(typeof(x))     # baked in as a literal
+end
+
+describe(1)                    # Int64
+describe("s")                  # String
+
+# Rules: read only the TYPES, never the values; never mutate global state;
+# never call a function defined after the generated body runs.
+@generated function firstdim(x::AbstractArray{T}) where {T}
+    # T is available here; the array's contents are NOT
+    return :(size(x, 1))
+end
+
+firstdim(rand(3, 4))           # 3
+
+# A generated function can also inspect its own type parameters
+@generated function zero_like(x::AbstractArray{T,N}) where {T,N}
+    return Expr(:call, :zeros, T, :(size(x)))
+end
+
+zero_like([1, 2, 3])           # [0, 0, 0]
+</code></pre>
+
+        <p>Generated functions are the right tool when behaviour depends on the <em>types</em> of the arguments in ways that recursion cannot express — tuples of unknown length, dimensional arrays, or type-parameter-driven loops. For anything that depends on values, an ordinary function with a branch is clearer and just as fast.</p>
+
+        <h2 id="ecosystem-macros">Macros in the Ecosystem</h2>
+
+        <p>Julia's standard library and its scientific packages expose much of their functionality as macros. Knowing which family you are calling tells you what the macro can do that a function cannot.</p>
+
+        <h3 id="standard-library-macros">The Standard Library</h3>
+
+        <p>Measurement, logging, and introspection macros all rely on the same trick: the call site's text and the surrounding scope are available at expansion time, so the report can name what it measured.</p>
+
+        <pre><code class="language-julia line-numbers"># Measurement macros report the source expression, not a value
+@time sum(1:1_000_000)        # prints time and allocation info
+@elapsed sum(1:1_000_000)     # returns seconds only
+@allocated rand(1000)         # returns bytes allocated
+
+# @show prints the code AND the value — impossible for a function
+x = 6 * 7
+@show x                       # x = 42
+
+# Logging macros capture module and location automatically
+@info "worker started" id = 3      # structured key = value pairs
+@warn "retrying" attempt = 2
+@debug "cache hit" key = "a"
+
+# Introspection macros inspect the method being compiled
+f(v) = sum(v)
+@code_warntype f([1, 2, 3])   # shows inferred types for this call
+@code_native f([1])           # shows generated machine code
+
+# Performance annotations are macros because they must attach to a scope,
+# not to a value
+fast_sum(v) = @inbounds @simd for i in eachindex(v)
+    total += v[i]
+end
+</code></pre>
+
+        <p>Notice that every one of these needs something a function call cannot provide: the argument's source text, the enclosing module, or a whole loop body. That is the test for whether a macro is justified.</p>
+
+        <h3 id="dsl-macros">Domain-Specific Languages</h3>
+
+        <p>Packages such as JuMP and Turing use macros to let you write mathematics or probabilistic models directly, then translate the tree into solver or sampler calls. The macro is the parser of a small language embedded in Julia.</p>
+
+        <pre><code class="language-julia line-numbers"># Sketch of how a modelling DSL reads — JuMP syntax
+using JuMP
+model = Model()
+@variable(model, x &gt;= 0)              # declares a decision variable
+@variable(model, y &gt;= 0)
+@constraint(model, 2x + y &lt;= 10)      # constraints look like mathematics
+@objective(model, Max, 3x + 2y)       # the objective is written literally
+
+# What makes this a macro and not a function call:
+#   - `2x` (implicit multiplication) is not valid function syntax
+#   - names are introduced into the model, not into a value
+#   - the tree is inspected to find variables and coefficients
+
+# The same technique powers unit libraries
+using Unitful
+@u_str 9.81                       # 9.81 m s^-2 — string macro
+1.0u"m/s" * 2.0u"s"               # 2.0 m — dimensions tracked in the type
+
+# String macros are just macros whose name starts with @ and ends with _str
+macro json_str(s)
+    return Meta.parse(s)          # a string literal becomes a Julia value
+end
+@json_str "{&quot;a&quot;: 1}"              # Expr(:call, :(:), ...) — parsed at compile time
+</code></pre>
+
+        <p>Because the DSL's input is a tree, the package can report errors in terms of your mathematical notation instead of its own internals. That readability is the entire value of the macro layer — when a DSL's diagnostics are worse than plain function calls, the DSL has overreached.</p>
+
+        <h3 id="performance-macros">Performance and Loop Macros</h3>
+
+        <p>Several macros exist purely to hand facts to the compiler that it cannot prove. They are the bridge between metaprogramming and the performance chapter that follows.</p>
+
+        <pre><code class="language-julia line-numbers"># Promise the compiler that indices are in range — removes bounds checks
+function dot_prod(a, b)
+    s = 0.0
+    @inbounds for i in eachindex(a, b)
+        s += a[i] * b[i]              # no per-access bound test
+    end
+    s
+end
+
+# @simd allows reordering of the loop, enabling vector instructions
+function scale!(v, k)
+    @simd for i in eachindex(v)
+        v[i] *= k
+    end
+    v
+end
+
+# @views turns slicing into views instead of copies
+function row_sums(M)
+    totals = zeros(size(M, 1))
+    for i in axes(M, 1)
+        totals[i] = sum(@view M[i, :])    # no allocation per row
+    end
+    totals
+end
+
+# @threads and @spawn are macros for the same reason: they wrap a scope
+using Base.Threads
+function par_sum(v)
+    partials = zeros(nthreads())
+    @threads for i in eachindex(v)
+        partials[threadid()] += v[i]      # per-thread accumulator
+    end
+    sum(partials)
+end
+
+# The contract of these macros is a promise. Break it and you get
+# wrong answers or a crash — never a friendly error.
+#   @inbounds with an out-of-range index → memory corruption
+#   @simd on a loop with carried dependencies → wrong result
+#   @threads writing one shared counter → a data race
+</code></pre>
+
+        <p>Treat each of these as a promise to the compiler, not as an optimisation switch. Only use them when you can prove the condition holds — typically inside a function whose bounds you have already validated, and with a benchmark that shows the gain.</p>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <p>Metaprogramming failures have a small set of causes. Each one is cheap to avoid once you know the shape of the mistake.</p>
+
+        <h3 id="eval-in-hot-loop">eval in a Hot Loop</h3>
+
+        <p><code>eval</code> is not a normal call: it compiles new code, invalidates caches, and runs in a fresh world. Calling it per iteration turns a millisecond task into a minute-long one, and it leaks definitions into a module that never gets cleaned.</p>
+
+        <pre><code class="language-julia line-numbers"># Bad: recompiles a new method for every value in the range
+function slow_table(n)
+    results = Any[]
+    for i in 1:n
+        eval(:(table_entry_$i() = $i))       # one new method per iteration
+        push!(results, Core.eval(Main, Symbol("table_entry_$i"))())
+    end
+    results
+end
+
+# Good: build the value, or build one function that takes the index
+fast_table(n) = collect(1:n)
+
+fast_table(5)                    # [1, 2, 3, 4, 5]
+
+# When code generation really is needed, generate it ONCE at load time
+const TABLE = Dict{Symbol, Function}()
+function build_table!(names)
+    for (i, name) in enumerate(names)
+        eval(:(const $(name) = $i))           # one definition per name, at load time
+    end
+    nothing
+end
+
+# Or compute a value instead of defining a method
+lookup(dict, key) = get(dict, key, 0)
+lookup(Dict("a" =&gt; 1), "a")      # 1
+</code></pre>
+
+        <p>The practical rule: <code>eval</code> belongs at load time or in a REPL helper, never in a loop, and never inside a function that runs per request. If you need per-value behaviour, put the value in a dictionary or pass it as an argument.</p>
+
+        <h3 id="hygiene-errors">Over- and Under-Escaping</h3>
+
+        <p>Hygiene keeps macro internals private, and <code>esc</code> deliberately breaks that privacy for the caller's names. Getting the balance wrong produces two opposite bugs — and both look like ordinary <code>UndefVarError</code> messages.</p>
+
+        <pre><code class="language-julia line-numbers"># UNDER-escaped: the macro body refers to names the caller cannot see
+macro evens_bad(v)
+    return :(filter(isequal(0), v .% 2))       # v and .% are macro-local
+end
+# nums = [1, 2, 3]
+# @evens_bad nums                            # UndefVarError: v not defined
+
+# FIXED: escape the caller's expression
+macro evens_ok(v)
+    return :(filter(isequal(0), $(esc(v)) .% 2))
+end
+nums = [1, 2, 3]
+@evens_ok nums                               # [2]
+
+# OVER-escaped: the macro's own temporary leaks into the caller's scope
+macro sum_all_bad(v)
+    return esc(quote
+        total = 0                            # ESCAPED: collides with the caller's total
+        for x in $v
+            total += x
+        end
+        total
+    end)
+end
+
+total = "important"
+@sum_all_bad [1, 2, 3]                       # overwrites the caller's total
+total                                        # 6 — the string is gone
+
+# FIXED: escape only the caller's expression, keep the internal name private
+macro sum_all_ok(v)
+    return quote
+        total = 0                            # hygienic: renamed by the compiler
+        for x in $(esc(v))
+            total += x
+        end
+        total
+    end
+end
+
+total = "important"
+@sum_all_ok [1, 2, 3]                        # 6
+total                                        # "important" — untouched
+
+# When in doubt, expand and look for the gensym names
+@macroexpand @sum_all_ok [1, 2, 3]           # contains ##total#NNN
+</code></pre>
+
+        <p>Review macro code with one question per name: whose scope should this live in? The caller's expressions get <code>esc</code>; the macro's own variables and helper names do not.</p>
+
+        <h3 id="macros-vs-functions">When a Function Is Enough</h3>
+
+        <p>Macros cost readability, stack traces, and tooling support. If a function can express the same thing — because nothing needs the argument's text or the caller's scope — the function is the better engineering choice every time.</p>
+
+        <pre><code class="language-julia line-numbers"># Macro, unnecessary: the arguments are evaluated anyway
+macro add_bad(a, b)
+    return :($(esc(a)) + $(esc(b)))
+end
+@add_bad 1 2                  # 3 — a function call would do exactly this
+
+add_good(a, b) = a + b
+add_good(1, 2)                # 3 — debuggable, composable, typed
+
+# Pass a FUNCTION when only the operation varies
+apply_twice(f, x) = f(f(x))
+apply_twice(x -&gt; x + 1, 0)    # 2 — no macro needed
+
+# Maybe a macro IS justified: it needs the text of the argument
+macro describe_nicely(x)
+    return :(string($(esc(x)), " — value of: ", $(string(x))))
+end
+@describe_nicely 2 + 2        # "4 — value of: 2 + 2"
+
+# Or it must control evaluation (short-circuit, repetition, scope entry)
+macro unless(cond, body)
+    return :(if !($(esc(cond))); $(esc(body)); end)
+end
+@unless false (println("ran"))    # prints
+
+# A last resort test: does the macro body need `esc`, `string(arg)`,
+# `typeof(arg)` on the TREE, or an unevaluated block?
+# If none of those, write a function.
+</code></pre>
+
+        <p>Julia's ecosystem follows this rule closely: dispatch, higher-order functions, and types solve most problems, so macros cluster in the three places only macros can reach — logging, measurement, and syntax for a domain language.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> Quoting (<code>:( )</code>) turns code into an <code>Expr</code> tree of heads and arguments, with <code>$</code> to splice values and sub-expressions. Walk and rebuild trees with ordinary recursion, and never mutate a tree you did not create. <code>eval</code> runs a tree in a module, subject to world age: define at load time, and use <code>Base.invokelatest</code> only when you must call immediately. Macros are functions from trees to trees that run at parse time — they are the idiomatic tool, and <code>@macroexpand</code> is their debugger. Escape the caller's expressions with <code>esc</code> and leave your own temporaries hygienic; <code>@generated</code> functions do the same job driven by argument types. Reach for a macro only when you need the argument's text, its scope, or an unevaluated block.
+        </div>
+
+        <p>Macros are also how the compiler receives promises it cannot verify on its own — <code>@inbounds</code>, <code>@simd</code>, <code>@threads</code>. Next: <a href="/roadmap/julia/performance.html">Performance &amp; Benchmarking</a> shows how to measure whether those promises actually bought you anything.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'metaprogramming',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

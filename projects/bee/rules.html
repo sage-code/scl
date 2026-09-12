@@ -128,8 +128,8 @@ rule main:
     print r; -- (5,1)
 
     -- deconstruction of result into variables: s, d
-    new s, d := com(3,2);    -- capture two values
-    print (s, d, sep:",") ;  -- 5,1 (use separator = ",")
+    new s, d := com(3, 2);                       -- capture two values
+    print(s, d)(sep: ",");                       -- 5,1 (Decision 6 curried named-argument form)
 
     -- ignore second result using variable "_"
     new a, _ := com(3);
@@ -145,6 +145,34 @@ return;
 <li>You can ignore one result using anonymous variable "_";</li>
 <li>Rules with multiple results can not be used in expressions;</li>
 </ul>
+
+<h3 id="curried-signatures">Curried Signatures & Named Parameters</h3>
+
+<p>Since <em>Decision&nbsp;6</em> (2026-09-12), a Bee rule may declare an <strong>optional second parameter list</strong> &mdash; the <em>named-parameter slot</em> &mdash; directly after the primary parameter list. The slot accepts its arguments by name at the call site via a second parenthesised argument list. This gives rule invocations a clean, self-documenting keyword-argument style and replaces the legacy <code>using</code> postfix on <code>print</code> / <code>write</code> directives.</p>
+
+<h4>Signature &amp; Call Pattern</h4>
+
+<pre><code class="language-bee">-- canonical named-slot rule (declared by the system library)
+rule print(*items ∈ [Any]) (sep: ", " ∈ Str, end: "." ∈ Str):
+
+return;
+
+-- canonical call sites
+print(10, 20, 30)                     (sep: " | ");         -- primary list only, sep defaults used
+print(s, d)                          (sep: ",", end: "");   -- all named arguments supplied
+print("a", "b")                      ();                   -- empty named slot: all defaults
+</code></pre>
+
+<h4>Rules of the Named Slot</h4>
+<ul>
+  <li>The two parameter lists are <strong>independent binders</strong>: positional arguments never flow into the named slot and named arguments never flow into the primary list.</li>
+  <li>Named arguments are <strong>order-independent</strong>: <code>(end: ";", sep: " | ")</code> and <code>(sep: " | ", end: ";")</code> resolve identically.</li>
+  <li>Parameters in the named slot may declare defaults using <code>:</code>; omitted names fall back to those defaults.</li>
+  <li>The named slot is <strong>reserved at compile time</strong>: a rule may declare an empty slot <code>rule ping()():</code> and still receive an empty curried call <code>ping()()</code>.</li>
+  <li>The named slot does <strong>not</strong> support the <code>*</code> variadic prefix.</li>
+</ul>
+
+<div class="alert alert-warning"><b>Deprecated:</b> the legacy <code>using</code> keyword on call sites such as <code>print(a, b) using " | ";</code> still lexes but emits the diagnostic <code>E0011 DeprecatedSymbol 'using'</code> and will harden to <code>E0009</code> in Phase&nbsp;7.2. Rewrite any author-targeted <code>using</code> form as <code>print(a, b)(sep: " | ");</code>.</div>
 
 <h3 id="variadic-rules" class="anchor">Variadic Rule</h3>
 <p>The last parameter in a parameter list can use prefix: "*" to receive multiple values into an array of values. This is called "varargs" parameter and is very useful way to accept multiple parameters by declaring just one.</p>

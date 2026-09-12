@@ -1,31 +1,34 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="How to handling exceptions in Julia.">
+  <meta name="description" content="Julia exceptions: the exception hierarchy, throwing with error and throw, custom exception types, try/catch/finally, rethrowing, resource cleanup, and validation without exceptions.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="try, catch, syntax">
+  <meta name="keywords" content="sage, code, julia, exceptions, try, catch, finally, throw, error, rethrow, ArgumentError, custom exception, stacktrace">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
   <title>Julia Exceptions</title>
-
-  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -34,87 +37,792 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="julia-exceptions">Exceptions</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          An exception is a value that travels up the call stack until somebody handles it. Julia exceptions are ordinary objects with types, which means you can match them precisely, attach context, and define your own — but also that catching everything is a mistake you can make in one line.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
+        <p>This lesson covers failure as a first-class subject: which exception types the standard library raises, how to signal failure from your own code, how to catch exactly what you mean, how to guarantee cleanup, and how to distinguish a recoverable condition from a bug. It also covers the half of the topic that is usually skipped — when <em>not</em> to use exceptions, and how validation functions such as <code>tryparse</code> and <code>isnothing</code> keep ordinary control flow out of the exception table.</p>
 
-<h1 id="julia-exceptions">Julia Exceptions</h1>
+        <h2 id="failure-model">Errors, Exceptions, and Failure</h2>
 
-<div class="alert alert-secondary shadow-sm">
-When something goes wrong the execution of the program can be stopped. This is called an exception. We can create exceptions on purpose to show to the user that something has gone wrong and we can print a message to explain the situation. In Julia there are pre-define exceptions that have a name and are automatically created by the system in certain situations.
-</div>
+        <p>Julia does not distinguish "errors" from "exceptions" at the language level: there is one mechanism, and every raised condition is an instance of an <code>Exception</code> subtype. What differs is the intent behind each throw, and the type is how that intent is expressed.</p>
 
-<h2 id="handling-exceptions">Handling Exceptions</h2>
+        <h3 id="exception-types">The Exception Hierarchy</h3>
 
-<p>We have two cases. One is when you wish to "catch" the exception and continue the program. Another is we wish to "finalize". That is to execute something important before the program stop execution. We use a <em>try block </em>with two keywords: <em>catch</em> and <em>finally</em>. You can use both clauses or only one depending on the case.</p>
+        <p><code>Exception</code> is an abstract type with a small, well-known family of concrete subtypes. Knowing the handful you will meet most often tells you immediately what a caller can do about a failure.</p>
 
-<h4>Syntax:</h4>
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Type</th><th>Raised when</th><th>Caller's realistic response</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>ErrorException</code></td><td><code>error("...")</code> is called</td><td>Read the message; usually a bug or bad input</td></tr>
+            <tr><td><code>ArgumentError</code></td><td>An argument fails a documented rule</td><td>Validate input and retry, or report it</td></tr>
+            <tr><td><code>DomainError</code></td><td>A value is outside a function's domain</td><td>Guard the range before calling</td></tr>
+            <tr><td><code>BoundsError</code></td><td>An index is out of range</td><td>Check <code>length</code> or use <code>eachindex</code></td></tr>
+            <tr><td><code>KeyError</code></td><td>A dictionary key is absent</td><td><code>get</code>, <code>get!</code>, or <code>haskey</code></td></tr>
+            <tr><td><code>DimensionMismatch</code></td><td>Array shapes do not agree</td><td>Reshape or validate shapes first</td></tr>
+            <tr><td><code>InexactError</code></td><td>A conversion would lose information</td><td>Convert explicitly, or use a wider type</td></tr>
+            <tr><td><code>MethodError</code></td><td>No method matches the argument types</td><td>Fix the call; it is a programming error</td></tr>
+            <tr><td><code>InterruptException</code></td><td>Ctrl-C or a task interrupt</td><td>Let it propagate after cleanup</td></tr>
+          </tbody>
+        </table>
 
-<pre><code class="language-julia line-numbers"># try block syntax
+        <pre><code class="language-julia line-numbers"># Every one of these is an object with a type you can test
+isa(ArgumentError("bad"), Exception)      # true
+supertype(ArgumentError)                  # Exception
+
+# Trigger them and inspect what you get
 try
-    [executable_region]
-catch
-    [exception_handler]
-finally
-    [something_important]
+    parse(Int, "abc")
+catch e
+    typeof(e)                             # ArgumentError
+end
+
+try
+    [1, 2, 3][10]
+catch e
+    typeof(e)                             # BoundsError
+    e.a                                   # the index that failed
+end
+
+try
+    Dict(:a =&gt; 1)[:b]
+catch e
+    typeof(e)                             # KeyError
+    e.key                                 # :b
 end
 </code></pre>
 
-<h4>Example:</h4>
-<pre><code class="language-julia line-numbers"># opening and closing a file
-f = open("file")
-try
-    # operate on file
-finally
-    close(f)
-end</code></pre>
+        <p>Exception fields are part of the public interface: <code>BoundsError.a</code> holds the index, <code>KeyError.key</code> the missing key, <code>DomainError.val</code> the offending value. Typed handling reads those fields instead of parsing the message.</p>
 
-<h4>Example:</h4>
-<pre><code class="language-julia line-numbers"># catching an error
-x = 0
+        <h3 id="reading-a-stacktrace">Reading a StackTrace</h3>
+
+        <p>An unhandled exception prints a message plus a stack trace: the chain of calls that led to the failure, most recent first. Reading the first few frames is usually enough to locate the bug.</p>
+
+        <pre><code class="language-julia line-numbers">function outer(x)
+    middle(x)
+end
+
+function middle(x)
+    inner(x)
+end
+
+function inner(x)
+    sqrt(x)                 # a DomainError for negative input
+end
+
+outer(-1)
+# ERROR: DomainError with -1.0:
+# sqrt will only return a complex result if called with a complex argument.
+# Stacktrace:
+#  [1] sqrt(x::Int64)          @ Base.Math ./math.jl:...
+#  [2] inner(x::Int64)         @ Main ./REPL[3]:1
+#  [3] middle(x::Int64)        @ Main ./REPL[2]:1
+#  [4] outer(x::Int64)         @ Main ./REPL[1]:1
+#  [5] top-level scope         @ REPL:1
+
+# Programmatic access to the same information
 try
-    z= y/x
-catch err
-    if isa(err, ZeroDivide)
-        println("error division by zero")
+    outer(-1)
+catch e
+    bt = catch_backtrace()        # the stack trace object
+    showerror(stdout, e, bt)      # the same rendering the REPL prints
+end
+</code></pre>
+
+        <p>Frame <code>[1]</code> is where the error was raised, and each following frame is its caller. When a trace confuses you, find the first frame that names your own file — that is where your code met the failing call.</p>
+
+        <h3 id="what-throws">What Throws in Practice</h3>
+
+        <p>Most exceptions in real programs come from a small set of operations: parsing text, indexing a container, converting a number, opening a file, and calling a method that does not exist. Knowing those sources makes both prevention and handling easier.</p>
+
+        <pre><code class="language-julia line-numbers">parse(Int, "3.5")            # ArgumentError
+sqrt(-1.0)                  # DomainError
+[1, 2, 3][0]                # BoundsError
+Dict(:a =&gt; 1)[:b]           # KeyError
+Int(3.7)                    # InexactError
+Int8(300)                   # InexactError
+reshape([1, 2, 3], 2, 2)    # DimensionMismatch
+open("does_not_exist")      # SystemError
+undefined_function(1)       # UndefVarError at top level; MethodError inside a module
+
+# A MethodError is the most common exception during development
+[1, 2, 3] + 1               # MethodError — use .+ for element-wise addition
+[1, 2, 3] .+ 1              # [2, 3, 4]
+</code></pre>
+
+        <p>Notice how many of these are preventable with an ordinary check: <code>haskey</code> before indexing, <code>tryparse</code> before parsing, <code>eachindex</code> instead of a hand-written range. Chapter 5 gathers those habits into a validation strategy.</p>
+
+        <h2 id="throwing">Throwing Exceptions</h2>
+
+        <p>Raising an exception is a deliberate act with a public consequence: every caller must decide what to do about it. The type you choose and the message you write are the interface of that decision.</p>
+
+        <h3 id="error-and-throw">error, throw, and @assert</h3>
+
+        <p>Three mechanisms exist and each has a clear purpose. <code>error</code> raises an <code>ErrorException</code> for unrecoverable situations, <code>throw</code> raises a value of your own type, and <code>@assert</code> states an invariant that should never be false.</p>
+
+        <pre><code class="language-julia line-numbers"># error: a plain ErrorException, best for "this cannot happen"
+function days_in(month::Int)
+    month in 1:12 || error("month must be 1..12, got $month")
+    30                                     # simplified on purpose
+end
+
+days_in(13)                                # ERROR: month must be 1..12, got 13
+
+# throw: any value, usually a typed exception
+throw(ArgumentError("temperature below absolute zero"))
+throw("a string is allowed, but poor practice")   # legal, discouraged
+
+# @assert: an invariant. Assertions may be disabled at higher optimisation
+# levels, so use an explicit exception when the check must always run.
+function ratio(a::Int, b::Int)
+    @assert b != 0 "denominator must not be zero"
+    a / b
+end
+
+ratio(1, 0)                                # ERROR: AssertionError: denominator must not be zero
+
+# The message is attached and readable at runtime
+try
+    days_in(0)
+catch e
+    e isa ErrorException                   # true
+    e.msg                                  # "month must be 1..12, got 0"
+end
+</code></pre>
+
+        <p>Use <code>@assert</code> for conditions that indicate a bug in your own code and an explicit exception for conditions that arrive from outside. Assertions are also self-documenting: they state what the function assumes about its inputs.</p>
+
+        <h3 id="custom-exceptions">Defining Your Own Exception</h3>
+
+        <p>A custom exception type lets callers catch your failure precisely, without matching message strings. Define a struct under <code>Exception</code>, add a <code>showerror</code> method so the message is helpful, then throw it.</p>
+
+        <pre><code class="language-julia line-numbers">struct ValidationError &lt;: Exception
+    field::Symbol
+    reason::String
+end
+
+# A readable rendering, used by the REPL and by showerror
+function Base.showerror(io::IO, e::ValidationError)
+    print(io, "ValidationError: field ", e.field, " — ", e.reason)
+end
+
+function validate_score(score)
+    score isa Real || throw(ValidationError(:score, "must be a number"))
+    0 &lt;= score &lt;= 100 || throw(ValidationError(:score, "must be within 0..100"))
+    score
+end
+
+validate_score(85)                          # 85
+validate_score(120)
+# ERROR: ValidationError: field score — must be within 0..100
+
+# Callers can catch exactly this failure and inspect its fields
+try
+    validate_score(200)
+catch e
+    if e isa ValidationError
+        "$(e.field): $(e.reason)"           # "score: must be within 0..100"
+    else
+        rethrow()                            # never swallow what you did not expect
     end
-end</code></pre>
+end
+</code></pre>
 
-<p><b>Note:</b> In the previous example we catch the error and copy the error in variable err. Then we use function isa() to analyze the error type. We can create errors using error() function and throw() function. Most of the type we do not catch errors and we do not create error handlers in programs.</p>
+        <p>The <code>rethrow()</code> in the <code>else</code> branch is the pattern that makes custom exceptions safe: handle what you understand and pass everything else up unchanged.</p>
 
-<!-- work in progress-->
+        <h3 id="argument-errors">Choosing the Right Standard Type</h3>
 
-<div class="alert alert-info"><b>Final Note:</b>Our introductory tutorial ends here but not your journey. There is more to learn from the official user manual. Follow the link below. I hope you will enjoy this language and later maybe you help us to improve our tutorial for next students. We look forward for feedback on Twitter and Discord about your experience. Have fun!
-</div>
+        <p>Before defining a new type, check whether a standard one already expresses your failure. Reusing the standard vocabulary lets callers write one handler for many functions.</p>
 
-<hr>
-<p><b>Go back:</b>
-    <a href="/roadmap/julia/index/">Julia Tutorial</a></p>
+        <pre><code class="language-julia line-numbers">check_range(x, lo, hi) = lo &lt;= x &lt;= hi || throw(ArgumentError("$x not in $lo..$hi"))
+check_range(5, 1, 10)         # 5
+check_range(20, 1, 10)        # ERROR: ArgumentError
 
-</main>
+check_positive(x) = x &gt; 0 || throw(DomainError(x, "must be positive"))
+check_positive(-1)            # ERROR: DomainError with -1
+
+check_shapes(a, b) = size(a) == size(b) || throw(DimensionMismatch("$(size(a)) != $(size(b))"))
+check_shapes(zeros(2, 2), zeros(2, 3))   # ERROR: DimensionMismatch
+
+# A rule set: pick by what the caller can do about the failure
+#
+# Bad value from a user or a file      -> ArgumentError
+# Value outside a mathematical domain  -> DomainError
+# Shapes that cannot be combined       -> DimensionMismatch
+# A whole category of failure          -> your own exception type
+</code></pre>
+
+        <p>Rule of thumb: if the condition reads as "this argument is wrong", use <code>ArgumentError</code>; if it reads as "this value is outside the domain of the operation", use <code>DomainError</code>. Reserve custom types for categories of failure that callers will handle repeatedly.</p>
+
+        <h2 id="catching">Catching and Recovering</h2>
+
+        <p><code>try</code>/<code>catch</code> is the only way to handle an exception in Julia, and <code>finally</code> is the only construct that guarantees cleanup. The diagram below shows the three paths through the block.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-exception-flow.svg" class="figure-img img-fluid rounded" alt="Flow through a try block: with no error it continues after the block; a raised exception enters catch, which either handles it and continues or rethrows it out of the call; the finally block runs on every path.">
+          <figcaption class="figure-caption text-secondary">Two exits, one guaranteed cleanup: <code>finally</code> always runs.</figcaption>
+        </figure>
+
+        <h3 id="try-catch">The try/catch Block</h3>
+
+        <p>The <code>try</code> block contains the code that may fail. If anything inside raises, control jumps to <code>catch</code>, where the exception is bound to a variable you name. Execution then continues after the block — unless you rethrow.</p>
+
+        <pre><code class="language-julia line-numbers">function safe_reciprocal(x)
+    try
+        return 1 / x
+    catch e
+        @warn "reciprocal failed" exception = (e, catch_backtrace())
+        return NaN
+    end
+end
+
+safe_reciprocal(4)          # 0.25
+safe_reciprocal(0)          # Inf — no exception; 1/0 is legal in floating point
+
+# A genuine failure inside the block
+function parse_or_zero(s)
+    try
+        parse(Int, s)
+    catch e
+        e isa ArgumentError || rethrow()   # handle only what we expect
+        0
+    end
+end
+
+parse_or_zero("42")         # 42
+parse_or_zero("forty-two")  # 0
+
+# The catch block sees the exception as a value
+try
+    error("boom")
+catch e
+    typeof(e)               # ErrorException
+    e.msg                   # "boom"
+end
+</code></pre>
+
+        <p>Two details matter here: a floating-point division by zero is <em>not</em> an exception, and a bare <code>catch</code> should almost always rethrow what it cannot handle. Chapter 4 develops the second point into a rule.</p>
+
+        <h3 id="typed-catch">Catching Specific Types</h3>
+
+        <p>Julia's <code>catch</code> has no pattern-matching clause for types, so the idiom is a bare <code>catch e</code> followed by an <code>isa</code> test and a <code>rethrow()</code> for the rest. Wrapping that in a helper keeps the pattern readable when you handle several types.</p>
+
+        <pre><code class="language-julia line-numbers">function describe_failure(f)
+    try
+        f()
+        "no failure"
+    catch e
+        if e isa DomainError
+            "domain problem with value $(e.val)"
+        elseif e isa BoundsError
+            "index $(e.a) out of range"
+        elseif e isa KeyError
+            "no such key $(e.key)"
+        else
+            rethrow()               # anything unexpected keeps travelling up
+        end
+    end
+end
+
+describe_failure(() -&gt; sqrt(-1.0))       # "domain problem with value -1.0"
+describe_failure(() -&gt; [1, 2][9])        # "index 9 out of range"
+describe_failure(() -&gt; Dict(:a =&gt; 1)[:z])# "no such key :z"
+describe_failure(() -&gt; error("other"))   # rethrown to the caller
+
+# A reusable helper keeps the if/elseif chain out of the call sites
+function catch_only(f::F, T::Type{E}) where {F, E}
+    try
+        f()
+    catch e
+        e isa T || rethrow()
+        e
+    end
+end
+
+catch_only(() -&gt; sqrt(-1.0), DomainError)    # DomainError with -1.0
+try
+    catch_only(() -&gt; error("boom"), DomainError)
+catch e
+    e.msg                                     # "boom" — not swallowed
+end
+</code></pre>
+
+        <p>That helper is the shape the standard library and packages use repeatedly: run a thunk, catch exactly one type, rethrow everything else. It makes the intent of a handler visible in one line.</p>
+
+        <h3 id="finally">finally and Cleanup</h3>
+
+        <p><code>finally</code> runs whether the block succeeded, failed, or returned early. That makes it the place for releasing resources: closing files, restoring a global setting, unlocking a mutex.</p>
+
+        <pre><code class="language-julia line-numbers"># Cleanup that must happen on every path
+function read_first_line(path)
+    io = open(path, "r")
+    try
+        readline(io)
+    finally
+        close(io)                 # runs even if readline throws
+    end
+end
+
+# A return inside try does not skip finally
+function early_return()
+    try
+        return "from try"
+    finally
+        println("finally ran")
+    end
+end
+
+early_return()                    # prints "finally ran", returns "from try"
+
+# finally also runs when the exception is not caught here
+function failing()
+    try
+        error("boom")
+    finally
+        println("cleaning up")
+    end
+end
+
+try
+    failing()                     # prints "cleaning up", then propagates
+catch e
+    e.msg                         # "boom"
+end
+
+# A global flag restored no matter what
+const STATE = Ref(false)
+function with_flag(f)
+    STATE[] = true
+    try
+        f()
+    finally
+        STATE[] = false
+    end
+end
+
+with_flag(() -&gt; STATE[])          # true inside
+STATE[]                           # false afterwards
+</code></pre>
+
+        <p>The rule is simple: any resource acquired before the <code>try</code> must be released in a <code>finally</code>. Chapter 5 shows the shorter <code>do</code>-block form that the standard library provides for exactly this pattern.</p>
+
+        <h2 id="rethrowing">Rethrowing and Adding Context</h2>
+
+        <p>Catching an exception is not the same as deciding what to do about it. The middle layer of an application usually knows something the low-level code does not, and the job of that layer is to add context without destroying the original failure.</p>
+
+        <h3 id="rethrow">rethrow and Propagation</h3>
+
+        <p><code>rethrow()</code> continues the current exception from the point of the catch block, preserving the original stack trace. <code>throw(e)</code> would start a fresh exception with a new trace, which hides where the problem really came from.</p>
+
+        <pre><code class="language-julia line-numbers">function validate(x)
+    x &gt; 0 || throw(ArgumentError("x must be positive, got $x"))
+    x
+end
+
+function level_two(x)
+    try
+        validate(x)
+    catch e
+        @info "level_two saw a failure" typeof(e)
+        rethrow()                 # propagate unchanged, original trace intact
+    end
+end
+
+try
+    level_two(-5)
+catch e
+    e isa ArgumentError           # true — the original type survived
+    e.msg                         # "x must be positive, got -5"
+end
+
+# throw(e) in a catch block would replace the trace:
+function loses_context(x)
+    try
+        validate(x)
+    catch e
+        throw(e)                  # same exception, NEW stack trace — avoid
+    end
+end
+</code></pre>
+
+        <p>Use <code>rethrow()</code> when you only want to observe or log, and a wrapped exception when you genuinely have more to say. Never use <code>throw(e)</code> inside a catch block.</p>
+
+        <h3 id="wrapping">Wrapping with Context</h3>
+
+        <p>When a failure needs explanation, wrap it: define or reuse an exception type that carries the original as a field. Callers then see a meaningful type at your API boundary while the cause remains inspectable.</p>
+
+        <pre><code class="language-julia line-numbers">struct LoadError2 &lt;: Exception
+    source::String
+    cause::Any                    # usually the caught exception
+end
+
+function Base.showerror(io::IO, e::LoadError2)
+    print(io, "LoadError2: failed to load ", e.source, " (", typeof(e.cause), ")")
+end
+
+function load_config(path)
+    try
+        read(path, String)
+    catch e
+        throw(LoadError2(path, e))    # a new, more informative failure
+    end
+end
+
+try
+    load_config("missing.toml")
+catch e
+    e isa LoadError2                  # true — the boundary type
+    e.source                          # "missing.toml"
+    e.cause isa SystemError           # true — the original cause is kept
+end
+</code></pre>
+
+        <p>Two rules keep wrapping honest: keep the cause in a field so nothing is hidden, and wrap only at boundaries where your layer adds real meaning — a file loader, a network client, a plugin host.</p>
+
+        <h3 id="when-to-catch">When to Catch — and When Not To</h3>
+
+        <p>Most <code>try</code> blocks in production code exist to protect a boundary: user input, the network, the filesystem, a plugin. Inside your own code, exceptions should propagate.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Situation</th><th>Catch?</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Parsing a file the user chose</td><td>Yes</td><td>Bad input is expected; report it clearly</td></tr>
+            <tr><td>Network or database call</td><td>Yes</td><td>Failure is normal and retryable</td></tr>
+            <tr><td>Your own arithmetic or indexing bug</td><td>No</td><td>Fixing the bug is the correct response</td></tr>
+            <tr><td>Any exception, "just in case"</td><td>No</td><td>You will hide the failure you needed to see</td></tr>
+            <tr><td>Cleanup around a resource</td><td>Use <code>finally</code></td><td>You want the cleanup, not to suppress the error</td></tr>
+            <tr><td>Converting a failure into a value</td><td>Yes, narrowly</td><td>Return <code>nothing</code> or a result type at that boundary</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># Boundary: failures are expected and converted to a value
+function read_number(path)
+    try
+        parse(Int, strip(read(path, String)))
+    catch e
+        e isa Union{ArgumentError, SystemError} || rethrow()
+        nothing                       # the caller decides what "no number" means
+    end
+end
+
+read_number("missing.txt")            # nothing
+
+# Interior code: no try at all — the failure belongs to the caller
+half(x::Real) = x / 2
+
+# The decision is about who can fix the problem, not about where it happened
+</code></pre>
+
+        <p>The question to ask before writing <code>catch</code> is "what will this code do differently because of the failure?" If the answer is "nothing", remove the <code>try</code> and let the exception travel.</p>
+
+        <h2 id="alternatives">Cleanup and Alternatives</h2>
+
+        <p>Exceptions answer "something went wrong". Many situations are better expressed as an ordinary value, and Julia's standard library is full of functions designed for exactly that. Using them keeps failure handling local and keeps the exception table for real surprises.</p>
+
+        <h3 id="do-block">The do Block</h3>
+
+        <p>Functions that need cleanup accept a function as their first argument, and the <code>do</code> syntax turns your block into that argument. The library then owns the <code>try</code>/<code>finally</code>, so files and streams close even when your code throws.</p>
+
+        <pre><code class="language-julia line-numbers"># Explicit cleanup, as seen in the previous chapter
+function counted_lines_v1(path)
+    io = open(path, "r")
+    try
+        count(_ -&gt; true, eachline(io))
+    finally
+        close(io)
+    end
+end
+
+# The same thing with a do block — no try, no finally, nothing to forget
+function counted_lines_v2(path)
+    open(path, "r") do io
+        count(_ -&gt; true, eachline(io))
+    end
+end
+
+# A do block is just a function passed as the first argument
+open("data.txt", "w") do io
+    write(io, "hello\n")
+end                                    # the file is closed here, guaranteed
+
+# The pattern generalises to any resource the library manages
+open("data.txt", "r") do io
+    readline(io)                       # "hello"
+end
+
+# And to your own helpers
+function with_debug_on(f)
+    old = get(ENV, "JULIA_DEBUG", "")
+    ENV["JULIA_DEBUG"] = "Main"
+    try
+        f()
+    finally
+        ENV["JULIA_DEBUG"] = old
+    end
+end
+
+with_debug_on() do
+    :work                             # runs with the temporary setting
+end
+</code></pre>
+
+        <p>Prefer the <code>do</code> form whenever the standard library offers it: fewer lines, no chance of forgetting the <code>finally</code>, and the cleanup logic lives in one tested place.</p>
+
+        <h3 id="guard-functions">Guard Functions Instead of Exceptions</h3>
+
+        <p>Many operations that can fail also have a variant that reports failure as a value. Choosing those variants turns a potential exception into a branch you can read.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Throwing version</th><th>Value-returning version</th><th>Value on failure</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>parse(Int, s)</code></td><td><code>tryparse(Int, s)</code></td><td><code>nothing</code></td></tr>
+            <tr><td><code>d[k]</code></td><td><code>get(d, k, default)</code></td><td>Your default</td></tr>
+            <tr><td><code>d[k]</code> when missing</td><td><code>get!(d, k, default)</code></td><td>Inserts the default</td></tr>
+            <tr><td><code>findfirst</code> with no match</td><td><code>findfirst</code> already returns <code>nothing</code></td><td><code>nothing</code></td></tr>
+            <tr><td><code>only([])</code></td><td><code>isempty(xs) ? default : only(xs)</code></td><td>Your default</td></tr>
+            <tr><td>Integer division by zero</td><td>Check first, then divide</td><td>An explicit branch</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># Reporting failure as a value instead of an exception
+score(s) = something(tryparse(Int, s), 0)
+
+score("42")          # 42
+score("oops")        # 0 — the exception table is not involved
+
+# Missing keys, three intents, three functions
+d = Dict("a" =&gt; 1)
+get(d, "b", 0)       # 0 — do not change d
+haskey(d, "b")       # false — ask first
+get!(d, "b", 0)      # 0 — and now d["b"] exists
+
+# findfirst already returns nothing, so a branch replaces a rescue
+r = findfirst(isequal(9), [1, 2, 3])
+r === nothing ? "absent" : "at $(first(r))"      # "absent"
+
+# Guarding a domain before the call keeps DomainError out of the picture
+safe_sqrt(x) = x &lt; 0 ? nothing : sqrt(x)
+safe_sqrt(-4)        # nothing
+safe_sqrt(4)         # 2.0
+
+# Chaining optional values reads well with something and coalesce
+a = tryparse(Int, "7")
+b = tryparse(Int, "x")
+something(a, 0) + something(b, 0)        # 7
+</code></pre>
+
+        <p>The rule: reserve exceptions for failures a caller cannot reasonably predict, and use value-returning functions for the predictable ones. That keeps handlers few, and makes the remaining <code>try</code> blocks meaningful.</p>
+
+        <h3 id="interrupts-atexit">Interrupts and Exit Hooks</h3>
+
+        <p>Ctrl-C delivers an <code>InterruptException</code>, and a program that catches everything will swallow that too. Exit hooks and finalisers are the right tools for last-moment work.</p>
+
+        <pre><code class="language-julia line-numbers"># Never swallow an interrupt in a broad handler
+try
+    sleep(10)
+catch e
+    e isa InterruptException &amp;&amp; rethrow()      # let the user stop the program
+    @warn "recovered from a normal failure"
+end
+
+# Work that must happen when the process ends
+atexit() do
+    println("cleaning up before exit")
+end
+
+# finalizer attaches a cleanup callback to an object
+mutable struct Session
+    id::Int
+end
+
+function Session()
+    s = Session(rand(1:1000))
+    finalizer(x -&gt; println("closing session ", x.id), s)
+    s
+end
+
+Session()                     # the finaliser runs when the object is collected
+</code></pre>
+
+        <p>Finalisers are for releasing resources, not for application logic: they run at unpredictable times. Relying on them for correctness — rather than as a safety net — is a common source of data corruption that only appears in production.</p>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <p>Exception handling has a short list of classic mistakes. Each is easy to write, easy to miss in review, and expensive in production.</p>
+
+        <h3 id="bare-catch">The Bare catch</h3>
+
+        <p>A <code>catch</code> without a type test swallows every failure, including the ones that mean your program is broken. The symptom appears later, far from the cause, as a wrong result rather than an error.</p>
+
+        <pre><code class="language-julia line-numbers"># Bad: hides bugs, interrupts, and typos alike
+function parse_all_bad(lines)
+    out = Int[]
+    for line in lines
+        try
+            push!(out, parse(Int, line))
+        catch
+            # nothing: a typo in push! would be invisible
+        end
+    end
+    out
+end
+
+# Good: state exactly what is expected, and rethrow the rest
+function parse_all_good(lines)
+    out = Int[]
+    for line in lines
+        try
+            push!(out, parse(Int, line))
+        catch e
+            e isa ArgumentError || rethrow()      # only "not a number" is tolerated
+        end
+    end
+    out
+end
+
+parse_all_good(["1", "2", "x", "4"])          # [1, 2, 4]
+parse_all_bad(["1", "2", "x", "4"])           # [1, 2, 4] — same result, hidden risks
+</code></pre>
+
+        <p>The rule for review: if a <code>catch</code> block does not mention a type, it needs a written justification in a comment. In practice that justification is almost never good enough.</p>
+
+        <h3 id="exceptions-as-control-flow">Exceptions as Control Flow</h3>
+
+        <p>Using exceptions to implement ordinary branching is both slow and unclear: every throw unwinds the stack, and a reader has to hold two paths in mind where one would do.</p>
+
+        <pre><code class="language-julia line-numbers"># Using an exception to signal a normal condition
+function first_even_bad(xs)
+    try
+        for x in xs
+            x % 2 == 0 &amp;&amp; throw(x)          # abuse: throwing to return early
+        end
+        throw(:none)
+    catch e
+        e isa Integer ? e : nothing
+    end
+end
+
+# The same intent, expressed as an ordinary search
+function first_even_good(xs)
+    for x in xs
+        x % 2 == 0 &amp;&amp; return x
+    end
+    nothing
+end
+
+first_even_good([1, 3, 4, 5])       # 4
+first_even_good([1, 3, 5])          # nothing
+
+# When you truly want to stop a long computation, an exception is fine —
+# but it should mean "something is wrong", not "here is the next value".
+struct StopIteration2 &lt;: Exception end
+</code></pre>
+
+        <p>Reserve exceptions for abnormal conditions. If the condition is part of the normal contract of the function, it belongs in the return type — <code>nothing</code>, a <code>Union</code>, or a dedicated result struct.</p>
+
+        <h3 id="silent-failure">Losing the Message or the Cause</h3>
+
+        <p>An exception that is caught and reported without its message leaves the next developer with nothing to work from. Log the exception object, not a generic sentence, and keep the cause when you wrap.</p>
+
+        <pre><code class="language-julia line-numbers"># Bad: the message, the type, and the trace are all gone
+try
+    risky()
+catch e
+    @warn "something failed"
+end
+
+# Good: the exception travels with the log record
+try
+    risky()
+catch e
+    @warn "risky() failed" exception = (e, catch_backtrace())
+    rethrow()
+end
+
+# Also good when the failure is expected and handled: report and continue
+function risky()
+    throw(ArgumentError("expected value was missing"))
+end
+
+try
+    risky()
+catch e
+    e isa ArgumentError || rethrow()
+    @info "handled, continuing" reason = e.msg
+end
+
+# When wrapping, keep the cause — never build a new exception from a string only
+struct WrappedFailure &lt;: Exception
+    message::String
+    cause::Exception
+end
+
+Base.showerror(io::IO, e::WrappedFailure) =
+    print(io, "WrappedFailure: ", e.message, " caused by ", typeof(e.cause))
+</code></pre>
+
+        <p>The single most useful habit is passing <code>(e, catch_backtrace())</code> to the logging macro. The <code>@warn</code> and <code>@error</code> macros know how to render that pair as a full diagnostic with a trace.</p>
+
+        <h3 id="type-instability">Union Returns and Type Stability</h3>
+
+        <p>A function that returns a value or <code>nothing</code> has a <code>Union</code> return type, which is fine at a boundary and expensive in a hot loop. Julia handles small unions well, but a union propagating through a computation forces boxed variables.</p>
+
+        <pre><code class="language-julia line-numbers"># A Union return is idiomatic for "may be absent"
+function try_div(a, b)
+    b == 0 ? nothing : a / b
+end
+
+try_div(6, 3)                # 2.0
+try_div(6, 0)                # nothing
+
+# Type-stable use at a boundary: handle the union once, then work with a concrete type
+function average(values)
+    total = 0.0
+    n = 0
+    for v in values
+        d = try_div(v, 2)
+        d === nothing &amp;&amp; continue
+        total += d
+        n += 1
+    end
+    n == 0 ? nothing : total / n
+end
+
+average([2.0, 4.0])          # 1.5
+average([])                  # nothing
+
+# Inside a hot loop, prefer a concrete default to a Union
+safe_div(a, b, default = 0.0) = b == 0 ? default : a / b
+
+# The trade-off: `nothing` is clearer; a default is faster. Choose per boundary.
+</code></pre>
+
+        <p>The practical guidance: let <code>Union{T, Nothing}</code> live at your API edge, then narrow it to a concrete type before the performance-critical section. <code>something</code> and explicit branches are how you narrow it.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> Every failure in Julia is an <code>Exception</code> value with a type, and the type tells a caller what can be done about it. Throw with <code>error</code> for unrecoverable conditions, <code>throw</code> for your own types, and <code>@assert</code> for invariants. Handle with <code>try</code>/<code>catch</code>, test the type with <code>isa</code>, and always <code>rethrow()</code> what you do not understand. Use <code>finally</code> or a <code>do</code> block for cleanup, <code>rethrow()</code> (never <code>throw(e)</code>) to propagate, and a wrapping exception when your layer adds context. Prefer value-returning guards such as <code>tryparse</code>, <code>get</code>, and <code>haskey</code> for predictable failures, and keep <code>try</code> blocks at real boundaries.
+        </div>
+
+        <p>This closes the intermediate phase: you can define types, attach behaviour, generalise over types, organise code into packages, and manage failure. Next: <a href="/roadmap/julia/metaprogramming.html">Metaprogramming &amp; Macros</a> opens the phase on advanced programming, where code writes code.</p>
+
+      </main>
     </div>
   </div>
 
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 

@@ -1,0 +1,608 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Deploying Julia: packaging applications, custom sysimages and PackageCompiler, Docker containers, relocatable environments, release versioning, monitoring and rollback.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, deployment, packaging, packagecompiler, sysimage, docker, container, relocatable, release, rollback, monitoring">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Deployment &amp; Packaging</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-deployment">Deployment &amp; Packaging</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Julia's deployment story has one characteristic that shapes everything: the language compiles while it runs. A release must therefore solve the same problem a compiled language solves at build time — turning source, dependencies and machine code into a single artefact that starts quickly and runs the same on another machine.
+        </div>
+
+        <p>This lesson covers the four targets you will actually deploy to: a script on a colleague's laptop, a standalone executable built with a sysimage, a container image, and a cluster job. All four are built from the same two files — <code>Project.toml</code> and <code>Manifest.toml</code> — plus one script that the machine runs. Keeping that common core is what makes a release reproducible.</p>
+
+        <h2 id="applications">From Script to Application</h2>
+
+        <p>The first deployment is always the hardest to see: an application is a project with a name, an entry point and an environment — not a folder of scripts somebody remembers how to start.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-deploy-targets.svg" class="figure-img img-fluid rounded" alt="One environment made of Project.toml, Manifest.toml and an entry script feeding four deployment targets: a development machine with Julia installed and a warm depot, a standalone executable built with a custom sysimage, a container image built from the official Julia image, and a cluster job run with many threads and MPI; all four run the same code with the same dependency versions.">
+          <figcaption class="figure-caption text-secondary">One environment, four targets — only the way Julia and its caches arrive changes.</figcaption>
+        </figure>
+
+        <p>The first deployment is always the hardest to see: an application is a project with a name, an entry point and an environment — not a folder of scripts somebody remembers how to start.</p>
+
+        <h3 id="package-vs-application">Packages and Applications</h3>
+
+        <p>The distinction decides whether other people can depend on your code and how you start it.</p>
+
+        <pre><code class="language-julia line-numbers"># APPLICATION: run by a person or a scheduler
+#   project/
+#     Project.toml        # [deps] only — no name, no uuid, no version
+#     Manifest.toml       # COMMITTED: it is the build description
+#     bin/run.jl          # the single entry point
+#     src/                # code loaded with include(), not `using`
+#     .env.example        # documents the variables that are required
+
+# Start it the same way everywhere:
+#   julia --project=. bin/run.jl --input data.csv
+
+# PACKAGE: depended on by other code
+#   MyPackage/
+#     Project.toml        # name, uuid, version, [deps], [compat]
+#     src/MyPackage.jl    # module MyPackage ... end
+#     test/runtests.jl
+
+# The two are not exclusive: an application may contain a package that
+# other projects `using`, and that package is tested independently.
+
+# What makes it an application in practice:
+#   1. one documented entry point
+#   2. no interactive input — everything comes from arguments or ENV
+#   3. a committed manifest, so the same versions run everywhere
+#   4. a version number reported by the program itself
+</code></pre>
+
+        <p>Requirement 4 is the one teams forget: when a bug is reported, "which version is running?" must be answerable from the program, not from the deployment log.</p>
+
+        <h3 id="startup-time">Precompilation and Startup Time</h3>
+
+        <p>Latency before the first line of your logic is the defining cost of a Julia deployment. It is measurable, and it is reducible.</p>
+
+        <pre><code class="language-julia line-numbers"># Measure, before optimising anything
+#   time julia --project=. bin/run.jl --help
+
+# 1. Precompile the environment at IMAGE BUILD time, not at run time
+#    julia --project=. -e 'using Pkg; Pkg.precompile()'
+#    With a warm depot the run then pays only for what was not cached.
+
+# 2. Keep the system image warm in the container or on the host
+#    JULIA_DEPOT_PATH=/opt/julia-depot
+
+# 3. Compile workload paths at build time with PrecompileTools.jl
+using PrecompileTools
+
+@setup_workload begin
+    # Anything created here is discarded; used only to make the calls below
+    data = rand(10)
+    @compile_workload begin
+        # Real calls on realistic argument types: they get compiled now
+        process(data)
+        summarise(data)
+    end
+end
+
+# 4. Reduce what loads at all
+#    - avoid `using` a heavy package at the top level if one function needs it
+#    - move optional integrations into package extensions
+
+# What NOT to do: call precompile() on every service start. That is the
+# cost you were trying to remove, paid by the first user instead.
+</code></pre>
+
+        <p><code>@compile_workload</code> is the highest-value twenty lines in a deployment: it moves the compilation of the paths your application actually uses from the first request to the image build, where nobody is waiting.</p>
+
+        <h3 id="cli-arguments">Command-Line Arguments</h3>
+
+        <p>An application takes arguments and exits with a meaningful status code. Nothing else.</p>
+
+        <pre><code class="language-julia line-numbers"># bin/run.jl — a small but complete command-line application
+using ArgParse
+
+function parse_args(argv)
+    s = ArgParseSettings(description = "Analyse a data file.", version = "1.4.0")
+    @add_arg_table! s begin
+        "input"
+            help = "path to the input CSV"
+            required = true
+        "--output", "-o"
+            help = "where to write the report"
+            default = "report.json"
+        "--seed"
+            help = "random seed for reproducible sampling"
+            arg_type = Int
+            default = 20260912
+        "--verbose", "-v"
+            help = "print progress"
+            action = :store_true
+    end
+    return parse_args(argv, s)
+end
+
+function main(argv)
+    args = parse_args(argv)
+    isfile(args["input"]) || (println(stderr, "error: no such file"); exit(2))
+
+    try
+        result = analyse(args["input"]; seed = args["seed"], verbose = args["verbose"])
+        write(args["output"], result)
+        exit(0)
+    catch err
+        println(stderr, "failed: ", err)
+        exit(1)
+    end
+end
+
+main(ARGS)
+
+# EXIT CODES ARE AN INTERFACE
+#   0 success  · 1 runtime failure  · 2 bad usage  · 3 dependency unavailable
+# A scheduler, a CI job or a shell script reads that number, not your output.
+</code></pre>
+
+        <p>Writing errors to <code>stderr</code> and results to <code>stdout</code> keeps the program composable: <code>./run | jq .</code> works, and log collectors do not confuse a report with a warning.</p>
+
+        <h2 id="compiling">Compiling and Sysimages</h2>
+
+        <p>A sysimage is a serialised snapshot of a running Julia session: the standard library, your dependencies, and the compiled methods you chose to include. Starting from one skips most of the work a fresh process does.</p>
+
+        <h3 id="packagecompiler">PackageCompiler</h3>
+
+        <p><code>PackageCompiler.jl</code> builds two things: a custom system image, and a full application directory with an executable wrapper.</p>
+
+        <pre><code class="language-julia line-numbers">using PackageCompiler
+
+# 1. A custom system image: faster startup, Julia still required
+create_sysimage(
+    [:MyPackage];
+    sysimage_path = "MyPackage.so",           # .dylib on macOS, .dll on Windows
+    precompile_execution_file = "test/runtests.jl",   # compile what the tests exercise
+)
+
+# Run with it — note the startup improvement immediately
+#   julia --sysimage MyPackage.so --project=. bin/run.jl
+
+# 2. A full application: a directory containing everything, plus a launcher
+create_app(
+    "app",                       # destination directory
+    "bin/run.jl";                # the entry script
+    app_name        = "myapp",
+    precompile_execution_file = "precompile.jl",
+    include_lazy_artifacts = true,
+    force           = true,
+)
+
+# The result is a self-contained directory:
+#   app/
+#     bin/myapp               ← the executable to distribute
+#     lib/julia/              ← the runtime and libraries it needs
+#     share/julia/            ← the depot: packages and compiled caches
+
+# Build time is minutes, not seconds. That is why it belongs in CI:
+#   - run: julia --project=. -e 'using PackageCompiler; create_app("app", "bin/run.jl")'
+</code></pre>
+
+        <p>The build is slow and the artefact is large — both are normal. The trade is deliberate: compilation moves from every start on every machine to once per release.</p>
+
+        <h3 id="sysimages">Custom Sysimages and Their Limits</h3>
+
+        <p>A sysimage is a snapshot with rules. Knowing the rules prevents the two failures people hit: invalidated caches and version-bound artefacts.</p>
+
+        <pre><code class="language-julia line-numbers"># WHAT A SYSIMAGE CANNOT DO — the four hard limits
+#   1. It is bound to the exact Julia version that built it.
+#      A patch release of Julia invalidates it: rebuild, do not reuse.
+#   2. It is platform-specific: CPU architecture, operating system, libc.
+#      Build on the target platform (or in the target container).
+#   3. Packages that use heavy compile-time work or global state can be
+#      fragile inside a sysimage — test the artefact, not just the source.
+#   4. `--sysimage` replaces the default image; anything the image does not
+#      contain still compiles at run time. Warm the paths you care about.
+
+# Keeping a build honest:
+#   - the sysimage is a BUILD PRODUCT: never commit it, always rebuild it
+#   - pin the Julia version in CI so the artefact matches the runner
+#   - verify with a smoke test after building:
+#       ./app/bin/myapp --version
+#       ./app/bin/myapp --input test/fixtures/small.csv
+
+# The size trade-off in numbers (typical)
+#   plain Julia + package:   ~250 MB on disk, warm start 1–3 s
+#   custom sysimage:         +100–400 MB,     warm start 0.2–0.6 s
+#   create_app directory:    ~700 MB–1.5 GB,  cold start 0.2 s, no Julia needed
+</code></pre>
+
+        <p>The rule to internalise is the first one: a sysimage is a build artefact tied to an exact toolchain. Treating it as a portable file across Julia versions is the most common cause of "it worked in CI and crashed in production".</p>
+
+        <h3 id="compile-tradeoffs">When Compiling Is Worth It</h3>
+
+        <p>Compilation solves one problem — startup latency — and costs build time, artefact size and platform specificity. Decide with numbers, not feelings.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Situation</th><th>Reach for</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Long-running server, started rarely</td><td>Precompile + warm depot</td><td>Startup cost is amortised to nothing</td></tr>
+            <tr><td>Short-lived CLI run thousands of times</td><td><code>create_app</code> or sysimage</td><td>Startup is most of the total runtime</td></tr>
+            <tr><td>Batch job submitted to a scheduler</td><td>Container + precompiled depot</td><td>Reproducibility matters more than a second</td></tr>
+            <tr><td>Library used by another program</td><td>Plain package</td><td>The host process controls startup</td></tr>
+            <tr><td>Frequently changing code</td><td>Nothing — iterate</td><td>A 5-minute build per edit kills the loop</td></tr>
+          </tbody>
+        </table>
+
+        <p>Measure first with <code>time julia --project=. bin/run.jl --help</code>. If that number is small relative to the work the tool does, compilation buys you nothing and costs you a build pipeline.</p>
+
+        <h2 id="containers">Containers</h2>
+
+        <p>A container solves the deployment problem Julia is most sensitive to: the toolchain, the depot and the compiled caches must match the machine.</p>
+
+        <h3 id="docker-julia">A Dockerfile for Julia</h3>
+
+        <p>Structure the image so dependencies change rarely and code changes often — that keeps the expensive layer cached.</p>
+
+        <pre><code class="language-julia line-numbers"># Dockerfile
+# ---- layer 1: the runtime, pinned to an exact version ----
+FROM julia:1.11.5-bookworm AS base
+
+# ---- layer 2: dependencies — changes only when the manifest changes ----
+WORKDIR /app
+COPY Project.toml Manifest.toml ./
+RUN julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+# ---- layer 3: the code — changes on every commit ----
+COPY src/ src/
+COPY bin/ bin/
+RUN julia --project=. -e 'using Pkg; Pkg.precompile()'
+
+# ---- layer 4: runtime settings ----
+ENV JULIA_DEPOT_PATH=/app/.julia \
+    JULIA_NUM_THREADS=4 \
+    JULIA_PROJECT=/app
+
+# Run as a non-root user — a container is not a security boundary by itself
+RUN useradd --create-home appuser &amp;&amp; chown -R appuser /app/.julia
+USER appuser
+
+ENTRYPOINT ["julia", "--project=/app", "/app/bin/run.jl"]
+
+# Build and run:
+#   docker build -t myapp:1.4.0 .
+#   docker run --rm -e DATABASE_URL=... myapp:1.4.0 --input /data/in.csv
+</code></pre>
+
+        <p>The <code>COPY Project.toml Manifest.toml</code> line before the source is the single most important detail: it means editing a source file does not re-download or re-precompile every dependency.</p>
+
+        <h3 id="container-environment">The Depot Inside the Image</h3>
+
+        <p>Where the depot lives decides whether precompilation survives between builds and runs.</p>
+
+        <pre><code class="language-julia line-numbers"># The depot holds packages, registries and compiled caches.
+#   default:  ~/.julia
+#   in an image: set it explicitly so it is owned by the container user
+
+ENV JULIA_DEPOT_PATH=/app/.julia
+
+# What bites people in containers:
+#   1. Compiling at RUN time every start
+#      → precompile during `docker build`, never in the entrypoint
+#   2. Running as root, then switching users
+#      → the depot stays root-owned and unwritable; chown it (as above)
+#   3. Mounting a volume over the depot
+#      → it hides the precompiled cache and every start recompiles
+#   4. Forgetting the manifest in the image
+#      → `Pkg.instantiate()` resolves differently on each build
+#   5. Huge images from a full depot
+#      → `Pkg.gc()` after precompiling, or build a sysimage and keep only it
+
+# A minimal, precompiled, reproducible image has exactly these contents:
+#   /app/Project.toml
+#   /app/Manifest.toml
+#   /app/src/...
+#   /app/bin/run.jl
+#   /app/.julia/    (packages + compiled caches for this Julia version)
+
+# Verify reproducibility locally before pushing:
+#   docker run --rm myapp:1.4.0 --version
+#   docker run --rm myapp:1.4.0 --input test/fixtures/small.csv
+</code></pre>
+
+        <p>Item 3 is the subtle one: mounting a host directory over <code>JULIA_DEPOT_PATH</code> looks like a convenient cache and behaves like an amnesia device. Mount data, never the depot.</p>
+
+        <h3 id="volumes">Data, Volumes and Resource Limits</h3>
+
+        <p>Containers are ephemeral; data is not. The boundary between the two must be explicit.</p>
+
+        <pre><code class="language-julia line-numbers"># Mounts: inputs read-only, outputs writable, never the depot
+#   docker run --rm \
+#     -v /host/data:/data:ro \
+#     -v /host/results:/results \
+#     --memory=8g --cpus=4 \
+#     myapp:1.4.0 --input /data/in.csv --output /results/out.json
+
+# Inside the application, treat the two directories differently
+input  = get(ENV, "INPUT_DIR", "/data")
+output = get(ENV, "OUTPUT_DIR", "/results")
+
+isdir(input)  || error("input directory not mounted")
+mkpath(output)                     # safe to create: it is our side of the boundary
+
+# A temp directory that is actually writable and cleaned up
+mktempdir() do dir
+    scratch = joinpath(dir, "scratch.bin")
+    # heavy intermediate work goes here, and disappears with the block
+end
+
+# RESOURCE LIMITS THAT MATTER FOR JULIA
+#   --memory      : the GC will not save you from an unbounded allocation
+#   --cpus        : match JULIA_NUM_THREADS to what the container may use;
+#                   over-subscribing threads makes everything slower
+#   --pids-limit  : a runaway task spawner hits a wall instead of the host
+
+# Where results live decides what survives:
+#   container filesystem → gone when the container stops
+#   mounted volume       → survives, and can be inspected after a failure
+</code></pre>
+
+        <h2 id="packaging">Packaging and Releases</h2>
+
+        <p>A release is a numbered, reproducible artefact. Everything below is in service of that sentence.</p>
+
+        <h3 id="relocatable">Relocatable Environments</h3>
+
+        <p>An environment is relocatable when copying its folder to another machine with the same OS and Julia version produces a working setup.</p>
+
+        <pre><code class="language-julia line-numbers"># A relocatable environment is a directory containing:
+#   project/Project.toml
+#   project/Manifest.toml
+#   project/.julia/        ← the depot, self-contained
+
+# Build it once, ship it anywhere compatible:
+JULIA_DEPOT_PATH=/build/depot julia --project=/build/project -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+# On the target machine:
+#   export JULIA_DEPOT_PATH=/opt/release/.julia
+#   export JULIA_PROJECT=/opt/release
+#   julia --project=/opt/release bin/run.jl --input data.csv
+
+# WHAT BREAKS RELOCATABILITY
+#   absolute paths recorded in the manifest (a `develop` entry, typically)
+#   artefacts downloaded for a different platform
+#   a compiled cache built by a different Julia version
+#   a package that hard-codes a path at `__init__` time
+
+# Verify before shipping — on a CLEAN machine or container:
+#   julia --project=. -e 'using Pkg; Pkg.test()'
+#   JULIA_DEPOT_PATH=/nonexistent julia --project=. bin/run.jl --help
+
+# The second command is the real test: if the tool runs with an empty
+# depot, everything it needs is inside the release.
+</code></pre>
+
+        <p>The empty-depot test is worth adopting as a release gate. It catches, in ten seconds, the entire class of "works here because my depot has it" failures.</p>
+
+        <h3 id="release-versioning">Versioning and Release Contents</h3>
+
+        <p>Semantic versioning from the package chapter applies unchanged — what changes is what travels with the number.</p>
+
+        <pre><code class="language-julia line-numbers"># A release consists of exactly these things:
+#   1. a git tag:            v1.4.0
+#   2. the environment:      Project.toml + Manifest.toml
+#   3. the entry point:      bin/run.jl
+#   4. a changelog entry:    what changed, and whether it breaks callers
+#   5. build artefacts:      the sysimage or application directory, if any
+
+# Jam the version into the program so it can report itself
+module MyApp
+const VERSION = v"1.4.0"
+end
+
+# bin/run.jl
+if "--version" in ARGS
+    println("myapp ", MyApp.VERSION)
+    exit(0)
+end
+
+# In CI, tag only what passed on a clean checkout:
+#   julia --project=. -e 'using Pkg; Pkg.test()'
+#   docker build -t myapp:1.4.0 .
+#   docker run --rm myapp:1.4.0 --version
+#   git tag -a v1.4.0 -m "release 1.4.0"
+#   git push --follow-tags
+
+# WRITING THE CHANGELOG
+#   MAJOR: behaviour callers depend on has changed
+#   MINOR: new capability, existing usage still works
+#   PATCH: bug fix, same interface
+# If a CLI flag is renamed, that is a MAJOR change whether or not the
+# function signatures changed.
+</code></pre>
+
+        <p>The rule that is easy to forget: a command-line interface is a public API. Renaming a flag breaks scripts and schedulers, and that is a breaking change by any honest reading of semantic versioning.</p>
+
+        <h3 id="channels">Distribution Channels</h3>
+
+        <p>How the artefact reaches the machine determines how quickly a rollback is possible.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Channel</th><th>Best for</th><th>Rollback cost</th></tr></thead>
+          <tbody>
+            <tr><td>Git checkout + <code>Pkg.instantiate()</code></td><td>Development, internal tools</td><td>Check out the previous tag</td></tr>
+            <tr><td>Container registry tag</td><td>Services, scheduled jobs</td><td>Deploy the previous tag</td></tr>
+            <tr><td>Application directory (<code>create_app</code>)</td><td>Workstations, air-gapped machines</td><td>Swap the directory</td></tr>
+            <tr><td>Registered package</td><td>Libraries used by other code</td><td>Resolve to the previous version</td></tr>
+            <tr><td>Artifact attached to a release</td><td>Binary tools with no toolchain</td><td>Download the previous file</td></tr>
+          </tbody>
+        </table>
+
+        <p>For anything that runs on a schedule, prefer an immutable container tag: <code>myapp:1.4.0</code> never changes, while <code>myapp:latest</code> changes without warning and makes a rollback impossible to describe.</p>
+
+        <h2 id="operations">Operating a Deployment</h2>
+
+        <p>Deployment does not end at the first successful run. What follows is the part that decides whether the second run is boring or an incident.</p>
+
+        <h3 id="monitoring">Monitoring and Health</h3>
+
+        <p>Four signals cover almost every failure: did it start, how long does it take, how much does it use, and did the last run succeed.</p>
+
+        <pre><code class="language-julia line-numbers">using Logging, Dates
+
+# 1. A startup line that says what is running and with which environment
+@info "starting" app = "myapp" version = "1.4.0" julia = VERSION threads = Threads.nthreads()
+
+# 2. Duration and outcome of the work, as structured fields
+function run_with_metrics(f, label)
+    t0 = time_ns()
+    result = try
+        f()
+    catch err
+        @error "task failed" task = label err = err
+        rethrow()
+    end
+    elapsed = (time_ns() - t0) / 1e9
+    @info "task finished" task = label seconds = round(elapsed, digits = 2)
+    return result
+end
+
+# 3. Memory as part of the normal report
+using Base: gc_live_bytes
+@info "memory" live_mb = round(gc_live_bytes() / 2^20, digits = 1)
+
+# 4. A heartbeat file the scheduler can check (batch jobs, not services)
+touch(joinpath(get(ENV, "OUTPUT_DIR", "."), "heartbeat"))
+
+# WHAT TO ALERT ON — in order of usefulness
+#   the job did not finish within its window
+#   the exit code is non-zero
+#   the row count of the output changed by more than expected
+#   peak memory grew past the container limit
+# NOT: any log line containing the word "error" — too noisy to act on
+</code></pre>
+
+        <p>The last two lines are the whole point of monitoring: alert on things a human can act on, not on the presence of a word. A row-count check is a better detector of silent corruption than any exception.</p>
+
+        <h3 id="upgrades">Upgrades and Rollback</h3>
+
+        <p>An upgrade is a deployment with a known previous state. That state is the only reason rollback is possible.</p>
+
+        <pre><code class="language-julia line-numbers"># UPGRADE PROCEDURE, in order
+#   1. read the changelog for MAJOR changes in your direct dependencies
+#   2. update inside [compat] bounds:  Pkg.update()
+#   3. run the full test suite:        Pkg.test()
+#   4. run the smoke test of the RELEASE ARTEFACT, not the source
+#   5. deploy to one instance or one node first
+#   6. watch the four signals above for one full cycle
+#   7. deploy to the rest
+
+# ROLLBACK PROCEDURE — the reason to keep the previous artefact
+#   container:   docker run myapp:1.3.2       (the previous immutable tag)
+#   sysimage:    keep the previous .so alongside the new one
+#   environment: check out the previous tag and instantiate
+
+# Record which versions ran, with the results
+using TOML
+open("run-meta.toml", "w") do io
+    TOML.print(io, Dict(
+        "app_version" => "1.4.0",
+        "julia"       => string(VERSION),
+        "started"     => string(now()),
+        "manifest"    => "Manifest.toml",
+    ))
+end
+
+# The rule that makes rollback fast: never deploy a release you cannot
+# restore with one command. If restoring takes three steps, it will take
+# an hour during an incident.
+</code></pre>
+
+        <h3 id="deployment-pitfalls">Common Pitfalls</h3>
+
+        <p>These are the failures that produce "works on my machine" reports from an operations team.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Pitfall</th><th>Consequence</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>Manifest not committed</td><td>Different versions on every build</td><td>Commit it for applications; pin for packages</td></tr>
+            <tr><td>Precompiling at start-up</td><td>Users pay the compilation cost</td><td>Precompile at image build time</td></tr>
+            <tr><td>Depot mounted over the cache</td><td>Recompiles on every run</td><td>Mount data, never <code>JULIA_DEPOT_PATH</code></td></tr>
+            <tr><td>Sysimage reused across Julia versions</td><td>Crashes or silent invalidation</td><td>Rebuild the image with each Julia upgrade</td></tr>
+            <tr><td>Thread count above the CPU limit</td><td>Contention slows everything down</td><td>Match <code>JULIA_NUM_THREADS</code> to the container limit</td></tr>
+            <tr><td><code>develop</code> paths in the manifest</td><td>The environment is not relocatable</td><td>Run <code>Pkg.free</code> before tagging</td></tr>
+            <tr><td>No version reported by the artefact</td><td>Cannot tell what is running</td><td><code>--version</code> in every application</td></tr>
+            <tr><td>Secrets baked into the image</td><td>Credentials in a registry</td><td>Environment variables or a secret manager</td></tr>
+            <tr><td>No previous artefact kept</td><td>Rollback becomes a rebuild</td><td>Keep the last two immutable tags</td></tr>
+          </tbody>
+        </table>
+
+        <p>Nine rows, one theme: a deployment is reproducible only if every input to it is written down and every output of it is kept.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> An application is a project with one entry point, a committed manifest, arguments instead of prompts, and a version it can report. Measure startup before optimising it, then precompile at build time, warm real workload paths with <code>@compile_workload</code>, and reach for <code>PackageCompiler.create_sysimage</code> or <code>create_app</code> only when startup dominates the run. Build containers so dependencies form an early layer and code a late one, set <code>JULIA_DEPOT_PATH</code> inside the image and never mount over it, and match <code>JULIA_NUM_THREADS</code> to the CPU limit. Ship relocatable environments containing their own depot and verify with the empty-depot test, tag releases with the environment, entry point and changelog, and prefer immutable container tags over <code>latest</code>. Finally, monitor start-up, duration, memory and exit codes, alert on outcomes rather than keywords, and always keep the previous artefact so that a rollback is one command.
+        </div>
+
+        <p>Next, see the programs this deployment knowledge serves: <a href="/roadmap/julia/demo_examples.html">Lab Examples</a> gathers the single-file examples from the whole track.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'deployment',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

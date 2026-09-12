@@ -1,0 +1,378 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia study projects: a word-frequency counter, a priority task scheduler with abstract types, and an epidemic simulator using a hand-written Runge-Kutta step.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, projects, word frequency, scheduler, abstract types, runge-kutta, simulation, practice">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Study Projects</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-samples">Study Projects</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Three programs that pull the whole track together, written with the standard library only. Type each one yourself — do not copy and paste — then break it deliberately and repair it. These are the kinds of programs that teach more than any amount of reading: a text analysis with dictionaries and sorting, a scheduler that uses abstract types and multiple dispatch, and a numerical simulation that implements its own integrator.
+        </div>
+
+        <p>Each project is complete as shown and takes about an hour to write and understand. The challenge at the end of each is deliberately open: it is the version of the project that you would meet in real work, where the requirements arrive as a paragraph rather than as a specification.</p>
+
+        <h2 id="word-frequency">Project 1 — Word Frequency Counter</h2>
+
+        <p>Every programmer writes this program once. It is the smallest project that exercises files, strings, dictionaries, sorting, and formatting together — and the smallest one where the obvious implementation is also the slow one if you let it re-read the file.</p>
+
+        <p>The design: read the file once, normalise each word, count with a <code>Dict</code>, then sort the entries. Nothing here needs a package, and every step maps onto a lesson from earlier in the track.</p>
+
+        <pre><code class="language-julia line-numbers"># word_frequency.jl — count words in a text file
+module WordFrequency
+
+export count_words, top_words, report
+
+"""
+    count_words(path) -> Dict{String,Int}
+
+Read the file at `path` once and return word => count.
+A word is a run of letters, digits, apostrophes or hyphens; everything
+else is a separator. Matching is case-insensitive.
+"""
+function count_words(path::AbstractString)
+    isfile(path) || throw(ArgumentError("no such file: $path"))
+
+    counts = Dict{String,Int}()
+    for line in eachline(path)                    # streams: no whole-file copy
+        for raw in split(line)
+            word = normalise(raw)
+            isempty(word) &amp;&amp; continue              # punctuation-only token
+            counts[word] = get(counts, word, 0) + 1
+        end
+    end
+    return counts
+end
+
+"""
+Lowercase a token and strip leading/trailing punctuation.
+Everything inside the token is kept, so "state-of-the-art" stays one word.
+"""
+function normalise(token::AbstractString)
+    # keep letters, digits, apostrophes and hyphens; drop the rest
+    cleaned = filter(c -&gt; isletter(c) || isdigit(c) || c in ('\'', '-'), lowercase(token))
+    return strip(cleaned, ['\'', '-'])            # "word." -> "word", "'word'" -> "word"
+end
+
+"""
+    top_words(counts, n) -> Vector{Pair{String,Int}}
+
+The `n` most frequent words, most frequent first. Ties break alphabetically
+so the output is stable between runs — important for tests and for diffs.
+"""
+function top_words(counts::AbstractDict, n::Integer = 10)
+    entries = collect(counts)
+    sort!(entries, by = e -&gt; (-e.second, e.first))
+    return entries[1:min(n, length(entries))]
+end
+
+"""Render a report with counts and a simple bar chart."""
+function report(path::AbstractString; top::Integer = 10)
+    counts = count_words(path)
+    words  = top_words(counts, top)
+    total  = sum(values(counts))
+    unique_words = length(counts)
+
+    widest = isempty(words) ? 0 : maximum(length(first(w)) for w in words)
+    println("file            : ", path)
+    println("tokens          : ", total)
+    println("distinct words  : ", unique_words)
+    println("type/token ratio: ", round(unique_words / max(total, 1), digits = 3))
+    println()
+    for (word, count) in words
+        bar = repeat("#", min(count, 40))         # cap the bar at terminal width
+        println(rpad(word, widest), "  ", lpad(count, 6), "  ", bar)
+    end
+    return counts
+end
+
+end # module
+
+# ---------------------------------------------------------------
+if abspath(PROGRAM_FILE) == @__FILE__              # only when run as a script
+    using .WordFrequency
+    isempty(ARGS) &amp;&amp; (println(stderr, "usage: julia word_frequency.jl FILE [N]"); exit(2))
+    n = length(ARGS) &gt;= 2 ? parse(Int, ARGS[2]) : 10
+    WordFrequency.report(ARGS[1]; top = n)
+end
+</code></pre>
+
+        <p>Three details carry the lesson. <code>eachline(path)</code> streams the file instead of loading it, so the program survives a 500 MB log. <code>get(counts, word, 0) + 1</code> is the idiomatic counter — a single hash lookup, no branch. And sorting by a tuple <code>(-count, word)</code> gives the stable ordering that makes the output testable.</p>
+
+        <h3 id="frequency-challenge">Challenge</h3>
+
+        <p>Extend the program in three steps, in this order. First, add a <code>--min-length</code> option that ignores words shorter than a given length — the option parser belongs in the script block, not in the module. Second, make it read standard input when the path is <code>-</code>, so it can be used in a pipeline: <code>cat book.txt | julia word_frequency.jl -</code>. Third, add a <code>@testset</code> that checks <code>normalise</code> against a table of awkward cases (<code>"End."</code>, <code>"'quoted'"</code>, <code>"co-op"</code>, <code>"123"</code>) and checks that a tie in counts produces alphabetical order. When the third step is easy, the design is right.</p>
+
+        <h2 id="task-scheduler">Project 2 — Priority Task Scheduler</h2>
+
+        <p>The second project is about types. A scheduler holds heterogeneous work items, orders them by priority and deadline, and runs them. The interesting part is not the queue — it is designing <code>Task</code> so that a new kind of work can be added without touching the scheduler.</p>
+
+        <p>The design uses one abstract type, one concrete struct per kind of task, and multiple dispatch for the part that differs: how long a task takes and what it does. The scheduler itself never inspects a type — dispatch does the work.</p>
+
+        <pre><code class="language-julia line-numbers"># scheduler.jl — a priority scheduler built on abstract types
+module Scheduler
+
+export Task, Job, Review, enqueue!, run_next!, pending, by_priority
+
+"""
+    Task
+
+Everything schedulable. Subtypes must implement `cost(task)` (a duration in
+abstract units) and `execute(task)` (the work itself).
+"""
+abstract type Task end
+
+"""A unit of work that takes `minutes` and reports `units` of output."""
+struct Job &lt;: Task
+    name     :: String
+    minutes  :: Float64
+    units    :: Int
+    priority :: Int          # lower number = more urgent
+end
+
+"""Time-boxed work: it takes at most `minutes`, whatever it produces."""
+struct Review &lt;: Task
+    name     :: String
+    minutes  :: Float64
+    priority :: Int
+end
+
+# The two functions the abstract type requires. Adding a Task subtype means
+# adding methods here — no change to the scheduler below.
+cost(t::Job)    = t.minutes
+cost(t::Review) = t.minutes
+
+execute(t::Job)    = (t.units * 10, "produced $(t.units) units")
+execute(t::Review) = (0, "reviewed $(t.name)")
+
+"""
+    Schedule
+
+A priority queue kept sorted on insertion by `(priority, cost)`. A real
+scheduler would use a heap; a sorted vector is easier to read and fast
+enough for thousands of tasks.
+"""
+mutable struct Schedule
+    tasks :: Vector{Task}
+end
+Schedule() = Schedule(Task[])
+
+function enqueue!(s::Schedule, t::Task)
+    push!(s.tasks, t)
+    sort!(s.tasks, by = t -&gt; (t.priority, cost(t)))
+    return s
+end
+
+"Remove and run the most urgent task."
+function run_next!(s::Schedule)
+    isempty(s.tasks) &amp;&amp; return nothing
+    t = popfirst!(s.tasks)                 # the vector is already sorted
+    value, description = execute(t)
+    println(rpad(t.name, 18), rpad(string(cost(t)), 8), description)
+    return t
+end
+
+pending(s::Schedule)     = length(s.tasks)
+by_priority(s::Schedule) = sort(s.tasks, by = t -&gt; t.priority)
+
+end # module
+
+# ---------------------------------------------------------------
+if abspath(PROGRAM_FILE) == @__FILE__
+    using .Scheduler
+
+    s = Scheduler.Schedule()
+    Scheduler.enqueue!(s, Scheduler.Job("build report", 30.0, 5, 2))
+    Scheduler.enqueue!(s, Scheduler.Job("deploy hotfix", 10.0, 1, 1))
+    Scheduler.enqueue!(s, Scheduler.Review("design doc", 45.0, 3))
+    Scheduler.enqueue!(s, Scheduler.Job("refactor", 120.0, 20, 4))
+
+    while (t = Scheduler.run_next!(s)) !== nothing; end
+    @info "queue drained" remaining = Scheduler.pending(s)
+end
+</code></pre>
+
+        <p>The instructive line is <code>sort!(s.tasks, by = t -&gt; (t.priority, cost(t)))</code>: it calls <code>cost</code> on a <code>Task</code> whose concrete type it does not know, and dispatch does the right thing for each subtype. Adding a <code>Meeting</code> type later means writing two methods and changing nothing else — that is the payoff of the abstract-type-first design.</p>
+
+        <h3 id="scheduler-challenge">Challenge</h3>
+
+        <p>Add three things. First, a <code>Meeting</code> subtype whose <code>execute</code> returns a named tuple rather than a string, which forces you to decide whether <code>execute</code> should have a common return type at all — write down what you decide and why. Second, a deadline field on every task and a scheduler that refuses to run anything past its deadline, returning the skipped tasks instead of dropping them silently. Third, replace the sorted vector with a binary heap and record how the running time changes as the queue grows from a hundred to a hundred thousand tasks. The third part is the reason the second exists: a correct answer that takes an hour is not a scheduler.</p>
+
+        <h2 id="epidemic-simulation">Project 3 — Epidemic Simulator</h2>
+
+        <p>The last project is numerical. It solves the SIR model — the same equations the scientific computing lesson used — with an integrator written by hand, so that the connection between the mathematics and the code is visible on every line.</p>
+
+        <p>The design is a fourth-order Runge-Kutta step applied in a loop, with the results collected into vectors and written to a CSV file that any spreadsheet or plotting tool can read. No packages, no black boxes.</p>
+
+        <pre><code class="language-julia line-numbers"># sir_sim.jl — SIR model integrated with a hand-written RK4 stepper
+module SIR
+
+export Params, sir_deriv, rk4_step, simulate, write_csv
+
+"""Epidemic parameters, with a derived reproduction number."""
+struct Params
+    β :: Float64        # transmission rate per contact per day
+    γ :: Float64        # recovery rate per day
+    population :: Float64
+end
+
+R0(p::Params) = p.β / p.γ            # basic reproduction number
+
+"""
+    sir_deriv(u, p) -> Vector{Float64}
+
+The right-hand side: du/dt for (susceptible, infected, recovered).
+N is conserved exactly by construction — the first sanity check.
+"""
+function sir_deriv(u::AbstractVector, p::Params)
+    S, I, R = u
+    N = S + I + R
+    new_infections = p.β * S * I / N
+    return [-new_infections,
+             new_infections - p.γ * I,
+             p.γ * I]
+end
+
+"""
+    rk4_step(f, u, p, h) -> Vector{Float64}
+
+One classical Runge-Kutta 4 step of size `h`. Written out explicitly rather
+than in a loop over the coefficients, so the method is readable next to the
+textbook it came from.
+"""
+function rk4_step(f, u::AbstractVector, p, h::Float64)
+    k1 = f(u,              p)
+    k2 = f(u .+ h/2 .* k1, p)
+    k3 = f(u .+ h/2 .* k2, p)
+    k4 = f(u .+ h   .* k3, p)
+    return u .+ (h/6) .* (k1 .+ 2 .* k2 .+ 2 .* k3 .+ k4)
+end
+
+"""
+    simulate(p; days, h) -> NamedTuple
+
+Integrate from (N-1, 1, 0) for `days` days with step `h`, keeping one
+sample per day so the output has a predictable size.
+"""
+function simulate(p::Params; days::Int = 160, h::Float64 = 0.1)
+    steps_per_day = round(Int, 1 / h)
+    u = [p.population - 1.0, 1.0, 0.0]        # one infected individual
+    t = 0.0
+    times  = Float64[0.0]
+    states = Vector{Vector{Float64}}([copy(u)])
+
+    for day in 1:days
+        for _ in 1:steps_per_day
+            u = rk4_step(sir_deriv, u, p, h)
+            t += h
+        end
+        push!(times, t)
+        push!(states, copy(u))                # copy: u is reused next step
+    end
+
+    peak_index = argmax(states[i][2] for i in eachindex(states))
+    return (times = times, states = states, R0 = R0(p),
+            peak_day = times[peak_index], peak_infected = states[peak_index][2])
+end
+
+"""Write day,S,I,R rows so any spreadsheet can read the result."""
+function write_csv(path::AbstractString, result)
+    open(path, "w") do io
+        println(io, "day,susceptible,infected,recovered")
+        for (t, u) in zip(result.times, result.states)
+            println(io, round(t, digits = 2), ",", join(round.(u, digits = 4), ","))
+        end
+    end
+    return path
+end
+
+end # module
+
+# ---------------------------------------------------------------
+if abspath(PROGRAM_FILE) == @__FILE__
+    using .SIR
+    p = SIR.Params(0.30, 0.10, 1000.0)
+    result = SIR.simulate(p; days = 160, h = 0.1)
+    SIR.write_csv("sir.csv", result)
+    @info "simulation complete" R0 = result.R0 peak_day = result.peak_day peak_infected = round(result.peak_infected)
+end
+</code></pre>
+
+        <p>The invariants worth checking immediately are the ones that catch real numerical bugs: <code>S + I + R</code> must stay equal to <code>population</code> at every step, the infected curve must be smooth, and the infected count must never go negative. Run it once with <code>h = 0.5</code> and once with <code>h = 0.1</code> and compare the peak — the difference is the integration error, and seeing it is the point of writing your own stepper.</p>
+
+        <h3 id="sir-challenge">Challenge</h3>
+
+        <p>Four extensions, in increasing difficulty. Add a vaccination term that moves people from susceptible to recovered at a constant daily rate, and find the rate at which the peak disappears. Add a step-size controller that halves <code>h</code> and retries when the difference between two half-steps exceeds a tolerance — the poor man's adaptive solver. Add a <code>@testset</code> that asserts conservation of <code>N</code> to within <code>1e-9</code> and the positivity of every compartment at every sample. Then replace <code>rk4_step</code> with a stiffly-stable implicit method and explain, in a comment, why the implicit form matters when <code>γ</code> is a thousand times larger than <code>β</code>.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>What these three projects have in common.</strong> Each one separates a small, testable core (a module) from the script that drives it, uses the standard library instead of reaching for a package, and states its invariants in a comment or a test. That structure — core module, thin script, explicit invariants — is the shape of every well-behaved Julia program, from a ten-line utility to a simulation that runs for a week.
+        </div>
+
+        <p>For the libraries that would replace these hand-written cores in production, continue to <a href="/roadmap/julia/references.html">References &amp; Playgrounds</a>.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'samples',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>
