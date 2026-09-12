@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="author" content="Elucian Moise">
+  <meta name="description" content="C++ inheritance and polymorphism: deriving classes, virtual functions, override, abstract classes, slicing, and final.">
+  <meta name="keywords" content="cpp, c++, inheritance, polymorphism, virtual, override, abstract class, slicing, final">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>C++ Inheritance &amp; Polymorphism</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active {
+        display: block;
+        position: absolute;
+        top: 100px;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: rgba(0,0,0,0.95);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-0">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="cpp-inheritance">Inheritance &amp; Polymorphism</h1>
+
+        <div class="alert alert-secondary shadow-sm" role="status">
+          <strong>Scope:</strong> Inheritance lets one class build on another ("a Rectangle is-a Shape");
+          polymorphism lets one call behave differently per object type. Together they are the tools behind
+          extensible, large-scale C++ designs. This lesson explains derivation, virtual functions, abstract
+          classes, and the pitfalls to avoid.
+        </div>
+
+        <h2 id="deriving">Deriving a class</h2>
+        <p>
+          A derived class declares a base class after a colon. It inherits the base's members and can add
+          its own state and behavior.
+        </p>
+
+        <h3 id="base-derived">Base and derived</h3>
+        <pre><code class="language-cpp line-numbers">class Shape {
+public:
+    void setColor(const std::string &amp;color) { this-&gt;color = color; }
+protected:                     // visible to derived classes
+    std::string color = "black";
+};
+
+class Rectangle : public Shape {   // Rectangle is-a Shape
+public:
+    double area() const { return width * height; }
+private:
+    double width = 1.0, height = 1.0;
+};
+</code></pre>
+        <p>
+          <code>public Shape</code> means "is-a": a <code>Rectangle</code> can be used anywhere a
+          <code>Shape</code> is expected. The <code>protected</code> members are invisible to the outside
+          world but visible inside derived classes.
+        </p>
+
+        <h2 id="inherited">What is inherited</h2>
+        <p>
+          The derived class inherits all public and protected members of the base — its methods become
+          available on the derived object:
+        </p>
+        <pre><code class="language-cpp line-numbers">Rectangle r;
+r.setColor("red");        // inherited from Shape
+std::cout &lt;&lt; r.area();      // Rectangle's own method
+</code></pre>
+        <p>
+          What is <em>not</em> inherited: constructors, the destructor, and <code>private</code> members.
+          Also, if the base and derived methods share a name, the derived version hides the base's — declare
+          in the derived class with <code>using Base::name;</code> when you need both.
+        </p>
+        <h2 id="virtual">Virtual functions &amp; polymorphism</h2>
+        <p>
+          The real power of inheritance comes from <strong>virtual functions</strong>. Mark a base method
+          <code>virtual</code>; each derived class can provide its own implementation. When you call through
+          a base pointer or reference, the <em>derived</em> version runs — the call is resolved at run time
+          based on the object's actual type.
+        </p>
+        <pre><code class="language-cpp line-numbers">class Shape {
+public:
+    virtual double area() const { return 0.0; }   // overridable
+};
+
+class Circle : public Shape {
+public:
+    double area() const override {                // override: safer
+        return 3.14159 * radius * radius;
+    }
+private:
+    double radius = 1.0;
+};
+
+void printArea(const Shape &amp;s) {    // accepts any Shape
+    std::cout &lt;&lt; s.area() &lt;&lt; "\n";   // dispatch to the real type
+}
+</code></pre>
+
+        <h3 id="override">override</h3>
+        <p>
+          Write <code>override</code> after every overriding method. It asks the compiler to verify the base
+          really has a matching virtual — catching typos and signature mismatches at compile time. A base
+          method should be <code>virtual</code> only when derived classes are expected to replace it; making
+          everything virtual has a (small) cost and weakens the interface contract.
+        </p>
+
+        <h3 id="abstract">Pure virtual &amp; abstract</h3>
+        <p>
+          A virtual function can declare no implementation: <code>= 0</code> makes it <em>pure virtual</em>.
+          A class with a pure virtual cannot be instantiated — it is an <strong>abstract</strong> interface
+          that only shapes the derived classes:
+        </p>
+        <pre><code class="language-cpp line-numbers">class Shape {
+public:
+    virtual double area() const = 0;   // pure: no body here
+    virtual ~Shape() = default;        // virtual destructor (essential!)
+};
+
+// Shape s;  // error: Shape is abstract
+Circle c;
+printArea(c);                          // works through the interface
+</code></pre>
+        <p>
+          Any class meant to be deleted through a base pointer must have a <strong>virtual destructor</strong>
+          — otherwise only the base part is destroyed, leaking derived resources.
+        </p>
+
+        <div class="text-center">
+          <img src="/roadmap/cpp/img/class-hierarchy.svg" width="640" class="img-fluid protect rounded shadow border" alt="Class hierarchy: abstract Shape with derived Circle and Rectangle, pure virtual area reimplemented in each.">
+          <p>An abstract base class (Shape) with two concrete derived classes.</p>
+        </div>
+
+        <h2 id="slicing">Slicing &amp; references</h2>
+        <p>
+          Polymorphism works only through pointers and references. Copying a derived object into a base
+          <em>value</em> slices off the derived part:
+        </p>
+        <pre><code class="language-cpp line-numbers">Circle c;
+Shape s = c;          // SLICING: only the Shape part is copied; area() is Shape's
+Shape &amp;ref = c;       // OK: reference keeps the real object
+Shape *ptr = &amp;c;      // OK: pointer keeps the real object
+</code></pre>
+        <p>
+          Slicing is silent data loss. When you need polymorphic collections, store smart pointers to the
+          base type — the memory lesson shows how.
+        </p>
+
+        <h2 id="final">final &amp; best practices</h2>
+        <p>
+          A class or method marked <code>final</code> cannot be derived from or overridden — a deliberate
+          lock that helps readers and the compiler:
+        </p>
+        <pre><code class="language-cpp line-numbers">class Circle final : public Shape {   // no class may derive from Circle
+    double area() const override final { return 3.14159; }
+};
+</code></pre>
+        <p>
+          Inheritance guidance in one line: prefer <em>composition</em> (a class contains another class) over
+          inheritance unless a genuine "is-a" relationship with polymorphic behavior exists. Deep hierarchies
+          (more than two or three levels) become hard to reason about.
+        </p>
+
+        <h2 id="practice">Practice</h2>
+        <ol>
+          <li>Build a small <code>Animal</code> hierarchy: base with <code>virtual speak()</code>, derived <code>Dog</code> and <code>Cat</code> overriding it.</li>
+          <li>Store cats and dogs in a <code>std::vector&lt;Animal *&gt;</code> and call <code>speak()</code> on each — the virtual dispatch must produce the right sound.</li>
+          <li>Add a pure virtual <code>name()</code> to <code>Animal</code> and implement it in both derived classes.</li>
+          <li>Demonstrate slicing by copying a <code>Dog</code> into an <code>Animal</code> value and showing the wrong <code>speak()</code> runs.</li>
+          <li>Explain why the base destructor must be virtual when destruction happens through a base pointer.</li>
+        </ol>
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'cpp',
+    topicId: 'inheritance',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

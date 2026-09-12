@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="author" content="Elucian Moise">
+  <meta name="description" content="C++ references and pointers: aliases, raw pointers, nullptr, dereferencing, passing by reference vs by pointer, and safety rules.">
+  <meta name="keywords" content="cpp, c++, references, pointers, nullptr, dereference, pass by reference">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>C++ References &amp; Pointers</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active {
+        display: block;
+        position: absolute;
+        top: 100px;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: rgba(0,0,0,0.95);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-0">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="cpp-pointers">References &amp; Pointers</h1>
+
+        <div class="alert alert-secondary shadow-sm" role="status">
+          <strong>Scope:</strong> References and pointers both let code <em>reach</em> a variable without
+          copying it. They are the foundation of efficient functions and of C++'s memory model. This lesson
+          teaches both, shows when each is appropriate, and gives concrete safety rules.
+        </div>
+
+        <h2 id="references">References</h2>
+        <p>
+          A <strong>reference</strong> (<code>&amp;</code>) is an alias: a second name for an existing
+          variable. Writing through a reference changes the original — there is no copy involved.
+        </p>
+        <pre><code class="language-cpp line-numbers">int score = 90;
+int &amp;alias = score;    // alias is another name for score
+alias = 95;           // score is now 95
+std::cout &lt;&lt; score;   // prints 95
+</code></pre>
+        <p>
+          A reference must be bound when it is declared — there is no "unbound" reference — and it can never
+          be rebound to another variable. It always refers to the same object for its whole life.
+        </p>
+
+        <h3 id="const-refs">const references</h3>
+        <p>
+          When a function only needs to <em>read</em> an argument, pass a <code>const</code> reference. It
+          avoids the copy cost while guaranteeing the function cannot modify the original:
+        </p>
+        <pre><code class="language-cpp line-numbers">void show(const std::string &amp;name) {   // read-only access, no copy
+    std::cout &lt;&lt; "Hello " &lt;&lt; name &lt;&lt; "\n";
+}
+</code></pre>
+        <h2 id="pointers">Pointers</h2>
+        <p>
+          A <strong>pointer</strong> is a variable that stores the <em>address</em> of another object. Where
+          a reference is a permanent alias, a pointer is a value: it can be created, reassigned, compared,
+          and set to "point at nothing".
+        </p>
+        <pre><code class="language-cpp line-numbers">int score = 90;
+int *ptr = &amp;score;      // &amp; takes the address; ptr "points to" score
+std::cout &lt;&lt; ptr;       // prints an address, e.g. 0x7ffd...
+</code></pre>
+        <p>
+          The type <code>int *</code> reads as "pointer to int". Every pointer knows the type it points to,
+          which lets the compiler check the operations you perform through it.
+        </p>
+
+        <h3 id="nullptr">nullptr</h3>
+        <p>
+          A pointer that points at nothing holds <code>nullptr</code>. Always initialize pointers to
+          <code>nullptr</code> and check before use — an uninitialized pointer is a time bomb.
+        </p>
+        <pre><code class="language-cpp line-numbers">int *ptr = nullptr;         // safe starting state: points at nothing
+if (ptr != nullptr) {       // guard before dereferencing
+    std::cout &lt;&lt; *ptr;
+}
+</code></pre>
+
+        <h3 id="deref">Dereferencing</h3>
+        <p>
+          The unary <code>*</code> operator <em>follows</em> the pointer to reach the object it points to.
+          Dereferencing <code>nullptr</code> is undefined behavior — a crash in practice.
+        </p>
+        <pre><code class="language-cpp line-numbers">int a = 5, b = 7;
+int *p = &amp;a;
+*p = 100;          // a becomes 100 (write through the pointer)
+p = &amp;b;            // p now points to b instead
+*p = 200;          // b becomes 200
+</code></pre>
+
+        <h2 id="vs">References vs pointers</h2>
+        <p>
+          The two concepts overlap, and the choice is mostly about intent:
+        </p>
+        <ul>
+          <li><strong>References</strong>: must be bound at declaration, never null, never rebound. Use them for function parameters and local aliases.</li>
+          <li><strong>Pointers</strong>: can be null, can be reassigned, can be stored in arrays. Use them when the object may be absent or when the identity must change over time.</li>
+        </ul>
+        <p>
+          Modern C++ guidance: prefer references by default; use pointers only when nullability or
+          reassignment is genuinely needed.
+        </p>
+
+        <h2 id="passing">Passing to functions</h2>
+        <p>
+          Function parameters are copied by default. To avoid the copy you can pass a reference or a
+          pointer.
+        </p>
+
+        <h3 id="by-ref">Pass by reference</h3>
+        <p>
+          A reference parameter aliases the caller's variable, so writes inside the function affect the
+          original — useful for output parameters or in-place updates:
+        </p>
+        <pre><code class="language-cpp line-numbers">void increment(int &amp;value) {   // reference parameter
+    value++;                   // modifies the caller's variable
+}
+
+int main() {
+    int n = 10;
+    increment(n);
+    std::cout &lt;&lt; n;            // 11
+    return 0;
+}
+</code></pre>
+
+        <h3 id="by-pointer">Pass by pointer</h3>
+        <p>
+          Passing a pointer keeps the option of "nothing to update" — the function checks for
+          <code>nullptr</code>:
+        </p>
+        <pre><code class="language-cpp line-numbers">void increment(int *value) {
+    if (value != nullptr) {   // guard: caller may pass nullptr
+        (*value)++;
+    }
+}
+
+int main() {
+    int n = 10;
+    increment(&amp;n);            // pass the address
+    increment(nullptr);       // safe: the guard skips
+    return 0;
+}
+</code></pre>
+        <h2 id="arrays">Pointers and arrays</h2>
+        <p>
+          In C++, the name of an array <em>decays</em> to a pointer to its first element in most contexts.
+          Pointer arithmetic then moves between elements: <code>p + 1</code> points to the next element, not
+          the next byte.
+        </p>
+        <pre><code class="language-cpp line-numbers">int data[3] = {10, 20, 30};
+int *p = data;          // p points to data[0]
+std::cout &lt;&lt; *p &lt;&lt; "\n";           // 10
+std::cout &lt;&lt; *(p + 1) &lt;&lt; "\n";     // 20 — one element forward
+std::cout &lt;&lt; p[2] &lt;&lt; "\n";         // 30 — pointer indexing works too
+</code></pre>
+        <p>
+          This is powerful and subtle. For daily code, prefer containers such as <code>std::vector</code>
+          that manage bounds and size for you; keep pointer arithmetic for the algorithms and low-level
+          code where it truly matters.
+        </p>
+
+        <h2 id="safety">Safety rules</h2>
+        <p>
+          Pointers cause most of C++'s infamous crashes. These four rules eliminate the classic ones:
+        </p>
+        <ul>
+          <li><strong>Always initialize</strong> — declare with <code>= nullptr</code> or a real address, never bare.</li>
+          <li><strong>Check before use</strong> — test <code>ptr != nullptr</code> before dereferencing.</li>
+          <li><strong>Never return a pointer to a local variable</strong> — the variable dies when the function ends, leaving a dangling pointer.</li>
+          <li><strong>Prefer smart pointers for ownership</strong> — the memory lesson introduces <code>std::unique_ptr</code>, which frees memory automatically.</li>
+        </ul>
+
+        <h2 id="practice">Practice</h2>
+        <ol>
+          <li>Write a function <code>reset(int &amp;value)</code> that sets its argument to 0. Verify the caller's variable changed.</li>
+          <li>Write <code>swap(int &amp;a, int &amp;b)</code> and use it on two variables.</li>
+          <li>Declare a pointer to an <code>int</code>, point it at a variable, print both the address and the value.</li>
+          <li>Set a pointer to <code>nullptr</code> and guard a dereference with an <code>if</code>.</li>
+          <li>Explain to a friend when you would choose a reference instead of a pointer.</li>
+        </ol>
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'cpp',
+    topicId: 'pointers',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>
