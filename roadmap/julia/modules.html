@@ -1,31 +1,34 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="Introduction to Julia module concept.">
+  <meta name="description" content="Julia modules and packages: defining modules, namespaces, using and import, exports, package layout with Project.toml, Pkg environments, and structuring an application.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="julia, module, modular, syntax">
+  <meta name="keywords" content="sage, code, julia, module, namespace, using, import, export, package, Project.toml, Pkg, environment, precompile">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Julia Modules</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>Julia Modules &amp; Packages</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -34,61 +37,647 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="julia-modules">Modules &amp; Packages</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A module is a namespace: a named place where types, functions, and constants live together. A package is a module with a <code>Project.toml</code>, a version, and a name other people can install. Everything you have written so far lived in <code>Main</code> — this lesson gives your code a proper address.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
+        <p>Namespacing is what makes large programs possible: two packages may each define <code>Solution</code> or <code>parse</code> without conflict, and a reader can tell from a single qualified name where a definition comes from. This lesson starts with the <code>module</code> block and the three ways to reach names across a boundary, then turns modules into installable packages with environments, file layout, and precompilation. It ends with the structural decisions that keep a growing application navigable, and the pitfalls that appear when two modules export the same name.</p>
 
-<h1 id="julia-modules">Julia Modules</h1>
+        <h2 id="defining-modules">Defining a Module</h2>
 
-<div class="alert alert-secondary shadow-sm">
-Julia is modular. A <em>module </em>is like a package that encapsulate several members. A module can import other modules and can export members. One module is stored in one or many files. One file can contain one or more modules. So the module is a supra-structure used to group together members. Each member exported or not.
-</div>
+        <p>A module is declared with the <code>module</code> keyword and closed with <code>end</code>. Everything between those two tokens lives inside the namespace, including types, functions, constants, and nested modules.</p>
 
-<h4>Syntax:</h4>
-<pre><code class="language-julia line-numbers">module &lt;module_name&gt;
-[import &lt;module&gt;]
-...
-[export &lt;members&gt;]
-...
-[declare_members]
-...
-end</code></pre>
+        <h3 id="module-syntax">The module Block</h3>
 
-<p><b>import &amp; export</b></p>
+        <p>Definitions inside a module are invisible outside it unless you export them or qualify the name. The module block also runs once, in order, when the module is loaded — which makes it the natural place for constants and configuration.</p>
 
-<p>A module can have two optional keywords: <em>import</em> and <em>export</em>. The module is using hoisting technique. We can export a member before we declare the member. So the export is above the declaration region. Julia has 3 standard modules that we do not have to import: Main, Core, and Base.</p>
+        <pre><code class="language-julia line-numbers">module Geometry
 
-<p>When you import a module all its exported members can be used in the global namespace of the current module. The private members of the imported modules can be used only with dot "." punctuation: ModuleName.member_name. Module name are usually starting with capital letters. Member name is usually lower-case except types that start with upper-case letter.</p>
+export area, perimeter
 
-<!-- work in progress-->
+const PI2 = 3.141592653589793      # a module constant
 
-<hr>
+struct Circle
+    radius::Float64
+end
 
+area(c::Circle) = PI2 * c.radius^2
+perimeter(c::Circle) = 2 * PI2 * c.radius
 
-</main>
+helper(x) = x * 2                  # not exported: visible as Geometry.helper
+
+end
+
+# Names are qualified from outside
+Geometry.area(Geometry.Circle(2.0))      # 12.566370614359172
+Geometry.perimeter(Geometry.Circle(2.0)) # 12.566370614359172
+Geometry.PI2                             # 3.141592653589793
+Geometry.helper(3)                       # 6 — reachable by qualification only
+
+# A module is a value, so it can be inspected like any other
+typeof(Geometry)                         # Module
+names(Geometry)                          # exported names first, then the rest
+names(Geometry, all = true)              # includes helper and PI2
+isdefined(Geometry, :helper)             # true
+</code></pre>
+
+        <p>Two habits pay off immediately: keep the exports at the top of the file so the public surface is obvious, and qualify names whenever you are unsure. A qualified call never breaks because another module exports the same identifier.</p>
+
+        <h3 id="nested-modules">Nested Modules and Submodules</h3>
+
+        <p>Modules nest, which lets a package group related functionality — <code>MyApp.Geometry</code> beside <code>MyApp.Reporting</code>. A submodule sees its parent's names only through qualification or an explicit <code>using</code>, which keeps dependencies visible.</p>
+
+        <pre><code class="language-julia line-numbers">module MyApp
+
+module Geometry
+    export area
+    struct Square; side::Float64; end
+    area(s::Square) = s.side^2
+end
+
+module Reporting
+    using ..Geometry              # a sibling of the parent: note the leading dots
+    export describe
+    describe(s::Geometry.Square) = "square with area $(area(s))"
+end
+
+export describe                   # re-export the public entry point
+end
+
+using .MyApp                      # the dot means "inside the current scope"
+
+describe(Geometry.Square(3.0))    # "square with area 9.0"
+MyApp.Geometry.area(Geometry.Square(2.0))   # 4.0 — the qualified path still works
+</code></pre>
+
+        <p>Relative paths matter when nesting: <code>.</code> means the current module, <code>..</code> the parent, and each extra dot goes one level further up. Absolute package names are written with no leading dot.</p>
+
+        <h3 id="main-core-base">Main, Core, and Base</h3>
+
+        <p>Three modules are always available and worth knowing by name. <code>Core</code> is the smallest language layer, <code>Base</code> is the standard library you have been using all along, and <code>Main</code> is the module your scripts and REPL input run in.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Module</th><th>Contains</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>Core</code></td><td>The type system, <code>typeof</code>, <code>getfield</code>, <code>eval</code></td><td>Always in scope without importing</td></tr>
+            <tr><td><code>Base</code></td><td><code>+</code>, arrays, strings, <code>map</code>, <code>sum</code></td><td>Imported into every module automatically</td></tr>
+            <tr><td><code>Main</code></td><td>Whatever you type or run at top level</td><td>The default module for scripts and the REPL</td></tr>
+            <tr><td><code>InteractiveUtils</code></td><td><code>@which</code>, <code>@code_warntype</code>, <code>versioninfo</code></td><td>Available in the REPL, not in packages</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># Base is implicitly available inside every module
+module UsesBase
+    double(x) = 2x                 # 2x is Base.:* — no import needed
+end
+
+UsesBase.double(3)                 # 6
+
+# Main holds top-level definitions
+x = 42
+Main.x                             # 42 — the same binding
+parentmodule(UsesBase)             # Main — where the module was defined
+
+# Fully qualified names work for anything
+Core.Int === Int                   # true
+Base.sum([1, 2, 3])                # 6
+
+# The rest of the standard library is opt-in
+using Statistics                   # not imported automatically
+mean([1, 2, 3])                    # 2.0
+</code></pre>
+
+        <p>That last point is a design decision rather than an accident: only <code>Base</code> is implicit, so a package declares every other dependency it uses. Chapter 4 shows where those declarations live.</p>
+
+        <h2 id="namespaces">Namespaces and Visibility</h2>
+
+        <p>Every module is a namespace: the same short name may exist in several modules without conflict, and a qualified name resolves any ambiguity at a glance. Visibility is the second half of the story — what a module chooses to expose.</p>
+
+        <h3 id="qualified-names">Qualified Names</h3>
+
+        <p>A qualified name is a path from a module to a definition, written with dots. It is the only form that is always correct, which makes it the right choice in library code and in scripts that <code>using</code> several packages.</p>
+
+        <pre><code class="language-julia line-numbers">module A
+    value() = "A"
+end
+
+module B
+    value() = "B"          # the same short name, a different binding
+end
+
+A.value()                  # "A"
+B.value()                  # "B"
+
+# Qualification resolves a collision without renaming anything
+using .A
+using .B
+# value()                  # would be an error: two candidates for an unqualified call
+A.value()                  # "A" — always unambiguous
+
+# Qualified paths work for types, functions, and constants alike
+A.value isa Function       # true
+parentmodule(A.value)      # A
+
+# The path can be built from a string when the name is data
+getproperty(A, :value)()   # "A"
+getfield(A, :value)()      # "A" — bypasses any getproperty layer
+</code></pre>
+
+        <p>Inside a module, a qualified name referring to itself is legal and sometimes useful for clarity: writing <code>Geometry.area(c)</code> inside <code>Geometry</code> documents that the call resolves locally.</p>
+
+        <h3 id="exports">Exporting</h3>
+
+        <p><code>export</code> marks names for the <code>using</code> mechanism. It does not create a namespace, hide anything, or change the definition — it only declares which names travel with a <code>using</code> statement.</p>
+
+        <pre><code class="language-julia line-numbers">module Units
+    export meters, kilometres          # the public surface
+
+    meters(x) = "$(x) m"
+    kilometres(x) = "$(x) km"
+    hidden_scale = 1000                # internal, not exported
+end
+
+using .Units
+
+meters(5)                  # "5 m" — exported, so the short name works
+kilometres(2)              # "2 km"
+hidden_scale               # ERROR: UndefVarError — not exported, not in scope
+Units.hidden_scale         # 1000 — qualified access still works
+
+# Listing the public surface is part of inspecting a package
+names(Units)               # (:Units, :kilometres, :meters)
+
+# export is order-independent: names may be exported before they are defined
+module Forward
+    export later
+    later() = "defined after the export"
+end
+
+using .Forward
+later()                    # "defined after the export"
+</code></pre>
+
+        <p>Export sparingly. Every exported name is a promise about your API and a possible collision in a caller's namespace; the convention in mature packages is to export the handful of names a user calls directly.</p>
+
+        <h3 id="private-by-default">What "Private" Means in Julia</h3>
+
+        <p>Julia has no <code>private</code> keyword. An unexported name is <em>conventionally</em> private — reachable by qualification, not documented, and subject to change without notice. Some packages make the distinction explicit with an underscore prefix.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-module-tree.svg" class="figure-img img-fluid rounded" alt="A namespace tree: Main contains MyApp, which contains the submodules Geometry and Reporting. The three ways across the boundary are shown — a qualified name such as MyApp.Geometry.area, using to bring exported names into scope, and import to keep the name qualified while allowing new methods.">
+          <figcaption class="figure-caption text-secondary">Qualified names, <code>using</code>, and <code>import</code> are the three doors into a module.</figcaption>
+        </figure>
+
+        <pre><code class="language-julia line-numbers">module Cache
+    export lookup
+
+    lookup(key) = get(_store, key, nothing)
+    _store = Dict{String, Any}()      # underscore marks an internal
+    _reset!() = empty!(_store)        # internal helper, still reachable
+end
+
+using .Cache
+
+lookup("a")                # nothing
+Cache._reset!()            # works — nothing is enforced, only signalled
+Cache._store["a"] = 1
+lookup("a")                # 1
+</code></pre>
+
+        <p>Treat the underscore as a contract between you and your users: internals may be inspected during debugging, but depending on them in another package is the same mistake as depending on another language's private API.</p>
+
+        <h2 id="using-import">using, import, and include</h2>
+
+        <p>Three keywords bring outer names into a module, and confusing them is the most common source of "my method redefined itself" errors. The difference is which names enter your namespace and whether you may add methods to them.</p>
+
+        <h3 id="using-semantics">using Brings Names In</h3>
+
+        <p><code>using</code> makes exported names available unqualified. It is the form for consumers: short call sites, no risk of accidentally redefining a function you meant to call.</p>
+
+        <pre><code class="language-julia line-numbers">module Colours
+    export RED, GREEN
+    const RED = "\e[31m"
+    const GREEN = "\e[32m"
+end
+
+using .Colours
+
+RED                          # "\e[31m" — available by its short name
+length(RED)                  # 5
+
+# using a package also makes the package name itself available
+using Statistics
+mean([1, 2, 3])              # 2.0 — exported
+Statistics.mean([1, 2, 3])   # 2.0 — qualified, also fine
+
+# Several modules can be listed in one statement
+using Statistics, Printf
+
+# and a chosen subset can be brought in explicitly
+using Statistics: median, std, var
+median([1, 2, 3])            # 2.0
+</code></pre>
+
+        <p><code>using</code> never lets you add methods to the imported names. If you try, Julia defines a new local function instead — usually not what you meant, and a source of silent bugs.</p>
+
+        <h3 id="import-semantics">import for Extension and Qualification</h3>
+
+        <p><code>import</code> keeps names qualified and grants the right to extend them. That combination is exactly what you need for adding methods to a function from another package, as the methods lesson showed with <code>Base.show</code>.</p>
+
+        <pre><code class="language-julia line-numbers">module Extends
+    import Base: show                 # import to add a method
+    struct Temperature; celsius::Float64; end
+    show(io::IO, t::Temperature) = print(io, t.celsius, "°C")
+end
+
+Extends.Temperature(21.5)            # prints as 21.5°C — our method ran
+
+module Qualified
+    import Statistics                # import to keep the name qualified
+    average(xs) = Statistics.mean(xs)
+end
+
+Qualified.average([1, 2, 3])         # 2.0
+
+# import of a single name makes it available unqualified, and extendable
+module ImportsOne
+    import Statistics: mean
+    struct Sample; values::Vector{Float64}; end
+    mean(s::Sample) = Statistics.mean(s.values)    # a method for OUR own type
+end
+
+ImportsOne.mean(ImportsOne.Sample([1.0, 2.0, 3.0]))   # 2.0
+Statistics.mean                       # the same generic function, one more method
+</code></pre>
+
+        <p>Notice the last block: the method was added to <code>Statistics.mean</code>, not to a local copy. That is the difference that matters — and it is also how type piracy becomes possible, so own one of the argument types.</p>
+
+        <h3 id="which-to-use">Choosing Between Them</h3>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>You want to</th><th>Use</th><th>Result</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Call exported functions with short names</td><td><code>using M</code></td><td>Exported names unqualified; no extension</td></tr>
+            <tr><td>Bring in a few specific names</td><td><code>using M: a, b</code></td><td>Only <code>a</code> and <code>b</code> in scope</td></tr>
+            <tr><td>Add a method to a foreign function</td><td><code>import M: f</code></td><td><code>f</code> unqualified and extendable</td></tr>
+            <tr><td>Keep everything qualified</td><td><code>import M</code></td><td>Only <code>M</code> in scope; use <code>M.f</code></td></tr>
+            <tr><td>Run another file inside this module</td><td><code>include("file.jl")</code></td><td>Code becomes part of the current module</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># include is textual: the file's contents become part of the current module
+module Assembled
+    include("part_a.jl")            # both files define names in Assembled
+    include("part_b.jl")
+end
+
+# Project structure is usually expressed with includes, not submodules:
+# src/MyPackage.jl contains include("types.jl"), include("solvers.jl"), ...
+
+# Each included file sees the module's names without any import
+# part_a.jl can call a function defined in part_b.jl as long as the call
+# happens at run time, after both files have been included.
+</code></pre>
+
+        <p>The distinction to remember: <code>using</code> and <code>import</code> cross a namespace boundary, while <code>include</code> does not — it copies code into the module you are already in, which is why it takes a file path rather than a module name.</p>
+
+        <h2 id="packages">From Module to Package</h2>
+
+        <p>A package is a module with metadata: a name, a UUID, a version, and a list of dependencies. That metadata is what lets <code>Pkg</code> install the code on another machine and reproduce the exact same environment.</p>
+
+        <h3 id="package-layout">Project Layout</h3>
+
+        <p>The layout is fixed by convention, and the conventions exist so that tools can find your code without configuration. A package lives in its own directory, and the entry file is named after the package.</p>
+
+        <pre><code class="language-julia line-numbers"># A minimal package on disk
+#
+# MyPackage/
+# ├── Project.toml          name, uuid, version, dependencies
+# ├── Manifest.toml         exact resolved versions (generated, usually ignored)
+# ├── src/
+# │   ├── MyPackage.jl      the entry point: defines the module
+# │   ├── types.jl          included from the entry point
+# │   └── solvers.jl
+# └── test/
+#     └── runtests.jl       the test entry point
+
+# Project.toml contents
+#
+# name = "MyPackage"
+# uuid = "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+# authors = ["Elucian Moise"]
+# version = "0.1.0"
+#
+# [deps]
+# Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+#
+# [compat]
+# julia = "1.10"
+
+# src/MyPackage.jl — the entry point
+module MyPackage
+
+using Statistics                 # declared in [deps] above
+
+export describe
+
+include("types.jl")
+include("solvers.jl")
+
+describe(x) = "MyPackage value: $x"
+
+end
+</code></pre>
+
+        <p>Two files do the metadata work: <code>Project.toml</code> is yours and lists direct dependencies, while <code>Manifest.toml</code> is generated and records the full resolved dependency tree. Commit both for applications, and usually only <code>Project.toml</code> for libraries.</p>
+
+        <h3 id="pkg-workflow">The Pkg Workflow</h3>
+
+        <p><code>Pkg</code> is Julia's package manager, and it is a normal Julia module: everything the REPL's <code>]</code> mode does can be done from code with <code>Pkg.add</code>, <code>Pkg.status</code>, and friends.</p>
+
+        <pre><code class="language-julia line-numbers"># Create a new package skeleton
+using Pkg
+Pkg.generate("MyPackage")        # creates directory, Project.toml, src/MyPackage.jl
+
+# Activate this project as the current environment
+Pkg.activate(".")
+# or in the REPL: press ] then type  activate .
+
+# Add a dependency — it is recorded in Project.toml automatically
+Pkg.add("Statistics")
+Pkg.add(name = "CSV", version = "0.10")
+
+# Inspect and maintain
+Pkg.status()                     # direct dependencies
+Pkg.status(; mode = PKGMODE_MANIFEST)   # the full tree
+Pkg.update()                     # upgrade within the compatibility bounds
+Pkg.rm("Statistics")             # remove a dependency
+
+# Develop a package you are editing locally
+Pkg.develop(path = "../OtherPackage")
+Pkg.test("MyPackage")            # run test/runtests.jl in the package environment
+</code></pre>
+
+        <p><code>Pkg.activate</code> is the command worth internalising: with an active project, every <code>add</code> and <code>develop</code> affects that project only, so two applications on one machine can use different versions of the same package.</p>
+
+        <h3 id="environments">Environments and Reproducibility</h3>
+
+        <p>An environment is a project plus its resolved manifest. Activating one changes which versions of which packages your <code>using</code> statements find — which is how scientific work stays reproducible a year later.</p>
+
+        <pre><code class="language-julia line-numbers"># A typical workflow for a project with a fixed dependency set
+Pkg.activate(".")                     # use ./Project.toml
+Pkg.instantiate()                     # install exactly what the manifest records
+Pkg.status()
+
+# A named shared environment for tools you use everywhere
+Pkg.activate("tools")
+Pkg.add(["BenchmarkTools", "ProfileView"])
+
+# Back to the default environment
+Pkg.activate()
+
+# The load path decides which environments are searched, in order
+Base.load_path()                      # the active project, then the standard libraries
+
+# Pin an exact version when a dependency must not move
+Pkg.pin("CSV")
+
+# Import from a file that is not a package, using a local path
+include("scripts/local_helpers.jl")   # still the simplest way to reuse local code
+</code></pre>
+
+        <p>When a colleague cannot reproduce your results, the first question is which environment they activated. <code>Pkg.instantiate()</code> plus a committed <code>Manifest.toml</code> is the answer that ends the discussion.</p>
+
+        <h2 id="structure">Structuring an Application</h2>
+
+        <p>With the mechanics in place, the remaining decisions are structural: how to split files, when to create a submodule, and how to keep load order and compilation predictable as the code grows.</p>
+
+        <h3 id="file-organisation">Files, includes, and Submodules</h3>
+
+        <p>Use <code>include</code> for files that belong to the same module, and a submodule only when a group of definitions deserves its own namespace. Most packages are a single module split across files by topic.</p>
+
+        <pre><code class="language-julia line-numbers"># src/Shapes.jl — one module, several files, split by topic
+module Shapes
+
+export Circle, Square, area, describe
+
+include("types.jl")       # struct definitions
+include("areas.jl")       # geometry
+include("reporting.jl")   # formatting helpers
+
+end
+
+# src/types.jl
+#
+# struct Circle; radius::Float64; end
+# struct Square; side::Float64; end
+
+# src/areas.jl
+#
+# area(c::Circle) = 3.141592653589793 * c.radius^2
+# area(s::Square) = s.side^2
+
+# src/reporting.jl
+#
+# describe(s::Circle) = "circle of radius $(s.radius)"
+# describe(s::Square) = "square of side $(s.side)"
+
+using .Shapes
+describe(Circle(2.0))     # "circle of radius 2.0"
+area(Square(3.0))         # 9.0
+</code></pre>
+
+        <p>The practical rule: one concept per file, and the entry file lists the includes in dependency order. A reader who opens <code>src/Shapes.jl</code> should be able to see the whole package at a glance.</p>
+
+        <h3 id="load-order">Load Order and Precompilation</h3>
+
+        <p>A file is executed top to bottom when it is included, so definitions used inside other definitions must exist by the time the call happens — not necessarily by the time the definition is parsed. Precompilation then caches the compiled module for speed on later runs.</p>
+
+        <pre><code class="language-julia line-numbers"># Order matters for values used at definition time
+const DEFAULT_TOLERANCE = 1e-9        # define the constant first
+
+function converges(x; tol = DEFAULT_TOLERANCE)   # then use it as a default
+    abs(x) &lt; tol
+end
+
+converges(0.0)                        # true
+
+# Order within a module: types, then functions that name those types
+# Cross-file calls are fine as long as they happen at run time
+# (a function body is not executed when the function is defined).
+
+# Precompilation runs the top level of the module once and caches the result
+# A side effect in that top level — like writing a file — runs at build time.
+module Cached
+    const STARTED_AT = time()          # runs once, during precompilation
+    now_age() = time() - STARTED_AT
+end
+
+# __precompile__ controls it explicitly
+#
+# __precompile__(true)                 # default for packages
+</code></pre>
+
+        <p>Precompilation is why a package's top level must be pure: file writes, network calls, and random seeds at module scope run when the package is built, not when the user starts work. Put side effects inside functions.</p>
+
+        <h3 id="api-design">Designing the Public Surface</h3>
+
+        <p>An API is the set of names you export plus the docstrings that explain them. Everything else is implementation, and the interface rules from the previous lesson apply at this level too: document what must be true, and test that it is.</p>
+
+        <pre><code class="language-julia line-numbers">"""
+    area(shape) -> Float64
+
+Return the area of `shape`. Supported shapes are `Circle` and `Square`.
+
+# Examples
+```julia-repl
+julia> area(Square(3.0))
+9.0
+```
+"""
+area(s::Square) = s.side^2
+
+"""
+    describe(shape) -> String
+
+Return a short human-readable description of `shape`.
+"""
+describe(s::Square) = "square of side $(s.side)"
+
+# The docstring is attached to the method and readable at runtime
+@doc area
+DocString     # typeof(@doc area) — a documentation object
+
+# Help in the REPL
+# ?area
+</code></pre>
+
+        <p>Document the exported names, and keep the docstring next to the method it describes. The <code>?</code> help mode, generated documentation, and your editor all read the same strings, so one effort serves three consumers.</p>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <p>Module problems are almost always about names and load order. Three cases cover most of what you will meet in practice.</p>
+
+        <h3 id="export-collisions">Export Collisions</h3>
+
+        <p>Two packages that export the same name are fine until you <code>using</code> both and call it unqualified. Julia reports the ambiguity instead of picking one, and the fix is to qualify — or to import only the names you need.</p>
+
+        <pre><code class="language-julia line-numbers">using Statistics                  # exports mean, median, std
+# using SomeOtherStats            # also exports mean
+
+# Unqualified use of a doubly-provided name is an error, not a coin toss
+mean([1, 2, 3])                   # fine while only one module exports mean
+
+# Two ways out
+import Statistics: mean           # import a single name explicitly
+Statistics.mean([1, 2, 3])        # or stay qualified
+
+# Julia warns as soon as two usings collide
+# WARNING: both SomeOtherStats and Statistics export "mean";
+#          uses of it in module Main must be qualified
+
+# Advice for libraries: export few names, and prefer distinctive ones
+export compute_norm, norm_squared      # clear and unlikely to collide
+</code></pre>
+
+        <p>The <code>using</code>/<code>import</code> rule from Chapter 3 is the cure here: in code that pulls in several packages, import the specific names you need and qualify the rest.</p>
+
+        <h3 id="redefining-modules">Redefining a Module</h3>
+
+        <p>Re-running a <code>module</code> block in an interactive session replaces the module wholesale. Knowing this prevents hours of confusion while developing.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Situation</th><th>What happens</th><th>Fix</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Edit a method inside a module in the REPL</td><td>The method is added, or replaces one with the same signature</td><td>Nothing — that is normal method replacement</td></tr>
+            <tr><td>Re-run the whole <code>module</code> block</td><td>A fresh module replaces the old one; old references are orphaned</td><td>Re-run the code that used it, or use Revise</td></tr>
+            <tr><td>Change a field's type in a struct</td><td>Error: the type already exists with a different layout</td><td>Restart Julia, or use a fresh module name while experimenting</td></tr>
+            <tr><td>Edit a file inside a package</td><td>The change is invisible until the package reloads</td><td><code>using Revise</code> before <code>using MyPackage</code></td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">module Scratch
+    f(x) = x + 1
+end
+
+Scratch.f(1)              # 2
+
+# Re-defining the module creates a new module object
+old = Scratch
+module Scratch
+    f(x) = x + 2          # a fresh module, not an edit of the old one
+end
+
+Scratch.f(1)              # 3
+old.f(1)                  # 2 — the old module object is untouched
+
+# For iterative work on a package, Revise reloads the changed definitions
+# using Revise
+# using MyPackage           # edits are picked up without restarting Julia
+</code></pre>
+
+        <p>For real development use <code>Revise</code>: it reloads changed method definitions without restarting, which turns a slow edit-run cycle into an instant one.</p>
+
+        <h3 id="load-order-errors">Load Order and Circular Dependencies</h3>
+
+        <p>Include order and module dependencies both run in one direction. A cycle — <code>A</code> needs <code>B</code> and <code>B</code> needs <code>A</code> — cannot be fixed by reordering includes, so it must be broken by moving the shared definitions into a third module.</p>
+
+        <pre><code class="language-julia line-numbers"># A circular dependency that cannot work
+#
+# module A
+#     using ..B                # needs B at load time
+#     f(x::B.T) = x.v
+# end
+#
+# module B
+#     using ..A                # needs A at load time — a cycle
+#     struct T; v::Int; end
+# end
+
+# Broken: the shared type moves to a module that depends on neither
+module Shared
+    struct T; v::Int; end
+end
+
+module A2
+    using ..Shared
+    f(x::T) = x.v            # depends on Shared only
+end
+
+module B2
+    using ..Shared
+    make(v) = T(v)           # depends on Shared only
+end
+
+A2.f(B2.make(7))             # 7 — no cycle, no ordering problem
+</code></pre>
+
+        <p>An <code>UndefVarError</code> at load time almost always means the same thing: a name is used before it is defined, because of include order or a cycle. Move the shared piece out, or defer the reference into a function body, where it resolves at call time instead of at load time.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> A module is a namespace defined by a <code>module</code> block; names cross the boundary by qualification, by <code>using</code> (exported names, no extension), or by <code>import</code> (qualified or extendable). <code>Base</code> is implicit and every other dependency is declared. A package adds <code>Project.toml</code>, a UUID, a version, and a <code>src/&lt;Name&gt;.jl</code> entry point that includes the rest of the files, while <code>Pkg</code> environments make the dependency set reproducible. Structure for readability — one concept per file, submodules only when a namespace is deserved — export sparingly, document the public surface, and keep module top levels free of side effects so precompilation stays predictable.
+        </div>
+
+        <p>Your code now has an address, a version, and a public surface. Next: <a href="/roadmap/julia/exceptions.html">Exceptions</a> shows how to signal failure across those boundaries — and how to recover without leaving state half-written.</p>
+
+      </main>
     </div>
   </div>
 
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 

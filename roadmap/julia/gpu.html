@@ -1,0 +1,760 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia at scale: distributed worker processes, remotecall and @everywhere, @distributed loops, DArrays and SharedArrays, pmap, and GPU computing with CUDA.jl and kernels.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, distributed, addprocs, remotecall, everywhere, distributed loops, darray, sharedarray, pmap, gpu, cuda, kernel, kernelabstractions">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia GPU &amp; Distributed Computing</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-gpu">GPU &amp; Distributed Computing</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          When one machine's cores are not enough, Julia offers two more directions. <em>Distributed computing</em> adds worker processes — possibly on other machines — that each own their memory and communicate by messages. <em>GPU computing</em> puts thousands of simple lanes behind one device with its own memory, reached by copying data across a bus. Both are powerful, and both have a cost that is easy to underestimate: the cost of moving data.
+        </div>
+
+        <p>This lesson starts with the distributed model: how workers are created, how work and code reach them, and how the per-process memory boundary changes the way you write code. It then moves to the GPU — why its model is fundamentally different, how array programming carries over, and when a custom kernel is worth writing. The final chapters cover the pitfalls of scale-out and how to decide whether you need any of this at all.</p>
+
+        <h2 id="distributed-model">The Distributed Model</h2>
+
+        <p>Julia's <code>Distributed</code> standard library starts processes and gives you a small vocabulary for talking to them: <code>addprocs</code>, <code>remotecall</code>, <code>@spawnat</code>, and <code>@everywhere</code>. The model is deliberately concrete: what you create is a process, not a magic pool.</p>
+
+        <h3 id="adding-workers">Adding Workers</h3>
+
+        <p>Workers are created at start-up with <code>-p</code> or later with <code>addprocs</code>. On one machine they behave like extra processes; on a cluster the same call goes through a cluster manager.</p>
+
+        <pre><code class="language-julia line-numbers"># Start with workers:  julia -p 4      (or add them later)
+using Distributed
+
+nprocs()                              # 1 without workers
+addprocs(4)                           # spawn four local worker processes
+nprocs()                              # 5 — the master plus four workers
+
+workers()                             # [2, 3, 4, 5] — the worker ids
+myid()                                # 1 — the master process id
+
+# Every process has its own memory: a variable here does not exist there
+x = 42
+remotecall_fetch(() -&gt; isdefined(Main, :x), 2)     # false
+
+# Worker processes are full Julia processes: they load their own packages
+# and pay their own compilation costs.
+
+# Stop them when the work is finished
+rmprocs(2:5)
+nprocs()                              # 1
+
+# On a cluster the same API goes through a manager
+#   using Distributed, SlurmClusterManager
+#   addprocs(SlurmManager(); partition = "compute", ntasks = 32)
+addprocs(2)                           # back to local workers for this lesson
+</code></pre>
+
+        <p>Two facts decide everything that follows: a worker is a separate process with separate memory, and every worker compiles code on first use. Both mean distributed work must be large enough to pay for messages and compilation.</p>
+
+        <h3 id="remotecall">remotecall, fetch, and @spawnat</h3>
+
+        <p>To run something elsewhere you send a function and its arguments. <code>remotecall</code> returns a <code>Future</code> you fetch later; <code>@spawnat</code> is the macro form; <code>remotecall_fetch</code> does both in one step.</p>
+
+        <pre><code class="language-julia line-numbers">using Distributed
+
+# Run a function on a specific worker and keep the future
+f = remotecall(rand, 2, 3)            # worker 2, arguments (3,)
+fetch(f)                              # the result: a length-3 vector
+
+# Macro form: pick the worker at the call site
+fut = @spawnat 2 sum(1:100)           # a Future on worker 2
+fetch(@spawnat 3 6 * 7)               # 42
+
+# Fetch in one call: simplest for small results
+remotecall_fetch(+, 2, 1, 2)          # 3
+
+# "Whichever worker is free" — Distributed.@spawn, not Threads.@spawn
+t = @spawn sum(rand(1000))
+fetch(t)
+
+# Ask every worker for its own id, then collect
+futures = [remotecall(myid, w) for w in workers()]
+fetch.(futures)                       # [2, 3, 4, 5]
+
+# A failing remote call raises on fetch, like any task
+bad = remotecall(error, 2, "remote boom")
+# fetch(bad)                          # RemoteException wrapping the error
+
+# Arguments are serialised, so pass a description, not a large payload
+remotecall_fetch(n -&gt; sum(1:n), 2, 1_000_000)      # tiny message, big work
+</code></pre>
+
+        <p>Note the argument rule: everything sent to a worker is serialised, so a large array is copied in full. Send a chunk of work over a small description — an index range, a path, a seed — rather than the data itself when the data is large.</p>
+
+        <h3 id="everywhere">@everywhere and Code Loading</h3>
+
+        <p>A function defined only on the master does not exist on the workers. <code>@everywhere</code> evaluates a definition on every process, which is the first thing to reach for when a remote call reports an undefined function.</p>
+
+        <pre><code class="language-julia line-numbers">using Distributed
+
+# WRONG: defined on the master only
+helper(x) = x^2
+# remotecall_fetch(helper, 2, 3)      # ERROR: UndefVarError on worker 2
+
+# RIGHT: define it on every process
+@everywhere begin
+    helper(x) = x^2
+    using Statistics                  # imports are per process too
+end
+
+remotecall_fetch(helper, 2, 3)        # 9
+
+# @everywhere also loads packages on every worker
+@everywhere using LinearAlgebra
+
+# A whole file can be shipped to each worker
+for w in workers()
+    remotecall_wait(include, w, "worker_setup.jl")
+end
+
+# Check what a worker can actually see
+remotecall_fetch(() -&gt; names(Main, imported = true), 2)
+
+# The usual script shape: one @everywhere block for definitions,
+# then a @distributed loop for the work.
+</code></pre>
+
+        <p>Treat the <code>@everywhere</code> block as the definition section of a distributed program. Everything the workers need — functions, imports, constants — belongs there; anything left out fails only at run time, on a remote process, with a message pointing at the call site.</p>
+
+        <h2 id="distributed-arrays">Distributed Loops and Arrays</h2>
+
+        <p>Once workers exist, the ordinary way to use them is a parallel loop or a distributed array. The syntax resembles the threaded versions, but the memory boundary changes the performance rules completely.</p>
+
+        <h3 id="distributed-loops">@distributed Loops and Reductions</h3>
+
+        <p><code>@distributed</code> splits a loop's index range across workers. With a <code>+</code> reducer it accumulates partial results; without a reducer it is a <code>for</code> loop that must not return anything.</p>
+
+        <pre><code class="language-julia line-numbers">using Distributed
+
+# A parallel reduction: each worker sums its own range, then they combine
+function par_squares(n)
+    @distributed (+) for i in 1:n
+        i * i                         # the body contributes one value per iteration
+    end
+end
+
+par_squares(10_000)                   # 333383335000
+
+# Without a reducer the loop runs for its side effects only
+@sync @distributed for i in 1:8
+    println("i=$i on process $(myid())")
+end
+
+# Keep the bodies cheap and local: only the small partials travel back
+function par_count(v, pred)
+    @distributed (+) for i in eachindex(v)
+        pred(v[i]) ? 1 : 0
+    end
+end
+
+par_count(1:100, iseven)              # 50
+
+# A real workload: each worker computes a slice of a histogram
+function par_histogram(v, nbins, lo, hi)
+    @distributed (+) for k in 1:nbins
+        bin_lo = lo + (k - 1) * (hi - lo) / nbins
+        bin_hi = lo + k * (hi - lo) / nbins
+        count(x -&gt; bin_lo &lt;= x &lt; bin_hi, v)
+    end
+end
+</code></pre>
+
+        <p>Every function used by the loop must be defined before it runs — inside the <code>@everywhere</code> block — and the collections it reads should be shared rather than copied. That last point is what the next section is about.</p>
+
+        <h3 id="darray-sharedarray">DArrays and SharedArrays</h3>
+
+        <p>Two array types remove the copying problem in different ways: <code>SharedArray</code> lives in one machine's shared memory and is visible to every local worker, while <code>DArray</code> splits the data across workers, each owning a piece.</p>
+
+        <pre><code class="language-julia line-numbers">using Distributed
+@everywhere using SharedArrays
+
+# SharedArray: one array, several processes, shared memory (one machine)
+S = SharedArray{Float64}(1000)
+@sync @distributed for i in eachindex(S)
+    S[i] = sin(i / 100)               # every worker writes into the same array
+end
+sum(S)                                # a normal reduction on the result
+
+# The master sees the same memory: no gather step is needed
+S[1]                                  # sin(0.01)
+
+# DArray: the data itself is partitioned across workers
+using DistributedArrays
+D = distribute([1.0, 2.0, 3.0, 4.0])  # each worker owns a block
+localpart(D)                          # the piece on the current process
+Array(D)                              # gather to the master (a copy!)
+
+# Operations run where the data lives, so the master never holds it all
+D2 = D .+ 1
+Array(D2)                             # [2.0, 3.0, 4.0, 5.0]
+
+# Distributing a large array from the master still copies it once
+Dbig = distribute(collect(1:1_000_000))
+</code></pre>
+
+        <p>Choose by where the data lives: <code>SharedArray</code> for one machine with many processes, <code>DArray</code> when the array is too large for one node's memory. On the GPU the same distinction reappears as the host array versus the device array.</p>
+
+        <h3 id="pmap">pmap and Batch Jobs</h3>
+
+        <p><code>pmap</code> applies a function to every element of a collection across workers, sending arguments one at a time. It is the right tool for coarse, independent items — one simulation per parameter set — and the wrong tool for cheap arithmetic.</p>
+
+        <pre><code class="language-julia line-numbers">using Distributed
+
+@everywhere expensive(x) = begin
+    s = 0.0
+    for k in 1:100_000
+        s += sin(k * x)
+    end
+    s
+end
+
+# One task per element, spread over the workers
+pmap(expensive, 1:8)                  # eight values, computed on the cluster
+
+# pmap keeps the input order in the output, like map
+results = pmap(x -&gt; (x, x^2), 1:5)
+results                               # [(1,1), (2,4), ...] in order
+
+# batch_size controls how many elements each message carries
+pmap(expensive, 1:100; batch_size = 10)      # fewer, larger messages
+
+# on_error lets one bad element fail without losing the whole run
+pmap(x -&gt; x == 3 ? error("bad") : x, 1:4; on_error = identity)
+
+# When per-element work is tiny, use a @distributed loop instead:
+# pmap pays message overhead on every element.
+</code></pre>
+
+        <p>Use <code>pmap</code> when the work per item is measured in seconds, not microseconds. For anything smaller, <code>@distributed</code> over index ranges carries far less message overhead.</p>
+
+        <h2 id="gpu-model">The GPU Model</h2>
+
+        <p>A graphics card is not a faster CPU. It is thousands of simple lanes that must all execute the same instruction on different data, behind a memory bus that is fast but narrow. Everything surprising about GPU programming follows from those two facts.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-cluster-gpu.svg" class="figure-img img-fluid rounded" alt="Upper panel: a master process sending work to worker processes whose separate memories mean arguments and results are copied. Lower panel: a host process copying data over the bus to a GPU device with its own VRAM, where one kernel launches a grid of blocks each running 256 threads.">
+          <figcaption class="figure-caption text-secondary">Processes pay for every message; a device pays for every transfer.</figcaption>
+        </figure>
+
+        <h3 id="why-gpu">Why a GPU Is Different</h3>
+
+        <p>Where a CPU has a few complex cores with large caches, a GPU has thousands of lanes sharing a scheduler and a wide memory interface. It rewards uniformity and punishes divergence, and its memory is separate from the host's.</p>
+
+        <pre><code class="language-julia line-numbers"># The mental model in three lines
+#   CPU: few cores, deep caches, branch prediction, low latency per instruction
+#   GPU: many lanes, wide memory bandwidth, high throughput, no per-lane caching
+#   Host and device do NOT share memory: data must be copied over the bus
+
+# A task is worth a GPU when it is:
+#   - large        (millions of elements, or a big matrix)
+#   - uniform      (the same operation applied to every element)
+#   - independent  (no element depends on another's intermediate value)
+#   - numeric      (floating point, integers, or small fixed-size structs)
+
+# Maps well: array arithmetic, matrix multiply, stencils, convolutions,
+# Monte Carlo sampling, dense linear algebra.
+# Maps badly: parsing, pointer chasing, branchy logic, and anything with
+# a small amount of computation and a large amount of setup.
+</code></pre>
+
+        <p>The first thing to check before porting code is whether it is already limited by memory bandwidth rather than arithmetic. If it is, a GPU helps less than you expect — both machines are waiting on the same kind of resource.</p>
+
+        <h3 id="gpu-arrays">GPU Arrays and Unified Memory</h3>
+
+        <p>Packages such as <code>CUDA.jl</code> give you an array type that lives on the device. Operations on a <code>CuArray</code> compile to GPU code, while <code>Array</code> brings the data back to the host — and that conversion is where most of the time goes.</p>
+
+        <pre><code class="language-julia line-numbers">using CUDA
+
+# Check the device and its memory before doing anything else
+CUDA.functional()                     # is a GPU available and usable?
+CUDA.name(CUDA.device())              # e.g. "NVIDIA ..."
+CUDA.available_memory()               # bytes free on the device
+
+# Move data to the device: this is the expensive step
+h = rand(Float32, 1024, 1024)         # host array (CPU memory)
+d = CuArray(h)                        # device array (VRAM) — copies
+
+# Operations now run on the device, element-wise and in parallel
+d2 = d .* 2 .+ 1                      # a CuArray again
+sum(d2)                               # a GPU reduction
+
+# Bring a result back only when you need it on the host
+result = Array(d2)[1:3]               # a copy back to CPU memory
+
+# Prefer Float32 on the GPU: faster than Float64 and usually accurate enough
+# 1024x1024 Float64 → 8 MB per array; Float32 → 4 MB
+
+# Reuse device buffers to avoid repeated allocation and transfer
+buf = CUDA.zeros(Float32, 1024, 1024)
+copyto!(buf, h)                       # transfer into an existing buffer
+buf .= buf .* 2.0f0                   # in-place: no new allocation
+</code></pre>
+
+        <p>Write the algorithm once for the host array, then wrap it in a function whose argument type decides where it runs. A generic function with <code>Float32</code> data and dotted operations works on a <code>CuArray</code> unchanged, which is how one source serves both CPU and GPU.</p>
+
+        <h3 id="kernels">Kernels and the Thread Hierarchy</h3>
+
+        <p>When broadcasting is not enough — when a computation needs an index, a shared buffer, or an inner loop — you write a kernel. A kernel is a function executed by many threads at once, each identified by its position in the grid.</p>
+
+        <pre><code class="language-julia line-numbers">using CUDA
+
+# A kernel: one thread per output element, identified by its index
+function double_kernel!(out, inp)
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    if i &lt;= length(out)
+        @inbounds out[i] = 2 * inp[i]
+    end
+    return nothing
+end
+
+n = 1024
+d_out = CUDA.zeros(Float32, n)
+d_inp = CUDA.ones(Float32, n)
+
+# Launch: threads = block size, blocks = how many blocks cover n
+threads = 256
+blocks = cld(n, threads)
+@cuda threads = threads blocks = blocks double_kernel!(d_out, d_inp)
+Array(d_out)[1:3]                     # [2.0, 2.0, 2.0]
+
+# A kernel that needs neighbouring values must synchronise
+function stencil_kernel!(out, inp)
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    shared = @cuStaticSharedMem(Float32, 256)     # fast memory shared per block
+    shared[threadIdx().x] = inp[i]
+    sync_threads()                                # wait for all writes
+    if 1 &lt; threadIdx().x &lt;= 256
+        @inbounds out[i] = 0.5f0 * (shared[threadIdx().x - 1] + shared[threadIdx().x])
+    end
+    return nothing
+end
+
+@cuda threads = 256 blocks = cld(n, 256) stencil_kernel!(d_out, d_inp)
+</code></pre>
+
+        <p>Two rules keep kernels correct: every thread must return something (usually <code>nothing</code>) and must guard its index against the array bounds, because the last block is usually partial; and any value shared between threads needs an explicit <code>sync_threads()</code> before it is read.</p>
+
+        <h2 id="gpu-practice">GPU Programming in Practice</h2>
+
+        <p>Most useful GPU code never leaves Julia's ordinary syntax. Start from broadcasting, drop to a kernel only where broadcasting cannot express the computation, and measure the transfers — they are usually the real bottleneck.</p>
+
+        <h3 id="gpu-broadcasting">Broadcasting on the GPU</h3>
+
+        <p>Dotted expressions are the first and often the last tool you need. Each broadcast is one kernel launch, and fusing the dots into a single expression keeps intermediate values on the device.</p>
+
+        <pre><code class="language-julia line-numbers">using CUDA
+
+# One broadcast chain, one kernel, no host round trip
+function normalise!(d)
+    d .-= sum(d) / length(d)                       # mean centring on the device
+    d ./= (maximum(abs, d) + eps(Float32))         # scale in place
+    d
+end
+
+d = CuArray(rand(Float32, 1024, 1024))
+normalise!(d)
+
+# Fuse the dots: separate statements write intermediates to VRAM twice
+a = CUDA.ones(Float32, 1_000_000)
+b = CUDA.ones(Float32, 1_000_000)
+c = 2 .* a .+ 3 .* b                 # one fused kernel, one result array
+# slow alternative: x = 2 .* a; y = 3 .* b; c = x .+ y  (three arrays)
+
+# Views keep their parent on the device: no copy, no transfer
+row = @view d[1, :]
+sum(row)                             # a GPU reduction over a view
+
+# Generic functions work for both host and device inputs
+function scale_all!(v, k)
+    v .= k .* v
+    v
+end
+
+scale_all!(rand(Float32, 4), 2.0f0)              # CPU array
+scale_all!(CUDA.ones(Float32, 4), 2.0f0)         # GPU array — same source
+</code></pre>
+
+        <p>The rule is the same as on the CPU, with higher stakes: fewer, larger operations. Twenty small broadcasts cost twenty kernel launches, and on a GPU the launch overhead is comparable to the work for small arrays.</p>
+
+        <h3 id="custom-kernels">Writing a Kernel</h3>
+
+        <p>A custom kernel earns its place when the computation has a structure the broadcast machinery cannot see: a neighbour dependency, a block-level reduction, or an index-based loop. Start from the broadcasting version and replace only the part that does not fit.</p>
+
+        <pre><code class="language-julia line-numbers">using CUDA
+
+# Kernel with a guard: y = a*x + b, one thread per element
+function saxpby_kernel!(y, a, x, b, n)
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    if i &lt;= n
+        @inbounds y[i] = a * x[i] + b
+    end
+    return nothing
+end
+
+function saxpby!(y, a, x, b)
+    n = length(y)
+    threads = 256
+    blocks = cld(n, threads)
+    @cuda threads = threads blocks = blocks saxpby_kernel!(y, a, x, b, n)
+    y
+end
+
+n = 1_000_000
+x = CUDA.ones(Float32, n)
+y = CUDA.zeros(Float32, n)
+saxpby!(y, 2.0f0, x, 1.0f0)
+Array(y)[1]                          # 3.0
+
+# Test the kernel with a tiny array first — errors are easier to see
+small_x = CUDA.ones(Float32, 5)
+small_y = CUDA.zeros(Float32, 5)
+saxpby!(small_y, 2.0f0, small_x, 1.0f0)
+Array(small_y)                       # [3.0, 3.0, 3.0, 3.0, 3.0]
+
+# KernelAbstractions lets one kernel run on any backend
+#   using KernelAbstractions
+#   @kernel function scale_kernel!(v, k)
+#       i = @index(Global, Linear)
+#       @inbounds v[i] *= k
+#   end
+#   kernel!(CPU())(v, 2.0f0; ndrange = length(v))
+</code></pre>
+
+        <p>Always test a kernel against a small CPU implementation before trusting it on a million elements. A wrong index computation reads out of bounds silently, and on a GPU that shows up as a wrong number rather than a crash on the offending line.</p>
+
+        <h3 id="transfer-cost">Transfers and the Waterfall</h3>
+
+        <p>The bus is the bottleneck, so the winning strategy is to move data across it as rarely as possible. Keep arrays resident on the device and combine steps into one round trip instead of several.</p>
+
+        <pre><code class="language-julia line-numbers">using CUDA
+
+# BAD: three host/device round trips for one computation
+function slow_roundtrip(h)
+    a = CuArray(h)
+    b = Array(a .* 2)                # back to the host...
+    c = CuArray(b .+ 1)              # ...and out again
+    sum(c)
+end
+
+# GOOD: everything happens on the device, one transfer at the end
+function fast_resident(h)
+    d = CuArray(h)                   # one transfer in
+    d .= d .* 2 .+ 1                 # no transfer at all
+    sum(d)                           # a single scalar comes back
+end
+
+using BenchmarkTools
+@btime slow_roundtrip($(rand(Float32, 1_000_000)))
+@btime fast_resident($(rand(Float32, 1_000_000)))
+
+# Timing a GPU operation needs a synchronisation, or you time the launch only
+CUDA.@time (d = CUDA.ones(Float32, 10_000_000); sum(d))
+CUDA.synchronize()                   # wait for the device to finish
+
+# Pinned host memory makes transfers faster when they are unavoidable
+# p = CUDA.Mem.alloc(CUDA.Mem.HostBuffer, nbytes)
+
+# Small frequent transfers are the worst case: batch them.
+#   Move 100 arrays at once, not one array 100 times.
+</code></pre>
+
+        <p>Measure with a synchronisation, or you will time the asynchronous launch rather than the computation. And remember the rule that explains most disappointing GPU results: an algorithm with little computation per byte transferred is dominated by the bus, not the device.</p>
+
+        <h2 id="hpc-pitfalls">Pitfalls of Scale-Out</h2>
+
+        <p>Scaling out multiplies the cost of every mistake: a slow message is paid by every worker, and a wrong kernel is paid by a million threads. These are the failures worth designing against.</p>
+
+        <h3 id="serialization">Serialisation and Grain Size</h3>
+
+        <p>Every message between processes is serialised, sent, and deserialised. If the work per message is smaller than that cost, adding workers makes the program slower — the same overhead trap as threading, at a much higher price per unit.</p>
+
+        <pre><code class="language-julia line-numbers">using Distributed
+
+# BAD: one message per element, each carrying real data
+function tiny_tasks(v, ws = workers())
+    [remotecall_fetch(x -&gt; x^2, ws[mod1(i, length(ws))], v[i]) for i in eachindex(v)]
+end
+
+# GOOD: one message per worker, carrying a range
+function coarse_tasks(v)
+    n = length(v)
+    step = cld(n, nworkers())
+    futures = [remotecall_fetch(ks -&gt; sum(x -&gt; x^2, @view v[ks]), w, k:min(k + step - 1, n))
+               for (k, w) in zip(1:step:n, workers())]
+    sum(futures)
+end
+
+# The size of the DATA matters more than the count of messages
+#   sending  1 KB   → the message overhead dominates
+#   sending  1 MB   → the serialisation dominates
+#   sending 10 MB   → you should be reading it on the worker instead
+
+# Prefer a path or a specification over a payload
+full_input = rand(1000, 1000)
+remotecall_fetch(path -&gt; sum(read(path)), 2, "data.bin")     # small message
+
+# Measure the cost of the boundary itself
+using BenchmarkTools
+@btime remotecall_fetch(sum, 2, $(rand(10_000)))             # includes serialisation
+</code></pre>
+
+        <p>Design distributed work in chunks of seconds, not milliseconds, and move the data once. A job whose messages outweigh its computation is a single-machine job wearing a distributed costume.</p>
+
+        <h3 id="vendor-lock">Portability and Vendor Lock</h3>
+
+        <p>CUDA runs on NVIDIA hardware; AMD and Intel need different packages. The escape is to write against an abstraction that has backends, so the same source runs on any accelerator available.</p>
+
+        <pre><code class="language-julia line-numbers"># Choose the array type by the hardware you actually have
+#   CUDA.jl      → NVIDIA GPUs        (CuArray)
+#   AMDGPU.jl    → AMD GPUs           (ROCArray)
+#   oneAPI.jl    → Intel GPUs         (oneArray)
+#   Metal.jl     → Apple silicon      (MtlArray)
+
+# Write the kernel against KernelAbstractions and pick the backend at run time
+using KernelAbstractions
+
+@kernel function saxpy_kernel!(y, a, x)
+    i = @index(Global, Linear)
+    @inbounds y[i] = a * x[i]
+end
+
+function saxpy!(backend, y, a, x)
+    kernel! = saxpy_kernel!(backend, 256)
+    kernel!(y, a, x; ndrange = length(y))
+end
+
+# One implementation, several backends — the choice becomes configuration
+# backend = CUDABackend()  # or ROCBackend(), oneAPIBackend(), CPU()
+
+# For portable array code, prefer the vendor-neutral array package
+#   using GPUArrays
+#   # functions written for AbstractGPUArray run on any of them
+
+# Test on the CPU backend in CI: no GPU needed to catch index errors
+@assert saxpy!(CPU(), [1.0, 2.0], 2.0, [1.0, 1.0]) == [2.0, 4.0]
+</code></pre>
+
+        <p>Write the kernel once with <code>KernelAbstractions</code>, keep a CPU backend for tests, and let deployment decide which accelerator runs it. That is also the only way to test GPU-shaped code on a machine without a GPU.</p>
+
+        <h3 id="testing-at-scale">Testing at Scale</h3>
+
+        <p>Parallel and device code must be tested the same way as any other code — against a known-correct reference. The trick is to keep the reference sequential, and to make the parallel path equal to it exactly.</p>
+
+        <pre><code class="language-julia line-numbers">using Distributed, Test
+
+# A sequential reference implementation lives beside the parallel one
+seq_sum(v) = sum(x -&gt; x^2, v)
+
+@everywhere par_chunk(ks) = sum(x -&gt; x^2, ks)
+
+function par_sum(v)
+    n = length(v)
+    step = cld(n, nworkers())
+    parts = [remotecall_fetch(par_chunk, w, k:min(k + step - 1, n))
+             for (k, w) in zip(1:step:n, workers())]
+    sum(parts)
+end
+
+@testset "distributed sums match the sequential reference" begin
+    for n in (0, 1, 7, 100, 10_000)
+        v = collect(1:n)
+        @test par_sum(v) == seq_sum(v)
+    end
+end
+
+# Boundary cases are where distributed bugs hide
+@test par_sum(Int[]) == 0            # empty input: no chunks at all
+@test par_sum([1]) == 1              # fewer elements than workers
+
+# For a GPU kernel, the same idea with the CPU implementation as reference
+#   @test Array(gpu_result) ≈ cpu_result
+# The comparison is approximate: floating-point order differs on the device.
+
+# Deterministic reduction order keeps the result reproducible run to run
+# (a floating-point sum that depends on thread order will drift).
+</code></pre>
+
+        <p>Two habits make scaled code trustworthy: an exact test at the small sizes where the chunking logic is exercised, and an approximate comparison for floating-point results, where the order of additions legitimately differs.</p>
+
+        <h2 id="when-to-scale">Choosing to Scale</h2>
+
+        <p>Scaling is a decision with costs on both sides: development time, debugging difficulty, reproducibility, and often money. The honest question is not "can this run in parallel" but "does the speedup justify what it costs to maintain".</p>
+
+        <h3 id="size-matters">Size Matters</h3>
+
+        <p>Both forms of scale-out are only worth it above a size where the overhead disappears. Measuring that threshold on your own hardware takes minutes and prevents months of over-engineering.</p>
+
+        <pre><code class="language-julia line-numbers"># The threshold test: measure the same function at growing sizes,
+# sequentially and in parallel, and find where the curves cross.
+using BenchmarkTools, Distributed
+
+function crossover(f, sizes)
+    for n in sizes
+        x = rand(n)
+        t1 = @belapsed $f($x)
+        nprocs() &gt; 1 || continue
+        t2 = @belapsed pmap($f, x)
+        println(rpad(n, 10), round(t1 * 1e6, digits = 1), " μs seq   ",
+                round(t2 * 1e6, digits = 1), " μs par")
+    end
+end
+
+# Typical outcome for a cheap function: parallel is SLOWER until ~10^5 elements
+# crossover(sum, (100, 1_000, 10_000, 100_000, 1_000_000))
+
+# For a GPU the threshold is higher still: transfers alone cost milliseconds,
+# so a device only wins above roughly 10^6 elements (or a dense matrix operation).
+
+# Rules of thumb worth remembering
+#   threads   → from ~10 μs of work per chunk
+#   processes → from ~10 ms of work per message
+#   GPU       → from ~1 ms of device-resident work, on large uniform arrays
+
+# And the fallback that always works: fix the types and the allocations first
+# (the previous lesson). A 20× single-thread win costs nothing to maintain.
+</code></pre>
+
+        <p>Exhaust the single-machine options before scaling out: type stability, allocations, and loop order usually deliver the largest improvement for the least complexity. Parallelism is what you do after the sequential code is already good.</p>
+
+        <h3 id="cluster-setup">Cluster and Cloud Setup</h3>
+
+        <p>The same <code>Distributed</code> API works on a cluster — only the way workers appear changes. A cluster manager hands you processes, and your script is unchanged apart from the <code>addprocs</code> call.</p>
+
+        <pre><code class="language-julia line-numbers"># On a Slurm cluster
+#   using Distributed, SlurmClusterManager
+#   addprocs(SlurmManager(); partition = "gpu", ntasks = 16, ntasks_per_node = 4)
+
+# With ssh-accessible machines, no manager is needed
+#   addprocs(["node1", "node2"], sshflags = "-i ~/.ssh/id_rsa")
+
+# Recipe for a portable job script
+using Distributed
+
+function main()
+    n = nworkers()
+    n &gt; 1 || error("start with workers: julia -p 8 script.jl")
+    @everywhere begin
+        using Statistics                 # everything workers need, on every worker
+        heavy(x) = mean(sin.(x .* (1:1000)))
+    end
+    results = pmap(heavy, [rand(10_000) for _ in 1:n])
+    (workers = n, mean = mean(results))
+end
+
+main()
+
+# In containers the same rules as threading apply: declare the CPU and GPU
+# resources you expect, and make the worker count explicit.
+
+# Checkpoint long jobs: a cluster job that dies at hour nine should not
+# restart from zero. Write partial results with Serialization.
+using Serialization
+serialize("checkpoint.jls", results)             # write
+results = deserialize("checkpoint.jls")          # read
+</code></pre>
+
+        <p>Keep the job script free of machine-specific assumptions: worker count from the command line, resources declared at submission, and results checkpointed so a failure costs minutes instead of hours.</p>
+
+        <h3 id="the-cost-of-scale">The Cost of Scale</h3>
+
+        <p>Every additional layer of parallelism adds a failure mode, a debugging difficulty, and often a bill. Senior work is knowing when to stop — and being able to explain the trade-off in numbers.</p>
+
+        <pre><code class="language-julia line-numbers"># Write the justification down, in the code, next to the implementation.
+# It is the cheapest documentation you will ever produce.
+
+#   Problem:   fit 500 models, 4 s each, single-threaded  → 33 minutes
+#   Option A:  threads -t 8 → 4.2 minutes, no extra infrastructure
+#   Option B:  GPU → 1.5 minutes, but requires a device and a rewrite
+#   Decision:  Option A. B's extra 3 minutes do not pay for the portability
+#              loss and the CI cost.
+#   Boundary:  revisit if the model count exceeds 5 000.
+
+# Questions to answer before scaling out:
+#   - What is the sequential time, measured, on the real input?
+#   - What fraction of it can be parallelised? (Amdahl's ceiling)
+#   - What does each layer cost in complexity: threads &lt; processes &lt; GPU?
+#   - Can the sequential version be made fast instead? (types, allocations)
+#   - How will this be tested, and on what hardware, in CI?
+
+# And the invariants that must hold at every scale
+@assert sum(1:1000) == 500500                 # the reference result
+# @test parallel_version(input) == reference(input)   # in your test suite
+</code></pre>
+
+        <p>A performance decision that cannot be explained with three numbers and a boundary condition will be reversed by the next person who reads it. Write the numbers down — measured, dated, with the hardware they came from.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> Distributed computing adds worker processes with their own memory: create them with <code>addprocs</code>, define everything they need inside <code>@everywhere</code>, send work with <code>remotecall</code> / <code>@spawnat</code> / <code>pmap</code>, and loop with <code>@distributed</code>. Move data once — <code>SharedArray</code> on one machine, <code>DArray</code> across machines — because every message is serialised. GPU computing adds a device with its own VRAM and thousands of lanes: broadcast with the dot syntax first, write a kernel only where broadcasting cannot express the computation, and treat transfers as the real bottleneck. Write kernels against <code>KernelAbstractions</code> so the same code runs on any backend, keep a CPU reference implementation, and test the parallel path against it. Scale out only after the sequential code is already fast.
+        </div>
+
+        <p>All of the work in this lesson assumes Julia itself; the code around it lives elsewhere. Next: <a href="/roadmap/julia/interop.html">Interop</a> covers calling C, Fortran, and Python from Julia — and calling Julia from them.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'gpu',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

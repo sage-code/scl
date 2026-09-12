@@ -1,0 +1,628 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="The Julia package ecosystem: packages and projects, Pkg environments, Manifest reproducibility, the General registry, semantic versioning, artifacts, and publishing.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, packages, pkg, project.toml, manifest.toml, registry, semver, compat, artifacts, extensions, precompilation, registrator">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia The Package Ecosystem</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-ecosystem">The Package Ecosystem</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A language is only as useful as the code you can reuse with it. Julia answers that with <code>Pkg</code>: a package manager built into the standard library, an environment system that records exactly what a project needs, and a registry that turns a name into a versioned, downloadable, tested package. This lesson is the plumbing — and the plumbing is what makes a project still work six months later on somebody else's laptop.
+        </div>
+
+        <p>Most languages bolt a package manager on afterwards; Julia was designed with one from the start. That difference shows in daily work. Environments are cheap and disposable, the manifest records the whole dependency graph rather than a list of names, and the unit of organisation — the <em>project</em> — is the same thing whether you are writing a throwaway script, a thesis chapter, or a registered package.</p>
+        <h2 id="packages-projects">Packages and Projects</h2>
+
+        <p>A <em>project</em> is a folder with a <code>Project.toml</code>. A <em>package</em> is a project that also has a name, a UUID, a version, and code in the expected places. You start with the first and grow into the second when the code is worth sharing.</p>
+
+        <h3 id="what-is-a-package">What a Package Is</h3>
+
+        <p>A Julia package is not a special kind of artefact. It is a folder that follows a convention the loader and the package manager both understand.</p>
+
+        <pre><code class="language-julia line-numbers"># The minimum viable package layout
+#   MyPackage/
+#     Project.toml        # name, uuid, version, [deps], [compat]
+#     src/MyPackage.jl    # module MyPackage ... end
+#     test/runtests.jl    # the test entry point
+#     docs/               # optional documentation
+
+# src/MyPackage.jl — the module that carries the package name
+module MyPackage
+
+export greet
+
+"""
+    greet(name::AbstractString) -> String
+
+Return a greeting for `name`. Every public function carries a docstring,
+because the docstring is what `?greet` shows in the REPL.
+"""
+greet(name::AbstractString) = "Hello, $name!"
+
+end # module
+
+# test/runtests.jl — the single entry point every CI system calls
+using Test
+using MyPackage
+
+@testset "MyPackage" begin
+    @test greet("Julia") == "Hello, Julia!"
+end
+</code></pre>
+
+        <p>The naming rule matters more than it looks: the module name must match the file name and the package name exactly, including capitalisation. Nothing here is magic — it is a convention that lets <code>using MyPackage</code> find the right file without any configuration.</p>
+
+        <h3 id="creating-a-package">Creating a Package</h3>
+
+        <p>Nobody hand-writes the scaffolding. <code>Pkg.generate</code> creates the folder, the module, the UUID, and the test skeleton, and leaves everything afterwards to you.</p>
+
+        <pre><code class="language-julia line-numbers">using Pkg
+
+# Create a package in the current directory
+Pkg.generate("MyPackage")
+
+# The generated Project.toml contains:
+#   name = "MyPackage"
+#   uuid = "0c0f3f10-8f5e-4a0a-9f6e-1f2b3c4d5e6f"
+#   authors = ["Your Name &lt;you@example.com&gt;"]
+#   version = "0.1.0"
+
+# The UUID is permanent: it identifies the package even if the name changes.
+# Never copy a Project.toml between packages — always generate a fresh UUID.
+
+# A project with no name is an "application", not a package:
+#   ./
+#     Project.toml     # only [deps]; no name, no uuid, no version
+#     main.jl
+# Applications are not loaded by name with `using`.
+</code></pre>
+
+        <p>That last distinction is the one people get wrong. An <em>application</em> — a script or a service — needs only a <code>Project.toml</code> listing its dependencies. A <em>package</em> — something another project can depend on — needs name, UUID, and version. Adding a UUID to a script's project does nothing useful; removing it from a package's project breaks every consumer.</p>
+
+        <h3 id="project-file">Reading the Project File</h3>
+
+        <p><code>Project.toml</code> is short enough to read at a glance, and reading it is the fastest way to understand an unfamiliar Julia repository.</p>
+
+        <pre><code class="language-julia line-numbers"># A typical Project.toml, annotated
+
+name = "MyPackage"
+uuid = "0c0f3f10-8f5e-4a0a-9f6e-1f2b3c4d5e6f"
+authors = ["Your Name &lt;you@example.com&gt;"]
+version = "0.1.0"
+
+[deps]                                # direct dependencies only
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[compat]                              # version ranges this package promises
+DataFrames = "1"
+julia = "1.10"
+
+[extras]                              # dependencies used only by the tests
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]                             # which extras belong to which environment
+test = ["Test"]
+</code></pre>
+
+        <p>Two details are worth memorising. Dependencies are keyed by <em>UUID</em>, not by name: the name is a hint for humans, the UUID is the identity. And <code>[compat]</code> is the promise you make to everyone who depends on you, so it belongs in every package from its first release.</p>
+
+        <h2 id="environments">Environments and Reproducibility</h2>
+
+        <p>An <em>environment</em> is the set of packages a piece of code is allowed to see. Julia lets you keep as many as you like, isolated from each other, without a virtual machine per project.</p>
+
+        <h3 id="working-with-environments">Creating and Activating Environments</h3>
+
+        <p>Every project folder is an environment; the only question is whether it is the active one right now.</p>
+
+        <pre><code class="language-julia line-numbers">using Pkg
+
+# The active environment's file (the global one by default)
+Base.active_project()
+
+# Activate the environment defined by a folder's Project.toml
+Pkg.activate(".")
+Pkg.activate("experiments/machine-learning")   # any path works
+
+# Activate a shared named environment instead
+Pkg.activate()                                 # @v1.11, the default
+Pkg.activate("myenv")                          # ~/.julia/environments/myenv
+
+# A temporary environment that leaves the current one untouched
+Pkg.activate(temp = true)
+
+# Add packages to the ACTIVE environment only
+Pkg.add("DataFrames")
+
+# See what this environment contains
+Pkg.status()
+
+# The REPL equivalent is the `]` mode
+#   ] activate .
+#   ] add DataFrames
+#   ] status
+</code></pre>
+
+        <p>The habit that prevents most trouble is to activate the project before adding anything. Running <code>using DataFrames</code> from a different active environment is the usual reason a notebook "works on my machine": the package is installed somewhere, just not here.</p>
+
+        <h3 id="manifest-and-pinning">Manifest and Pinning</h3>
+
+        <p><code>Project.toml</code> records what you asked for. <code>Manifest.toml</code> records what you actually got, including every transitive dependency at an exact version.</p>
+
+        <pre><code class="language-julia line-numbers"># After `Pkg.add("DataFrames")` the folder holds both files:
+#   Project.toml    → DataFrames = "a93c6f00-..."   (one line, direct dep)
+#   Manifest.toml   → DataFrames v1.6.1, plus
+#                     Compat v4.13.0, InlineStrings v1.4.0, ...
+#                     every transitive dependency, resolved and recorded
+
+# Pin a version so instantiate cannot move it
+Pkg.pin("DataFrames")            # or Pkg.pin(name = "DataFrames", version = v"1.6.1")
+Pkg.free("DataFrames")           # release the pin again
+
+# Update within the [compat] bounds — never past them
+Pkg.update()
+
+# Which recorded packages moved since the last commit?
+Pkg.status(outdated = true)
+
+# VERSION RULE FOR GIT
+#   packages and libraries → commit BOTH Project.toml and Manifest.toml
+#   applications           → commit Manifest.toml too; it IS the build
+</code></pre>
+
+        <p>Pinning is a maintenance tool, not a strategy. A pin that is never released turns a routine update into archaeology. Use it when a known regression exists, and record why in the commit message rather than in your head.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-env-stack.svg" class="figure-img img-fluid rounded" alt="Five stacked layers: the General registry mapping names to UUIDs and versions, Project.toml listing direct dependencies and compat ranges, Manifest.toml recording the full resolved graph at exact versions, the depot storing sources and compiled caches, and artifacts or JLL packages delivering the non-Julia binaries.">
+          <figcaption class="figure-caption text-secondary">The five layers behind one <code>using</code> statement.</figcaption>
+        </figure>
+
+        <h3 id="instantiate">Reproducing an Environment</h3>
+
+        <p>The test of an environment is whether a stranger can rebuild it. That is exactly what <code>instantiate</code> does, and it is the first command to run in any Julia repository you did not write.</p>
+
+        <pre><code class="language-julia line-numbers"># Fresh clone, empty depot, one command
+#   julia --project=. -e 'using Pkg; Pkg.instantiate()'
+#   julia --project=. -e 'using Pkg; Pkg.test()'
+
+# What to do when the manifest is stale or corrupt
+Pkg.resolve()                    # re-resolve against the current Project.toml
+Pkg.instantiate()                # then reinstall exactly
+
+# CI runs the same two commands, with a cached depot for speed
+#   - uses: julia-actions/setup-julia@v2
+#   - uses: julia-actions/cache@v2
+#   - run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+#   - run: julia --project=. -e 'using Pkg; Pkg.test()'
+
+# What NOT to do: delete Manifest.toml to "fix" a version conflict.
+# That throws away the only record of the environment that worked.
+</code></pre>
+
+        <p>When instantiate fails, the failure is information: either a package is missing from the registry, or the versions you recorded no longer satisfy the compat bounds you changed. Read the resolver's message before editing files.</p>
+
+        <h2 id="registry">The General Registry</h2>
+
+        <p>The <em>General</em> registry is a single Git repository of metadata — not code. It records which packages exist, under which UUIDs, and which versions each has published, together with the dependency information needed to resolve a version.</p>
+
+        <h3 id="finding-packages">Finding Packages</h3>
+
+        <p>Searching from inside the REPL beats searching the web, because the results come from the registry your project actually uses.</p>
+
+        <pre><code class="language-julia line-numbers">using Pkg
+
+# Search names, descriptions and keywords in all loaded registries
+Pkg.search("plot")               # or press `]` then `? plot`
+Pkg.search("dataframe")
+Pkg.search("differential equations")
+
+# Inspect a package before adding it
+Pkg.Registry.status()            # which registries are installed
+Pkg.status("DataFrames")         # is it already here, and at which version?
+
+# Ask what a package name resolves to, and what versions exist
+using Pkg.Registry
+Pkg.dependencies()               # the resolved graph of the active environment
+
+# The registry lives in the depot; update it independently of packages
+Pkg.Registry.update()
+</code></pre>
+
+        <p>Two habits pay off here: read the package's documentation page before adding it, and check its <code>[compat]</code> table for the Julia versions it supports. A package whose last release predates your Julia version is a candidate for trouble, and the resolver will tell you so at install time.</p>
+
+        <h3 id="registries-versions">Registries and Versions</h3>
+
+        <p>A registry is itself versioned, and it is not the only one. The General registry covers the public ecosystem; private registries cover company-internal packages; a local registry covers a team's shared code.</p>
+
+        <pre><code class="language-julia line-numbers">using Pkg
+
+# General is installed by default; add another registry by URL
+Pkg.Registry.add("General")
+Pkg.Registry.add(RegistrySpec(url = "https://github.com/MyCompany/MyRegistry"))
+Pkg.Registry.add(RegistrySpec(path = "/srv/registries/local"))
+
+# Remove one you no longer use
+Pkg.Registry.rm("MyRegistry")
+
+# Refresh metadata without changing installed versions
+Pkg.Registry.update()
+
+# Where the registries sit on disk
+#   ~/.julia/registries/General.toml
+#   ~/.julia/registries/MyRegistry/
+</code></pre>
+
+        <p>Because the registry is just metadata in Git, a private registry gives you the whole public workflow — versions, compat, resolution, reproducible installs — for code that never leaves the company network.</p>
+
+        <h3 id="semver">Semantic Versioning</h3>
+
+        <p>Julia follows semantic versioning strictly, and this is the rule that governs every upgrade decision you make.</p>
+
+        <pre><code class="language-julia line-numbers"># MAJOR.MINOR.PATCH            example: 1.6.2
+#
+#   PATCH  1.6.1 → 1.6.2   bug fix only; always safe to take
+#   MINOR  1.6.2 → 1.7.0   new features, still compatible; safe to take
+#   MAJOR  1.7.0 → 2.0.0   breaking change; may require code edits
+
+# What a compat bound means
+#   "1.6.2"      → exactly 1.6.2        (over-specific, rarely wanted)
+#   "1.6"        → [1.6.0, 2.0.0)       (safe within major 1)
+#   "1"          → [1.0.0, 2.0.0)       (the usual bound for a stable lib)
+#   "0.4"        → [0.4.0, 0.5.0)       (0.x: minor bumps may break)
+
+# 0.x is special: before 1.0 the minor version behaves like a major one.
+
+# Check before upgrading an application
+using Pkg
+Pkg.status(outdated = true)      # what has newer versions available
+Pkg.update("DataFrames")         # move one package within its bounds
+</code></pre>
+
+        <h2 id="dependencies">Dependencies in Practice</h2>
+
+        <p>The commands are short. What matters is the order you run them in and the file each one changes.</p>
+
+        <h3 id="add-update-remove">Adding, Updating, Removing</h3>
+
+        <p>Every operation is scoped to the active environment, which is why activating first is not optional.</p>
+
+        <pre><code class="language-julia line-numbers">using Pkg
+
+# Add a dependency to the ACTIVE environment
+Pkg.add("CSV")                          # newest version satisfying compat
+Pkg.add(name = "CSV", version = "0.10") # a specific version range
+Pkg.add(url = "https://github.com/JuliaData/CSV.jl")   # straight from git
+
+# Add something that is only needed by the tests
+Pkg.add("Test"; target = :test)
+
+# Update one package, or everything within compat
+Pkg.update("CSV")
+Pkg.update()
+
+# Remove it from Project.toml and the manifest
+Pkg.rm("CSV")
+
+# Resolve a conflict without changing Project.toml
+Pkg.resolve()
+
+# A shortlist of behaviours worth knowing
+#   Pkg.add twice is a no-op, not an error
+#   Pkg.rm on a package that is not a direct dep warns; it still cleans the manifest
+#   adding a package for one experiment in a shared environment pollutes everyone
+</code></pre>
+
+        <p>The last comment is why per-project environments exist. An experiment that needs ten extra packages belongs in its own environment, activated only while that experiment runs.</p>
+
+        <h3 id="compat-bounds">Compat Bounds</h3>
+
+        <p><code>[compat]</code> is the difference between a package that survives a year and one that breaks on somebody else's machine. The bound you write is a claim that your code works with any version in that range.</p>
+
+        <pre><code class="language-julia line-numbers"># [compat] in Project.toml — bound every direct dependency
+[compat]
+CSV = "0.10"
+DataFrames = "1"
+julia = "1.10"
+
+# Rules that keep bounds honest
+#   1. Bound every direct dependency; an unbounded dep breaks on any major bump.
+#   2. Never bound the standard library (Dates, LinearAlgebra, ...) — it ships
+#      with Julia and follows the julia bound instead.
+#   3. Prefer the major-only form "1" unless you genuinely need a floor.
+#   4. Add a floor only for a feature you actually use: "1.1" means 1.1 features.
+#   5. Check the bound with Pkg.test() using the oldest supported Julia.
+
+# Find out what is out of date relative to the registry
+Pkg.status(outdated = true)
+
+# What does the resolver think the bound allows right now?
+Pkg.instantiate()
+Pkg.status()
+</code></pre>
+
+        <p>Rule 2 surprises people coming from other ecosystems, and it is worth repeating: standard-library packages are pinned to the Julia version, so a compat entry for them is ignored or rejected. Bound the third-party packages; bound <code>julia</code> itself.</p>
+
+        <h3 id="dev-local">Developing a Local Package</h3>
+
+        <p>When your project and a library must change together, <code>Pkg.develop</code> puts the library's working copy into the environment instead of a released copy.</p>
+
+        <pre><code class="language-julia line-numbers">using Pkg
+
+# Replace the registry version with a local working copy
+Pkg.develop(path = "../MyPackage")
+
+# Or a git checkout of a branch
+Pkg.develop(url = "https://github.com/me/MyPackage.jl")
+
+# Confirm where the dependency now comes from
+Pkg.status()
+
+# Back to the released version when the work is done
+Pkg.free("MyPackage")
+
+# Typical loop while developing both sides at once
+#   1. Pkg.develop(path = "../MyPackage")
+#   2. edit ../MyPackage/src/... and `using MyPackage` re-loads on rev
+#   3. run the dependent project's tests
+#   4. Pkg.free("MyPackage") once the release exists
+
+# The manifest records a develop entry as a path, not a version.
+# Do not commit a manifest full of develop paths: other machines
+# do not have your folder layout.
+</code></pre>
+
+        <h2 id="artifacts-extensions">Artifacts, Extensions and Startup</h2>
+
+        <p>Three mechanisms explain most of what happens the first time a package loads: artifacts supply binaries, extensions split optional integration code, and precompilation turns Julia source into caches.</p>
+
+        <h3 id="binary-artifacts">Binary Artifacts</h3>
+
+        <p>Julia packages that wrap C or C++ libraries rarely ship those libraries themselves. They declare an <em>artifact</em>, and the package manager downloads the right binary for your platform.</p>
+
+        <pre><code class="language-julia line-numbers"># Inside a package: declare an artifact in Artifacts.toml
+# [[arrow]]
+# arch = "x86_64"
+# git-tree-sha1 = "3f0c9e..."
+# lazy = true
+# [[arrow.download]]
+# url = "https://github.com/.../arrow-15.0.0-x86_64-linux.tar.gz"
+# sha256 = "9e1c..."
+
+# Locate it at run time — the path differs per machine and per platform
+using Artifacts
+
+root = artifact"arrow"
+libdir = joinpath(root, "lib")
+
+# Ask for one lazily, if the declaration set lazy = true
+arrow = @artifact_str("arrow")
+
+# The JLL convention: `XYZ_jll` packages wrap one C library each and
+# expose the library path so ccall/bindings can find it:
+#   using Arrow_jll   →   Arrow_jll.libarrow is the shared object path
+#   Arrow_jll.Arrow_jll   →   the wrapped path
+
+# Where artifacts live on disk
+#   ~/.julia/artifacts/&lt;git-tree-sha1&gt;/
+</code></pre>
+
+        <p>The reason to know this: JLL packages are ordinary packages as far as <code>Pkg</code> is concerned, so the same versioning, pinning, and instantiate rules apply. That is how a CUDA runtime or a BLAS implementation becomes a dependency line instead of an installation guide.</p>
+
+        <h3 id="package-extensions">Package Extensions</h3>
+
+        <p>An extension is a piece of a package that only loads when another package is present. It replaces the old "requires" pattern and it removes a whole class of heavy, unconditional dependencies.</p>
+
+        <pre><code class="language-julia line-numbers"># In the package's Project.toml
+
+[weakdeps]                       # optional peers, may be absent
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+
+[extensions]
+MyPlotDataFramesExt = "DataFrames"    # loads only if DataFrames is loaded
+
+# ext/MyPlotDataFramesExt.jl
+module MyPlotDataFramesExt
+
+using MyPlot
+using DataFrames
+
+# Add a method to the package's generic function for DataFrame input.
+# Nothing in the base package mentions DataFrames.
+MyPlot.render(df::DataFrame; kwargs...) = MyPlot.render(collect(eachcol(df)); kwargs...)
+
+end
+</code></pre>
+
+        <p>The design lesson is worth carrying into your own code: define the generic function in the base package, and put every integration with an optional dependency in an extension. Users who never touch DataFrames never pay for it — not in load time, and not in install size.</p>
+
+        <h3 id="precompilation">Precompilation and Load Time</h3>
+
+        <p>Julia compiles methods on demand, which makes the first call slow and every later call fast. Precompilation front-loads part of that cost into a cache that is reused across sessions.</p>
+
+        <pre><code class="language-julia line-numbers"># Precompile every dependency of the active environment
+using Pkg
+Pkg.precompile()
+
+# Precompile a loaded package graph right now
+using SnoopPrecompile      # or Base.precompile in recent versions
+@precompile_setup begin
+    @precompile_all_calls begin
+        # put typical WORKLOADS here, not synthetic ones
+        run_a_typical_query()
+    end
+end
+
+# Measure what precompilation actually costs
+#   julia --project=. -e 'using Pkg; Pkg.precompile()'
+#   time julia --project=. -e "using MyPackage"
+
+# Why a package recompiles every launch
+#   - the source changed (edit to any dependency)
+#   - the Julia version changed
+#   - a different set of flags or preferences is in effect
+
+# Store caches in a shared, persistent place in CI and containers
+#   JULIA_DEPOT_PATH=/cache/julia
+</code></pre>
+
+        <h2 id="publishing">Publishing and Maintenance</h2>
+
+        <p>Shipping a package is a process, not an event: documentation, tests, continuous integration, then a version bump and a registry pull request.</p>
+
+        <h3 id="documentation">Documentation and Docstrings</h3>
+
+        <p>Documenter.jl builds a static documentation site from your docstrings, plus the prose pages you write next to them.</p>
+
+        <pre><code class="language-julia line-numbers"># docs/make.jl — the entry point that builds the site
+using Documenter
+using MyPackage
+
+makedocs(
+    sitename = "MyPackage.jl",
+    modules  = [MyPackage],
+    pages = [
+        "Home"        =&gt; "index.md",
+        "User guide"  =&gt; "guide.md",
+        "API"         =&gt; "api.md",
+    ],
+    strict = true,             # fail the build on a broken docstring reference
+)
+
+deploydocs(repo = "github.com/me/MyPackage.jl", devbranch = "main")
+
+# In the docs: a doctest is an executable example
+#   ```jldoctest
+#   julia&gt; greet("Julia")
+#   "Hello, Julia!"
+#   ```
+# doctest = true runs every one of them during the docs build,
+# so documentation cannot drift away from the actual output.
+</code></pre>
+
+        <p>Doctests are the cheapest correctness check you will ever add to a README: they turn examples into tests, and a change in behaviour fails the documentation build instead of silently misleading readers.</p>
+
+        <h3 id="ci-release">Continuous Integration and Release</h3>
+
+        <p>The standard Julia CI workflow runs the tests on several Julia versions and operating systems. Releasing is then a version bump in <code>Project.toml</code> and a pull request to the registry.</p>
+
+        <pre><code class="language-julia line-numbers"># .github/workflows/ci.yml — the shape of the standard workflow
+#   on: [push, pull_request]
+#   jobs:
+#     test:
+#       strategy:
+#         fail-fast: false
+#         matrix:
+#           version: ['1.10', '1', 'nightly']
+#           os: [ubuntu-latest, windows-latest, macos-latest]
+#       steps:
+#         - uses: actions/checkout@v4
+#         - uses: julia-actions/setup-julia@v2
+#           with: { version: '${{ matrix.version }}' }
+#         - uses: julia-actions/cache@v2
+#         - uses: julia-actions/julia-buildpkg@v1
+#         - uses: julia-actions/julia-runtest@v1
+#         - uses: julia-actions/julia-processcoverage@v1
+
+# Releasing:
+#   1. bump `version` in Project.toml (0.1.0 → 0.1.1)
+#   2. commit, push, and tag it:  git tag v0.1.1
+#   3. file the registry pull request — Registrator.jl does it from the
+#      commit message:  @JuliaRegistrator register
+#   4. the registry runs AutoMerge; a clean CI run merges automatically
+
+# A registry release is immutable: you can never overwrite v0.1.1.
+# Yanking withdraws it for new resolves; it does not delete the version.
+</code></pre>
+
+        <p>The immutability rule shapes how you plan releases: test the tag before creating it, because the only way to fix a published version is to publish the next one.</p>
+
+        <h3 id="ecosystem-pitfalls">Common Pitfalls</h3>
+
+        <p>The mistakes below account for nearly every "it worked yesterday" story in a Julia project.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><code>Package X not found</code></td><td>It is installed in a different active environment</td><td><code>Pkg.activate(".")</code> then <code>Pkg.instantiate()</code></td></tr>
+            <tr><td>Works locally, fails in CI</td><td><code>Manifest.toml</code> not committed</td><td>Commit both <code>Project.toml</code> and the manifest</td></tr>
+            <tr><td>Resolver cannot satisfy versions</td><td>Two packages demand incompatible majors</td><td>Read the resolver message; widen your own bound only if you really support it</td></tr>
+            <tr><td>Manifest full of local paths</td><td>A forgotten <code>Pkg.develop</code></td><td><code>Pkg.free("MyPackage")</code> before committing</td></tr>
+            <tr><td>Recompiles on every launch</td><td>Source or Julia version keeps changing</td><td>Pin the Julia version; cache <code>JULIA_DEPOT_PATH</code> in CI</td></tr>
+            <tr><td>Package works, docs fail</td><td>Doctest output drifted from reality</td><td>Run <code>docs/make.jl</code> in CI with <code>strict = true</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>Every one of these is prevented by the same two habits: activate the project before touching packages, and commit the two environment files together with the code they describe.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> A <em>project</em> is a folder with <code>Project.toml</code>; a <em>package</em> adds a name, a UUID, a version, and the <code>src/</code> layout. Environments isolate sets of packages, <code>Project.toml</code> states what you asked for, and <code>Manifest.toml</code> records exactly what you got — commit both. The General registry maps names to UUIDs and versions, and semantic versioning decides what an upgrade may safely change. Bound every third-party dependency in <code>[compat]</code>, never the standard library. Use artifacts and JLL packages for non-Julia binaries, extensions for optional integrations, and precompilation as a cache for warm start-up. Publish with docstrings, doctests, and CI, and remember that a released version is immutable.
+        </div>
+
+        <p>Next, make that code trustworthy: the <a href="/roadmap/julia/testing.html">Testing &amp; Debugging</a> lesson turns a working package into one you can change without fear.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'ecosystem',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

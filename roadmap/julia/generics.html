@@ -1,0 +1,718 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia parametric types and generics: type parameters, where clauses, subtype constraints, abstract parametric types, invariance, and writing type-stable generic code.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, parametric types, generics, type parameters, where clause, invariance, unionall, type stable">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Parametric Types &amp; Generics</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-generics">Parametric Types &amp; Generics</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A type parameter is a placeholder that keeps a type concrete. <code>Vector{T}</code> is not one type but a family: <code>Vector{Int}</code>, <code>Vector{String}</code>, <code>Vector{Vector{Float64}}</code> are all different types, each with its own optimal layout. The parameter is filled in by the compiler, so generic code runs like specialised code.
+        </div>
+
+        <p>You have already met parameters in passing: <code>Vector{Int}</code> in collections, <code>TypedBox{T}</code> in composite types, <code>where {T &lt;: Number}</code> in the container ladder. This lesson turns that familiarity into fluency. You will write parametric structs, constrain parameters with <code>where</code> clauses, read abstract parametric types such as <code>AbstractVector{T}</code> correctly, and — most importantly — learn the invariance rule that explains why <code>Vector{Int}</code> is not a <code>Vector{Real}</code>. The lesson closes with the design question every package author faces: when to parameterise, and when a parameter is one too many.</p>
+
+        <h2 id="why-generics">Why Parametric Types</h2>
+
+        <p>Generic programming begins with a question: how do you write one definition that works for every element type without paying for the generality? Julia answers with type parameters, and the first step is to see what the alternative costs.</p>
+
+        <h3 id="type-instability">The Cost of Loose Types</h3>
+
+        <p>Without a parameter, a container has to promise only <code>Any</code>. The compiler then cannot know what a field or element contains, so it stores pointers to boxed values and inserts a dynamic lookup on every access. The code is correct, and several times slower than the same code over a concrete type.</p>
+
+        <pre><code class="language-julia line-numbers"># A struct that works for anything — and loses the type information
+struct AnyStack
+    items::Vector{Any}
+end
+
+push_any!(s::AnyStack, x) = push!(s.items, x)
+
+s = AnyStack(Any[])
+push_any!(s, 1)
+push_any!(s, 2.5)
+
+typeof(s)                  # AnyStack — no element type anywhere in the type
+
+# A parameter keeps the element type in the type itself
+struct Stack{T}
+    items::Vector{T}
+end
+
+push_any!(s::Stack, x) = push!(s.items, x)
+
+si = Stack(Int[])          # Stack{Int64}
+sf = Stack(Float64[])      # Stack{Float64}
+
+typeof(si)                 # Stack{Int64}
+typeof(sf)                 # Stack{Float64}
+</code></pre>
+
+        <p>The difference is not cosmetic: <code>Stack{Int64}</code> can store its elements inline, and every method written for <code>Stack</code> is compiled with <code>T</code> known. Type stability — the property that a function's return type is predictable from its argument types — follows from exactly this habit.</p>
+
+        <h3 id="first-parameter">A First Type Parameter</h3>
+
+        <p>Parameters are written in curly braces after the type name, and they may be used in field declarations, constructor signatures, and method bodies. A constructor that receives a container can infer the parameter for you.</p>
+
+        <pre><code class="language-julia line-numbers">struct Pair2{A, B}
+    first::A
+    second::B
+end
+
+# Inference from the arguments — no explicit braces needed
+p = Pair2(1, "one")        # Pair2{Int64, String}
+typeof(p)                  # Pair2{Int64, String}
+p.first                    # 1
+p.second                   # "one"
+
+# Explicit instantiation when the inference is not what you want
+q = Pair2{Float64, Float64}(1, 2)   # Pair2{Float64, Float64}
+q.first                             # 1.0
+
+# The parameters are part of the type, so different parameters are different types
+Pair2(1, 2) === Pair2{Int64, Int64}(1, 2)   # true — same concrete type
+Pair2(1, 2) isa Pair2                        # true — Pair2 alone is the UnionAll family
+Pair2(1, 2) isa Pair2{Int64, Int64}          # true — the concrete instantiation
+
+# The empty-braces family form is how you talk about all instantiations
+stack_types = [Stack(Int[]), Stack(Float64[])]
+all(s -&gt; s isa Stack, stack_types)            # true
+</code></pre>
+
+        <p>Write <code>Pair2</code> in a type annotation and you accept every instantiation; write <code>Pair2{Int, String}</code> and you accept exactly one. Both are useful, and choosing deliberately is the whole skill.</p>
+
+        <h3 id="concrete-instantiations">Concrete Instantiations</h3>
+
+        <p>A parametric type is abstract until every parameter is supplied — that is why <code>Stack</code> cannot store anything usefully and <code>Stack{Int64}</code> can. The family form is called a <code>UnionAll</code> type, and it exists to describe sets of concrete types.</p>
+
+        <pre><code class="language-julia line-numbers">Stack                 # Stack — a UnionAll: "Stack of any T"
+Stack{Int}            # Stack{Int64} — concrete, usable for storage
+Vector                # Vector — any element type, any length is not involved
+Vector{Int}           # Vector{Int64} — concrete
+
+# isconcretetype answers the question directly
+isconcretetype(Stack)          # false
+isconcretetype(Stack{Int})     # true
+isconcretetype(Vector{Any})    # true — Any is a parameter value like any other
+
+# typeof always reports the concrete instantiation
+typeof(Stack(Int[]))           # Stack{Int64}
+typeof([1, 2, 3])              # Vector{Int64}
+
+# eltype is not automatic — declare it when your type behaves as a container
+Base.eltype(::Type{Stack{T}}) where {T} = T
+eltype([1, 2, 3])              # Int64 — from Base's AbstractArray methods
+eltype(Stack(Int[]))           # Int64 — from the method above
+
+# Instantiation is a type-level operation, available at runtime too
+T = Int
+Stack{T} isa Type              # true
+</code></pre>
+
+        <p>Two habits come out of this: annotate <code>Stack{T}</code> in method signatures when you need the element type, and annotate plain <code>Stack</code> only when the method genuinely does not care. Both are dispatch decisions, and both are visible in <code>@which</code>.</p>
+
+        <h2 id="parameters">Type Parameters</h2>
+
+        <p>A definition may take any number of parameters, of any kinds Julia supports: types, values, and even other parametric types. Understanding what each kind buys you is what makes a design readable.</p>
+
+        <h3 id="multiple-parameters">Several Parameters</h3>
+
+        <p>A matrix-shaped type usually carries an element type and a dimension, or an element type plus a storage choice. Parameters compose freely, and the conventional naming is <code>T</code> for an element type, <code>N</code> for a dimension, and <code>S</code> or <code>V</code> for a secondary type.</p>
+
+        <pre><code class="language-julia line-numbers">struct Grid{T, N}
+    data::Array{T, N}
+end
+
+Grid(zeros(2, 3))              # Grid{Float64, 2}
+Grid([1, 2, 3])                # Grid{Int64, 1}
+Grid(zeros(Float32, 2, 3))     # Grid{Float32, 2}
+
+# Reading parameters back out of a type
+function describe(g::Grid{T, N}) where {T, N}
+    "$(N)-dimensional grid of $T"
+end
+
+describe(Grid(zeros(3)))       # "1-dimensional grid of Float64"
+describe(Grid(zeros(2, 3)))    # "2-dimensional grid of Float64"
+
+# Parameters may also be nested types
+struct Matrix2{T}
+    rows::Vector{Vector{T}}    # a vector of vectors
+end
+
+Matrix2([[1, 2], [3]])         # Matrix2{Int64}
+
+# And a parameter may have a default, declared in the type body
+struct Config2{T = Float64}
+    value::T
+end
+
+Config2(1.0)                   # Config2{Float64}
+Config2{Float64}(1)            # Config2{Float64}, value converted
+</code></pre>
+
+        <p>Default parameters are a useful convenience in packages: users get the common instantiation without spelling it out, while code that needs a different one can still ask for it.</p>
+
+        <h3 id="value-parameters">Value Parameters</h3>
+
+        <p>Parameters are not restricted to types. An integer or symbol parameter turns a value into part of the type, which lets the compiler specialise on it — the standard library does this with <code>Vector{3}</code>-style array sizes and with <code>Val</code>.</p>
+
+        <pre><code class="language-julia line-numbers">struct SizedVector{N, T}
+    data::Vector{T}
+
+    function SizedVector{N, T}(data) where {N, T}
+        length(data) == N || throw(ArgumentError("expected $N elements"))
+        new{N, T}(collect(data))
+    end
+end
+
+SizedVector{3, Int}([1, 2, 3])    # SizedVector{3, Int64}
+SizedVector{2, Int}([1, 2])      # SizedVector{2, Int64}
+SizedVector{3, Int}([1, 2])      # ERROR: ArgumentError: expected 3 elements
+
+# The size is part of the type, so the compiler knows it
+struct Vector3{T}
+    x::T; y::T; z::T
+end
+
+Vector3(1.0, 2.0, 3.0)         # Vector3{Float64}
+
+# Val carries a value at the type level, for dispatch
+first_n(v::Val{N}, xs) where {N} = xs[1:N]
+
+first_n(Val(2), [10, 20, 30, 40])   # [10, 20]
+first_n(Val(3), [10, 20, 30, 40])   # [10, 20, 30]
+
+# Val is how you dispatch on a value without paying for it at runtime
+layout(::Val{:row}) = :row_major
+layout(::Val{:col}) = :column_major
+
+layout(Val(:row))              # :row_major
+</code></pre>
+
+        <p>Value parameters and <code>Val</code> are the standard way to get compile-time specialisation for sizes, orientations, and flags. The cost is compilation time: every distinct value creates a new method instance.</p>
+
+        <h3 id="parameter-in-fields">Parameters Inside Field Types</h3>
+
+        <p>Because a parameter is a real type, it can appear inside a field's type — as the element type of a vector, the key type of a dictionary, or the argument of another parametric type. This is how a struct advertises exactly what it can hold.</p>
+
+        <pre><code class="language-julia line-numbers">struct Inventory{T}
+    counts::Dict{String, T}        # T appears nested inside the field type
+    names::Vector{String}
+end
+
+Inventory(Dict("bolts" =&gt; 12))    # Inventory{Int64}
+Inventory(Dict("bolts" =&gt; 12.0))  # Inventory{Float64}
+
+# Constraints can be attached at the field level too
+struct Positive{T &lt;: Real}
+    value::T
+end
+
+Positive(3)                        # Positive{Int64}
+Positive(3.5)                      # Positive{Float64}
+Positive("three")                  # ERROR: MethodError — String is not Real
+
+# A parameter used in two fields forces them to agree
+struct Ratio{T &lt;: Real}
+    num::T
+    den::T                         # same T: fields must match
+end
+
+Ratio(1, 2)                        # Ratio{Int64}
+Ratio(1, 2.0)                      # ERROR: MethodError — mixed types need a convert method
+Ratio(Float64(1), 2)               # Ratio{Float64} — make the conversion explicit
+</code></pre>
+
+        <p>That last error is a feature: forcing both fields to share <code>T</code> means code downstream never has to wonder whether the numerator and denominator have the same type. Add a convenience constructor when callers should be able to mix types.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-parametric-invariance.svg" class="figure-img img-fluid rounded" alt="Left: Int is a subtype of Real, but Vector{Int} is not a subtype of Vector{Real}, because element parameters are invariant. Right: the UnionAll type Vector{T} where T is a subtype of Real instantiates to Vector{Int} when called with integers.">
+          <figcaption class="figure-caption text-secondary">Parameters instantiate a family; they do not inherit from one another.</figcaption>
+        </figure>
+
+        <h2 id="constraints">Constraints and where Clauses</h2>
+
+        <p>A parameter with no constraint accepts everything, including types that make no sense for your algorithm. Constraints narrow the family, and Julia expresses them with <code>&lt;:</code> in the definition or with a <code>where</code> clause in a method.</p>
+
+        <h3 id="subtype-constraints">Subtype Constraints</h3>
+
+        <p>A constraint written as <code>T &lt;: Number</code> means "any concrete type that is a subtype of Number". It is not a conversion and not a check at run time: the constraint decides which instantiations of your type can exist at all.</p>
+
+        <pre><code class="language-julia line-numbers">struct Average{T &lt;: Real}
+    values::Vector{T}
+end
+
+Average([1, 2, 3])                 # Average{Int64}
+Average([1.0, 2.0])                # Average{Float64}
+Average(["a", "b"])                # ERROR: MethodError — String is not Real
+
+# The constraint is visible in the type parameters
+Average([1, 2, 3]) isa Average     # true — the family
+Average([1, 2, 3]) isa Average{Int}    # true
+Average([1, 2, 3]) isa Average{Real}   # false — Int is not Real itself
+
+# Functions can be constrained the same way
+mean_of(a::Average{T}) where {T &lt;: Real} = Float64(sum(a.values) / length(a.values))
+
+mean_of(Average([1, 2, 3]))        # 2.0
+
+# A looser constraint accepts a wider family
+struct Wrapper{T}
+    value::T
+end
+
+unwrap(w::Wrapper{T}) where {T &lt;: AbstractString} = lowercase(w.value)
+unwrap(Wrapper("TEXT"))            # "text"
+unwrap(Wrapper(3))                 # ERROR: MethodError — Int has no unwrap method
+</code></pre>
+
+        <p>Notice the difference between <code>T &lt;: Real</code> and <code>Real</code> as a field type. The constraint keeps <code>T</code> concrete for each instantiation; the abstract field type erases it. Constraints preserve speed, abstract fields do not.</p>
+
+        <h3 id="where-syntax">where Syntax</h3>
+
+        <p><code>where</code> introduces and constrains parameters in method signatures. It may appear after the parameter list, and several clauses chain from left to right, with later parameters allowed to depend on earlier ones.</p>
+
+        <pre><code class="language-julia line-numbers"># One parameter, unconstrained
+identity2(x::T) where {T} = x
+
+# One parameter, constrained
+double(x::T) where {T &lt;: Number} = 2x
+
+# Several parameters, one depending on the other
+struct Container{T, S &lt;: AbstractVector{T}}
+    data::S
+end
+
+Container([1, 2, 3])               # Container{Int64, Vector{Int64}}
+Container(1:3)                     # Container{Int64, UnitRange{Int64}}
+
+# where clauses in a function mirror the type definition
+size_of(c::Container{T, S}) where {T, S} = length(c.data)
+
+# Constraints may be unions
+show_type(x::Union{Int, Float64, Nothing}) = typeof(x)
+show_type(1)                       # Int64
+show_type(nothing)                 # Nothing
+show_type("a")                     # ERROR: MethodError
+
+# where also documents which parameter a method needs
+swap_pair(p::Pair2{A, B}) where {A, B} = Pair2(p.second, p.first)
+swap_pair(Pair2(1, "one"))         # Pair2{String, Int64}("one", 1)
+</code></pre>
+
+        <p>Read a signature as a promise: <code>where {T &lt;: Number}</code> promises your body that <code>T</code> supports everything the <code>Number</code> interface declares, and promises callers that unsupported types will be rejected before the body runs.</p>
+
+        <h3 id="constraints-in-types">Constraints Inside Type Definitions</h3>
+
+        <p>Constraints can also be written inline in the braces of a type annotation — <code>Vector{&lt;:Real}</code> — which is shorthand for a <code>where</code> clause and reads naturally at call sites and in field declarations.</p>
+
+        <pre><code class="language-julia line-numbers"># Vector{&lt;:Real} is shorthand for Vector{T} where {T &lt;: Real}
+takes_any_real?(v::Vector{&lt;:Real}) = true
+takes_any_real?([1, 2, 3])          # true
+takes_any_real?([1.0, 2.0])         # true
+
+takes_any_real?(["a"])              # ERROR: MethodError — Vector{String} does not match
+
+# Inside a struct field, the shorthand constrains what may be stored
+struct Series
+    values::Vector{&lt;:Real}
+end
+
+Series([1, 2, 3])                   # accepted — stored as Vector{Int64}
+Series(["a"])                       # ERROR: MethodError
+
+# The two spellings are interchangeable in a method signature
+f1(v::Vector{T}) where {T &lt;: Real} = "long form"
+f2(v::Vector{&lt;:Real}) = "short form"
+
+# Both accept the same arguments; matching both means a method is more specific
+g(v::Vector{&lt;:Real}) = "real vector"
+g(v::Vector) = "any vector"
+g([1, 2])                           # "real vector"
+g(["a"])                            # "any vector"
+</code></pre>
+
+        <p>Prefer the shorthand inside annotations and the <code>where</code> form when the body needs to use the parameter by name. Above all, constrain when the body requires a method the type must provide — that constraint is documentation the compiler enforces.</p>
+
+        <h2 id="abstract-parametric">Abstract Parametric Types</h2>
+
+        <p>The standard library uses parameters in its abstract types too: <code>AbstractVector{T}</code>, <code>AbstractDict{K, V}</code>, and the numeric tower. Reading those definitions correctly — and knowing what subtyping does and does not give you — is what lets your own types plug into existing algorithms.</p>
+
+        <h3 id="abstract-type-params">Abstract Types With Parameters</h3>
+
+        <p>An abstract type may declare parameters, and any concrete subtype must supply them. That is how <code>Vector{Int}</code>, a range, and a custom array all agree on what their elements are, so algorithms written for <code>AbstractArray{T, N}</code> work on all of them.</p>
+
+        <pre><code class="language-julia line-numbers"># A small slice of the AbstractArray family in Base
+# abstract type AbstractArray{T, N} end
+# abstract type AbstractVector{T} &lt;: AbstractArray{T, 1} end
+
+# Concrete types fill the parameters in
+Vector{Int} &lt;: AbstractVector{Int}          # true
+Vector{Int} &lt;: AbstractArray{Int, 1}        # true
+Vector{Int} &lt;: AbstractVector               # true — any element type
+
+# Your own array subtype joins every existing algorithm
+struct DoublingArray{T, N} &lt;: AbstractArray{T, N}
+    data::Array{T, N}
+end
+
+Base.size(a::DoublingArray) = size(a.data)
+Base.getindex(a::DoublingArray, i::Int...) = 2 * a.data[i...]
+
+d = DoublingArray([1, 2, 3])
+d[2]                            # 4 — getindex is what we defined
+sum(d)                          # 12 — sum works through size and getindex
+d isa AbstractVector{Int}       # true
+eltype(d)                       # Int64 — inherited from the parameter
+</code></pre>
+
+        <p>That is the payoff of abstract parametric types: declare <code>&lt;: AbstractArray{T, N}</code>, implement two small methods, and the type inherits iteration, broadcasting, <code>sum</code>, <code>map</code>, and dozens of other functions you did not write.</p>
+
+        <h3 id="subtyping-rules">Subtyping Rules and Invariance</h3>
+
+        <p>Subtyping is not symmetric across positions: a subtype relationship in one place does not carry into a type parameter. The rule is invariance, and it exists to keep types honest about what they can hold.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Question</th><th>Answer</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>Int &lt;: Real</code></td><td><code>true</code></td><td>Concrete subtype of an abstract type</td></tr>
+            <tr><td><code>Vector{Int} &lt;: Vector{Real}</code></td><td><code>false</code></td><td>Element parameters are invariant</td></tr>
+            <tr><td><code>Vector{Int} &lt;: AbstractVector{Real}</code></td><td><code>false</code></td><td>Invariance applies to abstract parents too</td></tr>
+            <tr><td><code>Vector{Int} &lt;: AbstractVector{&lt;:Real}</code></td><td><code>true</code></td><td>The <code>&lt;:</code> asks for "some real subtype"</td></tr>
+            <tr><td><code>Vector{Int} &lt;: AbstractVector</code></td><td><code>true</code></td><td>Dropping a parameter accepts the whole family</td></tr>
+            <tr><td><code>Tuple{Int, Int} &lt;: Tuple{Real, Real}</code></td><td><code>true</code></td><td>Tuples are covariant — a documented exception</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">f(v::Vector{Real}) = "a real vector"
+g(v::Vector{&lt;:Real}) = "some vector of reals"
+
+f([1.0, 2.0])               # "a real vector"
+f([1, 2])                   # ERROR: MethodError — Vector{Int} is not Vector{Real}
+g([1, 2])                   # "some vector of reals" — the &lt;: form accepts Int
+g([1.0, 2.0])               # "some vector of reals"
+
+# Tuples are the exception, because every field type is known exactly
+one_way(t::Tuple{Real, Real}) = "two reals"
+one_way((1, 2))             # "two reals" — Tuple{Int, Int} &lt;: Tuple{Real, Real}
+
+# The practical rule: accept containers with &lt;:, never with a fixed parameter
+h(v::AbstractVector) = "any vector"
+h([1, 2, 3])                # "any vector"
+h(1:3)                      # "any vector" — a range is an AbstractVector too
+</code></pre>
+
+        <p>This is why library signatures read <code>v::AbstractVector</code> or <code>v::AbstractVector{&lt;:Real}</code> rather than <code>v::Vector{Real}</code>. The narrower spelling rejects arguments that ought to work, and the rejection arrives as a confusing <code>MethodError</code> at the call site.</p>
+
+        <h3 id="type-relationships">Reading Type Relationships</h3>
+
+        <p>Four functions answer every practical question about a parametric type: <code>supertype</code>, <code>subtypes</code>, the subtype operator itself, and <code>unwrap_unionall</code> for peeking at the family behind a concrete instantiation.</p>
+
+        <pre><code class="language-julia line-numbers">T = Vector{Int}
+
+supertype(T)                    # AbstractVector{Int64} — one step up the tree
+T &lt;: AbstractVector             # true  — any element type
+T &lt;: AbstractArray              # true  — any dimension
+T &lt;: AbstractVector{Float64}    # false — invariance again
+
+# The parameters of a type, with or without their variables
+Base.unwrap_unionall(T).parameters       # svec(Int64, 1) — element type and dimension
+Base.unwrap_unionall(Vector).parameters  # contains a TypeVar for the element
+
+# Test a type before trying to instantiate it
+isconcretetype(Vector{Int})     # true
+isconcretetype(Vector)          # false
+
+# Walking up a small hierarchy is how trait functions are written
+abstract type Animal2 end
+struct Dog2 &lt;: Animal2 end
+supertype(Dog2)                 # Animal2
+subtypes(Animal2)               # [Dog2]
+</code></pre>
+
+        <p>When a signature does not match, print <code>typeof(argument)</code> and compare it against the annotation piece by piece. Nine times out of ten the mismatch is a missing or extra parameter, not a genuinely unsupported value.</p>
+
+        <h2 id="in-practice">Generics in Practice</h2>
+
+        <p>Parameters are a tool for writing code once and running it fast everywhere. The craft is in knowing where to introduce one, how to keep inference working, and when to stop.</p>
+
+        <h3 id="type-stable-generics">Writing Type-Stable Generic Functions</h3>
+
+        <p>Type stability means the compiler can predict a function's return type from the types of its arguments. Generic code is type-stable when every branch returns the same type and no untyped value leaks into a computation.</p>
+
+        <pre><code class="language-julia line-numbers"># Stable: both branches return T
+function safe_div(a::T, b::T) where {T &lt;: Real}
+    b == 0 ? zero(T) : a / b
+end
+
+@code_warntype safe_div(1.0, 2.0)      # Float64 — predictable
+
+# Unstable: the branches produce unrelated types
+function pick(flag::Bool)
+    flag ? 1 : "none"                  # Int64 or String
+end
+
+@code_warntype pick(true)              # Union{Int64, String} — callers must handle both
+
+# Unstable and avoidable: an accumulator seeded with a literal
+function total(v)
+    t = 0                              # Int64 initially
+    for x in v
+        t += x                         # with Float64 elements t must change type
+    end
+    t
+end
+
+@code_warntype total([1.5, 2.5])       # t::Union{Int64, Float64} — a boxed variable
+
+# Stable version: seed the accumulator from the element type
+function total2(v::AbstractVector{T}) where {T &lt;: Number}
+    t = zero(T)                        # T is known, so t never changes type
+    for x in v
+        t += x
+    end
+    t
+end
+
+@code_warntype total2([1.5, 2.5])      # Float64 — predictable
+</code></pre>
+
+        <p>The pattern is always the same: seed an accumulator with <code>zero(T)</code>, <code>one(T)</code>, or <code>similar</code>, never with a bare literal. A generic function is only as fast as its least predictable variable.</p>
+
+        <h3 id="constructor-inference">Constructor Inference</h3>
+
+        <p>Well-designed parametric types are pleasant to construct: the parameters are inferred from the arguments, and braces are needed only when the inference would differ from what you want. Add convenience constructors to keep the common cases short.</p>
+
+        <pre><code class="language-julia line-numbers">struct Dataset{T}
+    features::Matrix{T}
+    labels::Vector{Int}
+end
+
+# Inference from the matrix element type, with a shape check
+function Dataset(features::Matrix{T}, labels::Vector{Int}) where {T}
+    size(features, 1) == length(labels) || throw(DimensionMismatch("rows != labels"))
+    Dataset{T}(features, labels)
+end
+
+Dataset([1.0 2.0; 3.0 4.0], [1, 2])       # Dataset{Float64}
+Dataset([1 2; 3 4], [1, 2])               # Dataset{Int64}
+Dataset([1.0 2.0], [1, 2])                # ERROR: DimensionMismatch
+
+# A convenience form for a common shape
+Dataset(labels::Vector{Int}) = Dataset(zeros(Float64, length(labels), 0), labels)
+Dataset([1, 2, 3])                        # Dataset{Float64} with zero feature columns
+
+# Reading the parameter back out where an algorithm needs it
+Base.eltype(::Type{Dataset{T}}) where {T} = T
+eltype(Dataset([1.0 2.0; 3.0 4.0], [1, 2]))   # Float64
+</code></pre>
+
+        <p>The convenience constructor is not a different type: it delegates to the same parametric one. Validation stays in a single place while the call site stays short — the pattern you already saw with <code>@kwdef</code> in composite types.</p>
+
+        <h3 id="aliases">Aliases for Readable Signatures</h3>
+
+        <p>A <code>const</code> alias gives a long parametric type a readable name. It is not a new type — the compiler treats it as the same one — so it costs nothing and can be used in annotations and in dispatch.</p>
+
+        <pre><code class="language-julia line-numbers"># A readable alias for a long type
+const FeatureMatrix = Matrix{Float64}
+const Labels = Vector{Int}
+
+struct Dataset2
+    features::FeatureMatrix
+    labels::Labels
+end
+
+FeatureMatrix === Matrix{Float64}      # true — an alias, not a new type
+
+# An alias for an open family, useful in signatures
+const RealVector = AbstractVector{&lt;:Real}
+
+[1, 2, 3] isa RealVector               # true
+[1.0, 2.0] isa RealVector              # true
+["a"] isa RealVector                   # false
+
+# Aliases participate in dispatch exactly like the type they name
+sum_real(v::RealVector) = sum(v)
+sum_real([1, 2, 3])                    # 6
+
+# An alias may also name a partial instantiation
+const FloatDataset = Dataset{Float64}
+Dataset([1.0 2.0; 3.0 4.0], [1, 2]) isa FloatDataset   # true
+</code></pre>
+
+        <p>Use aliases to make signatures readable and to name an important distinction, such as "features must be floating point". Do not use one to hide a parameter you actually need inside the body — that trade makes the code shorter and harder to follow.</p>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <p>Three mistakes account for most surprise in generic code: a type variable that quietly degrades to <code>Any</code>, a signature that contradicts invariance, and a design with one parameter too many.</p>
+
+        <h3 id="any-parameters">When a Parameter Silently Becomes Any</h3>
+
+        <p>A type variable that appears in no field is not constrained by anything, so Julia may bind it to <code>Any</code>. The result is a container that loses its element type exactly where you thought you had protected it.</p>
+
+        <pre><code class="language-julia line-numbers"># T appears only in the type name, never in a field: it constrains nothing
+struct Loose{T}
+    values::Vector
+end
+
+Loose{Int}([1, 2, 3])                   # Loose{Int64} — but look at the field
+typeof(Loose{Int}([1, 2, 3]).values)    # Vector{Any}
+
+# The field must mention the parameter for it to matter
+struct Tight{T}
+    values::Vector{T}                   # now T drives the storage
+end
+
+Tight{Int}([1, 2, 3])                   # Tight{Int64}
+typeof(Tight{Int}([1, 2, 3]).values)    # Vector{Int64}
+
+# An empty container literal is the other route to Any
+Tight{Int}([])                          # ERROR: MethodError — Vector{Any} is not Vector{Int}
+Tight{Int}(Int[])                       # Tight{Int64} — annotate the empty vector
+
+# The same trap in functions: a parameter that does not tie arguments together
+uses(x::T, y::T) where {T} = (x, y)     # T ties both arguments to one type
+@code_warntype uses(1, 2)               # (Int64, Int64) — both inferred
+uses(1, "a")                            # ERROR: MethodError — no single T fits
+</code></pre>
+
+        <p>Check for the trap with <code>fieldtypes</code>: when a declared parameter appears in no field type, the parameter is decorative and the field it was meant to protect is <code>Any</code>.</p>
+
+        <h3 id="invariance-errors">MethodError from Invariance</h3>
+
+        <p>A signature written with a concrete parameter rejects arguments that are semantically fine. This is the most common generic bug in the wild, and the fix is always the same: loosen the annotation.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Symptom</th><th>Cause</th><th>Rewrite as</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>f(v::Vector{Real})</code> rejects <code>[1, 2]</code></td><td>A concrete parameter is invariant</td><td><code>f(v::Vector{&lt;:Real})</code></td></tr>
+            <tr><td><code>g(m::Matrix{Int})</code> rejects a view</td><td>A concrete container type</td><td><code>g(m::AbstractMatrix{&lt;:Integer})</code></td></tr>
+            <tr><td><code>h(d::Dict{String, Int})</code> rejects <code>Dict{String, Int32}</code></td><td>Invariance in both parameters</td><td><code>h(d::AbstractDict{&lt;:AbstractString, &lt;:Integer})</code></td></tr>
+            <tr><td>The body needs the element type by name</td><td><code>T</code> must be bound</td><td><code>g(m::AbstractMatrix{T}) where {T &lt;: Integer}</code></td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># Too strict: rejects views, ranges, and other element types
+bad(m::Matrix{Int}) = sum(m)
+
+# Accepts every integer matrix, every view, every wrapped array
+good(m::AbstractMatrix{&lt;:Integer}) = sum(m)
+
+# When the body must name the element type, bind it with where
+named(m::AbstractMatrix{T}) where {T &lt;: Integer} = (T, sum(m))
+
+good(@view [1 2; 3 4][:, 1:1])     # 3 — a view works with the abstract signature
+named([1 2; 3 4])                  # (Int64, 10)
+bad(@view [1 2; 3 4][:, 1:1])      # ERROR: MethodError — a view is not a Matrix
+</code></pre>
+
+        <p>The rule of thumb: annotate the behaviour you need (<code>AbstractMatrix</code>, <code>&lt;:Integer</code>), not the exact type you happened to test with. When the body needs the concrete element type, name it with <code>where</code>.</p>
+
+        <h3 id="over-parameterisation">Over-Parameterising a Design</h3>
+
+        <p>More parameters are not more flexibility. Each one adds a dimension to the type space, multiplies the number of compiled instances, and lengthens every error message. Add a parameter only when it changes storage, dispatch, or the supertype.</p>
+
+        <pre><code class="language-julia line-numbers"># Over-parameterised: R and S are never used in a field
+struct Bad2{T, R, S}
+    values::Vector{T}
+end
+
+Bad2{Float64, Int, Int}([1.0, 2.0]).values    # works, and R and S mean nothing
+
+# Lean: one parameter that drives the field
+struct Good2{T}
+    values::Vector{T}
+end
+
+Good2([1.0, 2.0])                             # Good2{Float64}
+
+# A parameter that earns its place: it changes the layout
+struct Sparse2{T, I &lt;: Integer}
+    indices::Vector{I}
+    values::Vector{T}
+end
+
+Sparse2(Int[], Float64[])                     # Sparse2{Float64, Int64}
+
+# Rule: a parameter should appear in a field type, in the supertype,
+# or in a constraint that changes which methods apply.
+</code></pre>
+
+        <p>Signals that a parameter is unnecessary: it appears in no field, it is always the same type in your own code, or the type behaves identically without it. Deleting it makes every signature shorter and every error message clearer.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> A type parameter keeps a type concrete, so generic code compiles down to specialised code. Parameters may be types, values, or nested types, and constraints written as <code>T &lt;: X</code> or <code>Vector{&lt;:X}</code> narrow which instantiations may exist. Parameters are invariant — <code>Vector{Int}</code> is not <code>Vector{Real}</code> — so accept containers as <code>AbstractVector{&lt;:Real}</code> rather than with a fixed element type, and bind a parameter with <code>where</code> only when the body needs it by name. Keep functions type-stable by seeding accumulators from <code>T</code>, let constructors infer parameters from their arguments, and resist adding a parameter that appears in no field.
+        </div>
+
+        <p>You can now write definitions that serve every type without giving up speed. Next: <a href="/roadmap/julia/modules.html">Modules &amp; Packages</a> organises those definitions into namespaces you can load, export, and publish.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'generics',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

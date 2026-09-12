@@ -1,0 +1,752 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Julia strings: immutability, UTF-8 byte indices, interpolation, SubString and Char, searching, splitting, replacement, and formatted output.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, strings, text, unicode, utf-8, substring, char, interpolation, split, replace, regex, printf, iobuffer">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Strings &amp; Text</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-strings">Strings &amp; Text</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A Julia string is immutable and indexed by <em>byte</em>, not by character. Both facts are good news: immutable strings can be shared without copying, and byte indexing keeps UTF-8 text exact. Both facts also create the classic bug — <code>s[3]</code> on <code>"héllo"</code> does not return a character, it raises <code>StringIndexError</code>.
+        </div>
+
+        <p>This lesson builds text handling from the inside out. First you learn what a string really is and how to inspect one, so indexing stops being guesswork. Then you assemble, search, and transform text with the standard library, and finally you look at the two subjects that separate beginners from engineers: building long output without quadratic copying, and keeping byte positions and character positions apart.</p>
+
+        <h2 id="string-model">The String Model</h2>
+
+        <p>Before you call a single function you need a mental model of what sits in memory when you write <code>"hello"</code>. Julia's model is deliberately simple: a <code>String</code> is an immutable sequence of UTF-8 code units, and every index into it is a byte offset.</p>
+
+        <h3 id="immutable">Strings Are Immutable</h3>
+
+        <p>You cannot change a character inside a string. There is no <code>s[1] = 'H'</code>. Any transformation produces a <em>new</em> string, and the old one stays untouched until the garbage collector reclaims it. This is why passing strings around is cheap: every function that receives one knows it can never be modified underneath it.</p>
+
+        <pre><code class="language-julia line-numbers"># Assignment copies the reference, not the text
+s = "hello"
+t = s                 # t and s refer to the same immutable text
+t == s                # true
+
+# There is no character assignment
+s[1] = 'H'            # ERROR: MethodError — setindex! is not defined for String
+
+# You build a new string instead
+u = uppercase(s)      # "HELLO"
+s                     # "hello" — unchanged
+
+# The identity check shows the new object
+u === s               # false — different strings
+</code></pre>
+
+        <p>Because the text cannot change, the compiler may store a literal once and reuse it, and library functions may return views into your existing string instead of copies. The third chapter shows both effects in action.</p>
+
+        <h3 id="utf8">UTF-8 and Code Units</h3>
+
+        <p>Julia stores text as UTF-8 bytes. ASCII characters use one byte each, most Latin, Greek, and Cyrillic characters use two, and most CJK characters use three. A single <em>character</em> — what Julia calls a <code>Char</code>, one Unicode code point — therefore occupies between one and four bytes.</p>
+
+        <p>That is the entire source of the indexing surprise, and the diagram below makes it concrete for the word <code>"héllo"</code>.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-utf8-indices.svg" class="figure-img img-fluid rounded" alt="The string héllo shown twice: as five characters with indices 1 to 5, and as six UTF-8 bytes with indices 1 to 6; bytes 2 and 3 belong to the same character é, so s[3] raises StringIndexError.">
+          <figcaption class="figure-caption text-secondary">Five characters, six bytes: <code>length</code> counts characters, indices address bytes.</figcaption>
+        </figure>
+
+        <p>Keep two numbers apart from now on: <code>length(s)</code> counts characters, while <code>lastindex(s)</code> gives the byte offset of the last character. For ASCII text the two numbers are equal, which is exactly why the bug hides during testing and appears in production when someone types an accented word.</p>
+
+        <h3 id="inspect">Inspecting a String</h3>
+
+        <p>When text misbehaves, do not guess — ask. Julia exposes the type, the character count, the byte count, and the raw bytes of any string, which is usually enough to explain the symptom immediately.</p>
+
+        <pre><code class="language-julia line-numbers">s = "héllo"
+
+typeof(s)             # String
+length(s)             # 5  — characters
+ncodeunits(s)         # 6  — bytes actually stored
+sizeof(s)             # 6  — memory used; equal to ncodeunits for String
+lastindex(s)          # 6  — byte index of the last character
+isvalid(s, 3)         # false — byte 3 is the continuation byte of "é"
+isvalid(s, 2)         # true  — byte 2 starts the character "é"
+
+# The raw bytes, written in hexadecimal
+collect(codeunits(s)) # UInt8[0x68, 0xc3, 0xa9, 0x6c, 0x6c, 0x6f]
+
+# The characters, as Char values
+collect(s)            # ['h', 'é', 'l', 'l', 'o']
+
+# A one-line summary, useful for long strings
+summary(s)            # "5-character String"
+
+# Escapes let an ASCII source file hold non-ASCII text safely
+"\u00e9"              # "é" — the same character, written by code point
+"\x41"                # "A" — written by byte value
+</code></pre>
+
+        <p><code>isvalid(s, i)</code> answers the only question that matters before indexing: is byte <em>i</em> the start of a character? Chapter 3 turns that into a probing rule you can apply to any loop.</p>
+
+        <h3 id="string-substring-char">String, SubString, and Char</h3>
+
+        <p>Three types carry what beginners call "text". Knowing which one a function returns tells you whether you hold an owned string, a window, or a single character — and therefore whether you are paying for a copy.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Type</th><th>What it holds</th><th>Copies text?</th><th>Typical source</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>String</code></td><td>An immutable UTF-8 string owned in memory</td><td>It holds the bytes</td><td><code>"text"</code>, <code>join</code>, <code>uppercase</code></td></tr>
+            <tr><td><code>SubString</code></td><td>A window into an existing string plus a byte range</td><td>No — it shares the parent</td><td><code>view</code>, <code>split</code>, <code>chop</code></td></tr>
+            <tr><td><code>Char</code></td><td>One Unicode code point (1 to 4 bytes)</td><td>No — a value type</td><td><code>s[1]</code>, iterating a string</td></tr>
+            <tr><td><code>Vector{Char}</code></td><td>A mutable array of code points</td><td>Yes — an array of values</td><td><code>collect(s)</code></td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">s = "Julia rocks"
+
+c = s[1]                   # 'J' — a Char
+typeof(c)                  # Char
+
+sub = SubString(s, 1, 5)   # "Julia" — a window, no copy
+typeof(sub)                # SubString{String}
+String(sub)                # "Julia" — materialise a copy when you need one
+
+# Comparison across the three types is value-based
+c == 'J'                   # true
+sub == "Julia"             # true — SubString compares by content
+</code></pre>
+
+        <p>A <code>SubString</code> is why splitting a large document into words is cheap: <code>split(text)</code> returns windows into <code>text</code> rather than thousands of separate strings. The trade-off is that a view keeps its parent alive — retain one word and the whole document stays in memory.</p>
+
+        <h2 id="building">Building Strings</h2>
+
+        <p>You now know what text <em>is</em>. The next question is how to assemble it from parts, because the way you compose strings decides how readable your code is and — in loops — how fast it runs.</p>
+
+        <h3 id="concatenation">Concatenation and Repetition</h3>
+
+        <p>Two operators join strings, and the choice between them is not cosmetic. <code>*</code> concatenates and returns a <code>String</code>; <code>repeat</code> and <code>^</code> duplicate. Note that <code>+</code> is deliberately absent: Julia keeps <code>+</code> for arithmetic so that adding text is never accidental.</p>
+
+        <pre><code class="language-julia line-numbers">first = "Julia"
+last  = "rocks"
+
+# Concatenation uses *, not +
+greeting = first * " " * last       # "Julia rocks"
+
+# + on strings is an error — a deliberate design choice
+"a" + "b"                           # ERROR: MethodError
+
+# Repetition
+"ab" ^ 3                            # "ababab"
+repeat("-", 20)                     # "--------------------"
+repeat(["a", "b"], 3)               # ["a", "b", "a", "b", "a", "b"]
+
+# An array of strings joins into one string
+join(["Julia", "rocks"])            # "Juliarocks"
+join(["Julia", "rocks"], " ")       # "Julia rocks"
+
+# Useful one-liners
+length(first * last)                # 10
+*("a", "b", "c")                    # "abc" — the function form splats freely
+</code></pre>
+
+        <p>When you chain more than three pieces, stop using <code>*</code> and use interpolation or <code>join</code>. A line of five <code>*</code> operators is hard to read and easy to mistype.</p>
+
+        <h3 id="interpolation">Interpolation and string()</h3>
+
+        <p>Interpolation embeds a value directly inside a literal with <code>$</code>. It calls <code>print</code> on the value, so you get the text form, not the quoted form. This is the idiomatic way to compose messages, build labels, and format quick diagnostics.</p>
+
+        <pre><code class="language-julia line-numbers">name  = "Ada"
+count = 3
+
+# $ for a simple variable
+"Hello, $name!"                     # "Hello, Ada!"
+
+# $( ) for an expression
+"$name has $(count + 1) tasks"      # "Ada has 4 tasks"
+"$(uppercase(name))"                # "ADA"
+
+# $print vs $show: print gives the text, show gives the literal form
+"$name"                             # "Ada"
+"$(repr(name))"                     # "\"Ada\"" — includes the quotes
+
+# A literal $ is escaped with $
+"cost: \$5"                         # "cost: $5"
+
+# string() is the function form — same rules, usable with any number of arguments
+string("total: ", count)            # "total: 3"
+string(1, "+", 2, "=", 1 + 2)       # "1+2=3"
+
+# Interpolation of a vector prints the whole array
+values = [1, 2, 3]
+"values = $values"                  # "values = [1, 2, 3]"
+</code></pre>
+
+        <p>Interpolation is not string formatting with padding or decimals — for that, Chapter 6 introduces <code>Printf</code>. Interpolation answers "what is this value", <code>Printf</code> answers "how should this value be laid out".</p>
+
+        <h3 id="joining">Joining Collections</h3>
+
+        <p>Real programs rarely have two strings; they have a collection of them — words, lines, fields, log records. <code>join</code> turns any iterable into one string with an optional separator, and it is the function you want instead of a concatenation loop.</p>
+
+        <pre><code class="language-julia line-numbers">words = ["alpha", "beta", "gamma"]
+
+join(words)                         # "alphabetagamma"
+join(words, ", ")                   # "alpha, beta, gamma"
+join(words, ", ", " and ")          # "alpha, beta and gamma" — separator and last
+
+# Join with the empty separator to compose a fixed string
+join(["2026", "09", "12"], "-")     # "2026-09-12"
+
+# Works on any iterable of values, not only strings
+join(1:5, "+")                      # "1+2+3+4+5"
+
+# Build a CSV line from a row of numbers
+row = [3, 8, 12]
+join(row, ",")                      # "3,8,12"
+
+# A dictionary joins as key-value pairs
+join(Dict("a" =&gt; 1), ", ")         # "a =&gt; 1"
+
+# join is also the fastest way to merge a long vector of strings
+lines = ["line $i" for i in 1:1000]
+join(lines, "\n") |> length         # length of the merged text
+</code></pre>
+
+        <p>The last example is the important one: <code>join</code> allocates the result once, while a loop that concatenates grows the string a thousand times. Chapter 6 explains the cost curve.</p>
+
+        <h2 id="indexing">Indexing and Iteration</h2>
+
+        <p>Indexing is where strings stop being friendly. Julia asks you to be precise about whether you are addressing a byte or a character, and rewards that precision with zero-copy slicing. This chapter gives you the three patterns that cover every real case.</p>
+
+        <h3 id="safe-indexing">Indexing Without Breaking Unicode</h3>
+
+        <p>Square brackets take a <em>byte</em> index and require it to be the start of a character; anything else throws <code>StringIndexError</code>. The safe approach is to compute a position with <code>nextind</code> instead of adding one, or to test with <code>isvalid</code> before you index.</p>
+
+        <pre><code class="language-julia line-numbers">s = "héllo"
+
+# Works: byte 2 starts "é"
+s[2]                  # 'é'
+
+# Fails: byte 3 is inside "é" — this is a StringIndexError, not a wrong character
+s[3]                  # ERROR: StringIndexError("héllo", 3)
+
+# Safe navigation: nextind jumps to the start of the NEXT character
+i = firstindex(s)     # 1
+i = nextind(s, i)     # 2 — "é" lives here
+i = nextind(s, i)     # 4 — skipped over both bytes of "é"
+prevind(s, i)         # 2 — jump back one character
+
+# Defensive form when the position comes from outside your code
+function char_at(s, byte)
+    isvalid(s, byte) ? s[byte] : ''
+end
+char_at(s, 2)         # 'é'
+char_at(s, 3)         # '' — the caller gets a sentinel instead of a crash
+
+# The same rule applies to the last character of a UTF-8 string
+s[end]                # 'o' — end is the last VALID byte index, not length(s)
+s[length(s)]          # 'l' — different position: length counts characters
+</code></pre>
+
+        <p>The last two lines are worth memorising: <code>s[end]</code> is always the final character, but <code>s[length(s)]</code> is only the final character while the text is pure ASCII.</p>
+
+        <h3 id="iterating-chars">Iterating over Characters</h3>
+
+        <p>Iteration is the safe, allocation-free way to walk text: <code>for c in s</code> yields <code>Char</code> values and handles multi-byte sequences for you. Use <code>eachindex</code> when you also need positions, and never use <code>1:length(s)</code> as an index range on arbitrary text.</p>
+
+        <pre><code class="language-julia line-numbers">s = "héllo"
+
+# The idiomatic loop — one step per character
+for c in s
+    print(c, ' ')             # h é l l o
+end
+
+# Position plus character
+for i in eachindex(s)
+    println(i, " => ", s[i])  # 1=>h 2=>é 4=>l 5=>l 6=>o  (byte indices!)
+end
+
+# Counting something while iterating
+vowels = count(c -&gt; c in "aeioué", s)   # 2
+
+# Numbering the characters with their ordinal position
+for (n, c) in enumerate(s)
+    println(n, ':', c)        # 1:h 2:é 3:l 4:l 5:o  (ordinals, not bytes)
+end
+
+# Character types you can test
+isletter('é')                 # true
+isdigit('7')                  # true
+isuppercase('J')              # true
+isspace(' ')                  # true
+
+# Collecting into an array gives a mutable structure of code points
+chars = collect(s)
+reverse!(chars)               # ['o', 'l', 'l', 'é', 'h']
+String(chars)                 # "olléh"
+</code></pre>
+
+        <p><code>enumerate</code> and <code>eachindex</code> are not interchangeable: <code>enumerate</code> counts characters from one, while <code>eachindex</code> produces byte indices. Mixing them up is the most common source of <code>StringIndexError</code> in beginner code.</p>
+
+        <h3 id="slicing">Slicing and SubStrings</h3>
+
+        <p>A slice with a range returns a new <code>String</code>; <code>view</code> returns a <code>SubString</code> that shares memory. Both accept byte ranges, and both require the endpoints to sit on character boundaries. Functions such as <code>first</code>, <code>last</code>, <code>chop</code>, and <code>chomp</code> express the common cases without index arithmetic.</p>
+
+        <pre><code class="language-julia line-numbers">s = "Julia rocks"
+
+# Byte ranges — endpoints must be character starts
+s[1:5]                # "Julia"
+s[7:end]              # "rocks"
+s[end-4:end]          # "rocks"
+
+# view shares memory; slice copies
+u = view(s, 1:5)      # SubString — no allocation
+String(u)             # "Julia" — allocate only when you must
+
+# Named helpers beat index arithmetic
+first(s, 5)           # "Julia"
+last(s, 5)            # "rocks"
+chop(s)               # "Julia rock"  — drop the last character
+chop(s; tail = 6)     # "Julia"
+chomp("done\n")       # "done" — drop one trailing newline
+
+# Padding and trimming for fixed-width output
+lpad("7", 3, '0')     # "007"
+rpad("7", 3)          # "7  "
+strip("  padded  ")   # "padded"
+strip("xxhixx", 'x')  # "hi"
+</code></pre>
+
+        <p>Because a slice copies, a loop that slices inside itself can quietly copy the whole document many times. Use <code>view</code> when you only read, and materialise with <code>String(...)</code> when the result must outlive the parent.</p>
+
+        <h2 id="searching">Searching and Comparing</h2>
+
+        <p>Searching text means asking a question and getting a position back — usually a byte index you will hand to a slice or a view. Comparing text means deciding equality or order, and Julia makes the distinction between "same characters" and "same bytes" explicit.</p>
+
+        <h3 id="search-functions">Finding Text</h3>
+
+        <p>The search functions return <code>nothing</code> when they fail, not <code>-1</code>. That is a real advantage: <code>nothing</code> cannot be mistaken for a position, so the compiler forces you to handle the failure before you use the result.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Function</th><th>Answers</th><th>Returns</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>occursin(needle, hay)</code></td><td>Does it appear at all?</td><td><code>Bool</code></td></tr>
+            <tr><td><code>findfirst(needle, hay)</code></td><td>Where is the first occurrence?</td><td>Range or <code>nothing</code></td></tr>
+            <tr><td><code>findlast(needle, hay)</code></td><td>Where is the last occurrence?</td><td>Range or <code>nothing</code></td></tr>
+            <tr><td><code>findnext(needle, hay, start)</code></td><td>Where is the next one from a position?</td><td>Range or <code>nothing</code></td></tr>
+            <tr><td><code>startswith / endswith</code></td><td>Does it begin or end with this?</td><td><code>Bool</code></td></tr>
+            <tr><td><code>count(needle, hay)</code></td><td>How many occurrences?</td><td><code>Int</code></td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers">text = "Julia is fast. Julia is friendly."
+
+occursin("fast", text)              # true
+startswith(text, "Julia")           # true
+endswith(text, ".")                 # true
+count("Julia", text)                # 2
+
+# Positions come back as ranges, which you can slice directly
+r = findfirst("fast", text)         # 10:13
+text[r]                             # "fast"
+
+# Failure is nothing — the safe branch is explicit
+findfirst("slow", text)             # nothing
+pos = something(findfirst("slow", text), 1:-1)   # fall back to an empty range
+
+# Walk every occurrence with findnext
+i = findfirst("Julia", text)
+while i !== nothing
+    println("found at ", first(i))
+    i = findnext("Julia", text, last(i) + 1)
+end
+
+# Case-insensitive work: normalise first, or use a regex (Chapter 5)
+occursin("JULIA", uppercase(text))  # true
+</code></pre>
+
+        <p>Because <code>findfirst</code> returns a range, the idiomatic "find and extract" is two steps that never risk an off-by-one: <code>r = findfirst(...)</code>, then <code>text[r]</code>.</p>
+
+        <h3 id="comparison">Comparison Rules</h3>
+
+        <p>String equality compares content, and ordering compares code points, not human-language collation. That is the correct default for programming tasks such as sorting identifiers, and the wrong tool for sorting display names — for those, normalise the text first.</p>
+
+        <pre><code class="language-julia line-numbers">a = "Julia"
+b = "Julia"
+c = "julia"
+
+a == b                # true  — same characters
+a == c                # false — capital J is a different code point
+a === b               # true here (literal deduplication); do not rely on it
+isequal(a, c)         # false — isequal equals == for strings, unlike for floats
+cmp(a, c)             # -1 — negative means a sorts before c
+
+# Ordering follows Unicode code points
+'J' &lt; 'j'             # true — uppercase comes before lowercase
+sort(["beta", "Alpha", "gamma"])        # ["Alpha", "beta", "gamma"]
+sort(["beta", "Alpha"], by = lowercase) # ["Alpha", "beta"] — case ignored
+sort(["beta", "Alpha"], rev = true)     # ["beta", "Alpha"]
+
+# Normalising before comparison makes case-insensitive matching easy
+lowercase(a) == lowercase(c)            # true
+minimum(["B", "a"])                     # "B" — code point order
+minimum(["B", "a"]; by = lowercase)     # "a" — human order
+
+# Comparing a string with a Char works by value
+"J" == 'J'            # false — a String is never equal to a Char
+"J"[1] == 'J'         # true
+</code></pre>
+
+        <p>Watch the last trap: <code>"J" == 'J'</code> is <code>false</code>. A one-character string is not a character, and comparing them is a type mismatch that Julia answers honestly instead of guessing.</p>
+
+        <h2 id="transforming">Transforming Text</h2>
+
+        <p>Everything so far reads text. Now you rewrite it. The four families you need are splitting, replacing, case conversion, and pattern substitution — and in Julia each one has a single recommended function rather than five competing ones.</p>
+
+        <h3 id="splitting">split, rsplit, and partition</h3>
+
+        <p><code>split</code> cuts a string into pieces and returns views into it, so it is fast even for large documents. Use the two-argument form to keep the separators out, and add <code>limit</code> or <code>keepempty</code> when the data has trailing or consecutive separators.</p>
+
+        <pre><code class="language-julia line-numbers">csv = "id,name,qty"
+
+split(csv, ",")                # ["id", "name", "qty"] — SubStrings
+split("a,b,,c", ",", keepempty = false)   # ["a", "b", "c"]
+split("k=v", "=", limit = 2)   # ["k", "v"] — useful for key=value pairs
+
+# Split on whitespace by default, which handles messy input
+split("  alpha   beta\tgamma  ")          # ["alpha", "beta", "gamma"]
+
+# Split a multi-line text into lines
+text = "first\nsecond\nthird"
+split(text, "\n")              # ["first", "second", "third"]
+eachline(IOBuffer(text)) |&gt; collect      # same result, streaming form
+
+# rsplit splits from the right — perfect for file extensions
+rsplit("archive.tar.gz", ".", limit = 2)  # ["archive.tar", "gz"]
+
+# partition keeps the separator and returns three parts
+partition("user@example.com", "@")        # ("user", "@", "example.com")
+
+# Rebuild with join, the natural partner of split
+join(split(csv, ","), " | ")              # "id | name | qty"
+</code></pre>
+
+        <p><code>split</code> plus <code>join</code> is how you normalise delimited data: split once, transform the fields, join once. No concatenation loop, no manual index tracking.</p>
+
+        <h3 id="replace-case">replace, Case, and Strip</h3>
+
+        <p><code>replace</code> takes a string or a character mapping and returns a new string. Give it a <em>pair</em> for one substitution or a <em>function</em> for a rule that decides per match. Case conversion returns new strings as well, so it never mutates the original.</p>
+
+        <pre><code class="language-julia line-numbers">s = "The Quick Brown Fox"
+
+replace(s, "Quick" =&gt; "Slow")     # "The Slow Brown Fox"
+replace(s, " " =&gt; "_")            # "The_Quick_Brown_Fox"
+replace(s, ['a', 'i'] =&gt; '*')     # "The Qu*ck Brown Fox"
+
+# A function decides what each match becomes
+replace("v1 and v2", r"v(\d)" =&gt; s"version\1")   # "version1 and version2"
+replace("abc", 'b' =&gt; m -&gt; "")                  # "ac" — one character removed
+
+# Case conversion
+uppercase(s)                      # "THE QUICK BROWN FOX"
+lowercase(s)                      # "the quick brown fox"
+titlecase("julia rocks")          # "Julia Rocks"
+uppercasefirst("julia")           # "Julia"
+
+# Stripping and cleaning
+strip("\t padded \n")             # "padded"
+lstrip("00042", '0')              # "42"
+rstrip("12.50")                   # "12.50"; rstrip("12.50", '0') → "12.5"
+
+# Cleaning a messy CSV field in one pipeline
+raw = "  Ada Lovelace  "
+clean = strip(raw) |&gt; lowercase |&gt; x -&gt; replace(x, " " =&gt; "_")
+clean                             # "ada_lovelace"
+</code></pre>
+
+        <p>The pipeline at the end is the pattern to remember: small single-purpose functions chained with <code>|&gt;</code> read exactly like the transformation they perform.</p>
+
+        <h3 id="regex-substitution">Pattern Matching with Regex</h3>
+
+        <p>When the search target is a shape rather than a literal, use a regular expression. Julia's <code>r"..."</code> literal compiles the pattern once and is the only place where regex syntax is visible in your code; every other function takes the result as an ordinary value.</p>
+
+        <pre><code class="language-julia line-numbers">log = "2026-09-12 ERROR db timeout"
+
+# A literal pattern with named groups
+m = match(r"(?&lt;date&gt;\d{4}-\d{2}-\d{2}) (?&lt;level&gt;\w+)", log)
+m[:date]                     # "2026-09-12"
+m[:level]                    # "ERROR"
+m.match                      # the whole match
+
+# Every match in a string
+occursin(r"ERROR|WARN", log)         # true
+count(r"\d", log)                    # 8 — every digit
+collect(eachmatch(r"\d+", log))      # three matches: "2026", "09", "12"
+
+# Captures from a pattern built at runtime
+p = Regex("(\\d+)-(\\d+)")           # escapes are doubled when not using r""
+m2 = match(p, "12-34")
+m2.captures                  # ["12", "34"]
+
+# Substitution with capture references
+replace(log, r"ERROR" =&gt; "E")        # "2026-09-12 E db timeout"
+replace(log, r"(?&lt;level&gt;\w+)" =&gt; s"level=\g&lt;level&gt;")   # inserts the group
+
+# Split on a pattern rather than a literal
+split("a1b22c333", r"\d+")          # ["a", "b", "c"]
+</code></pre>
+
+        <p>Two regex details matter in practice: names are nicer than numbers for captures, and a regex error at runtime means the pattern was built as a string — prefer the <code>r"..."</code> form so mistakes surface when the file is loaded, not when a user hits that branch.</p>
+
+        <h2 id="formatting">Efficient Building and Formatting</h2>
+
+        <p>This chapter is about the difference between code that works on a test string and code that survives a million rows. Two habits do most of the work: build text once instead of growing it, and separate the value from its layout.</p>
+
+        <h3 id="concat-cost">The Cost of Concatenation</h3>
+
+        <p>A <code>String</code> is immutable, so every <code>*</code> or interpolation in a loop allocates a new string and copies everything before it. Ten thousand appends copy roughly the sum of all lengths seen so far — quadratic work, and the classic reason a text report becomes slow.</p>
+
+        <pre><code class="language-julia line-numbers"># Quadratic: each step copies everything already collected
+function slow_report(n)
+    out = ""
+    for i in 1:n
+        out = out * "line $i\n"      # a new String every iteration
+    end
+    out
+end
+
+# Linear: collect the pieces, then join once
+function fast_report(n)
+    parts = Vector{String}(undef, n)
+    for i in 1:n
+        parts[i] = "line $i"
+    end
+    join(parts, "\n")
+end
+
+# A comprehension plus join is the shortest correct form
+join(["line $i" for i in 1:1000], "\n") |&gt; length
+
+# Measured difference (Julia 1.10, 100_000 lines) — indicative, not a benchmark
+@time slow_report(100_000)     # large allocation, most time in copying
+@time fast_report(100_000)     # one allocation for the joined result
+</code></pre>
+
+        <p>The rule to carry into your own code: inside a loop, <em>collect</em> strings in a vector and join afterwards, or write into an <code>IOBuffer</code>. Reserve <code>*</code> for composing a handful of pieces on one line.</p>
+
+        <h3 id="iobuffer">IOBuffer, Printf, and Formatted Output</h3>
+
+        <p>When you are streaming rather than assembling, an <code>IOBuffer</code> is the right tool: it is a resizable byte buffer you <code>print</code> into, and <code>String(take!(buf))</code> hands you the final text. When you need fixed-width columns or decimals, <code>Printf</code> gives you the classic <code>%</code> specifiers.</p>
+
+        <pre><code class="language-julia line-numbers">using Printf      # the @printf and @sprintf macros live in a stdlib package
+
+# Printf controls the layout, not the value
+@sprintf("%d items at %.2f each", 3, 19.5)      # "3 items at 19.50 each"
+@sprintf("%-10s|%5.1f", "total", 19.5)          # "total     | 19.5"
+@sprintf("%08.2f", 3.14159)                     # "00003.14"
+@printf("row %d: %s\n", 1, "ready")             # writes straight to stdout
+
+# A buffer collects many writes, then becomes one string
+buf = IOBuffer()
+for i in 1:3
+    println(buf, "line ", i)                    # no intermediate string
+end
+String(take!(buf))            # "line 1\nline 2\nline 3\n"
+
+# Writing a formatted table without any intermediate strings
+report = IOBuffer()
+for (name, qty) in [("bolts", 12), ("nuts", 7)]
+    @printf(report, "%-8s %4d\n", name, qty)
+end
+String(take!(report))         # "bolts      12\nnuts        7\n"
+
+# print, println and show differ: only show adds quotes and escapes
+print("a\nb")                 # a<newline>b
+show("a\nb")                  # "a\nb"
+repr("a\nb")                  # "\"a\\nb\"" — the quoted literal form
+</code></pre>
+
+        <p>Use <code>Printf</code> for columns and precision, interpolation for messages, <code>show</code>/<code>repr</code> when output must be copy-pasteable back into code, and an <code>IOBuffer</code> when many pieces are involved.</p>
+
+        <h3 id="parsing">Parsing Text Back to Numbers</h3>
+
+        <p>Text that arrives from files, forms, and networks is text until you convert it. <code>parse</code> performs that conversion and throws on failure, while <code>tryparse</code> returns <code>nothing</code> — and that difference is your error-handling strategy in one line.</p>
+
+        <pre><code class="language-julia line-numbers">parse(Int, "42")              # 42
+parse(Float64, "3.14")        # 3.14
+parse(Bool, "true")           # true
+parse(Int, "0x1f"; base = 16) # 31
+
+# Failure is loud — good inside validated data paths
+parse(Int, "abc")             # ERROR: ArgumentError
+
+# Failure is quiet — good for untrusted input
+tryparse(Int, "abc")          # nothing
+tryparse(Int, "42")           # 42
+qty = something(tryparse(Int, "abc"), 0)   # 0 — a safe default
+
+# Round trips: text in, value, text out
+x = parse(Float64, "19.50")   # 19.5
+@sprintf("%.2f", x)           # "19.50" — back to the original layout
+
+# Converting one character is a value operation, not parsing
+Int('7') - Int('0')           # 7 — the digit's numeric value
+'7' in '0':'9'                # true — a range of characters works
+</code></pre>
+
+        <p>Reach for <code>tryparse</code> whenever the text comes from outside your program, and <code>parse</code> when a failure means your own invariants are broken and should be visible.</p>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <p>Three mistakes account for most text bugs in Julia: confusing byte positions with character positions, expecting comparisons or conversions to behave like other languages, and using <code>missing</code> where an empty string was meant. Each has a short, reliable fix.</p>
+
+        <h3 id="byte-indexing">Byte Positions versus Character Positions</h3>
+
+        <p>Any function that returns a character count cannot be used as a byte index, and any loop written as <code>1:length(s)</code> is wrong for non-ASCII text. The fix is to choose the right iterator at the start: iterate characters when you need characters, and <code>eachindex</code> when you need positions.</p>
+
+        <pre><code class="language-julia line-numbers">s = "café au lait"          # 12 characters, 13 bytes
+
+# Wrong: length is a character count used as a byte index
+for i in 1:length(s)
+    s[i]                    # eventually StringIndexError at the "é"
+end
+
+# Right: eachindex yields valid byte positions
+for i in eachindex(s)
+    s[i]                    # always a Char
+end
+
+# Right: iterate the string when you only need characters
+n = count(isletter, s)      # 10 — letters, counted without any index
+n
+
+# Byte-safe slicing: both endpoints must sit on character boundaries
+isvalid(s, 4)               # true  — byte 4 starts "é"
+isvalid(s, 5)               # false — byte 5 is inside "é"
+s[1:3]                      # "caf"  — safe, ends on a boundary
+first(s, 4)                 # "café" — four CHARACTERS, bytes handled for you
+</code></pre>
+
+        <p>If you need "the first N characters", use <code>first(s, N)</code>; if you need "the first N bytes", use <code>view(s, 1:N)</code> and check <code>isvalid</code>. Both intentions are legitimate — the bug is leaving the choice implicit.</p>
+
+        <h3 id="equality-traps">Equality and Ordering Traps</h3>
+
+        <p>Text comparisons are value comparisons, and Julia never guesses at your intent. Four cases bite most often, and each has one correct form.</p>
+
+        <table class="table table-striped table-bordered table-dark">
+          <thead>
+            <tr><th>Looks right</th><th>Reality</th><th>Do this instead</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>"J" == 'J'</code></td><td><code>false</code> — different types</td><td><code>s[1] == 'J'</code></td></tr>
+            <tr><td><code>"a" + "b"</code></td><td><code>MethodError</code> — <code>+</code> is numeric</td><td><code>"a" * "b"</code></td></tr>
+            <tr><td><code>"A" == "a"</code></td><td><code>false</code> — case matters</td><td><code>lowercase(a) == lowercase(b)</code></td></tr>
+            <tr><td><code>sort(names)</code></td><td>Code point order, not human order</td><td><code>sort(names; by = lowercase)</code></td></tr>
+            <tr><td><code>strip(x) == nothing</code></td><td>Never true — use <code>isnothing</code></td><td><code>isempty(strip(x))</code></td></tr>
+          </tbody>
+        </table>
+
+        <pre><code class="language-julia line-numbers"># Case-insensitive comparison without surprises
+equals_ignoring_case(a, b) = lowercase(a) == lowercase(b)
+
+# Membership and prefix tests are clearer than manual slicing
+startswith("report.pdf", "report")        # true
+endswith("report.pdf", ".pdf")            # true
+
+# Empty string versus nothing: two different ideas
+isempty("")                # true  — a string with no characters
+isnothing(nothing)         # true  — the absence of a value
+</code></pre>
+
+        <h3 id="missing-text">missing and nothing in Text</h3>
+
+        <p><code>missing</code> means "unknown" and <code>nothing</code> means "absent". Both can end up in a text field, and both make ordinary comparisons fail loudly or silently depending on the operator — so normalise at the boundary, not at the point of use.</p>
+
+        <pre><code class="language-julia line-numbers">x = missing
+
+x == "abc"               # missing — not false: the comparison is unknown
+ismissing(x)             # true
+coalesce(x, "")          # "" — replace missing with a default
+skipmissing([missing, "a"]) |&gt; collect      # ["a"]
+
+# A safe normaliser for fields coming from a file
+as_string(v) = v isa AbstractString ? String(v) : ""
+as_string("ok")          # "ok"
+as_string(missing)       # "" — the caller never sees missing
+as_string(nothing)       # ""
+
+# Conditional fallback also works for empty text
+text = "   "
+isempty(strip(text)) ? "(blank)" : text     # "(blank)"
+</code></pre>
+
+        <p>Normalising at the boundary is what keeps the rest of your code free of <code>missing</code> checks: one function decides what an absent value means, and every caller then works with ordinary strings.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> A <code>String</code> is immutable UTF-8 text, indexed by bytes; <code>length</code> counts characters while <code>lastindex</code> gives the last byte. Iterate with <code>for c in s</code> or <code>eachindex(s)</code>, never with <code>1:length(s)</code>. Compose with interpolation and <code>join</code>, split with <code>split</code>, rewrite with <code>replace</code>, and search with <code>occursin</code>/<code>findfirst</code>, remembering that they return <code>nothing</code> on failure. Inside loops, collect pieces and join once — or write into an <code>IOBuffer</code>. Use <code>tryparse</code> for untrusted text and normalise <code>missing</code> at the border of your program.
+        </div>
+
+        <p>Text is the first of the abstract types you meet in this phase. Next: <a href="/roadmap/julia/composite.html">Composite Types</a> shows how to define your own types with named fields, so you can stop passing loosely related strings and numbers around separately.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'strings',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

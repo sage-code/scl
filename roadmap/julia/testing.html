@@ -1,0 +1,671 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Testing and debugging Julia: the Test standard library, assertions, nested test sets, property and regression testing, coverage, stack traces, Logging.jl, and the interactive debugger.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, julia, testing, @test, @testset, doctest, coverage, debugger, logging, stack trace, fuzz, property based, regression">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Julia Testing &amp; Debugging</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="julia-testing">Testing &amp; Debugging</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A test suite is not paperwork — it is the only mechanism that lets you change code you wrote six months ago without fear. Julia ships the whole toolkit in the standard library: a <code>Test</code> module with assertion macros and nested test sets, coverage measurement, <code>Logging</code> for structured diagnostics, and an interactive debugger that stops at the exact line that lied.
+        </div>
+
+        <p>Two programs are involved in this lesson: the one you are writing and the one that checks it. Both need the same care. A test that always passes is noise, a test that depends on machine state is a future failure, and a stack trace read correctly saves more time than any print statement. Everything here is standard library — no dependency to add, nothing to justify in a <code>[compat]</code> block.</p>
+        <h2 id="testing-workflow">The Testing Workflow</h2>
+
+        <p>Julia's testing story starts from a convention, not a framework: a package has a <code>test/</code> folder, that folder has a <code>runtests.jl</code>, and one command runs it. Everything else is built on that.</p>
+
+        <h3 id="why-tests">Why Tests Come First</h3>
+
+        <p>A test is a claim about behaviour that a machine can check. Writing the claim before the implementation changes what you build: the interface gets decided while it is still cheap to change.</p>
+
+        <pre><code class="language-julia line-numbers"># test/runtests.jl — written BEFORE the implementation exists
+using Test
+
+@testset "Running statistics" begin
+    # the behaviour we want, stated as facts
+    @test mean_of([1.0, 2.0, 3.0]) == 2.0
+    @test mean_of([5.0]) == 5.0
+
+    # the edge case we are most likely to get wrong
+    @test_throws ArgumentError mean_of(Float64[])    # empty input must not divide by zero
+end
+
+# Then implement until the suite is green. The tests stay afterwards and
+# become the specification the next person reads.
+</code></pre>
+
+        <p>The value is not the green tick — it is that the suite records <em>decisions</em>. Six months later, "why does empty input throw instead of returning NaN?" is answered by the test, not by the commit history.</p>
+
+        <h3 id="test-package">The Test Package</h3>
+
+        <p><code>Test</code> is a standard-library package: nothing to install, one line to load. Its two workhorses are the <code>@test</code> macro and the <code>@testset</code> block that groups tests.</p>
+
+        <pre><code class="language-julia line-numbers">using Test            # always available, ships with Julia
+
+# @test evaluates an expression and records pass/fail
+@test 1 + 1 == 2
+@test "julia" == lowercase("JULIA")
+@test isapprox(0.1 + 0.2, 0.3; atol = 1e-12)     # floats: compare with a tolerance
+
+# @test_throws: the call must fail, with the right exception type
+@test_throws DomainError sqrt(-1.0)
+
+# @test_throws with a block, when the exception must also be inspected
+@test_throws "dimension" DimensionMismatch([1, 2] * [1 2; 3 4])
+
+# @test_broken: a KNOWN failure — it passes while it stays broken,
+# and starts reporting a failure the day somebody fixes it
+@test_broken parse(Int, "12abc") == 12
+
+# @test_skip: not run, but counted — use for platform-specific gaps
+@test_skip Sys.iswindows() == false
+</code></pre>
+
+        <p><code>@test_broken</code> deserves a comment, because teams misuse it as a place to hide bugs. Its semantics are deliberate: it inverts the check, so an unexpected fix is reported loudly. Use it for a documented, linked, known defect — never for something you have not diagnosed.</p>
+
+        <h3 id="running-tests">Running Tests</h3>
+
+        <p>The same command runs locally and in CI, which is the point of having a convention at all.</p>
+
+        <pre><code class="language-julia line-numbers">using Pkg
+
+# The canonical entry point: it activates test/Project.toml (or the
+# [extras]/[targets] test environment) and runs test/runtests.jl
+Pkg.test()
+
+# From a shell, without entering the REPL
+#   julia --project=. -e 'using Pkg; Pkg.test()'
+#   julia --project=. -e 'using Pkg; Pkg.test("MyPackage")'
+
+# In the REPL, the short form
+#   ] test
+
+# Running a test file directly (fast, used while developing)
+#   julia --project=. test/runtests.jl
+
+# Run one test set at a time while iterating — this is the tight loop
+#   julia --project=. -e 'include("test/runtests.jl")'
+</code></pre>
+
+        <h2 id="assertions-testsets">Assertions and Test Sets</h2>
+
+        <p><code>@test</code> is a single check. <code>@testset</code> turns a collection of checks into a named, counted, nestable report — and the shape of that report is what tells you where the failure lives.</p>
+
+        <h3 id="assertions">Writing Assertions That Fail Usefully</h3>
+
+        <p>A failing test should tell you three things: which claim broke, what was expected, and what actually happened. The macro records the expression text for you; your job is to compare the right things.</p>
+
+        <pre><code class="language-julia line-numbers">using Test
+
+# GOOD: compares values, and a failure prints both sides
+@test length(unique([1, 2, 2, 3])) == 3
+
+# BAD: compares a Boolean with itself — the failure message says "false == true"
+@test issorted([3, 1, 2])
+
+# GOOD: state the property you actually mean
+@test !issorted([3, 1, 2])
+@test issorted(sort([3, 1, 2]))
+
+# Floats: never compare with ==, always with a tolerance
+@test isapprox(sin(pi / 6), 0.5; atol = 1e-12)
+@test isapprox(1e6 + 1e-6, 1e6; rtol = 1e-9)      # relative tolerance for big numbers
+
+# Collections: compare with the right predicate
+@test Set([1, 2, 3]) == Set([3, 2, 1])             # order does not matter
+@test [1, 2, 3] == [1, 2, 3]                       # order DOES matter for arrays
+
+# A failing test inside a loop reports the iteration values
+for n in (0, 1, 2, 3)
+    @test n ≥ 0
+end
+</code></pre>
+
+        <p>The first rule is the most valuable: a good assertion fails with a message a person can act on. If the failure output does not make the bug obvious, the test is not finished.</p>
+
+        <h3 id="testsets">Test Sets</h3>
+
+        <p>A test set is a named group of assertions that reports its own counts. Nested test sets produce a tree, and the tree is the diagnostic.</p>
+
+        <pre><code class="language-julia line-numbers">using Test
+
+@testset "Statistics" verbose = true begin
+
+    @testset "mean" begin
+        @test mean_of([1.0, 2.0, 3.0]) ≈ 2.0
+        @test mean_of([0.0]) == 0.0
+
+        @testset "empty input" begin
+            @test_throws ArgumentError mean_of(Float64[])
+        end
+    end
+
+    @testset "variance" begin
+        @test variance_of([1.0, 1.0, 1.0]) == 0.0
+        @test variance_of([1.0, 3.0]) ≈ 2.0
+    end
+end
+
+# Output shape (the diagnostic you want):
+#   Test Summary:      | Pass  Total
+#   Statistics         |    5      5
+#     mean             |    3      3
+#       empty input    |    1      1
+#     variance         |    2      2
+
+# Testsets are also environments: a variable defined inside one
+# is not visible outside it, which keeps tests independent.
+</code></pre>
+
+        <p>Nesting is worth the two extra lines every time. When the suite runs in CI and one test fails, the summary tells you the module, the function, and the case — without reading a stack trace at all.</p>
+
+        <h3 id="special-assertions">Approximate, Exception and Custom Tests</h3>
+
+        <p>Some properties need more than an equality check. Julia gives you dedicated macros for the cases that come up constantly — approximate equality, expected errors, and warnings.</p>
+
+        <pre><code class="language-julia line-numbers">using Test
+
+@testset "Dedicated assertions" begin
+
+    # Approximate numeric equality
+    @test 0.1 + 0.2 ≈ 0.3 atol = 1e-12
+
+    # An exception of a specific type
+    @test_throws DomainError sqrt(-1.0)
+
+    # An exception whose message matches
+    @test_throws "cannot be negative" area(-5.0)
+
+    # A warning should be emitted (and captured, not printed)
+    @test_logs (:warn, "value clipped to zero") clip(-1.0)
+
+    # Several log records in order
+    @test_logs (:info, "start") (:info, "done") run_job()
+
+    # Deterministic comparison of whole objects
+    @test repr(Point(1, 2)) == "Point(1.0, 2.0)"
+
+    # A test that must be true within a time budget (rarely worth it)
+    @test (@elapsed sum(1:10_000)) &lt; 0.5
+end
+
+# Writing your own assertion, when a pattern repeats:
+macro test_positive(expr)
+    quote
+        v = $(esc(expr))
+        @test v &gt; 0
+    end
+end
+</code></pre>
+
+        <h2 id="organizing-tests">Organizing a Test Suite</h2>
+
+        <p>A single <code>runtests.jl</code> is fine until it is two hundred lines long. Then the question stops being "how do I test this?" and becomes "where does this test belong?".</p>
+
+        <h3 id="file-per-module">One File per Module</h3>
+
+        <p>The convention that scales is one test file per source file, included from <code>runtests.jl</code>. The suite then mirrors the code, and a change points at exactly one test file to open.</p>
+
+        <pre><code class="language-julia line-numbers"># test/runtests.jl — the index, and nothing else
+using Test
+
+@testset "MyPackage" begin
+    include("test_statistics.jl")
+    include("test_parsing.jl")
+    include("test_io.jl")
+end
+
+# test/test_statistics.jl — the file for src/statistics.jl
+using MyPackage
+using Test
+
+@testset "statistics" begin
+    @testset "mean" begin
+        @test mean_of([1.0, 2.0, 3.0]) ≈ 2.0
+    end
+    @testset "variance" begin
+        @test variance_of([1.0, 3.0]) ≈ 2.0
+    end
+end
+
+# Why `include` instead of `using` a test module:
+#   include is relative to the file that calls it, so `test/` moves as a unit.
+# A test file may also be run alone while iterating:
+#   julia --project=. -e 'using Pkg; Pkg.activate("."); include("test/test_statistics.jl")'
+</code></pre>
+
+        <p>Two conventions inside the file are worth adopting early: give each test set the name of the thing it tests, and keep the assertions in the same order as the branches in the source. Both make a failure report read like a map of the code.</p>
+
+        <h3 id="fixtures">Fixtures and Temporary Data</h3>
+
+        <p>Tests that touch the filesystem must not touch <em>your</em> filesystem. Julia gives you a temporary directory that is removed for you, and it is the right place for every file a test creates.</p>
+
+        <pre><code class="language-julia line-numbers">using Test
+using MyPackage
+
+@testset "file round trip" begin
+    # mktempdir creates a fresh directory and deletes it when the block exits
+    mktempdir() do dir
+        path = joinpath(dir, "data.csv")
+        write_records(path, [(1, "a"), (2, "b")])
+        @test isfile(path)                       # the write happened
+        @test read_records(path) == [(1, "a"), (2, "b")]
+    end
+end
+
+# Setup and teardown shared by many tests: a `do` block, not global state
+function with_database(f)
+    mktempdir() do dir
+        db = open_database(joinpath(dir, "test.db"))
+        try
+            f(db)                    # run all the tests here
+        finally
+            close(db)                # runs even when a test throws
+        end
+    end
+end
+
+@testset "queries" begin
+    with_database() do db
+        @test insert!(db, "x") == 1
+        @test count(db) == 1
+    end
+end
+</code></pre>
+
+        <p>The <code>finally</code> is the important detail: a test that throws must not leave a database open for the next test set. Fixtures that clean up reliably are what make a suite runnable twice in a row.</p>
+
+        <h3 id="deterministic-tests">Deterministic and Random Tests</h3>
+
+        <p>A test that passes on Tuesday and fails on Thursday teaches nothing. Randomness in tests must be either seeded or bounded.</p>
+
+        <pre><code class="language-julia line-numbers">using Test
+using Random
+
+@testset "randomised behaviour" begin
+
+    # 1. Seed the RNG so the same values appear on every run
+    rng = MersenneTwister(42)
+    data = randn(rng, 100)
+    @test length(data) == 100
+
+    # 2. Or test the PROPERTY, and let the values be arbitrary
+    for _ in 1:100
+        x = randn(rng)
+        @test clamp01(exp(-abs(x))) in 0.0:1.0     # the invariant holds for any x
+    end
+
+    # 3. Never assert exact output of an unseeded computation
+    #    @test mean(randn(100)) ≈ 0.0    # flaky: sometimes it is 0.3
+end
+
+# Time and locale are the other two hidden inputs
+#   Dates.now()      → pass the timestamp in as an argument instead
+#   string(1.5)      → locale-dependent in some languages; Julia is stable, but
+#                      be explicit with string(1.5; base = 10) when it matters
+</code></pre>
+
+        <p>The general rule: a test may depend on the system clock, the locale, the platform, or the network only if the test says so explicitly — a <code>@test_skip</code>, a guarded <code>if</code>, or a tagged test set. Otherwise it is a future outage waiting for a Tuesday.</p>
+
+        <figure class="figure d-block text-center my-4">
+          <img src="/roadmap/julia/img/julia-test-layers.svg" class="figure-img img-fluid rounded" alt="A pyramid with many fast unit tests at the wide base, integration tests in the middle that use real files and I/O, few slow property and regression tests at the top, and a CI gate beneath running Pkg.test on Linux, macOS and Windows across Julia versions.">
+          <figcaption class="figure-caption text-secondary">Many fast checks at the base, few broad ones on top, and a CI gate that runs the whole pyramid.</figcaption>
+        </figure>
+
+        <h2 id="advanced-testing">Property, Regression and Performance Testing</h2>
+
+        <p>Beyond "does this call return the right value?" there are three kinds of test that catch the bugs unit tests miss: properties, past defects, and speed.</p>
+
+        <h3 id="property-testing">Property-Based Testing</h3>
+
+        <p>A property test states a rule that must hold for <em>every</em> input, then lets a generator supply the inputs. The bug found this way is usually an input you would never have typed by hand.</p>
+
+        <pre><code class="language-julia line-numbers">using Test
+
+# The property: sorting does not change what is in the collection.
+@testset "sort is a permutation" begin
+    for n in (0, 1, 2, 5, 20)
+        v = randn(n)
+        s = sort(v)
+        @test length(s) == length(v)          # nothing lost
+        @test issorted(s)                     # the point of sorting
+        @test Set(s) == Set(v)                # nothing invented
+    end
+end
+
+# Properties that catch real bugs in numeric code
+@testset "numeric invariants" begin
+    for _ in 1:500
+        x = 10 * randn()
+        @test mean_std([x, x, x]) == (x, 0.0)     # identical values → zero spread
+    end
+end
+
+# A reusable generator makes properties easy to read
+randint(rng, lo, hi) = rand(rng, lo:hi)
+
+@testset "encode/decode round trip" begin
+    rng = MersenneTwister(7)
+    for _ in 1:200
+        n = randint(rng, -10_000, 10_000)
+        @test decode(encode(n)) == n              # the round-trip property
+    end
+end
+</code></pre>
+
+        <p>Round trips, invariants, and identities (like <code>decode∘encode == identity</code>) are the three property shapes worth writing for almost any data structure. They are cheap to write because they need no expected values at all.</p>
+
+        <h3 id="regression-tests">Regression Tests</h3>
+
+        <p>Every bug that reaches production costs more than the test that would have caught it. The rule in practice: when you fix a defect, the fix is a test and a line of code — in that order.</p>
+
+        <pre><code class="language-julia line-numbers">using Test
+
+@testset "regressions" begin
+    # Issue #142: negative inputs returned a signed zero
+    @test isnan(safe_log(-1.0)) == false
+    @test safe_log(-1.0) == 0.0
+    # The comment names the issue, so the test is traceable to the report.
+
+    # Issue #151: timezone-less timestamps drifted by an hour in DST weeks
+    @test days_between(Date(2026, 3, 28), Date(2026, 3, 30)) == 2
+
+    # Bug in 0.3.1: parse dropped the last field when the line had no newline
+    @test parse_row("1,2,3") == (1, 2, 3)
+
+    # A fix that must not regress: keep the old behaviour visible
+    @test_throws ArgumentError parse_row("")
+end
+
+# Write the test BEFORE the fix and watch it fail.
+# A regression test that was never seen failing proves nothing.
+</code></pre>
+
+        <p>The last sentence is the whole method. Reproducing the bug in a test first proves you understood the cause; the fix then turns the test green and keeps it green forever.</p>
+
+        <h3 id="performance-tests">Performance Tests</h3>
+
+        <p>Performance is a behaviour, and it can be tested — but only with statistics, never with a stopwatch. Julia's <code>BenchmarkTools</code> is the tool, and <code>@allocated</code> is the cheap early warning.</p>
+
+        <pre><code class="language-julia line-numbers">using Test
+
+@testset "performance contract" begin
+    # Allocation is a STABLE, machine-independent property: assert it.
+    f(x) = x .* 2
+    @test @allocated(f(ones(1000))) &lt; 100   # a few bytes, not kilobytes
+
+    # Type stability is also stable — assert the inferred return type.
+    @test Base.return_types(f, (Vector{Float64},)) == [Vector{Float64}]
+
+    # Timing needs many samples and a margin, so never assert a raw duration.
+    # BenchmarkTools reports a range; use the lower bound with slack.
+end
+
+# Run performance checks outside the correctness suite:
+#   julia --project=. benchmark/benchmarks.jl
+# and compare against a recorded baseline in CI:
+#   using BenchmarkTools, BenchmarkCI
+#   BenchmarkCI.judge()   # fails the job on a real regression
+</code></pre>
+
+        <h2 id="debugging">Debugging in Julia</h2>
+
+        <p>When a test fails, the work changes from checking to investigating. Julia gives you three levels of that: read the exception, print and log, or stop the program and inspect it live.</p>
+
+        <h3 id="stack-traces">Reading a Stack Trace</h3>
+
+        <p>A Julia error message has three parts: the exception type with its message, the stack trace, and — the part most people skip — the argument values Julia prints next to each frame.</p>
+
+        <pre><code class="language-julia line-numbers"># Typical output:
+#   ERROR: DomainError with -1.0:
+#   sqrt was called with a negative real argument but will only return a
+#   complex result if called with a complex argument. Try sqrt(Complex(x)).
+#   Stacktrace:
+#    [1] throw_domain_error(...) at ./math.jl:158
+#    [2] sqrt(x::Float64) at ./math.jl:172
+#    [3] my_norm(a::Vector{Float64}) at ./stats.jl:24     &lt;-- YOUR LINE
+#    [4] top-level scope at ./REPL[3]:1
+
+# Reading rules:
+#   1. The exception TYPE tells you the class of bug:
+#        DomainError        → an input outside the function's domain
+#        MethodError        → no method matched the declared argument types
+#        UndefVarError      → a name is used before it is bound (often a typo)
+#        BoundsError        → an index outside 1:length
+#        TypeError          → a value does not satisfy the declared field type
+#   2. Find the FIRST frame in YOUR file. Frames above it are library code.
+#   3. Read the argument types shown: `a::Vector{Float64}` is the input
+#      that produced the failure.
+
+# Getting a fuller trace from a script:
+#   julia --project=. --startup-file=no script.jl
+#   and wrap suspicious calls in try/catch to print the backtrace:
+try
+    my_norm(Float64[])
+catch err
+    bt = catch_backtrace()
+    showerror(stdout, err, bt)     # the exception AND the trace, controlled
+end
+</code></pre>
+
+        <p>Most Julia errors are diagnosed by step 1 alone. <code>MethodError</code> in particular is nearly always a type problem: the function exists, but not for the argument types you passed — often because a value is <code>Any</code> where a concrete type was expected.</p>
+
+        <h3 id="debugger">The Interactive Debugger</h3>
+
+        <p>Debugger.jl breaks inside a running program, shows you the local variables, and lets you step line by line. It is the difference between guessing and knowing.</p>
+
+        <pre><code class="language-julia line-numbers"># Install once (it is not in the standard library)
+#   ] add Debugger
+
+using Debugger
+
+# 1. Enter the debugger at a function call
+@enter my_norm([1.0, -2.0, 3.0])
+
+# Once inside, the usual commands are available:
+#   n            next line (step over calls)
+#   s            step into the call on this line
+#   c            continue to the next breakpoint or to the end
+#   q            quit the debugger
+#   bt           print the backtrace
+#   `x`          backtick: evaluate `x` in the current frame
+#   ?name        inspect a variable and its type
+
+# 2. Break at a source location, then run
+breakpoint("stats.jl", 24)
+@run my_norm(data)
+
+# 3. Stop on any exception, wherever it happens
+@run begin
+    data = load()
+    my_norm(data)
+end
+
+# Faster, lower-level alternative: `julia --compile=min -O0` keeps frames
+# readable, and @code_warntype shows the INFERRED types at a call site:
+@code_warntype my_norm(Float64[])
+</code></pre>
+
+        <p><code>@enter</code> and <code>@code_warntype</code> answer different questions, and both are worth knowing. The debugger answers "what is the value here?"; <code>@code_warntype</code> answers "why is this slow?" — it shows the inferred types, which is where type-instability bugs live.</p>
+
+        <h3 id="logging">Logging and Printf Debugging</h3>
+
+        <p>Print statements are fine; unstructured print statements are not. <code>Logging</code> is in the standard library and gives every message a level and a source module, so output can be filtered instead of deleted later.</p>
+
+        <pre><code class="language-julia line-numbers">using Logging
+
+# The four standard levels, in increasing severity
+@debug "cache miss" key            # hidden unless enabled
+@info  "loaded records" n = length(data)
+@warn  "value clipped" v = x
+@error "query failed" err = e
+
+# Enable debug output when you need it
+#   julia --project=. -e 'using Logging; Logging.with_logger(Logging.ConsoleLogger(stderr, Logging.Debug)) do ... end end'
+
+# Structured fields are the point: `n = length(data)` becomes a key/value
+# pair that a log collector can index, unlike a concatenated string.
+
+# Capture log output in a test instead of printing it
+using Test
+@test_logs (:warn, "value clipped") clip(-1.0)
+
+# Redirect logs to a file for a long run
+open("run.log", "w") do io
+    with_logger(ConsoleLogger(io, Logging.Info)) do
+        run_job()
+    end
+end
+
+# @assert: for invariants that indicate a PROGRAMMING error, not a user one.
+# Cancelled with --check-bounds=no and similar in a release build.
+@assert length(data) &gt; 0 "load() returned an empty dataset"
+</code></pre>
+
+        <p>The distinction to keep: <code>@assert</code> is for conditions that must never be false if the code is correct — it documents an internal invariant and may be compiled away. Logging is for conditions that are legitimate but worth recording, and it stays in production.</p>
+
+        <h2 id="coverage-discipline">Coverage and Discipline</h2>
+
+        <p>Coverage tells you which lines ran, not which behaviour was checked. Read it as a map of untested code, never as a score.</p>
+
+        <h3 id="coverage">Measuring Coverage</h3>
+
+        <p>Coverage comes from the same CI action used for tests, and it costs one extra step.</p>
+
+        <pre><code class="language-julia line-numbers"># Locally: run tests with coverage recording enabled
+#   julia --project=. --code-coverage=user -e 'using Pkg; Pkg.test()'
+
+# This writes .cov files next to every source file that ran.
+# Turn them into a readable report with Coverage.jl:
+using Coverage
+
+coverage = process_folder("src")           # parse the .cov files
+covered, total = get_summary(coverage)
+println("coverage: ", round(100 * covered / total, digits = 1), "%")
+
+# Per-file detail: the lines that never ran
+for fc in coverage
+    missed = count(l -> l.count == 0, fc.covered)
+    missed &gt; 0 && println(fc.filename, ": ", missed, " uncovered lines")
+end
+
+# LCOV output for CI services
+LCOV.writefile(joinpath(dirname(@__DIR__), "lcov.info"), coverage)
+
+# In the standard workflow:
+#   - uses: julia-actions/julia-processcoverage@v1
+#   - uses: codecov/codecov-action@v4
+</code></pre>
+
+        <p>The useful question is never "what percentage are we at?" but "which branches never execute?". A single uncovered <code>catch</code> block is often worth more attention than twenty uncovered one-line accessors.</p>
+
+        <h3 id="what-not-to-test">What Not to Test</h3>
+
+        <p>Testing effort is finite, and a suite that tries to cover everything becomes slow, brittle, and ignored. Deliberate omissions keep it useful.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Skip</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Third-party library internals</td><td>They have their own tests; test only your use of them</td></tr>
+            <tr><td>Trivial getters and setters</td><td>A <code>@test</code> that restates <code>x.field</code> catches nothing</td></tr>
+            <tr><td>Generated boilerplate</td><td>Test the generator's output once, not every expansion</td></tr>
+            <tr><td>Exact <code>repr</code> of whole structs</td><td>Fails on harmless formatting changes; compare fields instead</td></tr>
+            <tr><td>Private functions reachable through public ones</td><td>Cover behaviour at the boundary, not internals</td></tr>
+            <tr><td>Print output formatting</td><td>Assert on the data, not on the characters of the table</td></tr>
+          </tbody>
+        </table>
+
+        <p>The hidden cost of the opposite approach is a suite that fails for reasons unrelated to your change. Every test that asserts something the library owns is a test that will break on an upgrade you did not make.</p>
+
+        <h3 id="testing-pitfalls">Common Pitfalls</h3>
+
+        <p>These are the failure modes that turn a green suite into a false alibi.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Pitfall</th><th>Consequence</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>Asserting on wall-clock time</td><td>Flaky on loaded CI runners</td><td>Assert allocations, or benchmark separately</td></tr>
+            <tr><td>Unseeded randomness</td><td>Intermittent failures nobody can reproduce</td><td>Seed the RNG, or assert a property</td></tr>
+            <tr><td>Tests that write into the repo</td><td>Dirty working copy, order-dependent failures</td><td><code>mktempdir() do ... end</code></td></tr>
+            <tr><td><code>@test_broken</code> as a todo list</td><td>Bugs frozen in place, permanently "expected"</td><td>Link an issue, or delete the test</td></tr>
+            <tr><td>Comparing floats with <code>==</code></td><td>Fails on the last bit of the mantissa</td><td><code>isapprox</code> with <code>atol</code> or <code>rtol</code></td></tr>
+            <tr><td>One giant test set</td><td>The first failure hides every later one</td><td>Nest one test set per function</td></tr>
+            <tr><td>Tests that need the network</td><td>Fail offline and inside sandboxes</td><td>Serve local fixtures, or skip explicitly</td></tr>
+          </tbody>
+        </table>
+
+        <p>Every entry on the list is a flaky test waiting to happen, and a flaky test is worse than no test: it trains the team to ignore red builds, which is exactly when a real failure slips through.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Summary.</strong> The <code>Test</code> standard library gives you <code>@test</code>, <code>@testset</code>, <code>@test_throws</code>, <code>@test_logs</code> and <code>@test_broken</code>; <code>Pkg.test()</code> runs <code>test/runtests.jl</code> in an environment identical to CI's. Nest test sets so failures report a path, keep one test file per source file, use <code>mktempdir</code> for anything on disk, and make randomness deterministic. Add property tests for invariants, a regression test for every fixed bug, and allocation or inference checks for performance. Debug with the exception type first, <code>Debugger.jl</code> when you need values, and structured <code>Logging</code> when you need a trail. Read coverage as a list of unexecuted branches, not as a score.
+        </div>
+
+        <p>Next, meet the parts of the ecosystem this testing discipline protects: <a href="/roadmap/julia/data-science.html">Data Science</a> with DataFrames, CSV and plotting.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'julia',
+    topicId: 'testing',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>
