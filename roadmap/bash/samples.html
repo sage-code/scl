@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Four complete Bash projects to study and adapt: automated backup, system report, interactive menu and a service health check.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="bash, projects, samples, backup, report, menu, health check, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Study Projects</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="bash-samples">Study Projects</h1>
+
+<h2 id="backup">Automated Backup</h2>
+
+<p>A backup script must be safe: it should refuse to run twice at once, timestamp its archives, keep a rotation, and clean up after itself. This example shows every one of those habits.</p>
+
+<pre><code class="language-bash line-numbers">#!/usr/bin/env bash
+set -euo pipefail
+
+readonly SRC="${1:?usage: backup.sh SOURCE_DIR [DEST_DIR]}"
+readonly DEST="${2:-$HOME/backups}"
+readonly KEEP=7
+readonly STAMP="$(date +%Y%m%d-%H%M%S)"
+readonly NAME="$(basename "$SRC")"
+
+[[ -d "$SRC"  ]] || { echo "no such directory: $SRC"  &gt;&amp;2; exit 1; }
+mkdir -p "$DEST"
+
+# One archive per run; tar streams the tree.
+archive="$DEST/${NAME}-${STAMP}.tar.gz"
+tar -czf "$archive" -C "$(dirname "$SRC")" "$NAME"
+echo "created $archive ($(du -h "$archive" | cut -f1))"
+
+# Rotation: keep the newest N archives.
+find "$DEST" -maxdepth 1 -name "${NAME}-*.tar.gz" -type f \
+  | sort | head -n -"$KEEP" | xargs -r rm -f
+
+echo "kept the last $KEEP archives"
+</code></pre>
+
+<h2 id="report">System Report</h2>
+
+<p>A report script gathers facts, formats them, and writes a file that a human can scan. Note how it degrades gracefully when a tool is missing.</p>
+
+<pre><code class="language-bash line-numbers">#!/usr/bin/env bash
+set -euo pipefail
+
+have() { command -v "$1" &gt;/dev/null 2&gt;&amp;1; }
+section() { printf '\n== %s ==\n' "$1"; }
+
+section "Host"
+echo "name : $(uname -n)"
+echo "os   : $(uname -s) $(uname -r)"
+echo "user : ${USER:-unknown}"
+echo "uptime: $(uptime -p 2&gt;/dev/null || uptime)"
+
+section "CPU &amp; Memory"
+if have nproc; then echo "cores: $(nproc)"; fi
+if [[ -r /proc/meminfo ]]; then
+  awk '/MemTotal|MemAvailable/ { printf "%-16s %s %s\n", $1, $2, $3 }' /proc/meminfo
+fi
+
+section "Disk"
+df -h --output=target,size,used,avail,pcent 2&gt;/dev/null | head -10
+
+section "Top processes"
+ps -eo pid,comm,%cpu,%mem --sort=-%cpu 2&gt;/dev/null | head -6
+
+echo
+echo "report finished at $(date)"
+</code></pre>
+
+<h2 id="menu">Interactive Menu</h2>
+
+<p>Bash has a built-in menu generator, <code>select</code>. Combined with a <code>case</code>, it makes a tidy admin tool in a few lines.</p>
+
+<pre><code class="language-bash line-numbers">#!/usr/bin/env bash
+set -euo pipefail
+
+main() {
+  PS3="choose an option: "          # the prompt select prints
+  select opt in "Show date" "List files" "Disk usage" "Quit"; do
+    case "$opt" in
+      "Show date")  date ;;
+      "List files") ls -lh ;;
+      "Disk usage") df -h . ;;
+      "Quit")       echo "bye"; break ;;
+      *)            echo "invalid choice: $REPLY" &gt;&amp;2 ;;
+    esac
+  done
+}
+
+main "$@"
+</code></pre>
+
+<h2 id="health">Service Health Check</h2>
+
+<p>A health check probes endpoints, retries with a bounded loop, and exits non-zero when something is down — exactly what a monitoring system expects.</p>
+
+<pre><code class="language-bash line-numbers">#!/usr/bin/env bash
+set -euo pipefail
+
+readonly URL="${1:?usage: health.sh URL}"
+readonly TRIES=5
+readonly DELAY=2
+
+for (( attempt = 1; attempt &lt;= TRIES; attempt++ )); do
+  if curl -sf --max-time 5 "$URL" &gt;/dev/null; then
+    echo "OK   $URL (attempt $attempt)"
+    exit 0
+  fi
+  echo "FAIL $URL (attempt $attempt/$TRIES)" &gt;&amp;2
+  (( attempt &lt; TRIES )) &amp;&amp; sleep "$DELAY"
+done
+
+echo "UNHEALTHY: $URL did not respond after $TRIES attempts" &gt;&amp;2
+exit 1
+</code></pre>
+
+<p>Run it from cron or a systemd timer; a non-zero exit is all the alarm you need.</p>
+
+<h2 id="bootstrap">Project Bootstrap</h2>
+
+<p>A bootstrap script creates a reproducible skeleton. Make it idempotent — running it twice must not fail or duplicate work.</p>
+
+<pre><code class="language-bash line-numbers">#!/usr/bin/env bash
+set -euo pipefail
+
+readonly ROOT="${1:-myapp}"
+mkdir -p "$ROOT"/{src,tests,docs,scripts}
+
+[[ -f "$ROOT/README.md" ]] || cat &gt; "$ROOT/README.md" &lt;&lt;'EOF'
+# myapp
+
+Created by bootstrap.sh
+EOF
+
+# A git repository only if there is not one already.
+if [[ ! -d "$ROOT/.git" ]]; then
+  git -C "$ROOT" init -q
+  printf 'created git repository in %s\n' "$ROOT"
+fi
+
+printf 'tree:\n'
+find "$ROOT" -maxdepth 2 | sort
+</code></pre>
+
+<h2 id="next">Next Steps</h2>
+<ul>
+  <li>Add <code>shellcheck</code> to your editor and to CI.</li>
+  <li>Turn each project above into a testable function and cover it with <code>bats</code>.</li>
+  <li>Read other people's scripts — starting with your system's <code>/etc/init.d</code> and <code>/usr/bin</code> helpers.</li>
+  <li>Browse the curated links on the <a href="/roadmap/bash/references.html">References &amp; Tools</a> page.</li>
+</ul>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'bash',
+    topicId: 'samples',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

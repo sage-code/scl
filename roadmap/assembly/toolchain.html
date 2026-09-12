@@ -1,0 +1,310 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Assembly toolchain and first program: install NASM, assemble with elf64, link with ld, run it, and understand the edit-assemble-run loop.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, assembly, nasm, toolchain, linker, ld, elf64, hello world">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ASM Toolchain</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="asm-toolchain">Assembly Toolchain &amp; First Program</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Assembly is written for a toolchain, not for an IDE. You need two programs — an assembler and a linker — and once you know the three commands that turn text into a running process, every later lesson becomes a variation on the same loop.
+        </div>
+
+        <h2 id="tools">What You Need</h2>
+
+        <p>A bare-metal assembly program needs exactly two tools. Nothing else — no IDE, no framework, no package manager.</p>
+
+        <h3 id="nasm">The Assembler: NASM</h3>
+
+        <p><strong>NASM</strong> (the Netwide Assembler) turns your text into an <em>object file</em> — machine code plus a list of symbols that are not yet resolved. It is small, fast, and its Intel-syntax manual is the reference used throughout this track. Two flags matter from the start: <code>-f</code> chooses the output format, and <code>-o</code> names the file it writes.</p>
+
+        <p>The alternatives are <strong>GNU as</strong> (AT&amp;T syntax, part of binutils) and <strong>MASM/YASM</strong> (Microsoft-oriented). If you read Linux kernel code you will see GAS output; if you use MSVC you will see MASM. The ideas are identical — only the spelling changes.</p>
+
+        <h3 id="linker">The Linker</h3>
+
+        <p>An object file cannot run. Addresses inside it are relative or named, and something must decide where everything finally lives and connect your code to the operating system. That "something" is the <strong>linker</strong>:</p>
+
+        <ul>
+          <li><strong><code>ld</code></strong> — the raw linker. Use it for syscall-only programs. It assumes the entry point is <code>_start</code> and adds no runtime.</li>
+          <li><strong><code>gcc</code> / <code>clang</code></strong> — a compiler driver that also links. Use it when your program calls C library functions; it adds the C runtime and looks for <code>main</code>.</li>
+        </ul>
+
+        <h3 id="install">Installing the Tools</h3>
+
+        <p>Install NASM and binutils with your system's package manager, then verify the version:</p>
+
+<pre><code class="language-bash line-numbers"># Debian / Ubuntu / WSL2
+sudo apt update &amp;&amp; sudo apt install nasm binutils gdb
+
+# Fedora / RHEL
+sudo dnf install nasm binutils gdb
+
+# Arch
+sudo pacman -S nasm binutils gdb
+
+# macOS (Homebrew) — assembles Mach-O, not ELF
+brew install nasm
+
+# Verify
+nasm -v        # should print something like: NASM version 2.16.01
+ld --version   # GNU ld (GNU Binutils)
+</code></pre>
+
+        <p><code>gdb</code> is not needed until the debugging lesson, but installing it now saves a step later. <code>objdump</code>, <code>readelf</code>, and <code>nm</code> all arrive with binutils — they are your window into what the assembler actually produced.</p>
+
+
+        <h2 id="first-program">Your First Program</h2>
+
+        <p>Here is a complete, runnable Linux x86-64 program that prints a line and exits. It uses the kernel directly — no C library — so you can see every byte of what it does.</p>
+
+        <h3 id="source-file">The Source File</h3>
+
+<pre><code class="language-nasm line-numbers">; hello.asm — write a line to stdout, then exit (Linux x86-64, no libc)
+; Build:  nasm -f elf64 hello.asm -o hello.o
+; Link:   ld hello.o -o hello
+; Run:    ./hello
+
+section .rodata                     ; read-only data
+    msg     db  "Hello, world!", 10 ; 10 is the newline character '\n'
+    msg_len equ $ - msg             ; constant = byte length of msg
+
+section .text                       ; executable code
+    global _start                   ; the linker's entry symbol
+
+_start:
+    mov     rax, 1                  ; rax = syscall number 1 = write
+    mov     rdi, 1                  ; rdi = file descriptor 1 = stdout
+    mov     rsi, msg                ; rsi = address of the first byte to write
+    mov     rdx, msg_len            ; rdx = number of bytes to write
+    syscall                         ; transfer control to the kernel
+
+    mov     rax, 60                 ; rax = syscall number 60 = exit
+    xor     rdi, rdi                ; rdi = exit status 0
+                                    ; xor of a register with itself is the
+                                    ; cheapest way to load the constant 0
+    syscall                         ; exit; this never returns
+</code></pre>
+
+        <p>Read it as a conversation with the kernel. First you place arguments in registers — the syscall number in <code>rax</code>, and up to six parameters in <code>rdi</code>, <code>rsi</code>, <code>rdx</code>, <code>r10</code>, <code>r8</code>, <code>r9</code>. Then <code>syscall</code> switches the CPU into kernel mode, performs the request, and returns with a result in <code>rax</code>.</p>
+
+        <h3 id="libc-version">The Same Program with libc</h3>
+
+        <p>Once you link against the C library, you may use <code>main</code> and <code>printf</code> instead of raw syscalls. The program becomes shorter and portable, at the cost of no longer seeing exactly which system calls happen.</p>
+
+<pre><code class="language-nasm line-numbers">; hello_libc.asm — the same output through libc's printf
+; Build:  nasm -f elf64 hello_libc.asm -o hello_libc.o
+; Link:   gcc hello_libc.o -o hello_libc      (gcc adds the C runtime)
+; Run:    ./hello_libc
+
+section .rodata
+    fmt     db  "Hello from libc, world!", 10, 0   ; 0 terminates the string
+
+section .text
+    global main                 ; gcc's entry point is main, not _start
+    extern printf               ; printf is provided by the C library
+
+main:
+    push    rbp                 ; save the caller's frame pointer
+    mov     rbp, rsp            ; establish our own frame (see Subprograms)
+
+    lea     rdi, [rel fmt]      ; arg 1: pointer to the format string
+                                ; [rel ...] keeps the code position-independent
+    xor     eax, eax            ; AL = 0: no vector arguments are passed
+    call    printf              ; call the C library
+
+    xor     eax, eax            ; return 0 to the runtime
+    pop     rbp                 ; restore the frame pointer
+    ret                         ; return to the C runtime, which exits
+</code></pre>
+
+        <p>The <code>push rbp</code> / <code>mov rbp, rsp</code> pair is not decoration — the System V ABI requires it, and <code>printf</code> will misbehave without a properly aligned stack. Stack frames are the subject of <a href="/roadmap/assembly/subprograms.html">Subprograms &amp; the Stack</a>.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Try it:</strong> change <code>10</code> in <code>msg_len equ $ - msg</code> to <code>5</code> and rebuild. You will see only <code>Hello</code> — proof that the kernel writes exactly as many bytes as you tell it, no more and no less.
+        </div>
+
+
+        <h2 id="anatomy">Anatomy of the Source File</h2>
+
+        <p>Before writing anything, read a source file the way the assembler does: a list of lines, each belonging to a section, each either a directive that shapes the file or an instruction that becomes a byte.</p>
+
+        <h3 id="sections">Sections</h3>
+
+        <p>A <strong>section</strong> tells the linker what kind of memory the following bytes belong in. You will use four of them:</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Section</th><th>Contents</th><th>Writable?</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>section .text</code></td><td>Instructions — the code itself</td><td>No (read + execute)</td></tr>
+            <tr><td><code>section .rodata</code></td><td>Constants and strings that never change</td><td>No (read only)</td></tr>
+            <tr><td><code>section .data</code></td><td>Initialized global variables</td><td>Yes</td></tr>
+            <tr><td><code>section .bss</code></td><td>Uninitialized variables, reserved at run time</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+
+        <p>Putting a string in <code>.rodata</code> instead of <code>.data</code> is not cosmetic: the operating system can share a read-only page between processes, and a stray write there crashes loudly instead of silently corrupting data.</p>
+
+        <h3 id="entry-point">The Entry Point</h3>
+
+        <p>The <code>global</code> directive exports a symbol so the linker can see it, and the symbol named <code>_start</code> is where the process begins when you link with <code>ld</code>. Without it you get <em>cannot find entry symbol _start</em>. There is no <code>main</code> function and no runtime in front of you — the first instruction at <code>_start</code> is the first instruction executed.</p>
+
+<pre><code class="language-nasm line-numbers">section .text
+    global _start      ; export this symbol; the linker uses it as the entry point
+
+_start:                ; execution begins at this exact byte
+    ; instructions go here
+</code></pre>
+
+        <h3 id="labels-equ">Labels and Constants</h3>
+
+        <p>A <strong>label</strong> is a name for an address. Written as <code>name:</code> it marks the current position; written inside an expression it takes the value of that address. The special symbol <code>$</code> means "the address here", which makes length calculations trivial.</p>
+
+<pre><code class="language-nasm line-numbers">section .rodata
+    msg     db  "Hello", 10    ; msg is a label pointing at these bytes
+    msg_len equ $ - msg        ; equ defines a compile-time constant:
+                               ; ($) current address minus (msg) = 6 bytes
+    newline db  10             ; a second label for a single byte
+
+section .data
+    counter dd  0              ; a 32-bit writable variable, initialized to 0
+    buffer  times 64 db 0      ; 64 zero bytes (times repeats the definition)
+</code></pre>
+
+        <p><code>equ</code> creates a constant that exists only while assembling — it costs no memory and produces no bytes. That is the difference between <code>equ</code> and <code>db</code>: one is a number for the assembler, the other is a byte for the program.</p>
+
+
+        <h2 id="workflow">The Edit–Assemble–Run Loop</h2>
+
+        <p>The whole development cycle is four steps. Run them in a shell in the directory that holds your source file:</p>
+
+<pre><code class="language-bash line-numbers"># 1. Assemble: text -> object file (.o).  -f elf64 says "64-bit Linux ELF".
+nasm -f elf64 hello.asm -o hello.o
+
+# 2. Link: object file -> executable.  -o names the output.
+ld hello.o -o hello
+
+# 3. Run it.
+./hello
+
+# 4. Look at what you produced (optional but educational).
+objdump -d hello | less
+</code></pre>
+
+        <p>Add <code>-g -F dwarf</code> to the <code>nasm</code> line while learning. That embeds debug information so GDB can show your source lines instead of raw addresses, and it changes nothing about how the program runs.</p>
+
+        <p>If you link with <code>gcc</code> instead of <code>ld</code>, the entry point becomes <code>main</code> rather than <code>_start</code>, and the C runtime is initialized for you before <code>main</code> is called. That is the version you want as soon as you need <code>printf</code> or any other library function.</p>
+
+        <h2 id="platforms">Linux, macOS, Windows</h2>
+
+        <p>The assembly source is nearly identical across systems; the differences are the object-file format and the way you ask the operating system for services.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>System</th><th>NASM format</th><th>Linker</th><th>Entry point</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Linux x86-64</td><td><code>elf64</code></td><td><code>ld</code> or <code>gcc</code></td><td><code>_start</code> (or <code>main</code>)</td></tr>
+            <tr><td>macOS (Intel or Apple silicon)</td><td><code>macho64</code></td><td><code>ld</code> (via <code>clang</code>)</td><td><code>_main</code> — note the underscore</td></tr>
+            <tr><td>Windows (native)</td><td><code>win64</code></td><td><code>link.exe</code> / <code>golink</code></td><td><code>main</code></td></tr>
+            <tr><td>Windows (WSL2)</td><td><code>elf64</code></td><td><code>ld</code> or <code>gcc</code></td><td><code>_start</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>The recommendation for this track is <strong>Linux or WSL2</strong>. Syscall numbers and the System V calling convention are the same everywhere on Linux, the toolchain installs with one command, and every example here has been written against that target.</p>
+
+
+        <h2 id="troubleshooting">Troubleshooting Common Errors</h2>
+
+        <p>Every one of these messages has a boring, specific cause. Learn them once and you will never lose an hour to them again.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Message</th><th>What it really means</th><th>Fix</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>parser: instruction expected</code></td><td>A line starts with something NASM does not recognize as an instruction, usually a label without its colon.</td><td>Write <code>start:</code> not <code>start</code>.</td></tr>
+            <tr><td><code>ld: warning: cannot find entry symbol _start</code></td><td>The linker has no idea where execution begins.</td><td>Add <code>global _start</code> in the source.</td></tr>
+            <tr><td><code>relocation R_X86_64_32S against ... can not be used</code></td><td>You used an absolute address while producing a position-independent executable.</td><td>Add <code>default rel</code> and write <code>lea rdi, [rel msg]</code>.</td></tr>
+            <tr><td><code>Segmentation fault</code></td><td>A pointer was wrong — bad address, wrong syscall argument, or you forgot to exit.</td><td>Check operands with a debugger; verify the number of bytes passed to <code>write</code>.</td></tr>
+            <tr><td><code>Exec format error</code></td><td>The object file was built for a different operating system or architecture.</td><td>Rebuild with the format that matches your platform (<code>elf64</code>, <code>macho64</code>, <code>win64</code>).</td></tr>
+            <tr><td><code>Permission denied</code></td><td>You tried to execute a file that is not marked executable.</td><td><code>chmod +x ./hello</code></td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li>You need exactly two tools: an assembler (<code>nasm</code>) that makes an object file, and a linker (<code>ld</code> or <code>gcc</code>) that makes an executable.</li>
+          <li>The three commands are <code>nasm -f &lt;format&gt;</code>, <code>ld</code> (or <code>gcc</code>), then <code>./program</code>.</li>
+          <li>A source file is organised into <code>section</code>s; execution starts at the symbol the linker is told about (<code>_start</code> or <code>main</code>).</li>
+          <li>Link with <code>ld</code> for a bare syscall program, and with <code>gcc</code> when you want to call the C library.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/numbers.html">Numbers &amp; Memory</a> — the binary and hexadecimal arithmetic that every instruction is built on.</p>
+
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'assembly',
+    topicId: 'toolchain',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

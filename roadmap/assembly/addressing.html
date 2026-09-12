@@ -1,0 +1,226 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="x86-64 addressing modes: immediate, register, direct, indirect, base-plus-index-plus-scale, RIP-relative addressing, and walking arrays in assembly.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, assembly, addressing, effective address, rip-relative, lea, base index scale">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ASM Addressing Modes</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="asm-addressing">Addressing Modes</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          An addressing mode is an expression that names a memory location. x86-64 offers one flexible formula instead of many separate modes — master that formula and arrays, structs, and stack frames all become the same pattern.
+        </div>
+
+        <h2 id="modes">The Common Addressing Modes</h2>
+
+        <p>Textbooks list seven x86 addressing modes. In daily use, five of them appear constantly, and they are all special cases of one formula you will meet in the next section.</p>
+
+        <h3 id="immediate">Immediate — the value is in the instruction</h3>
+
+<pre><code class="language-nasm line-numbers">    mov  rax, 42            ; load the constant 42 into rax
+    add  rbx, 100           ; add the constant 100
+</code></pre>
+
+        <p>Fast (nothing is fetched from memory) but limited: an immediate cannot be a destination, because a constant has no storage.</p>
+
+        <h3 id="register">Register — the value is in a register</h3>
+
+<pre><code class="language-nasm line-numbers">    mov  rax, rbx           ; copy one register into another
+    add  rax, rbx           ; register-to-register arithmetic
+</code></pre>
+
+        <p>The fastest of all operand forms. Most well-written assembly keeps tight loops entirely in registers and touches memory only at the boundaries.</p>
+
+        <h3 id="direct">Direct — the value is at a named address</h3>
+
+<pre><code class="language-nasm line-numbers">section .data
+    counter  dd  0
+
+section .text
+    mov  eax, [counter]     ; read the 4 bytes at the address of `counter`
+    mov  [counter], 5       ; write 5 there (size needed: `mov dword [counter], 5`)
+</code></pre>
+
+        <p>The label <code>counter</code> <em>is</em> an address. Square brackets turn that address into "the contents at that address".</p>
+
+        <h3 id="indirect">Indirect — the address is in a register</h3>
+
+<pre><code class="language-nasm line-numbers">    mov  rbx, buffer        ; rbx now holds the address of buffer
+    mov  al,  [rbx]         ; load one byte FROM that address
+    mov  [rbx], al           ; store one byte TO that address
+</code></pre>
+
+        <p>This is how pointers work. The register holds an address; the brackets say "go there". Load a pointer into a register once, and you can walk a whole buffer with it.</p>
+
+        <h3 id="base-index">Base + Index + Displacement — the workhorse</h3>
+
+<pre><code class="language-nasm line-numbers">    ; array of 32-bit ints at `values`, read element i
+    ;   address = values + i*4
+    mov  eax, [values + rcx*4]
+    ;   or, with the base in a register:
+    mov  eax, [rbx + rcx*4]
+</code></pre>
+
+        <p>This single form covers array indexing, struct field access, and stack-frame locals. Everything else in this lesson is a variation on it.</p>
+
+
+        <h2 id="effective">The Effective Address Formula</h2>
+
+        <p>All of x86-64's memory syntax is one expression, evaluated by the CPU's address-generation unit:</p>
+
+<pre><code class="language-nasm line-numbers">    ;           base  +  index * scale  +  displacement
+    mov  eax, [rbx   +  rcx   * 4      +  8         ]
+    ;          ^         ^       ^         ^
+    ;       any 64-bit  any     1,2,4,8   a constant (may be negative)
+    ;       register   64-bit   only
+    ;                   register (not rsp)
+</code></pre>
+
+        <p>Every part is optional, and the CPU computes the sum for free as part of executing the instruction — no separate <code>add</code> is needed. The scale must be 1, 2, 4, or 8 because those are the sizes of byte, word, dword, and qword elements; no other multiplier is encodable.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Written as</th><th>Effective address</th><th>Typical meaning</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>[rbx]</code></td><td>rbx</td><td>First byte of a buffer</td></tr>
+            <tr><td><code>[rbx + 8]</code></td><td>rbx + 8</td><td>Second qword of a struct</td></tr>
+            <tr><td><code>[rbx + rcx]</code></td><td>rbx + rcx</td><td>Byte array indexed by rcx</td></tr>
+            <tr><td><code>[rbx + rcx*4]</code></td><td>rbx + 4·rcx</td><td>Dword array (int[]) — the classic</td></tr>
+            <tr><td><code>[rbx + rcx*8 + 16]</code></td><td>rbx + 8·rcx + 16</td><td>Field 16 of struct in a qword array</td></tr>
+            <tr><td><code>[rbp - 4]</code></td><td>rbp − 4</td><td>Local variable on the stack frame</td></tr>
+          </tbody>
+        </table>
+
+        <p>Note the brackets. <code>lea rbx, [msg]</code> computes the address <em>without</em> reading memory, while <code>mov rax, [rbx]</code> reads the eight bytes stored there. That single distinction causes more beginner confusion than any other part of assembly.</p>
+
+        <h2 id="rip-rel">RIP-Relative Addressing</h2>
+
+        <p>Modern executables are often <strong>position-independent</strong>: the loader may place the code anywhere in memory. An instruction that hard-codes an absolute address would then be wrong, so x86-64 offers a relative form: the address is computed as <code>rip + displacement</code>, and the displacement is fixed at assembly time.</p>
+
+<pre><code class="language-nasm line-numbers">    default rel                     ; make [label] mean [rel label] by default
+
+section .rodata
+    msg  db "Hello", 10
+
+section .text
+    lea  rdi, [rel msg]             ; position-independent: no absolute address
+    mov  rsi, [rel some_qword]      ; same idea for data loads
+</code></pre>
+
+        <p>With NASM, adding <code>default rel</code> at the top of a file and writing <code>[rel label]</code> is the habit that avoids the <em>relocation R_X86_64_32S against `.rodata`</em> link error. It costs nothing at run time and makes your code work under every loader.</p>
+
+
+        <h2 id="arrays">Walking an Array in Practice</h2>
+
+        <p>Every array traversal is the same addressing expression with a moving index. Here is the loop that prints an array of 32-bit values, one per line, using <code>base + index*scale</code>:</p>
+
+<pre><code class="language-nasm line-numbers">section .rodata
+    values  dd  10, 20, 30, 40, 50
+    COUNT   equ ($ - values) / 4        ; 5 elements (each is 4 bytes)
+
+section .text
+    mov     rbx, values                 ; rbx = base address  (rsi role: base)
+    xor     rcx, rcx                    ; rcx = index i = 0
+
+.loop:
+    cmp     rcx, COUNT                  ; i == COUNT ?
+    jge     .done                       ; yes -> finished
+
+    mov     eax, [rbx + rcx*4]          ; eax = values[i]  (scale 4 = dword)
+    ; ... use eax here (a real program would print it) ...
+
+    inc     rcx                         ; ++i
+    jmp     .loop                       ; continue
+
+.done:
+    ; exit
+    mov     rax, 60
+    xor     rdi, rdi
+    syscall
+</code></pre>
+
+        <p>Change the scale and you change the element size: <code>*1</code> for bytes, <code>*2</code> for words, <code>*4</code> for dwords, and <code>*8</code> for quadwords or pointer arrays. Nothing else in the loop changes, which is why the expression is worth memorising.</p>
+
+        <p>For an array of structs, keep a second register for the field offset instead of folding it into the scale, and you get the same indexing with a per-field displacement:</p>
+
+<pre><code class="language-nasm line-numbers">    ; struct Point { int x; int y; };  sizeof(Point) == 8
+    ; points[i].y  =  [base + i*8 + 4]
+    mov     eax, [rbx + rcx*8 + 4]      ; 8 = element size, 4 = offset of y
+</code></pre>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li>An address is written as <code>[base + index*scale + disp]</code>; every part is optional.</li>
+          <li><code>len</code> means the address <em>itself</em>; <code>[ ]</code> means the value <em>at</em> that address.</li>
+          <li>Scale accepts only 1, 2, 4, or 8 — exactly the common element sizes.</li>
+          <li>Use RIP-relative addressing (<code>default rel</code> + <code>[rel label]</code>) for position-independent code.</li>
+          <li>Arrays are <code>[base + index*elemsize]</code>; struct fields add a constant displacement.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/instructions.html">Instructions</a> — the full instruction set, grouped by what each instruction actually does.</p>
+
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'assembly',
+    topicId: 'addressing',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

@@ -2,31 +2,35 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Bash parallel processes, subprocesses and asynchronous command execution.">
+  <meta name="description" content="Bash process control: background jobs, jobs/fg/bg, wait for parallelism, signals, traps and subshells.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="sage, bash, subproc, parallel, multithread, background, execution">
+  <meta name="keywords" content="bash, process, job, signal, trap, wait, subshell, tutorial">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Async Processes</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>Processes, Signals & Jobs</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,170 +39,146 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
+        <h1 id="bash-processes">Processes, Signals & Jobs</h1>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
+<h2 id="jobs">Jobs &amp; Background</h2>
 
-<h1 id="asynchronous-processes">Asynchronous Processes</h1>
+<p>Every command you run normally blocks the shell until it finishes. A trailing <code>&amp;</code> runs it in the <strong>background</strong> and hands the prompt back immediately.</p>
 
-<div class="alert alert-secondary shadow-sm">
-In Bash you can call multiple commands or command groups asynchronously. That is when main thread start a sub-process but continoue on and can start another sub-process without wayting for the first to finish. Asynchronous processes can run in parallel on different core processors.</div>
+<h3 id="background">Starting a Background Job</h3>
 
-<p>Bash is good for starting commands in parallel. There are two methods available: running commands in background and coprocesses. With coprocesses you have more control but you need to create a script for managing the workflow.</p>
-
-<h2 id="forking">Forking</h2>
-
-<p>This is a terminology used sometimes for describing the workflow. A large job is divided in smaller parts and distribute the work in multiple threads to be executed in parallel. Most frequently the threads are doing exactly the same thing for equal load. Sometimes the threads may have different load and duration.</p>
-
-<div class="text-center">
-  <img src="/roadmap/bash/img/forking.svg" alt="process forking diagram"
-       width="600" class="img-fluid protect rounded shadow border" >
-  <p>Asynchronous Processing</p>
-</div>
-
-<p>In this case the processes are relative independent. All threads start almost at the same time, and finish at different times. The main thread must wait for all processes to finish before doing something with the results. During the execution, the sub-processes do not communicate with the main thread.</p>
-
-<!--two columns pattern-->
-<div class="row">
-
-<div class="column col-md-6 panel"><!-- first column -->
-<div class="panel-heading">forking.sh</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-bash line-numbers">#!/bin/bash
-#start 4 asynchronous threads
-echo "starting ..."
-echo "1" && sleep 20 && echo "1" &
-echo "2" && sleep 5  && echo "2" &
-echo "3" && sleep 10 && echo "3" &
-echo "4" && sleep 3  && echo "4" &
-
-sleep 1
-echo "ending ..."
-
-wait
-echo "done."
+<pre><code class="language-bash line-numbers">sleep 60 &amp;                 # returns at once; prints [1] 48213
+echo "the shell is still interactive"
 </code></pre>
-</div>
-</div>
 
-<div class="column col-md-6 panel"><!-- second column -->
-<div class="panel-heading">console</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-output">~/bash-repl$ bash forking.sh
-starting ...
-1 
-2 
-3 
-4 
-ending ...
-4
-2
-3
-1
-done.
+<h3 id="jobs-list">Listing Jobs</h3>
+
+<pre><code class="language-bash line-numbers">jobs                       # [1]+  Running   sleep 60 &
+jobs -l                    # include PIDs
 </code></pre>
-</div>
-</div>
+
+<p>The <code>[1]</code> is a <strong>job number</strong> managed by the shell; the second number is the process id. Job numbers are per-shell and convenient for interactive use; PIDs are global and used in scripts.</p>
+
+<h3 id="fg-bg">fg, bg and Disown</h3>
+
+<pre><code class="language-bash line-numbers">fg %1                      # bring job 1 to the foreground
+bg %1                      # resume job 1 in the background
+Ctrl-Z                     # suspend the foreground job
+kill %1                    # send a signal to job 1
+disown %1                  # forget the job so it survives the shell exiting
+</code></pre>
+
+<h2 id="wait">wait &amp; Parallelism</h2>
+
+<p><code>wait</code> blocks until a background job finishes and returns its exit status. It is the simplest way to run work in parallel.</p>
+
+<pre><code class="language-bash line-numbers">pids=()
+for host in web1 web2 web3; do
+  ping -c1 "$host" &gt;/dev/null &amp;
+  pids+=($!)
+done
+
+fail=0
+for pid in "${pids[@]}"; do
+  wait "$pid" || fail=1        # collect every status
+done
+echo "all finished; fail=$fail"
+</code></pre>
+
+<div class="alert alert-info shadow-sm">
+  Run several independent downloads, builds or API calls at once with <code>&amp;</code>, then <code>wait</code>. This is the shell's lightweight equivalent of a thread pool.
 </div>
 
-<h4>Notes:</h4>
+<h3 id="wait-all">wait with no argument</h3>
+<pre><code class="language-bash line-numbers">for i in {1..5}; do heavy_task "$i" &amp; done
+wait                            # wait for all of them
+echo "batch complete"
+</code></pre>
 
+<h2 id="signals">Signals &amp; trap</h2>
+
+<h3 id="common-signals">Common Signals</h3>
+
+<table class="table table-bordered table-striped table-dark">
+  <tr><th>Signal</th><th>Number</th><th>Meaning</th></tr>
+  <tr><td>HUP</td><td>1</td><td>Terminal closed</td></tr>
+  <tr><td>INT</td><td>2</td><td>Ctrl-C interruption</td></tr>
+  <tr><td>TERM</td><td>15</td><td>Polite termination (default of kill)</td></tr>
+  <tr><td>KILL</td><td>9</td><td>Uncatchable, immediate kill</td></tr>
+  <tr><td>EXIT</td><td>0</td><td>Pseudo-signal: shell exits</td></tr>
+</table>
+
+<h3 id="trap-cleanup">trap — Cleanup on Exit</h3>
+
+<p><code>trap</code> runs a command when a signal arrives. The <code>EXIT</code> pseudo-signal guarantees cleanup however the script ends.</p>
+
+<pre><code class="language-bash line-numbers">tmp="$(mktemp -d)"
+
+cleanup() {
+  local status=$?
+  rm -rf "$tmp"
+  echo "cleaned up (exit was $status)" &gt;&amp;2
+}
+trap cleanup EXIT
+
+trap 'echo "interrupted"; exit 130' INT
+trap 'echo "terminated";  exit 143' TERM
+</code></pre>
+
+<div class="alert alert-warning shadow-sm">
+  Inside a trap, <code>$?</code> already holds the status that triggered it. Capture it first with <code>local status=$?</code> so your cleanup can report it and still <code>exit "$status"</code>.
+</div>
+
+<h3 id="ignore">Ignoring and Resetting</h3>
+<pre><code class="language-bash line-numbers">trap '' INT              # ignore Ctrl-C (use with care)
+trap - INT               # restore the default action
+</code></pre>
+
+<h2 id="subshells">Subshells</h2>
+
+<p>Anything in <code>( … )</code>, a pipeline stage, or <code>$( … )</code> runs in a <strong>subshell</strong>: a child copy of the shell. It inherits variables but its own changes vanish when it exits.</p>
+
+<pre><code class="language-bash line-numbers">total=0
+printf 'a\nb\nc\n' | while read -r _; do
+  (( total++ ))          # runs in a subshell — lost!
+done
+echo "$total"            # 0
+
+# Correct: keep the loop in the current shell
+while read -r _; do
+  (( total++ ))
+done &lt; &lt;(printf 'a\nb\nc\n')
+echo "$total"            # 3
+</code></pre>
+
+<h3 id="ps">Inspecting Processes</h3>
+<pre><code class="language-bash line-numbers">ps -ef | grep myscript          # find by name
+pgrep -f myscript               # PIDs matching the command line
+ps -p $$ -o pid,ppid,cmd        # this shell and its parent
+</code></pre>
+
+<h2 id="pitfalls">Pitfalls</h2>
 <ul>
-<li>Ending a chain of commands with "&" cause all gorup to run asynchronously in the background;</li>
-<li>Sub-processes start almost immediately and the commands in the chain will be executed one by one;</li>
-<li>After starting all necessary co-processes you must use "wait" to avoid exiting the script too early;</li>
-<li>After waiting for all processes to finish you can print the results and prepare for exit;</li>
+  <li>Variables set in a subshell (a pipeline stage, <code>( )</code>, or <code>$( )</code>) do not reach the parent.</li>
+  <li>Without <code>wait</code>, background failures go unnoticed and <code>set -e</code> does not catch them.</li>
+  <li>Signals cannot be sent to job numbers from another shell — use PIDs.</li>
+  <li>SIGKILL (9) cannot be trapped; never rely on it for graceful shutdown.</li>
 </ul>
-
-<h2 id="coprocess">Coprocess</h2>
-
-<p>You can use command: <code>coproc</code> to start a secondary process that can communicate with the main process. This is similar with forking with a single branch. The point is, the coprocess is running in parallel witht he main process.</p>
-
-<div class="text-center">
-  <img src="/roadmap/bash/img/processes.svg" alt="coprocess diagram"
-       width="600" class="img-fluid protect rounded shadow border" >
-  <p>Main process & Coprocess</p>
-</div>
-
-<!--two columns pattern-->
-<div class="row">
-<!-- first column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">example</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-bash line-numbers">#!/bin/bash
-coproc (echo $(whoami))
-echo "COPROC = ${COPROC[@]}"
-echo "COPROC_PID = ${COPROC_PID}"
-
-# read the output from pipeline
-read -r user <&"${COPROC[0]}"
-echo "Current user: $user"
-</code></pre>
-</div>
-</div>
-<!-- second column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">console</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-output">~/bash-repl$ bash coprocess.sh 
-COPROC = 63 60
-COPROC_PID = 205
-Current user: runner
-~/bash-repl$ 
-</code></pre>
-</div>
-</div>
-</div>
-
-<h4>Notes:</h4>
-
-<ul>
-<li>co-processes are asynchronous, similar to commands that use "&" at the end;</li>
-<li>co-processes have an advantage over normal jobs by providing a data pipeline;</li>
-<li>co-processes can be used in producer-consumer design pattern.</li>
-</ul>
-
-<hr>
-
-
-</main>
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'bash',
@@ -212,6 +192,5 @@ Current user: runner
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

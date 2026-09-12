@@ -2,31 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Assembly tutorial for beginners.">
+  <meta name="description" content="NASM macros and directives: equ, %define, multi-line macros with %macro, local labels with %%, conditional assembly with %if, and %include.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="assembly, language, programming, tutorial">
+  <meta name="keywords" content="sage, code, assembly, nasm, macros, equ, define, macro, conditional assembly, include">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>ASM Macros</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>ASM Macros &amp; Directives</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,57 +37,206 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="asm-macros">Macros &amp; Directives</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          The assembler is a small programming language in its own right. Its macros, constants, and conditional directives let you generate instruction sequences — so you write a pattern once and expand it everywhere, with zero run-time cost.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="asm-macros">ASM Macros</h2>
+        <h2 id="macros">Multiline Macros</h2>
+
+        <p>A <strong>macro</strong> is a named block of source text that the assembler pastes in wherever you write its name, substituting the arguments you supply. It is a <em>compile-time</em> mechanism: the expansion is invisible at run time.</p>
+
+<pre><code class="language-nasm line-numbers">%macro write_str 2          ; name, number of parameters
+    mov  rax, 1             ; syscall 1 = write
+    mov  rdi, 1             ; fd 1 = stdout
+    mov  rsi, %1            ; %1 = first argument: pointer to the string
+    mov  rdx, %2            ; %2 = second argument: length
+    syscall
+%endmacro
+
+section .rodata
+    msg db "Macro magic", 10
+
+section .text
+    global _start
+_start:
+    write_str msg, 13       ; expands to the five instructions above
+    mov  rax, 60
+    xor  rdi, rdi
+    syscall
+</code></pre>
+
+        <p>Parameters are referenced as <code>%1</code>, <code>%2</code>, and so on. Because the substitution is textual, a macro can accept anything — a number, a label, or even an expression.</p>
+
+        <h3 id="local-labels">Local Labels Inside Macros: %%</h3>
+
+        <p>If a macro contains a label and you expand it twice, you get a duplicate-symbol error. Prefixing the label with <code>%%</code> makes it unique on each expansion.</p>
+
+<pre><code class="language-nasm line-numbers">%macro delay 1
+    mov  rcx, %1
+%%wait:                     ; %% generates a fresh name every time
+    dec  rcx
+    jnz  %%wait
+%endmacro
+
+    ; Both expansions coexist, because each %%wait becomes a different label:
+    delay 1000
+    delay 500
+</code></pre>
+
+        <h3 id="macro-vs-call">Macro or Subroutine?</h3>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th></th><th>Macro</th><th>Subroutine (call)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>When it happens</td><td>Assembly time (text expansion)</td><td>Run time (a jump and a return)</td></tr>
+            <tr><td>Code size</td><td>Grows with each use</td><td>Written once</td></tr>
+            <tr><td>Run-time cost</td><td>None — no call, no return</td><td>One call plus one ret, plus stack use</td></tr>
+            <tr><td>Good for</td><td>Short sequences used a few times; constants; code generation</td><td>Larger routines used many times</td></tr>
+          </tbody>
+        </table>
+
+        <p>Choose a macro when the sequence is short and speed matters; choose a subroutine when the code is long enough that duplicating it would bloat the executable or hurt instruction-cache performance.</p>
+
+        <h2 id="cond-assembly">Conditional Assembly</h2>
+
+        <p>The assembler can include or exclude whole blocks of source based on symbols you define. This is how one source file produces debug and release builds, or targets several platforms.</p>
+
+<pre><code class="language-nasm line-numbers">%define DEBUG 1
+
+%ifdef DEBUG
+    ; This block is assembled only when DEBUG is defined.
+%macro trace 1
+    push rax
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    ; ... write a diagnostic line ...
+    pop  rdi
+    pop  rsi
+    pop  rdx
+    pop  rcx
+    pop  rax
+%endmacro
+%else
+    %macro trace 1
+        ; nothing: trace calls compile away entirely in release builds
+    %endmacro
+%endif
+
+%ifndef VERSION
+    %define VERSION 1
+%endif
+</code></pre>
+
+        <p>Because the untaken branch is never assembled, a disabled <code>trace</code> macro expands to nothing at all — no instructions, no data, no cost. That is a cleaner arrangement than a run-time <code>if (debug)</code> check in a language without a preprocessor.</p>
+
+        <h2 id="equ-defines">Constants: equ and %define</h2>
+
+        <h3 id="equ">equ — a Value for the Assembler</h3>
+
+        <p><code>equ</code> binds a name to a constant expression. The name is not a label and occupies no storage; it disappears after assembly, replaced everywhere by its value.</p>
+
+<pre><code class="language-nasm line-numbers">    BUFFER_SIZE equ 4096
+    SYS_WRITE   equ 1
+    SYS_EXIT    equ 60
+    STDOUT      equ 1
+
+    ; equ values can be used in any expression, including addresses:
+    msg_len equ end_of_msg - msg
+</code></pre>
+
+        <h3 id="define">%define — a Text Substitution</h3>
+
+        <p><code>%define</code> is more primitive: it replaces text, not a value, and it can take parameters. That power is also its danger — an unparenthesized substitution can change the meaning of an expression.</p>
+
+<pre><code class="language-nasm line-numbers">%define TWO 2
+%define SQUARE(x) ((x) * (x))     ; ALWAYS parenthesize macro parameters
+%define MAX(a, b) ((a) &gt; (b) ? (a) : (b))   ; not valid in NASM — see note
+
+    mov  rax, SQUARE(rbx)         ; expands to: mov rax, ((rbx) * (rbx))
+    mov  rcx, TWO * 3             ; expands to: mov rcx, 2 * 3
+</code></pre>
+
+        <div class="alert alert-warning shadow-sm">
+          <strong>Note:</strong> NASM's <code>%define</code> is a simple text substitution and does <em>not</em> evaluate conditional expressions the way the C preprocessor does. For anything involving conditions or loops, use <code>%if</code> and <code>%rep</code> instead of trying to emulate C macros.
+        </div>
+
+        <p>Rule of thumb: use <code>equ</code> for numbers you compute with, and <code>%define</code> for token substitutions such as register aliases or names of system calls.</p>
 
 
-<div class="alert alert-secondary shadow-sm">
-To be replaced!
-</div>
+        <h2 id="include">Includes, Repetition, and Structure</h2>
+
+        <h3 id="include-dir">%include — Splitting a Project</h3>
+
+        <p>Once a program outgrows one file, put the shared macros and constants in a header and include it. This is exactly the role of a C <code>.h</code> file.</p>
+
+<pre><code class="language-nasm line-numbers">; ---- file: syscalls.inc ----
+%define SYS_WRITE 1
+%define SYS_EXIT  60
+%define STDOUT    1
+
+%macro exit 1
+    mov  rax, SYS_EXIT
+    mov  rdi, %1
+    syscall
+%endmacro
+
+; ---- file: program.asm ----
+%include "syscalls.inc"      ; pull in the definitions above
+
+section .text
+    global _start
+_start:
+    ; ... produce output ...
+    exit 0                   ; expand the macro; argument 0 is the status
+</code></pre>
+
+        <p>Search paths can be extended with <code>-I</code> on the command line: <code>nasm -I include/ -f elf64 program.asm</code>.</p>
+
+        <h3 id="rep">%rep — Compile-Time Repetition</h3>
+
+        <p><code>%rep</code> expands a block several times at assembly time. Unlike <code>times</code>, which repeats data, <code>%rep</code> repeats <em>anything</em>, and the counter <code>%$</code> is available inside the block. That makes generated tables possible.</p>
+
+<pre><code class="language-nasm line-numbers">%assign i 0
+%rep 16
+    dd i * i            ; emit i squared, sixteen times: 0, 1, 4, 9, ... 225
+%assign i i+1
+%endrep
+</code></pre>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li><code>equ</code> defines an assembly-time constant; <code>%define</code> is a text substitution that also accepts parameters.</li>
+          <li><code>%macro name n</code> … <code>%endmacro</code> defines a macro with <code>n</code> parameters, referenced as <code>%1</code>, <code>%2</code>, …</li>
+          <li>Use <code>%%label</code> inside macros to create a fresh local label on every expansion — otherwise the second expansion collides with the first.</li>
+          <li><code>%if</code>/<code>%ifdef</code>/<code>%ifndef</code> select code at assembly time; the untaken branch is never assembled.</li>
+          <li>Macros expand into real instructions, so they cost nothing at run time; subroutines (<code>call</code>) cost one call, but can be used many times for far less code size.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/io.html">Input/Output &amp; Syscalls</a> — making a program talk to the outside world.</p>
 
 
-<pre><code class="language-go line-numbers">
-// code example to be replaced with first example
-</code></code></code></pre>
-
-<!-- work in progress-->
-
-<hr>
-
-</main>
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'assembly',
@@ -99,6 +250,5 @@ To be replaced!
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

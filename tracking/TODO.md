@@ -32,6 +32,16 @@ All 42 roadmap indexes implement the roadmap index standard:
 - Removed legacy artifacts: `bbsort.html`, `linux_errors.html`, `casting.html`, `prompt.txt`, `c-exam.png`, `crepl.jpg`, 56 unsafe/un-named legacy `demo/*.c` files.
 - Validated: `run test` → `run build` → `run check` (0 C warnings); status now **converted**.
 
+## ✅ bash — Rebuilt as a Bash Scripting track (2026-09-12)
+`bash` was a legacy "shell programming" track (18 mixed topics, 3 WIP stubs, flat/broken sidebars, typo-ridden markup, undocumented demos). Rebuilt as a modern 21-row track modeled on `csharp`/`zig`:
+- 18 lessons across 5 phases — THE SHELL (`shell`, `interpreters`, `setup`), THE LANGUAGE (`syntax`, `quoting`, `variables`, `expansion`, `arrays`, `redirection`), PROGRAMMING (`conditionals`, `loops`, `functions`, `arithmetic`), SYSTEM & TEXT (`files`, `text`, `processes`, `environment`), ROBUST ENGINEERING (`robust`).
+- Every lesson has a hierarchical sidebar JSON (`roadmap/bash/data/<topic>.json`, h2 → h3).
+- Practice & Reference: 16 single-file demos (`demo/01..16`) + `demo_examples.html`; Study Projects (`samples.html`); `references.html` closes the track.
+- 5 track-specific SVGs (`roadmap/bash/img/`: shell-anatomy, shell-family, expansion-order, pipeline, startup-order). Legacy PNG/SVG media removed.
+- Cross-platform angle: native Linux/macOS, plus Windows via WSL2, Git Bash and MSYS2/Cygwin; POSIX vs Bash portability noted throughout.
+- References verified free: GNU Bash Manual, TLDP guides, Greg's Wiki (BashGuide/FAQ/Pitfalls), Google Shell Style Guide, ShellCheck, explainshell, LearnShell, OverTheWire Bandit, Pure Bash Bible, awesome-bash.
+- Removed legacy artifacts: 10 obsolete pages (`commands`, `groups`, `braces`, `math`, `control`, `directory`, `regex`, `external`, `types`, `startup`) and their sidebars, old images and 4 undocumented demos.
+
 ## 🚧 cpp — IN PROGRESS (2026-09-11)
 
 `cpp` is the active track: rebuilding the legacy 6-topic scaffold into a complete first-language tutorial
@@ -59,7 +69,7 @@ Demo collection added (2026-09-11): `roadmap/cpp/demo/` holds 14 grouped, heavil
 When complete, remove this entry and mark the track done under the completed list.
 
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py)
-- [ ] `assembly/` — 10 topic pages are "To be replaced!" ~3.4 KB placeholder shells.
+- [x] `assembly/` — rebuilt as a full 17-topic track (x86-64 NASM primary; ARM64, RISC-V, WebAssembly in the Flavors lesson), 20 demo programs, hierarchical sidebars, references page.
 - [ ] `swift/` — 13 topic pages are "Work in progress!" ~3.6 KB placeholder shells.
 - [ ] `carbon/` — 8 topic pages are "Work In Progress" stubs (syntax.html has real content).
 - [ ] `ada/` — real topic pages but only `data/topic.json` (per-topic sidebar JSONs missing).

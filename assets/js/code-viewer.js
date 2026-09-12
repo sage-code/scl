@@ -122,7 +122,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         'cc': 'cpp',
         'cxx': 'cpp',
         'hpp': 'cpp',
-        'hh': 'cpp'
+        'hh': 'cpp',
+        // Assembly dialects — NASM/GAS x86 use the 'nasm' grammar appended to
+        // assets/prism.js; ARM and WebAssembly use the bundled grammars.
+        'asm': 'nasm',
+        'nasm': 'nasm',
+        's': 'nasm',      // GAS source (.s / .S) — extension is lowercased already
+        'inc': 'nasm',    // NASM include files with macro definitions
+        'arm': 'armasm',
+        'aar': 'armasm',
+        'wat': 'wasm',
+        'wast': 'wasm',
+        'wasm': 'wasm'
     };
 
     display.className = `language-${langMap[ext] || 'javascript'}`;

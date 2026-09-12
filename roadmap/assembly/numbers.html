@@ -1,0 +1,269 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Assembly numbers and memory: binary, hexadecimal, two's complement, overflow, endianness, alignment, and how NASM writes numeric literals.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, assembly, binary, hexadecimal, twos complement, endianness, overflow, bitwise">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ASM Numbers &amp; Memory</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="asm-numbers">Numbers &amp; Memory</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A CPU has no idea what a number means. It only has bits. Signedness, decimal points, and characters are conventions that you — the programmer — must apply consistently, because nothing below will check for you.
+        </div>
+
+        <h2 id="bases">Number Bases</h2>
+
+        <p>Three bases are used every day in assembly, and the reason is practical rather than mathematical: each one makes a different thing easy to see.</p>
+
+        <h3 id="binary">Binary — What the Hardware Sees</h3>
+
+        <p>A wire is either at 0 V or 5 V. That is the entire vocabulary of the machine, so every number is a sequence of ones and zeros. An <strong>n-bit</strong> value holds 2<sup>n</sup> distinct patterns:</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Width</th><th>Bits</th><th>Distinct values</th><th>x86-64 register</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>byte</td><td>8</td><td>256</td><td><code>al</code></td></tr>
+            <tr><td>word</td><td>16</td><td>65 536</td><td><code>ax</code></td></tr>
+            <tr><td>double word</td><td>32</td><td>4 294 967 296</td><td><code>eax</code></td></tr>
+            <tr><td>quad word</td><td>64</td><td>18 446 744 073 709 551 616</td><td><code>rax</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="hex">Hexadecimal — Shorthand for Bits</h3>
+
+        <p>One hexadecimal digit is exactly four bits, so two hex digits are exactly one byte. That one-to-one correspondence is why hex is everywhere in debugging: <code>0x9F</code> is <code>1001 1111</code>, instantly, with no arithmetic.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Dec</th><th>Hex</th><th>Bin</th><th>Dec</th><th>Hex</th><th>Bin</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>0</td><td>0</td><td>0000</td><td>8</td><td>8</td><td>1000</td></tr>
+            <tr><td>1</td><td>1</td><td>0001</td><td>9</td><td>9</td><td>1001</td></tr>
+            <tr><td>2</td><td>2</td><td>0010</td><td>10</td><td>A</td><td>1010</td></tr>
+            <tr><td>3</td><td>3</td><td>0011</td><td>11</td><td>B</td><td>1011</td></tr>
+            <tr><td>4</td><td>4</td><td>0100</td><td>12</td><td>C</td><td>1100</td></tr>
+            <tr><td>5</td><td>5</td><td>0101</td><td>13</td><td>D</td><td>1101</td></tr>
+            <tr><td>6</td><td>6</td><td>0110</td><td>14</td><td>E</td><td>1110</td></tr>
+            <tr><td>7</td><td>7</td><td>0111</td><td>15</td><td>F</td><td>1111</td></tr>
+          </tbody>
+        </table>
+
+        <p>Converting to hex is mechanical: group the bits in fours from the right, then look each group up. To compute a value by hand: each hex digit is worth 16<sup>position</sup>, so <code>0x2A</code> is 2×16 + 10 = 42.</p>
+
+        <h2 id="twos-complement">Signed Numbers</h2>
+
+        <h3 id="range">Two's Complement and the Range Problem</h3>
+
+        <p>Nothing in the hardware says a bit pattern is negative. The convention that makes negative numbers cheap is <strong>two's complement</strong>: the most significant bit carries a <em>negative</em> weight. For an 8-bit value, bit 7 is worth −128 instead of +128.</p>
+
+<pre><code class="language-nasm line-numbers">    ; 8-bit patterns interpreted as UNSIGNED and as SIGNED (two's complement):
+    ;
+    ;   bits      unsigned   signed
+    ;   --------  --------   ------
+    ;   0000 0000      0          0
+    ;   0111 1111    127        127     <- largest signed positive
+    ;   1000 0000    128       -128     <- most negative
+    ;   1111 1111    255         -1
+</code></pre>
+
+        <p>The range is therefore asymmetric: <code>−2<sup>n−1</sup></code> up to <code>+2<sup>n−1</sup>−1</code>. For 32-bit integers that is −2 147 483 648 to 2 147 483 647 — the familiar <code>int</code> limits of most languages.</p>
+
+        <h3 id="negation">Negation and Subtraction</h3>
+
+        <p>To negate a number in two's complement, invert every bit and add one. That trick is why the CPU needs only an adder: <code>a − b</code> is computed as <code>a + (−b)</code>.</p>
+
+<pre><code class="language-nasm line-numbers">    mov  al, 5          ; 0000 0101
+    neg  al             ; invert and add 1 -> 1111 1011 = -5
+
+    ;   ~5      = 1111 1010   (not al)
+    ;   ~5 + 1  = 1111 1011   (neg al)  = -5
+</code></pre>
+
+        <h3 id="overflow">Overflow</h3>
+
+        <p>Signed and unsigned arithmetic can both fail, but they fail in different ways, and the CPU reports each with its own flag:</p>
+
+        <ul>
+          <li><strong>Carry flag (CF)</strong> — set when an <em>unsigned</em> result does not fit (e.g. 255 + 1 in a byte).</li>
+          <li><strong>Overflow flag (OF)</strong> — set when a <em>signed</em> result has the wrong sign (e.g. 127 + 1 in a byte = −128).</li>
+        </ul>
+
+<pre><code class="language-nasm line-numbers">    mov  al, 127
+    add  al, 1          ; result 1000 0000
+                        ; CF = 0 (128 fits in an unsigned byte)
+                        ; OF = 1 (127 + 1 overflows signed range: now -128)
+</code></pre>
+
+        <p>This is exactly why you must know whether your data is signed <em>before</em> you choose a jump instruction. The next lesson on <a href="/roadmap/assembly/control.html">Control Flow</a> shows that <code>jg</code> (signed) and <code>ja</code> (unsigned) read the same flags but reach opposite conclusions.</p>
+
+
+        <h2 id="endianness">Bytes, Endianness, and Alignment</h2>
+
+        <p>A byte is eight bits. Larger numbers occupy several consecutive bytes, and the CPU must agree on which byte holds the most significant part:</p>
+
+        <ul>
+          <li><strong>Little-endian</strong> — the least significant byte comes first in memory. This is what x86-64 and default-mode ARM use.</li>
+          <li><strong>Big-endian</strong> — the most significant byte comes first. This is what network protocols and some RISC architectures use.</li>
+        </ul>
+
+<pre><code class="language-nasm line-numbers">    ; The 32-bit value 0x12345678 stored at address `val`:
+    ;
+    ;   little-endian (x86-64):   78 56 34 12
+    ;   big-endian:               12 34 56 78
+    ;
+    ; The number is the same; only the byte order in memory differs.
+
+section .data
+    val  dd  0x12345678        ; a 32-bit little-endian value
+</code></pre>
+
+        <p>Endianness only becomes visible when you inspect memory byte by byte — in a hex dump, over a network, or inside a file format. It is the classic source of "the file is written backwards" bugs.</p>
+
+        <p><strong>Alignment</strong> is the other memory convention: an 8-byte value is fastest when its address is a multiple of 8, a 4-byte value when its address is a multiple of 4, and so on. x86-64 tolerates misalignment with a small penalty; ARM and RISC-V may fault outright. NASM's <code>align</code> directive pads to a boundary so you never have to think about it:</p>
+
+<pre><code class="language-nasm line-numbers">section .data
+    flag    db  1              ; 1 byte
+    align   8                  ; pad with zeros up to the next multiple of 8
+    total   dq  0              ; now guaranteed to be 8-byte aligned
+</code></pre>
+
+
+        <h2 id="literal-forms">Number Literals in NASM</h2>
+
+        <h3 id="forms">Writing Numbers in Source</h3>
+
+        <p>NASM accepts several spellings for the same value. Choose the one that matches the meaning: hexadecimal for bit patterns and addresses, binary when individual bits matter, decimal for everyday quantities.</p>
+
+<pre><code class="language-nasm line-numbers">    mov  eax, 255          ; decimal
+    mov  eax, 0xFF         ; hexadecimal, 0x prefix      (= 255)
+    mov  eax, 0ffh         ; hexadecimal, h suffix (leading 0 required)
+    mov  eax, $FF          ; hexadecimal, $ prefix
+    mov  eax, 0b11111111   ; binary, 0b prefix           (= 255)
+    mov  eax, 0o377        ; octal, 0o prefix            (= 255)
+    mov  eax, 377q         ; octal, q suffix
+    mov  eax, 1_000_000    ; underscores group digits    (= 1000000)
+
+    ; Character and string constants: the assembler substitutes the code point.
+    mov  al,  'A'          ; al = 65  (ASCII code of 'A')
+    mov  al,  'A' + 1      ; al = 66  — expressions are allowed
+</code></pre>
+
+        <h3 id="expression-eval">Expressions Are Evaluated at Assembly Time</h3>
+
+        <p>NASM computes constant expressions while assembling, so arithmetic on literals costs nothing at run time. This is how string lengths and masks are written without magic numbers.</p>
+
+<pre><code class="language-nasm line-numbers">    BUFFER_SIZE equ 4096
+    HALF        equ BUFFER_SIZE / 2           ; 2048
+    MASK        equ (1 &lt;&lt; 12) - 1            ; 4095 — low 12 bits set
+    msg         db "hi", 10
+    MSG_LEN     equ $ - msg                   ; 3
+
+    mov  rdx, MSG_LEN                         ; no run-time work at all
+</code></pre>
+
+
+        <h2 id="bit-ops">Bitwise Operations</h2>
+
+        <p>Because everything is bits, the bitwise instructions are not a curiosity — they replace multiplication, division, and modulo whenever the constant happens to be a power of two.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Operation</th><th>Instruction</th><th>Meaning</th><th>Typical use</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>AND</td><td><code>and dst, src</code></td><td>1 where both bits are 1</td><td>Mask off (keep) selected bits</td></tr>
+            <tr><td>OR</td><td><code>or dst, src</code></td><td>1 where either bit is 1</td><td>Set selected bits</td></tr>
+            <tr><td>XOR</td><td><code>xor dst, src</code></td><td>1 where bits differ</td><td>Toggle bits; clear a register</td></tr>
+            <tr><td>NOT</td><td><code>not dst</code></td><td>Invert every bit</td><td>One's complement</td></tr>
+            <tr><td>Shift left</td><td><code>shl dst, n</code></td><td>Move bits left, fill with 0</td><td>Multiply by 2<sup>n</sup></td></tr>
+            <tr><td>Shift right</td><td><code>shr dst, n</code></td><td>Move bits right, fill with 0</td><td>Unsigned divide by 2<sup>n</sup></td></tr>
+            <tr><td>Arithmetic shift right</td><td><code>sar dst, n</code></td><td>Shift right, copy the sign bit</td><td>Signed divide by 2<sup>n</sup></td></tr>
+          </tbody>
+        </table>
+
+<pre><code class="language-nasm line-numbers">    mov  eax, 0b00001111
+    and  eax, 0b00000011   ; keep only the low two bits   -> 0b00000011 (3)
+    or   eax, 0b00010000   ; set bit 4                    -> 0b00010011 (19)
+    xor  eax, 0b00000011   ; toggle the low two bits      -> 0b00010000 (16)
+    shl  eax, 3            ; multiply by 8                -> 128
+    shr  eax, 1            ; unsigned divide by 2         -> 64
+</code></pre>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li>The CPU stores only bits; signedness and meaning are conventions you apply.</li>
+          <li>Two's complement makes subtraction the same hardware as addition, at the cost of an asymmetric range (−2<sup>n−1</sup> … 2<sup>n−1</sup>−1).</li>
+          <li>Signed and unsigned comparisons use <em>different</em> jump instructions (<code>jg</code> vs <code>ja</code>) on the same flag bits.</li>
+          <li>Little-endian is the byte order on x86-64; alignment matters far more on ARM and RISC-V than on x86.</li>
+          <li>NASM evaluates constant expressions at assembly time — use <code>equ</code> instead of magic numbers.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/registers.html">Registers</a> — the sixteen slots where all of this arithmetic actually happens.</p>
+
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'assembly',
+    topicId: 'numbers',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

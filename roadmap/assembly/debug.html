@@ -2,31 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Assembly tutorial for beginners.">
+  <meta name="description" content="Debugging assembly: objdump and readelf, GDB breakpoints and register inspection, reading disassembly, and diagnosing the classic assembly bugs.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="assembly, language, programming, tutorial">
+  <meta name="keywords" content="sage, code, assembly, debugging, gdb, objdump, readelf, disassembly, breakpoint, segmentation fault">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>ASM Debug</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>ASM Debugging</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,57 +37,185 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="asm-debug">Debugging &amp; Disassembly</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Assembly has no type checker, no bounds checking, and no stack traces by default. When something is wrong, you read the machine directly — one instruction at a time, with the registers in front of you.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="asm-debug">ASM Debug</h2>
+        <h2 id="tools">The Debugging Toolkit</h2>
+
+        <p>Four tools, all shipped with binutils, cover almost everything. You do not need an IDE to understand a crash.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Tool</th><th>Question it answers</th><th>Typical use</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>objdump</code></td><td>What instructions did I actually produce?</td><td><code>objdump -d program</code></td></tr>
+            <tr><td><code>readelf</code></td><td>How is the file structured, and where does it load?</td><td><code>readelf -S program</code></td></tr>
+            <tr><td><code>nm</code></td><td>What symbols exist, and at which addresses?</td><td><code>nm program</code></td></tr>
+            <tr><td><code>gdb</code></td><td>What are the registers and memory <em>now</em>?</td><td><code>gdb ./program</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>The workflow is divide and conquer. <code>objdump</code> tells you whether the code is what you meant to write; <code>gdb</code> tells you whether the values at run time are what you expected. Almost every assembly bug answers one of those two questions.</p>
+
+        <p>Assemble with debug information whenever you plan to use GDB:</p>
+
+<pre><code class="language-bash line-numbers">nasm -f elf64 -g -F dwarf program.asm -o program.o   # -g embeds DWARF debug info
+ld program.o -o program
+gdb ./program
+</code></pre>
 
 
-<div class="alert alert-secondary shadow-sm">
-To be replaced!
-</div>
+        <h2 id="gdb">Using GDB</h2>
+
+        <h3 id="gdb-start">Starting a Session</h3>
+
+        <p>Reassemble with debug information first; otherwise GDB only knows addresses.</p>
+
+<pre><code class="language-bash line-numbers">nasm -f elf64 -g -F dwarf hello.asm -o hello.o
+ld hello.o -o hello
+gdb ./hello
+
+# Inside GDB — make it speak the syntax of this tutorial:
+(gdb) set disassembly-flavor intel
+(gdb) layout asm          # optional: split-screen disassembly TUI
+(gdb) break _start
+(gdb) run
+</code></pre>
+
+        <h3 id="gdb-commands">The Commands You Actually Need</h3>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Command</th><th>Effect</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>break _start</code></td><td>Set a breakpoint at a symbol (also accepts <code>*0x401000</code>)</td></tr>
+            <tr><td><code>run</code></td><td>Start the program (restarts it if already running)</td></tr>
+            <tr><td><code>si</code></td><td>Step one <em>instruction</em>, following <code>call</code> into the callee</td></tr>
+            <tr><td><code>ni</code></td><td>Step one instruction, treating <code>call</code> as a single step</td></tr>
+            <tr><td><code>info registers</code></td><td>Show every register, including <code>rflags</code></td></tr>
+            <tr><td><code>info registers rax rdi</code></td><td>Show only the named registers</td></tr>
+            <tr><td><code>x/8xw &amp;buffer</code></td><td>Examine 8 words of memory in hex at <code>buffer</code></td></tr>
+            <tr><td><code>x/16cb msg</code></td><td>Examine 16 bytes in decimal and as characters</td></tr>
+            <tr><td><code>x/s msg</code></td><td>Examine memory as a C string</td></tr>
+            <tr><td><code>disassemble /r _start</code></td><td>Show code with the raw bytes alongside</td></tr>
+            <tr><td><code>p/x $rax</code></td><td>Print a register in hex</td></tr>
+            <tr><td><code>continue</code> / <code>c</code></td><td>Resume until the next breakpoint</td></tr>
+            <tr><td><code>quit</code> / <code>q</code></td><td>Leave GDB</td></tr>
+          </tbody>
+        </table>
+
+        <p>A useful session looks like this: break at <code>_start</code>, <code>ni</code> through the setup, then <code>info registers rax rdi rsi rdx</code> right before the <code>syscall</code>. You are checking, by hand, that every argument holds what you intended — and nine times out of ten that is enough to find the bug.</p>
+
+        <h3 id="flags-watch">Watching the Flags</h3>
+
+        <p>Bugs in conditional jumps are almost always flag problems, and GDB shows the flags as a decoded string:</p>
+
+<pre><code class="language-bash line-numbers">(gdb) info registers eflags
+eflags         0x202   [ IF ]
+
+# Decoding the interesting bits:
+#   ZF  (bit 6)  zero       -> set when the result was 0
+#   SF  (bit 7)  sign       -> copy of the result's top bit
+#   OF  (bit 11) overflow   -> signed result out of range
+#   CF  (bit 0)  carry      -> unsigned result carried out
+</code></pre>
+
+        <p>If a <code>jle</code> does not behave as expected, print <code>eflags</code> there and check <code>SF</code> and <code>OF</code>. If a <code>jbe</code> misbehaves, check <code>CF</code> and <code>ZF</code> instead — the signed and unsigned families read different bits.</p>
 
 
-<pre><code class="language-go line-numbers">
-// code example to be replaced with first example
-</code></code></code></pre>
+        <h2 id="disasm">Reading Disassembly</h2>
 
-<!-- work in progress-->
+        <p>Before GDB, there is <code>objdump</code>: a static view of everything the assembler produced. It answers "did I really write that?" without running anything.</p>
 
-<hr>
+<pre><code class="language-bash line-numbers"># Disassemble the .text section (your code)
+objdump -d hello
 
-</main>
+# Section headers and where each one will be loaded
+readelf -S hello
+
+# Symbols (labels and functions) with their addresses
+nm hello
+
+# Program headers: entry point, segment permissions, layout
+readelf -l hello | head -30
+</code></pre>
+
+<pre><code class="language-nasm line-numbers">; Sample objdump -d output for the hello program
+0000000000401000 &lt;_start&gt;:
+  401000:  b8 01 00 00 00     mov    eax,0x1          ; mov rax, 1
+  401005:  bf 01 00 00 00     mov    edi,0x1          ; mov rdi, 1
+  40100a:  48 be 00 20 40 00  movabs rsi,0x402000     ; mov rsi, msg (absolute!)
+  401011:  00 00 00
+  401014:  ba 06 00 00 00     mov    edx,0x6          ; msg_len = 6
+  401019:  0f 05              syscall
+</code></pre>
+
+        <p>Read it carefully: the mnemonic is spelled in <strong>Intel</strong> order (<code>mov dst, src</code>), and the byte column on the left is the machine code the CPU actually executes. Here <code>mov rsi, msg</code> became a full 64-bit absolute address (<code>movabs</code>) — exactly the position-dependent code that <code>default rel</code> is meant to avoid.</p>
+
+        <p>Two habits make disassembly readable. Always add <code>set disassembly-flavor intel</code> in GDB so the output matches the syntax you write; and remember that one source line can become several instructions (a 64-bit immediate load) or none at all (an <code>equ</code> directive).</p>
+
+
+        <h2 id="common-bugs">Common Bugs and How to Find Them</h2>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Symptom</th><th>Likely cause</th><th>How to confirm</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Segmentation fault immediately</td><td>Wrong pointer, or a bad syscall argument</td><td>Break before the crash, print <code>rdi</code>/<code>rsi</code>/<code>rax</code></td></tr>
+            <tr><td>Crashes in the <em>caller</em> after a return</td><td>Unbalanced stack: <code>ret</code> popped the wrong value</td><td>Break at <code>ret</code>; compare <code>rsp</code> on entry and exit</td></tr>
+            <tr><td>Floating point exception (integer code)</td><td>Division by zero, or a missing <code>cdq</code>/<code>cqo</code></td><td>Print <code>rdx</code> and <code>rax</code> before the <code>div</code></td></tr>
+            <tr><td>Loop runs once too many or too few</td><td>Wrong conditional mnemonic, or signed vs unsigned</td><td>Print the counter and the flags at the branch</td></tr>
+            <tr><td>Output is garbage text</td><td>Wrong byte count in <code>write</code>, or missing terminator</td><td>Check <code>rdx</code> against the string length</td></tr>
+            <tr><td>Works in GDB, fails outside it</td><td>Relying on zeroed registers or memory</td><td>Initialize every register you read</td></tr>
+          </tbody>
+        </table>
+
+        <p>The last row deserves attention. A debugger often leaves registers in a convenient state, hiding a bug that appears the moment the program runs normally. Treat every register as containing random garbage unless you wrote to it first.</p>
+
+        <h3 id="debug-recipe">A Debugging Recipe</h3>
+
+        <ol>
+          <li><strong>Shrink the input.</strong> Find the smallest case that still fails.</li>
+          <li><strong>Assemble with <code>-g -F dwarf</code>.</strong> Now GDB can show your source lines.</li>
+          <li><strong>Break at the suspect instruction</strong> and step over it, not into it.</li>
+          <li><strong>Compare expectation to reality.</strong> Print the registers you are sure about; usually one is not what you think.</li>
+          <li><strong>Bisect.</strong> If ten instructions are suspect, break in the middle — the bug is above or below.</li>
+        </ol>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li><code>objdump -d</code> shows machine code as assembly; <code>readelf</code> and <code>nm</code> show structure and symbols.</li>
+          <li>GDB essentials: <code>b</code>, <code>run</code>, <code>si</code>, <code>ni</code>, <code>info registers</code>, <code>x</code>, and <code>set disassembly-flavor intel</code>.</li>
+          <li>Assemble with <code>-g -F dwarf</code> so debug symbols refer to your source lines.</li>
+          <li>Disassembly spells operands in Intel order: <code>mov dst, src</code>.</li>
+          <li>Most assembly bugs are one of four things: a bad pointer, an unbalanced stack, a wrong conditional, or uninitialized data.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/flavors.html">Assembly Flavors</a> — the same ideas written for ARM64, RISC-V, and WebAssembly.</p>
+
+
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'assembly',
@@ -99,6 +229,5 @@ To be replaced!
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

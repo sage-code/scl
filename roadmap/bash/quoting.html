@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Master Bash quoting: word splitting, single and double quotes, backslash escapes, ANSI-C quoting, and here-documents.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="bash, quoting, escaping, word splitting, heredoc, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Quoting & Escaping</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="bash-quoting">Quoting & Escaping</h1>
+
+<h2 id="why-quoting">Why Quoting Matters</h2>
+
+<p>When you type a command, Bash performs <strong>word splitting</strong>: it breaks unquoted text at characters in <code>IFS</code> (spaces, tabs, newlines by default). Quoting suppresses that splitting and the interpretation of special characters. Nearly every "my script only breaks on filenames with spaces" bug is a quoting bug.</p>
+
+<h3 id="word-splitting">Word Splitting Demonstrated</h3>
+
+<pre><code class="language-bash line-numbers">file="my report.txt"
+
+rm $file        # WRONG: becomes "rm my report.txt" -> deletes my and report.txt
+rm "$file"      # RIGHT: one argument, spaces preserved
+</code></pre>
+
+<p>The shell cannot see spaces the way you do. To Bash, a space is a separator unless you quote it.</p>
+
+<h2 id="quote-forms">The Three Quote Forms</h2>
+
+<h3 id="double-quotes">Double Quotes " "</h3>
+
+<p>Double quotes preserve spaces but still allow <strong>parameter expansion</strong> (<code>$var</code>), <strong>command substitution</strong> (<code>$(...)</code>) and backslash escapes for a few characters. This is the default choice.</p>
+
+<pre><code class="language-bash line-numbers">name="world"
+echo "Hello, $name"          # Hello, world  (variable expanded)
+echo "Today is $(date +%F)"  # command substitution expanded
+echo "cost: \$5"             # \$ protects the dollar sign: cost: $5
+</code></pre>
+
+<h3 id="single-quotes">Single Quotes ' '</h3>
+
+<p>Single quotes suppress <em>everything</em>. Not a single character is special, including the backslash. Use them for literal text such as regular expressions, awk programs or passwords.</p>
+
+<pre><code class="language-bash line-numbers">echo 'Hello, $name'          # Hello, $name  (no expansion)
+grep -E '^[0-9]{3}-' phones  # regex kept exactly as written
+</code></pre>
+
+<p>You cannot put a single quote inside single quotes directly. End the string, escape the quote, restart:</p>
+
+<pre><code class="language-bash line-numbers">echo 'it'\''s here'          # it's here
+</code></pre>
+
+<h3 id="backslash">Backslash \</h3>
+
+<p>Outside quotes, a backslash removes the special meaning of the next character, and a backslash-newline continues the line.</p>
+
+<pre><code class="language-bash line-numbers">echo \$HOME            # $HOME  (literal, not the variable)
+echo \$HOME is $HOME   # $HOME is /home/me
+cp file\ with\ space dest   # one filename containing a space
+</code></pre>
+
+<h2 id="ansi-quotes">$'...' ANSI-C Quoting</h2>
+
+<p>Bash also understands <code>$'...'</code>, which interprets C-style escapes. This is the clean way to emit control characters such as tab and newline.</p>
+
+<pre><code class="language-bash line-numbers">printf '%s' $'line1\nline2\n'   # \n becomes a real newline
+echo $'a\tb'                    # a<TAB>b
+echo $'\u00e9'                  # é — a Unicode code point
+</code></pre>
+
+<h3 id="escapes-table">Common Escape Sequences</h3>
+
+<table class="table table-bordered table-striped table-dark">
+  <tr><th>Escape</th><th>Meaning</th><th>Example</th></tr>
+  <tr><td><code>\n</code></td><td>Newline</td><td><code>$'a\nb'</code></td></tr>
+  <tr><td><code>\t</code></td><td>Tab</td><td><code>$'a\tb'</code></td></tr>
+  <tr><td><code>\\</code></td><td>Literal backslash</td><td><code>$'a\\b'</code></td></tr>
+  <tr><td><code>\'</code></td><td>Literal single quote</td><td><code>$'it\'s'</code></td></tr>
+  <tr><td><code>\xNN</code></td><td>Hex byte</td><td><code>$'\x41'</code> is A</td></tr>
+</table>
+
+<h2 id="here-docs">Here-Documents &amp; Here-Strings</h2>
+
+<h3 id="heredoc">Here-Documents</h3>
+
+<p>A here-document feeds a block of text to a command's standard input until a delimiter line. It removes the need to escape quotes inside the block.</p>
+
+<pre><code class="language-bash line-numbers">cat &lt;&lt;'EOF'
+This text is literal: $PATH, $(id) and "quotes" are untouched.
+EOF
+
+cat &lt;&lt;EOF
+This one expands: your PATH is $PATH.
+EOF
+</code></pre>
+
+<h3 id="heredoc-expansion">Quoted vs Unquoted Delimiter</h3>
+
+<p>The rule is simple: <strong>quote the delimiter</strong> (<code>&lt;&lt;'EOF'</code>) to keep the body literal; leave it unquoted to allow expansion. Use <code>&lt;&lt;-EOF</code> to strip leading tabs.</p>
+
+<pre><code class="language-bash line-numbers">sudo tee /etc/motd &lt;&lt;-'EOF'
+	Welcome to the server
+	Report problems to ops@example.com
+EOF
+</code></pre>
+
+<h3 id="herestring">Here-Strings</h3>
+
+<p><code>&lt;&lt;&lt;</code> feeds a single string plus a newline. It is a tidy replacement for <code>echo "$x" | cmd</code>.</p>
+
+<pre><code class="language-bash line-numbers">grep -c "error" &lt;&lt;&lt;"$log_line"
+read -r first rest &lt;&lt;&lt;"one two three"
+</code></pre>
+
+<h2 id="pitfalls">Quoting Pitfalls</h2>
+
+<h3 id="unquoted-globs">Unquoted Globs</h3>
+<p>An unquoted <code>*</code> expands to filenames. If you meant a literal asterisk, quote it: <code>grep 'a*b' file</code>, not <code>grep a*b file</code>.</p>
+
+<h3 id="empty-variable">Empty Variables</h3>
+<p><code>"$var"</code> with an empty variable passes one empty argument; <code>$var</code> passes <em>nothing</em>. When an option needs a value, the difference can shift every later argument. Always write <code>[ -n "$var" ]</code> and <code>cmd "$var"</code>.</p>
+
+<h3 id="backslash-newline">Backslash Inside Single Quotes</h3>
+<p>Inside single quotes a backslash is literal. Writing <code>'a\nb'</code> gives backslash-n, not a newline — use <code>$'a\nb'</code> when you want the newline.</p>
+
+<div class="alert alert-info shadow-sm">
+  Rule of thumb: use double quotes for variables and command substitution, single quotes for literal patterns, and <code>$'...'</code> only when you need control characters.
+</div>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'bash',
+    topicId: 'quoting',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/progress.js" defer></script>
+<script src="/assets/js/lab-progress-bridge.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

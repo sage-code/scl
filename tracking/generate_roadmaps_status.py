@@ -32,8 +32,10 @@ WIP = re.compile(
 
 NOTES = {
     "assembly": (
-        'All topic pages are unstubbed "To be replaced!" template shells '
-        "(about 3.4 KB each, placeholder snippets)."
+        'Full track: 17 topic pages with hierarchical data/*.json sidebars, '
+        "20 demo programs (16 x86-64 NASM + 4 ARM64), references page, and "
+        "track-specific SVG diagrams. Primary dialect x86-64 with NASM; "
+        "ARM64, RISC-V, and WebAssembly covered in the Flavors lesson."
     ),
     "carbon": (
         'Most topic pages are bare "Work In Progress" stubs; data/ has '

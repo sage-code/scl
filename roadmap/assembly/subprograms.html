@@ -2,31 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Assembly tutorial for beginners.">
+  <meta name="description" content="Assembly subprograms: call and ret, stack frames, the prologue and epilogue, System V argument passing, recursion, and calling assembly from C.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="assembly, language, programming, tutorial">
+  <meta name="keywords" content="sage, code, assembly, subprograms, call, ret, stack frame, prologue, recursion, ABI">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>ASM Subprograms</title>  
-
-  <!-- Bootstrap CSS -->
+  <title>ASM Subprograms</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,57 +37,199 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+        <h1 id="asm-subprograms">Subprograms &amp; the Stack</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A function in assembly is a jump that remembers where it came from. The stack is that memory — and understanding frames, argument registers, and the prologue/epilogue is what turns scattered jumps into callable, reusable code.
         </div>
-      </aside>
 
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="asm-subprograms">ASM Subprograms</h2>
+        <h2 id="call-ret">call and ret</h2>
+
+        <p>A subroutine is just a jump that can come back. The CPU provides two instructions that make this work, and together they are the entire mechanism behind functions, methods, and recursion.</p>
+
+<pre><code class="language-nasm line-numbers">    call my_func        ; 1. push the address of the NEXT instruction
+                        ; 2. jump to my_func
+    ; ... execution resumes here after my_func returns ...
+
+my_func:
+    ; ... body ...
+    ret                 ; pop the saved address back into rip
+</code></pre>
+
+        <p><code>call</code> is therefore <em>push + jmp</em>, and <code>ret</code> is <em>pop + jmp</em>. This is why the stack must stay balanced: if your function pushes three values and pops two, <code>ret</code> will pop a data value instead of the return address, and the program will jump into garbage.</p>
+
+        <div class="alert alert-warning shadow-sm">
+          <strong>The number-one crash in hand-written assembly:</strong> a <code>ret</code> with an unbalanced stack. The symptom is a jump to an impossible address or a <em>Segmentation fault</em> that appears to happen "in the caller". Count your pushes and pops, or use <code>leave</code> before <code>ret</code>.
+        </div>
+
+        <p>A minimal, complete function that takes a value in <code>rdi</code> and returns its double in <code>rax</code>:</p>
+
+<pre><code class="language-nasm line-numbers">; long double_it(long x)   — x in rdi, result in rax
+double_it:
+    mov  rax, rdi          ; copy the argument
+    add  rax, rax          ; rax = rax * 2
+    ret                    ; return to the caller
+</code></pre>
+
+        <p>Note what is <em>absent</em>: no prologue, no saved registers, no <code>push</code>/<code>pop</code>. A leaf function that touches nothing but scratch registers needs no frame at all. Frames exist to protect values, not to decorate code.</p>
 
 
-<div class="alert alert-secondary shadow-sm">
-To be replaced!
-</div>
+        <h2 id="stack-frame">The Stack Frame</h2>
+
+        <h3 id="prologue">The Prologue</h3>
+
+        <p>At the top of a function you establish a <strong>frame</strong>: a region of the stack reserved for this call's locals, addressed through <code>rbp</code> so that the offsets stay constant even as <code>rsp</code> moves.</p>
+
+<pre><code class="language-nasm line-numbers">my_func:
+    push  rbp               ; 1. save the caller's frame pointer
+    mov   rbp, rsp          ; 2. rbp now marks the base of our frame
+    sub   rsp, 32           ; 3. reserve 32 bytes for local variables
+                            ;    (keep rsp 16-byte aligned for calls)
+    ; --- body ---
+    mov   qword [rbp-8], 0  ; local variable at rbp-8
+    mov   qword [rbp-16], 1 ; local variable at rbp-16
+
+    ; ... use rax as the result ...
+
+    leave                   ; = mov rsp, rbp ; pop rbp   (the epilogue)
+    ret
+</code></pre>
+
+        <p>After that prologue the frame looks like this — and the layout is identical for every conforming function, which is why debuggers can walk a stack trace at all:</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Address</th><th>Contents</th><th>Typical instruction</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>[rbp+16]</code></td><td>7th argument, 8th argument, …</td><td><code>mov rax, [rbp+16]</code></td></tr>
+            <tr><td><code>[rbp+8]</code></td><td>Return address (pushed by <code>call</code>)</td><td>read by <code>ret</code></td></tr>
+            <tr><td><code>[rbp]</code></td><td>Saved caller's frame pointer</td><td><code>push rbp</code> / <code>pop rbp</code></td></tr>
+            <tr><td><code>[rbp-8]</code></td><td>Local variable #1</td><td><code>mov [rbp-8], rax</code></td></tr>
+            <tr><td><code>[rbp-16]</code></td><td>Local variable #2</td><td><code>mov [rbp-16], rbx</code></td></tr>
+            <tr><td><code>[rsp]</code></td><td>Current bottom of the used stack</td><td><code>sub rsp, n</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="epilogue">The Epilogue</h3>
+
+        <p><code>leave</code> is shorthand for <code>mov rsp, rbp</code> followed by <code>pop rbp</code> — it discards all locals in one step and restores the caller's frame pointer. The <code>ret</code> that follows pops the return address into <code>rip</code>. Together they undo the prologue exactly, which is the property that makes balanced frames work.</p>
+
+        <h2 id="abi-args">Arguments and Return Values</h2>
+
+        <p>The ABI is not arbitrary — it is a promise that lets code compiled by different compilers call one another. For integers and pointers the first six arguments travel in registers:</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Argument</th><th>Register</th><th>Argument</th><th>Register</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1st</td><td><code>rdi</code></td><td>4th</td><td><code>rcx</code></td></tr>
+            <tr><td>2nd</td><td><code>rsi</code></td><td>5th</td><td><code>r8</code></td></tr>
+            <tr><td>3rd</td><td><code>rdx</code></td><td>6th</td><td><code>r9</code></td></tr>
+            <tr><td>7th+</td><td>stack, right to left</td><td>Return</td><td><code>rax</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>Before a call, <code>rsp</code> must be <strong>16-byte aligned</strong>. Because <code>call</code> pushes 8 bytes, the convention is that at the moment control enters a function, <code>rsp + 8</code> is a multiple of 16. If you call a library function such as <code>printf</code> with a misaligned stack, it may crash inside an SSE instruction — a confusing symptom for a simple mistake.</p>
 
 
-<pre><code class="language-go line-numbers">
-// code example to be replaced with first example
-</code></code></code></pre>
+        <h2 id="recursion">Recursion</h2>
 
-<!-- work in progress-->
+        <p>Recursion works in assembly exactly as it does anywhere else, provided each call has its own frame. Because arguments live in registers — which one call would clobber — the recursive case must save them on the stack before calling itself.</p>
 
-<hr>
+<pre><code class="language-nasm line-numbers">; long fact(long n)  — recursive factorial
+; n arrives in rdi, the result returns in rax
+fact:
+    cmp  rdi, 1
+    jle  .base              ; n &lt;= 1 -> return 1
 
-</main>
+    push rdi                ; SAVE n: the recursive call will destroy rdi
+    dec  rdi                ; n - 1
+    call fact               ; rax = fact(n - 1)
+
+    pop  rdi                ; RESTORE n (stack is LIFO: same order reversed)
+    imul rax, rdi           ; rax = fact(n - 1) * n
+    ret
+
+.base:
+    mov  rax, 1             ; 0! = 1! = 1
+    ret
+</code></pre>
+
+        <p>The <code>push rdi</code> / <code>pop rdi</code> pair is the whole trick. Without it, the recursive call would overwrite <code>rdi</code> with <em>its</em> argument, and the multiplication would use a wrong value. Every recursive assembly routine has this shape: establish the base case, save what the recursive call will destroy, call, then combine.</p>
+
+        <p>Compilers often convert recursion to iteration to avoid the stack cost. If you write recursion by hand, remember each level consumes a frame — deep recursion overflows the stack long before it runs out of memory elsewhere.</p>
+
+        <h2 id="cembed">Calling Assembly from C</h2>
+
+        <p>The most practical use of assembly in real projects is a single hand-optimized function inside a C program. The contract is the same System V ABI you have been following all along.</p>
+
+<pre><code class="language-nasm line-numbers">; sum_array.asm — long sum_array(const long *p, long n)
+; Build into an object file and link with the C driver:
+;   nasm -f elf64 sum_array.asm -o sum_array.o
+;   gcc -no-pie main.c sum_array.o -o demo
+
+section .text
+    global sum_array            ; export it so the linker can find it
+
+sum_array:
+    xor  rax, rax               ; rax = running total = 0
+    xor  rcx, rcx               ; rcx = index i = 0
+
+.loop:
+    cmp  rcx, rsi               ; i &lt; n ?   (rsi holds the second argument)
+    jge  .done
+    add  rax, [rdi + rcx*8]     ; total += p[i]   (rdi holds the pointer)
+    inc  rcx
+    jmp  .loop
+
+.done:
+    ret                         ; result already in rax — nothing else to do
+</code></pre>
+
+        <p>Three things make this link cleanly: the symbol is <code>global</code>, the arguments come from <code>rdi</code>/<code>rsi</code> as the ABI specifies, and the result is left in <code>rax</code>. On the C side it is an ordinary function declaration:</p>
+
+<pre><code class="language-c line-numbers">/* main.c */
+#include &lt;stdio.h&gt;
+
+long sum_array(const long *p, long n);   /* implemented in assembly */
+
+int main(void) {
+    long values[] = {1, 2, 3, 4, 5};
+    printf("sum = %ld\n", sum_array(values, 5));
+    return 0;
+}
+</code></pre>
+
+        <h2 id="summary">Summary</h2>
+
+        <ul>
+          <li><code>call</code> pushes the return address and jumps; <code>ret</code> pops it back into <code>rip</code>.</li>
+          <li>A stack frame is a prologue (<code>push rbp; mov rbp, rsp</code>), locals below <code>rbp</code>, and an epilogue (<code>leave</code>/<code>pop rbp</code> + <code>ret</code>).</li>
+          <li>Arguments go in <code>rdi</code>, <code>rsi</code>, <code>rdx</code>, <code>rcx</code>, <code>r8</code>, <code>r9</code>; the seventh and later go on the stack.</li>
+          <li>The return value is in <code>rax</code>; <code>rdx</code> carries the high half of a 128-bit result.</li>
+          <li>Recursion needs the argument saved (<code>push</code>/<code>pop</code>) around each recursive call — registers are not preserved for you.</li>
+        </ul>
+
+        <p>Next: <a href="/roadmap/assembly/macros.html">Macros &amp; Directives</a> — the assembler's own programming system.</p>
+
+
+      </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
     labId: 'assembly',
@@ -99,6 +243,5 @@ To be replaced!
 <script src="/assets/js/progress.js" defer></script>
 <script src="/assets/js/lab-progress-bridge.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

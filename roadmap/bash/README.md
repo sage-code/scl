@@ -1,11 +1,32 @@
-# Bash Tutorial
+# Bash Scripting Tutorial
 
-* Introduction to shell scripting and command line;
-* This is an open source tutorial for Linux and MacOS;
-* It consist of text articles, code snippets and video recording;
+* A complete, free curriculum for Bash and shell scripting;
+* Explains what a shell is, compares the major interpreters, and covers Linux, macOS and Windows (WSL2, Git Bash, Cygwin);
+* Six phases, eighteen lessons, lab demos, study projects and a curated reference page;
+* Text articles, fully commented code snippets and single-file practice scripts.
 
 Visit: [sagecode/bash](../bash/index.html)
 
+## Track layout
+
+| Item | Path |
+| --- | --- |
+| Lessons (18) | `shell.html` … `robust.html` |
+| Sidebars | `data/<topic>.json` (hierarchical h2 → h3) |
+| Diagrams | `img/*.svg` (track-specific, dark theme) |
+| Lab demos (16) | `demo/*.sh` |
+| Practice & reference | `demo_examples.html`, `samples.html`, `references.html` |
+
+## Running the demos
+
+```bash
+chmod +x demo/01_hello.sh
+./demo/01_hello.sh
+```
+
+Every demo is a single file with no dependencies beyond Bash and the standard GNU utilities.
+
 ---
 
-Copiright (c) Sage-Code 2022
+Copyright (c) Sage-Code 2026
+
