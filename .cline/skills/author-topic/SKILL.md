@@ -8,7 +8,7 @@ description: Create or update roadmap/project topic pages and their sidebar JSON
 Follow the canonical templates: `assets/topic_template.html` (topic pages) and `assets/roadmap_template.html` (track index).
 
 ## Topic page rules
-- Exactly one `h1`; multiple `h2`; `h3` sub-sections under each `h2`. Keep heading IDs stable.
+- At least one `h1` (several allowed — each roots its own sidebar tree); multiple `h2`; `h3` sub-sections under each `h2`. Keep heading IDs stable.
 - Semantic skeleton: `header#dynamic-header`, `aside#study-sidebar` (or `aside.side-bar`), `main#main-content`, footer.
 - Boot `window.TOPIC_CONFIG` (topicId, labId) and include `/assets/js/topic-loader.js`.
 - No inline executable JS/styles in source (build extracts to `public/assets/js/inline/`).
@@ -17,9 +17,8 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 - Canonical topic link: `/roadmap/<track>/<topic>.html`; track root `/roadmap/<track>/`. Never relative links or `/cse/...` style roots.
 
 ## Sidebar JSON (`roadmap/<track>/data/<topic>.json`)
-- Hierarchical: each H2 object has a `children` array of H3 anchors. Flat lists break tree navigation.
-- The FIRST entry is the title link to the page's H1 — a leaf `{ "title": "<H1 text>", "link": "#<h1-id>" }` with no `children`, so users can always click back to the top of the lab (keep the tree at two levels: title + H2/H3).
-- Links are local anchors (`#section`). Titles short and factual (plain `&`, no entities).
+- Hierarchical and title-rooted. Preferred shape: the FIRST entry is the page title — `{ "title": "<H1 text>", "link": "#<h1-id>", "role": "title", "children": [ <H2 chapters> ] }` — the folder that contains every topic; each H2 owns a `children` array of H3 anchors. Legacy shape (childless `role: "title"` leaf + flat H2 chapters) stays valid on older tracks.
+- Links are local anchors (`#section`). Titles short and factual (plain `&`, no entities). Generate it from the page: `python scripts/tools/gen_topic_sidebars.py roadmap/<track>/<topic>.html`.
 
 ## Curriculum standard
 - Step-by-step fundamentals → production; progressive executable examples; common pitfalls; trade-offs; mini-lab practice.

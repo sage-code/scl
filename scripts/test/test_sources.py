@@ -8,7 +8,7 @@ Scope (source only; public/ is never read):
 - Python (scripts/): py_compile syntax validation.
 - HTML (roadmap/, projects/, community/, layouts/): readable markup. Roadmap
   topic pages (roadmap/<track>/<topic>.html) are additionally checked against
-  the heading standard (exactly one <h1>, at least one <h2>) — violations are
+  the heading standard (at least one <h1>, at least one <h2>) — violations are
   reported as warnings (content debt), not failures.
 
 Syntax failures exit 1. Generated output in public/ is verified by
@@ -87,8 +87,8 @@ def check_html(path: Path) -> None:
     )
     if is_topic_page:
         h1_count = len(H1_RE.findall(text))
-        if h1_count != 1:
-            warn(f"{rel}: roadmap topic page should have exactly one <h1> (found {h1_count})")
+        if h1_count < 1:
+            warn(f"{rel}: roadmap topic page should have at least one <h1> (found {h1_count})")
         if not H2_RE.search(text):
             warn(f"{rel}: roadmap topic page should contain at least one <h2>")
 

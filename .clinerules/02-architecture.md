@@ -14,8 +14,8 @@ Static-first vanilla website generator. Deployed to Vercel from `public/`. Supab
 `node build.js` regenerates `public/`, copies assets, injects shared header/footer + sidebars, extracts inline JS to `public/assets/js/inline/`. Source pages keep `<header id="dynamic-header">` placeholders.
 
 ## Topic page contract
-- Exactly one `h1`, multiple `h2`, and `h3` under each `h2`. Keep heading IDs stable.
-- Sidebar JSON must be hierarchical: each `h2` has a `children` array of `h3` anchors (flat lists break `topic-loader.js`).
+- At least one `h1`; multiple `h2`; and `h3` under each `h2`. Keep heading IDs stable. A page MAY declare several `h1`, each rooting its own sidebar tree.
+- Sidebar JSON must be hierarchical and title-rooted: the page title (`h1`, `role: "title"`) is the root and contains its `h2` chapters, each `h2` carrying a `children` array of `h3` anchors (flat lists break `topic-loader.js`). The legacy childless-title-leaf + flat-`h2` shape stays valid for older tracks.
 - Topic pages boot `window.TOPIC_CONFIG` (topicId, labId) and load `/assets/js/topic-loader.js`.
 - Prism: link the single bundle `/assets/prism.css` + `/assets/prism.js` (no prism-loader/data-lang); always `content-code.css` + `content-sidebar.css`; `content-tables.css` only when the page has tables.
 

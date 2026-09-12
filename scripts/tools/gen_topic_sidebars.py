@@ -1,17 +1,36 @@
 #!/usr/bin/env python3
 """Generate a roadmap topic sidebar JSON from a topic page's own headings.
 
-The sidebar contract (manual/ARCHITECTURE.md) is a two-level hierarchy where every
-`<h2>` chapter owns a `children` array of its `<h3>` anchors. Hand-writing that JSON
-invites drift, so this tool derives it straight from the page: the page stays the
-single source of truth and `topic-loader.js` always finds a matching anchor.
+The sidebar contract (manual/ARCHITECTURE.md §"Topic sidebar JSON") is a tree whose
+ROOT is the page title and whose branches are the page's chapters. Hand-writing that
+JSON invites drift, so this tool derives it straight from the page: the page stays
+the single source of truth and `topic-loader.js` always finds a matching anchor.
 
-Every sidebar leads with the page-title leaf
-`{ "title": "<H1 text>", "link": "#<h1-id>", "role": "title" }` — the FIRST entry,
-pointing at the page's `<h1>` so the reader can always jump back to the top of the
-lab. It is regenerated from the page like everything else, so it can never drift or
-duplicate. A page whose `<h1>` has no `id` cannot be anchored, so its title leaf is
-omitted with a warning instead of failing the run.
+Preferred ("title-as-root") shape — a page with an anchorable `<h1>`:
+
+    [
+      {
+        "title": "<H1 text>", "link": "#<h1-id>", "role": "title",
+        "children": [
+          {
+            "title": "<H2 text>", "link": "#<h2-id>",
+            "children": [ { "title": "<H3 text>", "link": "#<h3-id>" } ]
+          }
+        ]
+      }
+    ]
+
+The `<h1>` is the top-level node — the folder that CONTAINS every topic — and it
+carries `"role": "title"`, so tools and validators recognise the page title without
+relying on position. A page may declare more than one `<h1>`: each one opens a new
+top-level root and claims the `<h2>` sections that follow it, so a document with two
+titles yields two sibling trees.
+
+Legacy fallback — a page with no `<h1>`, or whose `<h1>` has no `id` (so it cannot
+be anchored): the title root is omitted with a warning and the `<h2>` chapters are
+emitted flat at the top level, exactly as the pre-title-root contract produced them.
+Older tracks keep working unchanged until they are regenerated; converting a track
+to the title-as-root shape is therefore opt-in per track.
 
 Demo-example pages (`<track>/demo_examples.html`) and references pages
 (`<track>/references.html`) mix expanded chapters with plain leaf sections: pass
@@ -35,14 +54,14 @@ import pathlib
 import re
 import sys
 
-HEADING_RE = re.compile(r"<h([23])\s+id=\"([^\"]+)\"[^>]*>(.*?)</h\1>", re.S | re.I)
-H1_RE = re.compile(r"<h1\b([^>]*)>(.*?)</h1>", re.S | re.I)
-ID_ATTR_RE = re.compile(r"""\bid\s*=\s*["']([^"']+)["']""", re.I)
+HEADING_RE = re.compile(r"<h([123])\s+id=\"([^\"]+)\"[^>]*>(.*?)</h\1>", re.S | re.I)
+H1_RE = re.compile(r"<h1\b[^>]*>(.*?)</h1>", re.S | re.I)
 
-# Value of the marker attribute that tags the first sidebar entry as the page
-# title leaf. topic-loader.js ignores unknown keys, so the marker is pure
-# metadata: it lets tools and validators recognise the title item without
-# relying on its position or on the absence of a `children` array.
+# Value of the marker key that tags a title node. On the title-as-root shape it
+# sits on every top-level `<h1>` root; on the legacy shape it sits on the
+# childless title leaf. topic-loader.js ignores unknown keys, so the marker is
+# pure metadata: it lets tools and validators recognise the page title without
+# relying on position.
 TITLE_ROLE = "title"
 
 
@@ -52,45 +71,26 @@ def clean_title(raw: str) -> str:
     return re.sub(r"\s+", " ", html_mod.unescape(text)).strip()
 
 
-def find_title_entry(source: str):
-    """Return (entry, warning) for the page-title leaf.
-
-    The page's first `<h1>` becomes `{ "title": ..., "link": "#<id>", "role":
-    "title" }`. `topic-loader.js` only renders entries whose link starts with
-    `#`, so a heading without an `id` cannot be linked: the caller omits the leaf
-    and surfaces the returned warning instead of failing the whole page.
-    """
-    match = H1_RE.search(source)
-    if not match:
-        return None, "no <h1> found — title entry omitted"
-    attrs, raw = match.group(1), match.group(2)
-    anchor_match = ID_ATTR_RE.search(attrs)
-    if not anchor_match:
-        return None, "h1 has no id — title entry omitted"
-    title = clean_title(raw)
-    if not title:
-        return None, "h1 has no text — title entry omitted"
-    return {
-        "title": title,
-        "link": f"#{anchor_match.group(1).strip()}",
-        "role": TITLE_ROLE,
-    }, None
-
-
 def build_sidebar(page: pathlib.Path, mixed: bool = False):
     """Return (entries, errors, warning) for one topic page.
 
-    `entries` always leads with the page-title leaf when the page's `<h1>` can be
-    anchored. `mixed=True` is for demo-example and references pages: an `<h2>`
-    without `<h3>` children becomes a leaf section instead of an error, while an
-    `<h2>` that does have them stays an expanded chapter (h3 attaches in place).
+    On the title-as-root shape every anchorable `<h1>` becomes a top-level node
+    tagged `"role": "title"` whose `children` are the `<h2>` chapters that follow
+    it (each chapter owning its `<h3>` anchors) — the page title is the folder that
+    contains every topic. Pages with no anchorable `<h1>` fall back to the legacy
+    shape (flat `<h2>` chapters, no title root) and report a warning, not an error,
+    so old tracks keep regenerating exactly as before.
+
+    `mixed=True` is for demo-example and references pages: an `<h2>` without
+    `<h3>` children becomes a leaf section instead of an error, while an `<h2>`
+    that does have them stays an expanded chapter (h3 attaches in place).
     """
     source = page.read_text(encoding="utf-8")
     entries, errors, seen = [], [], set()
-    title_entry, warning = find_title_entry(source)
-    chapters, last_chapter = [], None
+    title_roots, chapters, last_root, last_chapter = [], [], None, None
+    has_h1 = bool(H1_RE.search(source))
 
-    for _level, anchor, raw in HEADING_RE.findall(source):
+    for level, anchor, raw in HEADING_RE.findall(source):
         anchor = anchor.strip()
         if anchor in seen:
             errors.append(f"duplicate heading id #{anchor}")
@@ -100,12 +100,22 @@ def build_sidebar(page: pathlib.Path, mixed: bool = False):
         if not title:
             errors.append(f"empty heading title for #{anchor}")
             continue
-        if _level == "2":
+        if level == "1":
+            # Each <h1> opens a new root that contains the chapters after it.
+            last_root = {"title": title, "link": f"#{anchor}", "role": TITLE_ROLE, "children": []}
+            last_chapter = None
+            entries.append(last_root)
+            title_roots.append(last_root)
+        elif level == "2":
             last_chapter = {"title": title, "link": f"#{anchor}"}
             if not mixed:
                 # Standard topic pages are always expanded; validate below.
                 last_chapter["children"] = []
-            entries.append(last_chapter)
+            if last_root is not None:
+                last_root["children"].append(last_chapter)
+            else:
+                # Legacy shape: no title root, so the chapter is top-level.
+                entries.append(last_chapter)
             chapters.append(last_chapter)
         elif last_chapter is None:
             errors.append(f"h3 #{anchor} appears before any h2")
@@ -115,9 +125,11 @@ def build_sidebar(page: pathlib.Path, mixed: bool = False):
                 last_chapter["children"] = []
             last_chapter["children"].append({"title": title, "link": f"#{anchor}"})
 
-    # The title leaf is always FIRST: manual/ARCHITECTURE.md §"Topic sidebar JSON".
-    if title_entry is not None:
-        entries.insert(0, title_entry)
+    warning = None
+    if not has_h1:
+        warning = "no <h1> found — legacy flat sidebar (title root omitted)"
+    elif not title_roots:
+        warning = "h1 has no id — legacy flat sidebar (title root omitted)"
 
     if not chapters:
         errors.append("no <h2> chapters found")
@@ -125,41 +137,82 @@ def build_sidebar(page: pathlib.Path, mixed: bool = False):
         for chapter in chapters:
             if not chapter["children"]:
                 errors.append(f"chapter {chapter['link']} has no <h3> children")
+        for root in title_roots:
+            if not root["children"]:
+                errors.append(f"title root {root['link']} contains no <h2> topics")
     return entries, errors, warning
+
+
+def _format_leaf(entry, indent: str) -> list:
+    """One compact single-line object: `{ "title": ..., "link": ... }`."""
+    parts = [
+        f'"title": {json.dumps(entry["title"], ensure_ascii=False)}',
+        f'"link": "{entry["link"]}"',
+    ]
+    if "role" in entry:
+        parts.append(f'"role": {json.dumps(entry["role"], ensure_ascii=False)}')
+    return [f"{indent}{{ {', '.join(parts)} }}"]
+
+
+def _format_node(entry, depth: int) -> list:
+    """Serialize one entry and its descendants into house-style lines.
+
+    Indentation follows the hand-written files: a top-level entry opens at two
+    spaces, its keys at four, and each nesting level adds four more — so an h2
+    leaf sits at six and an h3 under an h2 at ten. Leaves collapse to one line.
+    """
+    indent = " " * (2 + 4 * depth)
+    prop = " " * (2 + 4 * depth + 2)
+    children = entry.get("children")
+    if children is None:
+        return _format_leaf(entry, indent)
+    lines = [f"{indent}{{"]
+    lines.append(f'{prop}"title": {json.dumps(entry["title"], ensure_ascii=False)},')
+    lines.append(f'{prop}"link": "{entry["link"]}",')
+    if "role" in entry:
+        lines.append(f'{prop}"role": {json.dumps(entry["role"], ensure_ascii=False)},')
+    lines.append(f'{prop}"children": [')
+    for index, child in enumerate(children):
+        child_lines = _format_node(child, depth + 1)
+        if index != len(children) - 1:
+            child_lines[-1] += ","
+        lines.extend(child_lines)
+    lines.append(f"{prop}]")
+    lines.append(f"{indent}}}")
+    return lines
+
+
+def count_tree(entries) -> tuple:
+    """Return (chapters, leaves) for a sidebar tree, at any nesting depth."""
+    chapters = leaves = 0
+    for entry in entries:
+        children = entry.get("children")
+        if children is None:
+            continue
+        if entry.get("role") == TITLE_ROLE:
+            child_chapters, child_leaves = count_tree(children)
+            chapters += child_chapters
+            leaves += child_leaves
+        else:
+            chapters += 1
+            leaves += len(children)
+    return chapters, leaves
 
 
 def render(entries) -> str:
     """Serialize with one child per line, matching the hand-written house style.
 
-    Entries without a `children` array — the page-title leaf and every entry on a
-    flat demo-example page — are emitted as compact single-line objects; chapters
-    keep the expanded three-key form.
+    Leaves (a childless title node and every section on a flat demo-example page)
+    are emitted as compact single-line objects; nodes with `children` keep the
+    expanded multi-line form and nest recursively, so a title-as-root tree
+    (h1 -> h2 -> h3) round-trips like the hand-written files.
     """
     lines = ["["]
     for index, entry in enumerate(entries):
-        comma = "" if index == len(entries) - 1 else ","
-        children = entry.get("children")
-        if children is None:
-            parts = [
-                f'"title": {json.dumps(entry["title"], ensure_ascii=False)}',
-                f'"link": "{entry["link"]}"',
-            ]
-            if "role" in entry:
-                parts.append(f'"role": {json.dumps(entry["role"], ensure_ascii=False)}')
-            lines.append("  { " + ", ".join(parts) + " }" + comma)
-            continue
-        lines.append("  {")
-        lines.append(f'    "title": {json.dumps(entry["title"], ensure_ascii=False)},')
-        lines.append(f'    "link": "{entry["link"]}",')
-        lines.append('    "children": [')
-        for child_index, child in enumerate(children):
-            child_comma = "" if child_index == len(children) - 1 else ","
-            lines.append(
-                f'      {{ "title": {json.dumps(child["title"], ensure_ascii=False)}, '
-                f'"link": "{child["link"]}" }}{child_comma}'
-            )
-        lines.append("    ]")
-        lines.append("  }" + comma)
+        entry_lines = _format_node(entry, 0)
+        if index != len(entries) - 1:
+            entry_lines[-1] += ","
+        lines.extend(entry_lines)
     lines.append("]")
     return "\n".join(lines) + "\n"
 
@@ -172,7 +225,7 @@ def main() -> int:
         "--mixed",
         action="store_true",
         help="allow h2 sections without h3 children (references.html, demo_examples.html); "
-        "the h1 title leaf is still prepended",
+        "the h1 title root still wraps its chapters",
     )
     args = parser.parse_args()
 
@@ -194,10 +247,9 @@ def main() -> int:
             failures += 1
             continue
 
-        chapters = sum(1 for e in entries if e.get("role") != TITLE_ROLE)
-        leaves = sum(len(e["children"]) for e in entries if "children" in e)
+        chapters, leaves = count_tree(entries)
         has_title = any(e.get("role") == TITLE_ROLE for e in entries)
-        title_note = "" if has_title else " [no title entry]"
+        title_note = "" if has_title else " [no title root]"
 
         target = page.parent / "data" / f"{page.stem}.json"
         new_text = render(entries)
@@ -222,7 +274,7 @@ def main() -> int:
             print(f"[OK  ] {target}: wrote {chapters} chapters / {leaves} leaves{title_note}")
 
     if warnings:
-        print(f"\n{warnings} page(s) have no anchor-able <h1>; title entry omitted.")
+        print(f"\n{warnings} page(s) have no anchor-able <h1>; legacy flat shape emitted")
     return 1 if failures else 0
 
 
