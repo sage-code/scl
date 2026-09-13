@@ -75,7 +75,7 @@ return;
 rule main:
     for &forall; i &isin; (1..4) do
        begin test(i);
-    repeat;
+    done;
     wait; -- wait for other threads to finish;
 return;
 </code></pre>
@@ -97,7 +97,7 @@ rule sum(a, b &isin; Z) => (r &isin; Z):
     new i := 0
   for &forall; i &isin; (a..b) do
     let r += i;
-  repeat;
+  done;
 return;
 
 -- prepare for execution on 4 threads
@@ -108,13 +108,13 @@ rule main:
         new i &isin; N;
     for &forall; i &isin; (1.!100:25) do
         begin test(i,i+25) +&gt; results;
-    repeat;
+    done;
     wait; -- wait for other threads to finish;
     new output &isin; Z;
     -- reduce results into output
     for &forall; partial &isin; results do
        let output += partial;
-    repeat;
+    done;
     print output; -- 5050
     expect output = 5050;
 return;
@@ -150,7 +150,7 @@ rule test(n &isin; N) =&gt; (result &isin; N):
     let result := i;
     -- suspend execution
     yield; -- wait for the main thread
-  cycle;
+  done;
   result = 0; -- finalization signal
 return;
 
@@ -158,11 +158,11 @@ rule main:
     -- start secondary process
     begin test(9)     -- initialize coroutine
     cycle:
-      new  r &isin; N;  -- result reference
-    do
+      new  r := 1 &isin; N;  -- result reference (seeded to enter loop)
+    while r &gt; 0 do
       yield r &lt;- test;  -- capture next result
       write (r, ",");
-    repeat if r &gt; 0;
+    done;
 
     print;  -- 0,1,2,3,4,5,6,7,8,9,
 return
