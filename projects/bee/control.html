@@ -204,7 +204,7 @@ done test;
 
 <h2 id="cycle">Repetitive Statements</h2>
 
-<p>You can use "cycle" to start a repetitive block. It may carry an optional label, and the colon is bound to the label: <code>cycle [label:]</code>. A labeled cycle (<code>cycle name:</code>) requires the colon and opens an optional local-declaration prologue before the loop body. An anonymous cycle takes <b>no colon</b> (<code>cycle do</code>, <code>cycle while &hellip; do</code>) and therefore has no prologue &mdash; the body header follows immediately. "do" will repeat all statements in the block until a condition ends the cycle. If no condition exists, the cycle is infinite.</p>
+<p>You can use "cycle" to start a repetitive block. There are three forms: a labeled cycle (<code>cycle name:</code>), where the colon is bound to the label and opens an optional local-declaration prologue before the loop body; an anonymous cycle with prologue (<code>cycle:</code>), where a bare colon still opens the stable declaration scope without a label; and a plain anonymous cycle (<code>cycle do</code>, <code>cycle while &hellip; do</code>) that takes <b>no colon</b> and therefore has no prologue &mdash; the body header follows immediately. "do" will repeat all statements in the block until a condition ends the cycle. If no condition exists, the cycle is infinite.</p>
 
 <h3 id="pattern-1-infinite-cycle">Infinite cycle</h3>
 
@@ -218,11 +218,11 @@ done test;
 
 <pre><code class="language-bee">#infinite cycle
 cycle [label:]
-  -- local variables (labeled cycles only)
+  -- local variables (declared in prologue scope)
 do
   -- repetitive block
   ...
-repeat [label];
+done [label];
 </code></pre>
 
 <h3 id="pattern-2-stop-condition">Stop condition</h3>
@@ -242,7 +242,7 @@ cycle do
   ...
   [stop if condition2];
   ...
-repeat [if condition3];
+done;
 </code></pre>
 
 <h3 id="pattern-3-while-condition">While condition</h3>
@@ -256,7 +256,7 @@ repeat [if condition3];
 
 <pre><code class="language-bee">#conditional start cycle
 cycle [label:]
-    -- define local variables (labeled cycles only)
+    -- define local variables (declared in prologue scope)
     ...
 while start_condition do
     -- first repetitive block
@@ -266,15 +266,15 @@ while start_condition do
     [redo if condition]; -- restart the cycle
     ...
 then
-    -- non repetitive block
+    -- epilogue: runs once after loop exit
     ...
-repeat [label];
+done [label];
 </code></pre>
 
 
 <p><b>Note 1:&nbsp;</b>The else block runs one single time, that is when the condition evaluate to false. Otherwise if we repeat the cycle for "else" block we can end-up with infinite loop that is absurd.</p>
 
-<p><b>Note 2:&nbsp;</b>Keyword: "stop" is similar to "break" in Java and "redo" similar to "continue". These are optional interruption statements. Occasional you can use these statements to improve code performance or readability.</p>
+<p><b>Note 2:&nbsp;</b>Keyword: "stop" is similar to "break" in Java and "repeat" similar to "continue" &mdash; it is an inline jump statement that skips to the next iteration (<code>repeat [label] [if condition];</code>). "redo" restarts the cycle from the beginning. These are optional interruption statements. Occasional you can use these statements to improve code performance or readability.</p>
 
 <h3 id="label">Nested cycles</h3>
 
@@ -289,13 +289,13 @@ do
     cycle 10:
     do
         ...
-        redo 42 if condition1; -- restart block 42
+        repeat 42 if condition1; -- jump to next iteration of block 42
         ...
         stop 42 if condition2; -- exit block 42
         ...
-    repeat if condition3;
+    done;
     ...
-repeat 42;
+done 42;
 ...
 </code></pre>
 
@@ -303,9 +303,9 @@ repeat 42;
 
 <ul>
 <li>Block names can be numeric and are optional,</li>
-<li>The colon is bound to the label: <code>cycle [label:]</code>. Anonymous cycles have no colon,</li>
-<li>The stable outer scope (declaration region) exists only on labeled cycles, after the colon,</li>
-<li>Keywords "redo" and "stop" can be used with labels,</li>
+<li>The colon opens the declaration scope: <code>cycle [label:]</code> or anonymous <code>cycle:</code>. Plain anonymous cycles (<code>cycle do</code>) take no colon,</li>
+<li>The stable outer scope (declaration region) exists whenever the colon is present &mdash; on labeled cycles (<code>cycle name:</code>) and on anonymous cycles with a bare colon (<code>cycle:</code>),</li>
+<li>Keywords "repeat", "redo" and "stop" can be used with labels,</li>
 <li>Flat code is better. Do not nest too deep.</li>
 </ul>
 
@@ -320,19 +320,19 @@ repeat 42;
 
 <pre><code class="language-bee">#iterative cycle
 cycle [label:]
-  -- local variables (labeled cycles only)
+  -- local variables (declared in prologue scope)
   new i &isin; N;
 for &forall; i &isin; (min..max:rate) do
   -- repetitive block
   ...
-  [next if condition]; -- fast forward
+  [repeat if condition]; -- skip to next iteration
   ...
   [stop if condition]; -- early transfer
   ...
 [then]
-  -- non repetitive block
+  -- epilogue: runs once after loop exit
   ...
-repeat [label];
+done [label];
 </code></pre>
 
 <h4>Notes:</h4>
@@ -341,8 +341,8 @@ repeat [label];
 <li>The colon is bound to the label: <code>cycle [label:]</code> &mdash; anonymous cycles take no colon;</li>
 <li>If used, label enable creation of local variables;</li>
 <li>Control variable: "i" is in local scope, even if label is missing;</li>
-<li>Interruptions (next, stop) are optional and most of the time not needed;/li>
-<li>By using "next", control variable is incremented automatically;</li>
+<li>Interruptions (repeat, stop) are optional and most of the time not needed;</li>
+<li>By using "repeat", control variable is incremented automatically and the iteration restarts;</li>
 <li>Only one iterable variable is permitted in given scope;</li>
 </ul>
 
@@ -352,12 +352,12 @@ repeat [label];
 new i &isin; N;
 for &forall; i &isin; (1..10) do
   if i % 2 = 0 do
-    next;    -- iterate
+    repeat;    -- skip to next iteration
   else
     write i; -- odd numbers
   done;
   write ',' if (i &lt; 10);
-repeat;
+done;
 </code></pre>
 
 <pre class="language-output">
@@ -372,7 +372,7 @@ new i &isin; N;
 for &forall; i &isin; (1..9:2) do
     write(i); -- odd numbers
     write(',') if (i &lt; 9);
-repeat;
+done;
 print;
 </code></pre>
 
