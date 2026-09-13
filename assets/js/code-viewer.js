@@ -117,6 +117,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         'swift': 'swift',
         // Julia — the grammar is bundled in assets/prism.js (see its download header)
         'jl': 'julia',
+        // Java — corpus grammar is bundled in assets/prism.js (see its download header)
+        'java': 'java',
         'cs': 'csharp',
         'csharp': 'csharp',
         'c': 'c',
