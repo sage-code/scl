@@ -41,10 +41,10 @@ function apply_style(str) {
     styled = styled.replace(/\bOrdinal\b/,types("Ordinal"))
     styled = styled.replace(/\bList\b/,types("List"))
     styled = styled.replace(/\bArray\b/,types("Array"))
-    styled = styled.replace(/\bArray\b/,types("Vector"))
-    styled = styled.replace(/\bArray\b/,types("Matrix"))
-    styled = styled.replace(/\bSet\b/,types("DataSet"))
-    styled = styled.replace(/\bHash\b/,types("HashTab"))
+    styled = styled.replace(/\bVector\b/,types("Vector"))
+    styled = styled.replace(/\bMatrix\b/,types("Matrix"))
+    styled = styled.replace(/\bSet\b/,types("Set"))
+    styled = styled.replace(/\bHash\b/,types("Hash"))
 
     // control flow keywords
     styled = styled.replace(/\bstart\b/,control("start"))
@@ -64,7 +64,6 @@ function apply_style(str) {
     styled = styled.replace(/\bmiss\b/,control("miss"))
     styled = styled.replace(/\btry\b/,control("try"))
     styled = styled.replace(/\bfinal\b/,control("final"))
-    styled = styled.replace(/\brepeat\b/,control("repeat"))
     styled = styled.replace(/\bother\b/,control("other"))
     styled = styled.replace(/\bthen\b/,control("then"))
 
@@ -82,6 +81,7 @@ function apply_style(str) {
     styled = styled.replace(/\bstop\b/,interrupt("stop"))
     styled = styled.replace(/\bredo\b/,interrupt("redo"))
     styled = styled.replace(/\bnext\b/,interrupt("next"))
+    styled = styled.replace(/\brepeat\b/,interrupt("repeat")) // D15: deprecated synonym of next
 
     //keyword operators
     styled = styled.replace(/\bas\b/,operator("as"))
