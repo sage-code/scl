@@ -1,0 +1,160 @@
+        <!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Rust ownership and borrowing: moves, references, and the borrow checker that guarantees memory safety.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="rust, ownership, borrowing, borrow checker, move, reference, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Ownership &amp; Borrowing</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="rust-ownership">Ownership &amp; Borrowing</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Ownership is the idea that lets Rust be memory-safe with <em>no garbage collector</em>. Every value has a single owner; ownership can be <strong>moved</strong> or <strong>borrowed</strong>, and the borrow checker enforces the rules at compile time.
+        </div>
+        <h2 id="rules">The Ownership Rules</h2>
+        <p>Three rules drive everything. Memorize them — every borrow-checker error traces back to one of these:</p>
+        <ol>
+          <li>Each value in Rust has a single <strong>owner</strong>.</li>
+          <li>When the owner goes out of scope, the value is <strong>dropped</strong> (its memory freed).</li>
+          <li>A value can be owned by exactly one binding at a time; moving it away invalidates the old binding.</li>
+        </ol>
+        <pre><code class="language-rust line-numbers">fn main() {
+    // the String is owned by `s`; when `main` ends it is freed automatically
+    let s = String::from("hello");
+    println!("{s}");
+}   // `s` drops here — no free(), no GC, no leak
+</code></pre>
+
+        <h2 id="move">Move Semantics</h2>
+        <p>Assigning an owned value transfers ownership. The original binding is then unusable — using it afterwards is a <em>compile error</em>, not undefined behavior:</p>
+        <div class="text-center">
+        <img src="/roadmap/rust/img/ownership-move.svg" alt="Move semantics: s1 hands its String value to s2, s1 becomes invalid" width="460" class="img-fluid protect rounded shadow border">
+        <p class="text-secondary small">Figure 1 — assigning <code>s1</code> to <code>s2</code> moves the value: <code>s1</code> is invalidated and <code>s2</code> owns it.</p>
+        </div>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1;                 // ownership moves to s2
+
+    // println!("{s1}");         // ERROR: s1 was moved and is now invalid
+    println!("{s2}");            // ok
+}
+</code></pre>
+        <p>Types whose values are cheap to copy bit-for-bit implement <code>Copy</code> (integers, floats, <code>bool</code>, <code>char</code>, and tuples of them). Those simply <em>copy</em> on assignment instead of moving:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let x = 5;
+    let y = x;            // i32 is Copy: x stays valid
+    println!("{x} {y}");  // both work — no move happens
+}
+</code></pre>
+
+        <h2 id="borrow">Borrowing</h2>
+        <p>Using a value without taking ownership means <strong>borrowing</strong> it. A shared borrow <code>&amp;T</code> lets many readers look at once; an exclusive borrow <code>&amp;mut T</code> lets one writer change it. The borrow checker enforces &quot;many readers or one writer&quot;:</p>
+        <div class="text-center">
+        <img src="/roadmap/rust/img/ownership-borrow.svg" alt="Borrowing: many shared &T readers or one &mut T writer, never both" width="460" class="img-fluid protect rounded shadow border">
+        <p class="text-secondary small">Figure 2 — shared reads may coexist; an exclusive write excludes all others.</p>
+        </div>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let mut s = String::from("hello");
+
+    let len = str_len(&s);          // shared borrow: read only
+    println!("length = {len}");
+
+    append_world(&mut s);           // exclusive borrow: may mutate
+    println!("{s}");
+}
+
+fn str_len(value: &String) -> usize { value.len() }          // &T
+fn append_world(value: &mut String) { value.push_str(" world"); } // &mut T
+</code></pre>
+
+        <h2 id="mut">Mutable Borrowing &amp; Aliasing</h2>
+        <p>While an exclusive borrow is alive, no other borrow of the same value may exist. This rules out data races and iterator-invalidation bugs before the program runs:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let mut s = String::from("rust");
+
+    {
+        let r = &mut s;        // one exclusive borrow
+        r.push('!');
+    }                          // borrow ends here
+
+    let r1 = &s;               // now many shared borrows are fine
+    let r2 = &s;
+    println!("{r1} {r2}");
+}
+</code></pre>
+
+        <h2 id="slices">Slices</h2>
+        <p>A slice (<code>&amp;str</code>, <code>&amp;[T]</code>) is a borrowed view of a contiguous range. It owns nothing, so functions can work on part of a value while the borrow rules stay simple:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let s = String::from("hello world");
+    let word = first_word(&s);      // &str slice, borrows s
+    println!("first word: {word}");
+}
+
+fn first_word(s: &str) -> &str {
+    s.split_whitespace().next().unwrap_or("")
+}
+</code></pre>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Practice move:</strong> in the <a href="/roadmap/rust/demo_examples.html">lab examples</a>, add a <code>println!(&quot;{s1}&quot;)</code> after a move and read the error — the compiler points at the exact move site.
+        </div>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'rust',
+    topicId: 'ownership',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

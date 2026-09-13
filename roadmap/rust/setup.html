@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Install the Rust toolchain, write and run your first program, and learn the Cargo project layout.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="rust, rustup, cargo, install, toolchain, hello world, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Rust Setup &amp; Toolchain</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="rust-setup">Rust Setup &amp; Toolchain</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Rust ships as one <strong>toolchain</strong>, managed by a single installer called <code>rustup</code>. It installs the compiler (<code>rustc</code>), the package manager and build tool (<code>cargo</code>), the standard library, and the formatting/linting tools together — so there is nothing to assemble by hand.
+        </div>
+        <h2 id="install">Installation</h2>
+        <p>Install <code>rustup</code> for your platform, then let it set up the stable toolchain. On Windows use the <a href="https://rustup.rs" target="_blank" rel="noopener noreferrer nofollow">rustup.rs</a> installer or <code>winget install Rustlang.Rustup</code>; on macOS or Linux use the one-line script:</p>
+        <pre><code class="language-bash line-numbers"># macOS / Linux — follow the on-screen prompt
+curl --proto '=https' --tls-v1.2 -sSf https://sh.rustup.rs | sh
+
+# Windows (PowerShell / winget)
+winget install Rustlang.Rustup
+
+# verify everything landed
+rustc --version      # the compiler
+cargo --version      # the build tool + package manager
+rustup update        # keep the toolchain current
+</code></pre>
+        <p>Because the whole toolchain lives under one <code>rustup</code>, you can install extra targets (e.g. <code>rustup target add wasm32-unknown-unknown</code> for WebAssembly) or pin a stable version per project.</p>
+
+        <h2 id="hello">First Program</h2>
+        <p>Any program starts as a <strong>crate</strong>. Cargo scaffolds a binary crate with one command, already wired for building and testing. Let it generate the default project, then open <code>src/main.rs</code>:</p>
+        <pre><code class="language-bash line-numbers">cargo new hello   # creates a binary crate named hello
+cd hello
+</code></pre>
+        <pre><code class="language-rust line-numbers">// src/main.rs — every binary crate starts at fn main()
+fn main() {
+    // println! is a macro (note the '!'); it formats text to stdout
+    println!("Hello, world!");
+}
+</code></pre>
+        <p>Build and run in one step with <code>cargo run</code>. Cargo compiles the crate into <code>target/debug/</code>, then executes the resulting binary:</p>
+        <pre><code class="language-bash line-numbers">cargo run
+#    Compiling hello v0.1.0
+#     Finished `dev` profile [unoptimized + debuginfo]
+#      Running `target/debug/hello`
+# Hello, world!
+</code></pre>
+
+        <h2 id="structure">Project Structure</h2>
+        <p>A minimal Cargo project looks like this. <code>Cargo.toml</code> is the manifest (name, version, dependencies); <code>src/</code> holds source; <code>Cargo.lock</code> pins exact dependency versions and <code>target/</code> holds build output (never edit either by hand):</p>
+        <pre><code class="language-text line-numbers">hello/
+├── Cargo.toml      # project manifest + dependencies
+├── Cargo.lock      # resolved, pinned dependency versions
+└── src/
+    └── main.rs     # binary entry point (fn main)
+</code></pre>
+        <p>The manifest is the single source of truth for a crate. A fresh one declares the package and the edition of the language it targets:</p>
+        <pre><code class="language-toml line-numbers">[package]
+name = "hello"
+version = "0.1.0"
+edition = "2021"        # language edition: 2015 / 2018 / 2021 / 2024
+
+[dependencies]
+# add crates here; e.g. serde = "1" — cargo fetches and builds them
+</code></pre>
+
+        <h2 id="commands">Everyday Commands</h2>
+        <p>You will cycle through a small set of commands. Learn them early so the toolchain fades into the background while you think about the language:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>cargo build</code></td><td>Compile (debug profile) without running.</td></tr>
+            <tr><td><code>cargo run</code></td><td>Build, then execute the binary.</td></tr>
+            <tr><td><code>cargo check</code></td><td>Type-check only — much faster than a full build, ideal while editing.</td></tr>
+            <tr><td><code>cargo test</code></td><td>Compile and run unit + integration tests.</td></tr>
+            <tr><td><code>cargo fmt</code></td><td>Format code to the official style.</td></tr>
+            <tr><td><code>cargo clippy</code></td><td>Run the community linter for idiomatic, bug-free code.</td></tr>
+            <tr><td><code>cargo doc --open</code></td><td>Generate and open documentation for your crate.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Practice move:</strong> run <code>cargo new</code>, then deliberately break <code>main.rs</code> (drop a semicolon) and watch <code>cargo check</code> localize the error. Reading compiler diagnostics without panic is the first real Rust skill.
+        </div>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'rust',
+    topicId: 'setup',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
+

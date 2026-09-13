@@ -68,6 +68,7 @@ function apply_style(str) {
     styled = styled.replace(/\bthen\b/,control("then"))
 
     // interruption statements
+    styled = styled.replace(/\bassert\b/,interrupt("assert"))
     styled = styled.replace(/\bexpect\b/,interrupt("expect"))
     styled = styled.replace(/\bpass\b/,interrupt("pass"))
     styled = styled.replace(/\babort\b/,interrupt("abort"))
