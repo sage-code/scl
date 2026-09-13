@@ -1,0 +1,146 @@
+        <!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Rust iterators and closures: lazy transformations, combinators, and the Fn traits.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="rust, iterator, closure, map, filter, collect, Fn, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Iterators &amp; Closures</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="rust-iterators">Iterators &amp; Closures</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Closures are small anonymous functions that capture their environment; iterators are <em>lazy</em> sequences that transform collections. Chained together they replace most hand-written loops with expressive, zero-cost pipelines.
+        </div>
+        <h2 id="closures">Closures</h2>
+        <p>A closure is a function without a name that can <strong>capture</strong> variables from its surroundings. The <code>||</code> holds parameters. Rust assigns one of three traits depending on how the closure captures:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>Trait</th><th>Captures by</th><th>Typical use</th></tr></thead>
+          <tbody>
+            <tr><td><code>Fn</code></td><td>immutable reference</td><td>read-only, call many times</td></tr>
+            <tr><td><code>FnMut</code></td><td>mutable reference</td><td>may mutate captured state</td></tr>
+            <tr><td><code>FnOnce</code></td><td>value (moves)</td><td>consumes capture, call once</td></tr>
+          </tbody>
+        </table>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let prefix = String::from("Hello, ");
+
+    // captures `prefix` by reference (Fn trait)
+    let greet = |name: &str| format!("{prefix}{name}");
+    println!("{}", greet("Rust"));
+
+    let mut count = 0;
+    // captures `count` mutably (FnMut trait)
+    let mut inc = || { count += 1; count };
+    println!("{} {} {}", inc(), inc(), inc());
+}
+</code></pre>
+
+        <h2 id="iter">Iterators</h2>
+        <p>An iterator is a <em>lazy</em> sequence: nothing runs until you consume it. Call <code>.iter()</code> (borrow), <code>.into_iter()</code> (own), or <code>.iter_mut()</code> (mutable) to obtain one, then drive it with a <code>for</code> loop:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let numbers = vec![1, 2, 3, 4, 5];
+
+    for n in numbers.iter() {       // borrow each element
+        print!("{n} ");
+    }
+    println!();
+
+    for n in numbers.iter().rev() { // reverse without allocating
+        print!("{n} ");
+    }
+    println!();
+}
+</code></pre>
+
+        <h2 id="combinators">Combinators</h2>
+        <p>Adapter methods transform one iterator into another lazily. Chain <code>map</code>, <code>filter</code>, and friends, then materialize the result only at the end with <code>collect</code>:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    // square, keep even, sum the whole pipeline
+    let total: i32 = (1..=10)
+        .filter(|&n| n % 2 == 0)   // keep evens
+        .map(|n| n * n)            // square them
+        .sum();                    // consume (adds up)
+
+    println!("sum of even squares = {total}");
+
+    let doubled: Vec<i32> = (0..5).map(|n| n * 2).collect();
+    println!("{doubled:?}");
+}
+</code></pre>
+
+        <h2 id="consume">Consuming Adapters</h2>
+        <p>Adapters like <code>fold</code>, <code>count</code>, <code>any</code>, <code>all</code>, and <code>max</code> run the whole iteration and return a single value:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let words = ["the", "quick", "brown", "fox"];
+
+    let total_len: usize = words.iter().map(|w| w.len()).sum();
+    let has_q = words.iter().any(|&w| w.contains('q'));
+    let longest = words.iter().max_by_key(|w| w.len());
+
+    println!("total len = {total_len}, has 'q' = {has_q}");
+    println!("longest = {:?}", longest);
+}
+</code></pre>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Practice move:</strong> rewrite a <code>for</code> loop from the <a href="/roadmap/rust/demo_examples.html">lab examples</a> as a <code>map</code>/<code>filter</code>/<code>collect</code> chain and confirm the output is identical.
+        </div>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'rust',
+    topicId: 'iterators',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

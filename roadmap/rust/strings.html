@@ -1,0 +1,153 @@
+        <!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Rust strings: the difference between &str and String, building, formatting, and working with UTF-8 text.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="rust, string, str, utf-8, format, text, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Rust Strings &amp; Text</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="rust-strings">Rust Strings &amp; Text</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Rust has two string flavors: <code>&amp;str</code> — a borrowed, fixed-length slice of text — and <code>String</code> — an owned, growable buffer on the heap. Understanding which one to reach for is the first step toward comfortable text handling.
+        </div>
+
+        <h2 id="str-vs-string">&amp;str versus String</h2>
+        <p>A string literal like <code>"hello"</code> has type <code>&amp;str</code>: it borrows text that already exists. A <code>String</code> owns its growable heap buffer. The table contrasts the two:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead><tr><th>&amp;str</th><th>String</th></tr></thead>
+          <tbody>
+            <tr><td>Borrowed view (a &quot;string slice&quot;)</td><td>Owned, heap-allocated buffer</td></tr>
+            <tr><td>Fixed length, immutable</td><td>Growable, mutable</td></tr>
+            <tr><td>Cheap to copy (pointer + length)</td><td>Clone allocates new memory</td></tr>
+            <tr><td>From literals or slicing a String</td><td>From <code>String::from</code>, <code>to_string</code>, <code>format!</code></td></tr>
+          </tbody>
+        </table>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let literal: &str = "hello";              // &str: a view over static text
+    let owned: String = String::from("hi");   // String: owns a growable buffer
+    let from_literal = "hi".to_string();      // same, via the ToString trait
+
+    // a String hands out &str slices cheaply (deref coercion)
+    let slice: &str = &owned;
+
+    println!("{} / {} / {} / {}", literal, owned, from_literal, slice);
+}
+</code></pre>
+
+        <h2 id="building">Building Strings</h2>
+        <p><code>String</code> grows with <code>push</code> (one character) and <code>push_str</code> (a whole slice). For complex formatting, <code>format!</code> builds a new <code>String</code>, and <code>+</code> concatenates from left to right:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let mut s = String::from("Rust");
+    s.push('!');                 // append a single char
+    s.push_str(" is fast");      // append a whole &str
+    println!("{s}");             // inline-capture format (Rust 1.58+)
+
+    // format! returns an owned String built from a template
+    let page = format!("Read {title} by {author}", title = "the Book", author = "Klabnik");
+    println!("{page}");
+
+    // '+' takes ownership of the left operand and appends the right
+    let greeting = String::from("Hello, ") + "world!";
+    println!("{greeting}");
+}
+</code></pre>
+
+        <h2 id="methods">Common Methods</h2>
+        <p>Most text work is a chain of small methods. Note that <code>len()</code> counts <strong>bytes</strong>, not characters — crucial for non-ASCII text:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let hello = String::from("Hello, world");
+
+    println!("len (bytes) = {}", hello.len());       // 12
+    println!("contains = {}", hello.contains("world"));
+    println!("replaced = {}", hello.replace("world", "Rust"));
+    println!("uppercase = {}", hello.to_uppercase());
+
+    for word in hello.split(", ") {
+        println!("part: {word}");
+    }
+
+    let trimmed = "  padded  ".trim();
+    println!("trimmed = '{}'", trimmed);
+}
+</code></pre>
+
+        <h2 id="utf8">UTF-8 and Indexing</h2>
+        <p>Rust strings are valid UTF-8. Because one &quot;character&quot; can span several bytes, indexing by position (<code>s[0]</code>) is a compile error — use <code>chars()</code> for Unicode scalar values or <code>bytes()</code> for raw bytes:</p>
+        <pre><code class="language-rust line-numbers">fn main() {
+    let s = String::from("Rúst");        // 'ú' is 2 bytes in UTF-8
+
+    println!("bytes = {}", s.len());     // 5, not 4
+    for ch in s.chars() {                // iterates 4 chars: R ú s t
+        print!("{ch} ");
+    }
+    println!();
+    for b in s.bytes() {                 // iterates 5 raw bytes
+        print!("{b} ");
+    }
+    println!();
+}
+</code></pre>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Practice move:</strong> open the <a href="/roadmap/rust/demo_examples.html">lab examples</a> and modify the strings demo — append, format, then iterate <code>chars()</code> vs <code>bytes()</code> on a word like <code>"naïve"</code> and predict each length before running.
+        </div>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'rust',
+    topicId: 'strings',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

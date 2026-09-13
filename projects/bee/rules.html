@@ -227,6 +227,38 @@ rule main:
 return;
 </code></pre>
 
+<h2 id="rule-contracts">Rule Contracts</h2>
+
+<p>Bee rules support <b>Design by Contract</b>. A contract is a formal check embedded in the rule body that verifies the rule is called correctly and computes correct results. Two keywords are available: <code>assert</code> and <code>expect</code>.</p>
+
+<h4>Example:</h4>
+
+<p>In next example we define a rule that divides two real numbers. The precondition guards against division by zero. The postcondition verifies the result satisfies the division invariant.</p>
+
+<pre><code class="language-bee">-- a rule with contracts
+rule divide(a &isin; R, b &isin; R) =&gt; (ratio &isin; R):
+    assert b &not; 0;           -- precondition: warn if divisor is zero
+    let ratio := a / b;
+    expect ratio * b &asymp; a; -- postcondition: halt if invariant fails
+return;
+</code></pre>
+
+<h4>Semantics:</h4>
+<ul>
+<li><b>assert</b> condition; &mdash; Precondition check. If the condition is false (<code>0</code> or <code>false</code>), a warning <code>W0301: AssertionWarning</code> is printed to standard error (<em>stderr</em>), but program execution continues uninterrupted.</li>
+<li><b>expect</b> condition; &mdash; Invariant check. If the condition is false, a runtime error <code>E0303: ExpectationFailed</code> is raised and propagated up the call stack. If it is not caught by an enclosing <b>trial</b> block, the application halts immediately with a failure exit status.</li>
+</ul>
+
+<h4>Notes:</h4>
+<ul>
+<li>Place <code>assert</code> statements first in the rule body: they verify inputs before computation;</li>
+<li>Place <code>expect</code> statements last, before <em>return</em>: they verify results before handing them back;</li>
+<li>Contracts are regular statements, not part of the rule signature &mdash; you can use them in any rule, including <em>main</em>;</li>
+<li>Use the approximate comparison operator <code>&asymp;</code> instead of <code>=</code> when checking real number results;</li>
+</ul>
+
+<div class="alert alert-secondary">Use <b>assert</b> for caller mistakes you can tolerate and log. Use <b>expect</b> for internal invariants that must never break &mdash; a failed <b>expect</b> means the rule itself has a defect.</div>
+
 <h2 id="advanced-topics">Advanced Topics</h2>
 
 <p>Next features will be explained later in more details after we learn more elements required for advanced examples. Making examples for these features require knowledge about collections and data processing. So you can read a brief introduction now then skip ahead.</p>

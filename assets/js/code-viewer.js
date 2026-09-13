@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         'csharp': 'csharp',
         'c': 'c',
         'h': 'c',
+        'rs': 'rust',   // Rust — grammar bundled in assets/prism.js
         'zig': 'zig',
         'cpp': 'cpp',
         'cc': 'cpp',
