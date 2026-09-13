@@ -43,7 +43,7 @@
 
 <h1 id="control-flow">Control Flow</h1>
 <div class="alert alert-secondary shadow-sm">
-Control flow statements are used to modify the linear program workflow. In Bee each control statement start with a different keyword, and ends with one of: <em>done</em> or <em>cycle </em>. Control flow statements are unnamed blocks of code.</div>
+Control flow statements are used to modify the linear program workflow. In Bee each control statement start with a different keyword and ends with <em>done</em>. Control blocks can be anonymous or can carry an optional label.</div>
 
 <h4>Page bookmarks</h4>
 
@@ -204,7 +204,7 @@ done test;
 
 <h2 id="cycle">Repetitive Statements</h2>
 
-<p>You can use "cycle" to start a repetitive block. There are three forms: a labeled cycle (<code>cycle name:</code>), where the colon is bound to the label and opens an optional local-declaration prologue before the loop body; an anonymous cycle with prologue (<code>cycle:</code>), where a bare colon still opens the stable declaration scope without a label; and a plain anonymous cycle (<code>cycle do</code>, <code>cycle while &hellip; do</code>) that takes <b>no colon</b> and therefore has no prologue &mdash; the body header follows immediately. "do" will repeat all statements in the block until a condition ends the cycle. If no condition exists, the cycle is infinite.</p>
+<p>You can use "cycle" to start a repetitive block. The header admits two <b>independent</b> options &mdash; an optional label and an optional colon: <code>cycle [label] [:]</code>. The <b>colon is the scope marker</b>: whenever it is present, with a label (<code>cycle name:</code>) or without (<code>cycle:</code>), it opens a local-declaration prologue (stable outer scope) before the loop body. An anonymous cycle without colon (<code>cycle do</code>, <code>cycle while &hellip; do</code>) has no prologue &mdash; the body header follows immediately. The label alone creates no scope; it only names the cycle as a jump target. "do" will repeat all statements in the block until a condition ends the cycle. If no condition exists, the cycle is infinite.</p>
 
 <h3 id="pattern-1-infinite-cycle">Infinite cycle</h3>
 
@@ -216,9 +216,9 @@ done test;
   <p>infinite cycle</p>
 </div>
 
-<pre><code class="language-bee">#infinite cycle
-cycle [label:]
-  -- local variables (declared in prologue scope)
+<pre><code class="language-bee">#infinite cycle (optional label, optional scope)
+cycle [label] [:]
+  -- local variables (declared in prologue scope; colon required)
 do
   -- repetitive block
   ...
@@ -247,16 +247,16 @@ done;
 
 <h3 id="pattern-3-while-condition">While condition</h3>
 
-<p>Keyword "while" can be used to evaluate a condition and start or continue a repetitive block. The number of repetitions is controlled by condition. If the start condition is not fulfilled the else block is executed. When "else" block is ending the cycle normally stops unless "redo" is used to restart the cycle.</p>
+<p>Keyword "while" can be used to evaluate a condition and start or continue a repetitive block. The number of repetitions is controlled by condition. If the start condition is not fulfilled the loop exits immediately. The optional "then" epilogue block runs exactly once after the loop exits (via "stop" or condition exhaustion), before the prologue scope is cleaned up.</p>
 
 <div class="text-center">
   <img src="/projects/bee/img/start-cycle.svg" alt="start cycle" width="460" class="img-fluid protect rounded shadow border" >
   <p>start-condition cycle</p>
 </div>
 
-<pre><code class="language-bee">#conditional start cycle
-cycle [label:]
-    -- define local variables (declared in prologue scope)
+<pre><code class="language-bee">#conditional start cycle (optional label, optional scope)
+cycle [label] [:]
+    -- define local variables (declared in prologue scope; colon required)
     ...
 while start_condition do
     -- first repetitive block
@@ -272,7 +272,7 @@ done [label];
 </code></pre>
 
 
-<p><b>Note 1:&nbsp;</b>The else block runs one single time, that is when the condition evaluate to false. Otherwise if we repeat the cycle for "else" block we can end-up with infinite loop that is absurd.</p>
+<p><b>Note 1:&nbsp;</b>The "then" epilogue block runs one single time, that is when the loop exits normally (condition becomes false or "stop" is executed). It does NOT execute between iterations — it is a post-loop epilogue, not a per-iteration block.</p>
 
 <p><b>Note 2:&nbsp;</b>Keyword: "stop" is similar to "break" in Java and "repeat" similar to "continue" &mdash; it is an inline jump statement that skips to the next iteration (<code>repeat [label] [if condition];</code>). "redo" restarts the cycle from the beginning. These are optional interruption statements. Occasional you can use these statements to improve code performance or readability.</p>
 
@@ -302,9 +302,9 @@ done 42;
 <h4>Notes:</h4>
 
 <ul>
-<li>Block names can be numeric and are optional,</li>
-<li>The colon opens the declaration scope: <code>cycle [label:]</code> or anonymous <code>cycle:</code>. Plain anonymous cycles (<code>cycle do</code>) take no colon,</li>
-<li>The stable outer scope (declaration region) exists whenever the colon is present &mdash; on labeled cycles (<code>cycle name:</code>) and on anonymous cycles with a bare colon (<code>cycle:</code>),</li>
+<li>Block names can be numeric and are optional; a label alone creates no scope,</li>
+<li>The colon opens the declaration scope &mdash; <code>cycle [label] [:]</code> &mdash; on labeled cycles (<code>cycle name:</code>) and on anonymous cycles alike (<code>cycle:</code>),</li>
+<li>Cycles without colon (<code>cycle do</code>, <code>cycle name do</code>) have no stable outer scope; the body header follows immediately,</li>
 <li>Keywords "repeat", "redo" and "stop" can be used with labels,</li>
 <li>Flat code is better. Do not nest too deep.</li>
 </ul>
@@ -318,9 +318,9 @@ done 42;
   <p>for cycle</p>
 </div>
 
-<pre><code class="language-bee">#iterative cycle
-cycle [label:]
-  -- local variables (declared in prologue scope)
+<pre><code class="language-bee">#iterative cycle (optional label, optional scope)
+cycle [label] [:]
+  -- local variables (declared in prologue scope; colon required)
   new i &isin; N;
 for &forall; i &isin; (min..max:rate) do
   -- repetitive block
@@ -337,10 +337,10 @@ done [label];
 
 <h4>Notes:</h4>
 <ul>
-<li>Cycle blocks can be named using a label identifier;</li>
-<li>The colon is bound to the label: <code>cycle [label:]</code> &mdash; anonymous cycles take no colon;</li>
-<li>If used, label enable creation of local variables;</li>
-<li>Control variable: "i" is in local scope, even if label is missing;</li>
+<li>Cycle blocks can be named using a label identifier (optional);</li>
+<li>The colon is independent of the label: <code>cycle [label] [:]</code> &mdash; with colon, a prologue scope is created;</li>
+<li>If used, the colon (not the label) enables creation of local variables in the prologue scope;</li>
+<li>Control variable: "i" is in local scope, even if label or colon are missing;</li>
 <li>Interruptions (repeat, stop) are optional and most of the time not needed;</li>
 <li>By using "repeat", control variable is incremented automatically and the iteration restarts;</li>
 <li>Only one iterable variable is permitted in given scope;</li>
@@ -380,7 +380,7 @@ print;
 <ul>
 <li>Don''t use <em> "make"</em> inside a repetitive block,</li>
 <li>Don''t use <em> "set"</em> inside a repetitive block,</li>
-<li>Avoid <em>"new"</em> inside a repetitive block: the <code>do</code> scope is volatile, so every iteration creates fresh variables. Carried state belongs in the stable outer scope of a labeled cycle (or the enclosing scope),</li>
+<li>Avoid <em>"new"</em> inside a repetitive block: the <code>do</code> scope is volatile, so every iteration creates fresh variables. Carried state belongs in the stable prologue scope of a colon cycle (<code>cycle:</code> or <code>cycle name:</code>), or in the enclosing scope,</li>
 <li>Bee has a limit on how many repetitions before give up: $max_iterations.</li>
 </ul>
 
