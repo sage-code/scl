@@ -204,7 +204,7 @@ done test;
 
 <h2 id="cycle">Repetitive Statements</h2>
 
-<p>You can use "cycle" to start a repetitive block. This keyword is used before local declaration and can create a labeled cycle. "do" will repeat all statements in the block until a condition ends the cycle. If no condition exists, the cycle is infinite.</p>
+<p>You can use "cycle" to start a repetitive block. It may carry an optional label, and the colon is bound to the label: <code>cycle [label:]</code>. A labeled cycle (<code>cycle name:</code>) requires the colon and opens an optional local-declaration prologue before the loop body. An anonymous cycle takes <b>no colon</b> (<code>cycle do</code>, <code>cycle while &hellip; do</code>) and therefore has no prologue &mdash; the body header follows immediately. "do" will repeat all statements in the block until a condition ends the cycle. If no condition exists, the cycle is infinite.</p>
 
 <h3 id="pattern-1-infinite-cycle">Infinite cycle</h3>
 
@@ -217,8 +217,8 @@ done test;
 </div>
 
 <pre><code class="language-bee">#infinite cycle
-cycle [label]:
-  -- local variables
+cycle [label:]
+  -- local variables (labeled cycles only)
 do
   -- repetitive block
   ...
@@ -234,11 +234,8 @@ repeat [label];
   <p>stop condition</p>
 </div>
 
-<pre><code class="language-bee">#conditional run cycle
-cycle:
-  -- local variables
-  ...
-do
+<pre><code class="language-bee">#conditional run cycle (anonymous: no colon, no prologue)
+cycle do
   -- repetitive block
   ...
   [redo if condition1];
@@ -258,8 +255,8 @@ repeat [if condition3];
 </div>
 
 <pre><code class="language-bee">#conditional start cycle
-cycle [label]:
-    -- define local variables
+cycle [label:]
+    -- define local variables (labeled cycles only)
     ...
 while start_condition do
     -- first repetitive block
@@ -289,7 +286,8 @@ cycle 42:
     ...
 do
     ...
-    cycle 10: do
+    cycle 10:
+    do
         ...
         redo 42 if condition1; -- restart block 42
         ...
@@ -305,7 +303,8 @@ repeat 42;
 
 <ul>
 <li>Block names can be numeric and are optional,</li>
-<li>Declaration region after ":" is optional,</li>
+<li>The colon is bound to the label: <code>cycle [label:]</code>. Anonymous cycles have no colon,</li>
+<li>The stable outer scope (declaration region) exists only on labeled cycles, after the colon,</li>
 <li>Keywords "redo" and "stop" can be used with labels,</li>
 <li>Flat code is better. Do not nest too deep.</li>
 </ul>
@@ -320,8 +319,8 @@ repeat 42;
 </div>
 
 <pre><code class="language-bee">#iterative cycle
-cycle [label]:
-  -- local variables
+cycle [label:]
+  -- local variables (labeled cycles only)
   new i &isin; N;
 for &forall; i &isin; (min..max:rate) do
   -- repetitive block
@@ -339,6 +338,7 @@ repeat [label];
 <h4>Notes:</h4>
 <ul>
 <li>Cycle blocks can be named using a label identifier;</li>
+<li>The colon is bound to the label: <code>cycle [label:]</code> &mdash; anonymous cycles take no colon;</li>
 <li>If used, label enable creation of local variables;</li>
 <li>Control variable: "i" is in local scope, even if label is missing;</li>
 <li>Interruptions (next, stop) are optional and most of the time not needed;/li>
@@ -349,8 +349,7 @@ repeat [label];
 <h4>Example 1:</h4>
 
 <pre><code class="language-bee">#range iteration with rate 1
-cycle:
-  new i &isin; N;
+new i &isin; N;
 for &forall; i &isin; (1..10) do
   if i % 2 = 0 do
     next;    -- iterate
@@ -369,8 +368,7 @@ repeat;
 
 <p><b>Ratio:</b>&nbsp;Using domain ratio the example above can be simplified:</p>
 <pre><code class="language-bee">#range iteration with rate 2
-cycle:
-    new i &isin; N;
+new i &isin; N;
 for &forall; i &isin; (1..9:2) do
     write(i); -- odd numbers
     write(',') if (i &lt; 9);
@@ -382,6 +380,7 @@ print;
 <ul>
 <li>Don''t use <em> "make"</em> inside a repetitive block,</li>
 <li>Don''t use <em> "set"</em> inside a repetitive block,</li>
+<li>Avoid <em>"new"</em> inside a repetitive block: the <code>do</code> scope is volatile, so every iteration creates fresh variables. Carried state belongs in the stable outer scope of a labeled cycle (or the enclosing scope),</li>
 <li>Bee has a limit on how many repetitions before give up: $max_iterations.</li>
 </ul>
 
