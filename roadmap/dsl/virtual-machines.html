@@ -2,19 +2,30 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSL virtual machines placeholder page.">
+  <meta name="description" content="Virtual machines and runtimes: dispatch techniques, call frames, runtime services such as garbage collection and host interop, and a JIT preview.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="DSL, virtual machine, runtime, execution model">
+  <meta name="keywords" content="sage, code, dsl, virtual machine, runtime, dispatch, call frames, garbage collection, JIT, interpreter">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DSL Virtual Machines</title>
+  <title>Virtual Machines &amp; Runtimes — DSL Roadmap</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsl/virtual-machines.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
@@ -31,21 +42,66 @@
         </div>
       </aside>
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DSL Virtual Machines</h1>
-        <div class="alert alert-secondary shadow-sm">This page will later describe execution environments, memory models, and how a runtime isolates or hosts compiled DSL programs.</div>
-        <h2 id="scope">Scope</h2>
-        <ul>
-          <li>Define the virtual hardware exposed to programs.</li>
-          <li>Separate runtime services from source semantics.</li>
-          <li>Keep portability and debugging in view.</li>
-        </ul>
+        <h1 id="virtual-machines">Virtual Machines &amp; Runtimes</h1>
+        <div class="alert alert-secondary shadow-sm">
+          A VM executes the bytecode from the previous chapter: fetching instructions, maintaining frames and the operand stack, and providing the runtime services the language promised — memory, interop, and (eventually) speed.
+        </div>
+
+        <h2 id="dispatch">Dispatch</h2>
+        <p>How the VM answers &ldquo;what does this instruction do?&rdquo; determines its speed and its size.</p>
+        <h3 id="switch-dispatch">Switch Dispatch</h3>
+        <p>The classic <code>while (running) switch (opcode)</code> loop. Twelve lines, trivially correct, and fast enough for DSL work &mdash; the default first implementation.</p>
+        <h3 id="threaded">Threaded &amp; Direct Threaded</h3>
+        <p>Replace the switch with jumps through code pointers stored between instructions. Two to five times faster, at the cost of less readable internals — an optimization only when profiling asks for it.</p>
+        <h3 id="state">The Machine State</h3>
+        <p>Program counter, operand stack, call stack, and globals. Everything else (heap, IO) is a service the machine <em>calls</em>, not part of its core loop.</p>
+
+        <h2 id="call-frames">Call Frames and Locals</h2>
+        <p>A frame per call holds return address, saved caller frame, and a locals slot array (resolved in Semantic Analysis). Frames push on calls and pop on <code>RET</code>, giving recursion for free and a stack trace on uncaught errors.</p>
+        <h3 id="stack-trace">The Trace Is the Gift</h3>
+        <p>With frames, the VM can print &ldquo;at foo:3, called from bar:7&rdquo; — the diagnostic CSS from Errors &amp; Diagnostics comes alive. This alone justifies the frame discipline.</p>
+
+        <h2 id="runtime-services">Runtime Services</h2>
+        <h3 id="gc-overview">Memory: The GC Sampler</h3>
+        <p>Three classic strategies, enough to orient: <em>mark-sweep</em> (pause, walk, collect — simplest), <em>copying</em> (move survivors, compact — fast allocation), and <em>generational</em> (young vs old generations — production choice, seen in JVM/CPython&rsquo;s hybrids). A DSL with reference/ownership semantics (Types &amp; Values) needs no GC at all.</p>
+        <h3 id="interop">Host Interop</h3>
+        <p>DSLs live inside hosts: your VM needs one door to call out (a <code>HOSTCALL</code> instruction or FFI table). Keep the interface narrow — a few verbs, typed arguments — and the host language stays a detail.</p>
+
+        <h2 id="jit-preview">JIT Preview</h2>
+        <h3 id="jit-spectrum">The Interpret-JIT Spectrum</h3>
+        <p>Between interpreting and native compilation lies just-in-time compilation: profile hot loops, compile them to machine code, and run that. Full JITs are a Phase-3-scale commitment (Julia and LLVM do this); DSLs typically stop at &ldquo;bytecode in, interpreter in C&rdquo; and let the host or LLVM provide the JIT.</p>
+        <h2 id="example">Example: The Core Loop</h2>
+        <p>Switch dispatch, the machine state, and one frame — everything until now, inside fifty lines.</p>
+        <h3 id="vm-loop">vm.py (commented)</h3>
+<pre><code class="language-python line-numbers"># vm.py — a minimal stack-machine interpreter
+class VM:
+    def __init__(self, code, constants):
+        self.code, self.constants = code, constants
+        self.pc, self.stack, self.frames = 0, [], []
+
+    def run(self):
+        while self.pc &lt; len(self.code):
+            op = self.code[self.pc]; self.pc += 1
+            if   op == "PUSH":  self.stack.append(self.constants[next(self.code)])
+            elif op == "OP":    b = self.stack.pop(); a = self.stack.pop()
+                                self.stack.append(apply(next(self.code), a, b))
+            elif op == "CALL":  self.frames.append(self.pc)  # return address
+                                self.pc = next(self.code)     # jump to callee
+            elif op == "RET":   self.pc = self.frames.pop()
+            elif op == "HALT":  return self.stack.pop()</code></pre>
+        <h3 id="reading">How to Read It</h3>
+        <p>Dispatch on the opcode, machine state in the instance, frames only for calls — the whole design of this chapter in miniature. Extend an instruction and the same shape holds for control flow, globals, and <code>HOSTCALL</code>.</p>
+
         <h2 id="next-steps">Next Steps</h2>
-        <ol>
-          <li>Sketch the runtime API.</li>
-          <li>List the machine state that must be modeled.</li>
-          <li>Add VM examples later.</li>
-        </ol>
-      </main>
+        <h3 id="continue">Continue Phase 2</h3>
+        <p>The bytecode path is complete; native speed is one rung down: <a href="/roadmap/dsl/code-generation.html">Code Generation</a>, then <a href="/roadmap/dsl/code-optimization.html">Code Optimization</a> to spend speed wisely. Phase 3 hands the whole ladder to LLVM.</p>
+        <h3 id="resources">Resources</h3>
+        <ul>
+          <li><a href="https://craftinginterpreters.com/a-virtual-machine.html" target="_blank" rel="noopener noreferrer nofollow">Crafting Interpreters, a virtual machine — the switch loop in full</a></li>
+          <li><a href="https://docs.oracle.com/javase/specs/jvms/se21/html/" target="_blank" rel="noopener noreferrer nofollow">The JVM specification — a production VM, reference edition</a></li>
+          <li><a href="/roadmap/dsl/references.html">References &amp; Downloads — the full catalog for this roadmap</a></li>
+        </ul>
+        </main>
     </div>
   </div>
   <footer class="footer copyright">

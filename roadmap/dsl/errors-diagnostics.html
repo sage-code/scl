@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="DSL errors and diagnostics: kinds of errors, writing good messages, error models, REPL and debugging, with a commented diagnostic example.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, dsl, errors, diagnostics, error messages, error model, REPL, debugging">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Errors &amp; Diagnostics — DSL Roadmap</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsl/errors-diagnostics.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="errors-diagnostics">Errors &amp; Diagnostics</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Users judge a language by its errors long before they judge its semantics. Diagnosing well &mdash; saying precisely what was wrong, where, and what to do &mdash; is the highest-return investment a DSL can make after its grammar.
+        </div>
+
+        <h2 id="error-kinds">Kinds of Errors</h2>
+        <p>Every error belongs to a layer of Phase 1, and each layer catches different mistakes.</p>
+        <h3 id="layers">The Four Layers</h3>
+        <ul>
+          <li><strong>Lexical:</strong> a character sequence no token matches (<code>room @</code>).</li>
+          <li><strong>Syntax:</strong> tokens that do not fit the grammar (<code>room room</code>).</li>
+          <li><strong>Semantic:</strong> meaning violations &mdash; type errors, undefined names (Semantics &amp; Scoping, Types &amp; Values).</li>
+          <li><strong>Runtime:</strong> failures while running, from invalid input to missing resources.</li>
+        </ul>
+        <h3 id="early-late">Early vs. Late</h3>
+        <p>Earlier layers are cheap and certain; runtime errors are expensive and context-dependent. A good design pushes as many mistakes upward (to compile/parse time) as the typing mode allows.</p>
+
+        <h2 id="good-messages">Writing Good Messages</h2>
+        <h3 id="message-format">The Three-Part Shape</h3>
+        <p>Every diagnostic should say: <strong>where</strong> (file, line, column), <strong>what was expected versus found</strong>, and <strong>how to fix</strong> (an example or the accepted form). Then include the offending line with a caret under the span &mdash; text people can search the code against.</p>
+        <h3 id="tone">Tone and Severity</h3>
+        <p>Levels matter: <code>error</code> (cannot proceed), <code>warning</code> (works but suspicious), <code>note</code> (context). Never blame the user; blame the program state, and always end with the most likely fix.</p>
+        <h3 id="message-testing">Test Your Messages</h3>
+        <p>Keep a corpus of bad programs &mdash; one per error kind &mdash; and render their diagnostics. If a message cannot explain its own example, the message is a bug.</p>
+        <h2 id="error-model">The Error Model</h2>
+        <h3 id="exceptions-results">Exceptions vs. Results</h3>
+        <p>Two philosophies: <strong>exceptions</strong> unwind the call stack to a handler; <strong>result values</strong> (like Rust&rsquo;s <code>Result</code> or forced return codes) make failure an explicit value. DSLs lean on results for domain failures (a booking conflict) and exceptions for programmer bugs.</p>
+        <h3 id="recoverable">Recoverable by Design</h3>
+        <p>Classify each error: <em>user input</em> (recoverable, tell the fix), <em>environment</em> (retryable), <em>programmer bug</em> (panic loudly). A DSL that cannot distinguish &ldquo;bad room name&rdquo; from &ldquo;DRY RUN pipeline failed on room names&rdquo; will frustrate both audiences.</p>
+
+        <h2 id="repl-tools">REPL &amp; Debugging</h2>
+        <h3 id="repl">The REPL as Teacher</h3>
+        <p>A read&ndash;eval&ndash;print loop lets users test one phrase against the semantics instantly. If the DSL can run interactively, build the REPL early; it doubles as a greeting and a test harness.</p>
+        <h3 id="debugging">Debugging Foundations</h3>
+        <p>Trace evaluation order, show the environment at each step, and expose the AST the parser produced. Those three windows explain almost every DSL surprise.</p>
+
+        <h2 id="example">Example: Three Errors, One Diary</h2>
+        <p>Keep a diary of bad programs; render their diagnostics and review them like tests.</p>
+        <h3 id="bad-programs">A Bad Program for Each Layer</h3>
+<pre><code># bad.req — three errors from three layers of Phase 1
+room @A11              # lexical: "@" is not a token in this DSL
+room room              # syntax: two keywords, no name payload
+room 09:00             # semantic: a time is not a valid room name
+</code></pre>
+        <h3 id="good-diagnostic">The Good Diagnostic</h3>
+<pre><code>error[E2] expected NAME after keyword "room"
+  --&gt; bad.req:1:6
+  |
+1 | room @A11
+  |      ^--- "@" cannot start a name
+help: write a room identifier, e.g. "room 3A"</code></pre>
+        <p>Location, expectation, the offending span, and a fix in one breath. That message is a feature; the diary that produced it is a deliverable.</p>
+
+        <h2 id="next-steps">Next Steps</h2>
+        <h3 id="continue">Continue Phase 1</h3>
+        <p>Phase 1 is complete when the design document can answer Syntax, Grammar, Parsing, Semantics, Types, and Errors in one page each. Next, Phase 2 starts turning that specification into an implementation: <a href="/roadmap/dsl/compiler-design.html">Compiler Design</a>.</p>
+        <h3 id="resources">Resources</h3>
+        <ul>
+          <li><a href="https://blog.janestreet.com/effective-error-messages/" target="_blank" rel="noopener noreferrer nofollow">Jane Street &mdash; writing effective compiler error messages</a></li>
+          <li><a href="https://www.rubydoc.info/gems/standard/Standard" target="_blank" rel="noopener noreferrer nofollow">RuboCop diagnostics &mdash; an example of caret messages at scale</a></li>
+          <li><a href="/roadmap/dsl/references.html">References &amp; Downloads — the full catalog for this roadmap</a></li>
+        </ul>
+        </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'dsl',
+    topicId: 'errors-diagnostics',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

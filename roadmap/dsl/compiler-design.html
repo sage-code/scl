@@ -2,19 +2,30 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSL compiler design placeholder page.">
+  <meta name="description" content="Compiler design: the front, middle and back-end pipeline, compiler versus interpreter choices, correctness strategies, and staged error reporting.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="DSL, compiler design, code generation, optimization">
+  <meta name="keywords" content="sage, code, dsl, compiler design, front-end, middle-end, back-end, IR, code generation, pipeline">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DSL Compiler Design</title>
+  <title>Compiler Design — DSL Roadmap</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsl/compiler-design.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
@@ -31,21 +42,69 @@
         </div>
       </aside>
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DSL Compiler Design</h1>
-        <div class="alert alert-secondary shadow-sm">This page will later describe compiler stages, intermediate representations, and back-end emission strategies.</div>
-        <h2 id="scope">Scope</h2>
-        <ul>
-          <li>Separate front-end, middle-end, and back-end concerns.</li>
-          <li>Plan for diagnostics, lowering, and code generation.</li>
-          <li>Keep the architecture small enough to test early.</li>
-        </ul>
+        <h1 id="compiler-design">Compiler Design</h1>
+        <div class="alert alert-secondary shadow-sm">
+          A compiler is a translator that preserves meaning: source text in, a different-but-equivalent representation out. Its structure &mdash; front-end, middle-end, back-end &mdash; is the backbone every later Phase-2 topic plugs into.
+        </div>
+
+        <h2 id="pipeline">The Three-End Pipeline</h2>
+        <p>Almost every compiler decomposes into the same three stages, each with its own inputs, outputs, and error classes.</p>
+        <div class="text-center">
+          <img src="/roadmap/dsl/img/compiler-pipeline.svg" alt="Compiler pipeline: front-end, middle-end, back-end, target, with errors at every stage" class="img-fluid protect rounded shadow border" width="800">
+          <p class="text-secondary">Figure 1 — Each stage narrows the problem; each reports its own kind of error.</p>
+        </div>
+        <h3 id="front-end">Front-End</h3>
+        <p>Source to validated tree: lexer, parser, and semantic analysis (the Phase-1 topics). All errors here are about the program&rsquo;s text and meaning.</p>
+        <h3 id="middle-end">Middle-End</h3>
+        <p>Tree to intermediate representation, transformed by optimization. This is where compilers earn their keep for large languages; DSLs often skip or shrink it.</p>
+        <h3 id="back-end">Back-End</h3>
+        <p>IR to the target: bytecode for a VM, native code, or a call into a heavy tool like LLVM (Phase 3). DSL back-ends are usually tiny because the IR is tiny.</p>
+
+        <h2 id="design-decisions">Design Decisions</h2>
+        <h3 id="compiler-vs-interpreter">Compiler vs. Interpreter</h3>
+        <p>Compile-then-run separates translation from execution (startup cost, later find bugs); interpreting executes the tree directly (faster to build, slower at runtime). The pragmatic DSL choice: compile to bytecode, interpret bytecode, and keep the deck open for later optimization.</p>
+        <h3 id="passes">Single-Pass vs. Multi-Pass</h3>
+        <p>Single-pass compilers emit as they parse (simple, restrictive); multi-pass compilers build a tree, analyze, then emit (flexible, debuggable). Multi-pass wins for DSLs: readability of each pass beats a few saved clock cycles.</p>
+        <h3 id="host-target">Host and Target</h3>
+        <p>Pick the host language for the compiler (fast to write, easy to embed) and the target (interpreter, bytecode, native, another DSL). Writing your DSL compiler in the DSL itself is elegant later &mdash; for a first version, choose the boring, well-tested host.</p>
+        <h2 id="correctness">Correctness Strategy</h2>
+        <p>A compiler is worth exactly as much as its tests: it is a deterministic function from source to code, so almost everything is testable.</p>
+        <h3 id="tests">Test Ladder</h3>
+        <p>Unit-test each pass on tiny programs; keep <em>golden files</em> (input plus expected output) for every example in the docs; and run a corpus of bad programs to verify each diagnostic still fires.</p>
+        <h3 id="property-tests">Property Checks</h3>
+        <p>For expressions, compare the result of running compiled and interpreted versions of the same input (differential testing); for parsers/printers, round-trip source through parse&ndash;print and assert identity.</p>
+
+        <h2 id="staged-errors">Errors Are a Pipeline Feature</h2>
+        <h3 id="stage-map">Which Stage Owns Which Error</h3>
+        <p>Lexical and syntax errors belong to the front-end; undefined names and type mismatches to semantic analysis; impossible instructions to the back-end. Every stage must fail loudly, with the message style from Errors &amp; Diagnostics, so the user always knows which contract was broken.</p>
+        <h3 id="never-swallow">Never Swallow a Stage</h3>
+        <p>A DSL that silently accepts a program it cannot compile teaches users that the tool lies. Prefer an explicit &ldquo;not yet implemented&rdquo; diagnostic over a silent wrong answer.</p>
+
+        <h2 id="example">Example: The Driver Loop</h2>
+        <p>The architecture fits in ten lines: each stage is a function from one artifact to the next, and the pipeline is the program.</p>
+        <h3 id="driver">main_compile() (commented)</h3>
+<pre><code class="language-python line-numbers"># driver.py — the whole pipeline as a function chain
+def main_compile(source: str):
+    tokens = lex(source)          # front-end 1: characters -> tokens
+    tree   = parse(tokens)        # front-end 2: tokens -> AST
+    check(tree)                   # front-end 3: names, types (Semantic Analysis)
+    ir     = lower(tree)          # middle-end: AST -> three-address IR
+    bc     = emit(ir)             # back-end:   IR -> bytecode
+    dump(bc)                      # a golden file for the test ladder
+    vm_run(bc)                    # bytecode into the Virtual Machine</code></pre>
+        <h3 id="reading">How to Read It</h3>
+        <p>Every later Phase-2 page fills in exactly one function: Semantic Analysis the <code>check</code>, Intermediate Representations the <code>lower</code>, Bytecode &amp; Codegen the <code>emit</code>, Virtual Machines the <code>vm_run</code>.</p>
+
         <h2 id="next-steps">Next Steps</h2>
-        <ol>
-          <li>Draft the compilation pipeline.</li>
-          <li>List the IR shapes that fit the language.</li>
-          <li>Add optimization examples later.</li>
-        </ol>
-      </main>
+        <h3 id="continue">Continue Phase 2</h3>
+        <p>Next the tree becomes checked and decorated: <a href="/roadmap/dsl/semantic-analysis.html">Semantic Analysis</a>, then <a href="/roadmap/dsl/intermediate-representations.html">Intermediate Representations</a>.</p>
+        <h3 id="resources">Resources</h3>
+        <ul>
+          <li><a href="https://craftinginterpreters.com/" target="_blank" rel="noopener noreferrer nofollow">Crafting Interpreters — the practical walk from pipeline to VM</a></li>
+          <li><a href="https://www.goodreads.com/book/show/112257.Engineering_a_Compiler" target="_blank" rel="noopener noreferrer nofollow">Engineering a Compiler (Cooper &amp; Torczon) — the classic pipeline text</a></li>
+          <li><a href="/roadmap/dsl/references.html">References &amp; Downloads — the full catalog for this roadmap</a></li>
+        </ul>
+        </main>
     </div>
   </div>
   <footer class="footer copyright">

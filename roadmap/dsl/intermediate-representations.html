@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Intermediate representations: why compilers lower to an IR, the shapes IRs take (trees, three-address, SSA, bytecode), choosing one for a DSL, and an example lowering.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, dsl, intermediate representation, IR, three-address code, SSA, bytecode, lowering">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Intermediate Representations — DSL Roadmap</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsl/intermediate-representations.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="intermediate-representations">Intermediate Representations</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Between the checked AST and the final target sits the IR: a simplified program that is easy to transform, optimize, and translate. Choosing an IR is the middle-end&rsquo;s one big design decision.
+        </div>
+
+        <h2 id="why-ir">Why an IR at All</h2>
+        <p>Whether a compiler is six lines or six million, it lowers through at least one intermediate form — because IRs make hard things easy.</p>
+        <h3 id="reuse">Reuse Across Fronts and Backs</h3>
+        <p>One IR plus N back-ends means each new target needs no front-end work, and each new language needs no back-end work (LLVM exists because of exactly this).</p>
+        <h3 id="substrate">A Substrate for Analysis</h3>
+        <p>Simplified programs are analyzable programs: dataflow, liveness, and type reasoning all run on the IR, not on the surface syntax.</p>
+        <h2 id="ir-shapes">The IR Ladder</h2>
+        <div class="text-center">
+          <img src="/roadmap/dsl/img/ir-hierarchy.svg" alt="IR ladder: AST, three-address code, SSA, bytecode, and LLVM IR as the production end" class="img-fluid protect rounded shadow border" width="740">
+          <p class="text-secondary">Figure 1 — Lower IRs add machine detail; higher IRs keep meaning. Pick the lowest one you can still read.</p>
+        </div>
+        <h3 id="trees">Trees (the AST itself)</h3>
+        <p>The checked AST is already an IR: readable, debuggable, and directly interpretable (tree-walking). For small DSLs it is the only IR needed.</p>
+        <h3 id="three-address">Three-Address Code</h3>
+        <p>Statements of the form <code>t1 = t2 op t3</code> — at most one operator per line, temporaries between results. The sweet spot for generating both bytecode and native code.</p>
+        <h3 id="ssa">SSA Form</h3>
+        <p>Every variable is assigned exactly once; joins use <em>phi</em> nodes. This is what makes optimization sound and fast (LLVM IR is SSA — Phase 3).</p>
+        <h3 id="stack-bytecode">Stack Bytecode</h3>
+        <p>Instructions push and pop an operand stack (this roadmap&rsquo;s Bytecode &amp; Codegen topic); compact and trivial to interpret.</p>
+        <h2 id="choosing-ir">Choosing Your IR</h2>
+        <h3 id="dsl-scale">DSL-Scale Guidance</h3>
+        <p>Start with the checked AST (free — you already have it) and add lower IRs only when a need appears: a bytecode target, an optimizer, or a native back-end. The IR ladder is climbed downward one rung at a time, never all at once.</p>
+        <h3 id="readability">Readability Is a Requirement</h3>
+        <p>Every IR worth shipping has a textual dump format: <code>--dump-ir</code> or a <code>dot</code> renderer. If you cannot print the IR, you cannot debug the compiler.</p>
+
+        <h2 id="example">Example: Lowering an Expression</h2>
+        <p>The same expression in two worlds: the AST from Parsing &amp; Trees and the three-address code that will feed Bytecode &amp; Codegen.</p>
+        <h3 id="lowering">AST -> TAC (commented)</h3>
+<pre><code># three-address: one operation per line, fresh temporaries
+t1 = 2 * 3          ; the multiplication binds tighter
+t2 = 1 + t1         ; addition last, by precedence
+store result, t2    ; or: PUSH 1 PUSH 2 PUSH 3 MUL ADD</code></pre>
+        <h3 id="reading">How to Read It</h3>
+        <p>Notice how <code>1 + 2 * 3</code> becomes a sequence of two tiny statements: one operator each, no nesting. That flatness is what every later pass (emit, optimize, register-allocate) wants to consume.</p>
+
+        <h2 id="next-steps">Next Steps</h2>
+        <h3 id="continue">Continue Phase 2</h3>
+        <p>With an IR, pick a target: <a href="/roadmap/dsl/interpreters.html">Interpreters</a> walk trees, <a href="/roadmap/dsl/bytecode.html">Bytecode &amp; Codegen</a> flatten to instruction lists, and <a href="/roadmap/dsl/code-generation.html">Code Generation</a> reaches native code.</p>
+        <h3 id="resources">Resources</h3>
+        <ul>
+          <li><a href="https://www.cs.cornell.edu/~asampson/blog/llvm.html" target="_blank" rel="noopener noreferrer nofollow">LLVM for Grad Students — why IRs and SSA matter, readably</a></li>
+          <li><a href="https://llvm.org/docs/LangRef.html" target="_blank" rel="noopener noreferrer nofollow">LLVM Language Reference — the production IR this roadmap meets in Phase 3</a></li>
+          <li><a href="/roadmap/dsl/references.html">References &amp; Downloads — the full catalog for this roadmap</a></li>
+        </ul>
+        </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'dsl',
+    topicId: 'intermediate-representations',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

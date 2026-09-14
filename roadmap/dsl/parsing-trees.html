@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="DSL parsing and trees: from tokens to concrete and abstract syntax trees, recursive descent and bottom-up parsing, syntax errors, and a commented mini parser.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, dsl, parsing, parser, AST, abstract syntax tree, recursive descent, bottom-up, syntax error">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Parsing &amp; Trees — DSL Roadmap</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsl/parsing-trees.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="parsing-trees">Parsing &amp; Trees</h1>
+        <div class="alert alert-secondary shadow-sm">
+          The parser is where a language comes alive: it consumes the token stream from Syntax &amp; Notation, applies the grammar from Grammar &amp; Rules, and builds the tree that every later phase walks. Parsing is also where users first meet your error messages.
+        </div>
+
+        <h2 id="pipeline">From Text to Trees</h2>
+        <p>Three artifacts, one pipeline: characters become tokens, tokens become a parse tree, and the parse tree is shaped into the tree your semantics will walk.</p>
+        <h3 id="cst-vs-ast">Concrete vs. Abstract Syntax Tree</h3>
+        <p>A <strong>concrete syntax tree (CST)</strong> keeps every token, including punctuation; an <strong>abstract syntax tree (AST)</strong> keeps only the meaning &mdash; the &ldquo;+&rdquo; node, not the parentheses around it. DSLs almost always talk in ASTs.</p>
+        <div class="text-center">
+          <img src="/roadmap/dsl/img/ast-example.svg" alt="Abstract syntax tree of 1 + 2 * 3: the plus node has children 1 and the multiplication node" class="img-fluid protect rounded shadow border" width="540">
+          <p class="text-secondary">Figure 1 — The AST encodes precedence: multiplication hangs below addition without any parentheses.</p>
+        </div>
+        <h3 id="ir-preview">A Glimpse of IR</h3>
+        <p>Some languages add a third tree, an intermediate representation (IR), optimized further before execution &mdash; the LLVM IR of Phase 3 is a mature example.</p>
+        <h2 id="strategies">Parsing Strategies</h2>
+        <p>Two families dominate, and both start from the grammar class you chose.</p>
+        <h3 id="recursive-descent">Recursive Descent</h3>
+        <p>One function per nonterminal: each function reads its expected tokens and calls the functions of the symbols it contains. Simple, debuggable, and the only parser you can read without a table &mdash; the natural choice for DSL parse cores.</p>
+        <h3 id="bottom-up">Bottom-Up / LR</h3>
+        <p>The parser shifts tokens onto a stack and reduces them by productions when the right-hand side appears. Powerful and fast, but the generated tables hide the story; best kept for large or embedded grammars.</p>
+        <h3 id="choose">Choosing</h3>
+        <p>For a DSL with fewer than thirty productions, hand-written recursive descent beats any generator on clarity and error messages. Generators win when grammar size or ambiguity risk outruns human patience.</p>
+
+        <h2 id="errors">Syntax Errors</h2>
+        <p>The parser is the first place users hit failure; design it to be kind.</p>
+        <h3 id="reporting">Location, Expectation, Recovery</h3>
+        <p>Report the token offset and the phrase expected (from the grammar: &ldquo;expected <code>time</code> after <code>room</code>&rdquo;); then <em>recover</em>: skip to a synchronization token (a newline or keyword) so one error does not poison the whole file &mdash; the classic aid for batch users.</p>
+        <h3 id="bounded">Bound the Damage</h3>
+        <p>Cap error recovery (&ldquo;too many errors, stopping&rdquo;) to avoid a waterfall of clones after one mistake. Errors &amp; Diagnostics, later in this phase, covers the full message design.</p>
+
+        <h2 id="example">Example: A Mini Recursive-Descent Parser</h2>
+        <p>Thirty lines of Python that parse the resolved arithmetic grammar into an AST — the same shape every later phase consumes.</p>
+        <h3 id="mini-parser">The Parser (commented)</h3>
+<pre><code class="language-python line-numbers"># parser.py — tiny recursive-descent parser: + - * / ( )
+tokens = []; pos = 0                    # token list from your lexer
+
+def peek():  return tokens[pos] if pos &lt; len(tokens) else ("EOF", "")
+def eat(kn):  # require the next kind, then move on
+    global pos
+    kind, val = peek()
+    if kind != kn:
+        raise SyntaxError(f"expected {kn}, found {val!r} at token {pos}")
+    pos += 1
+    return val
+
+def expr():
+    node = term()                       # leftmost operand first
+    while peek()[0] in ("PLUS", "MINUS"):
+        op = eat(peek()[0])             # left-associative by iteration
+        node = (op, node, term())       # fold the tree to the left
+    return node
+
+def term():
+    node = factor()
+    while peek()[0] in ("STAR", "SLASH"):
+        op = eat(peek()[0])
+        node = (op, node, factor())     # higher precedence, tighter bound
+    return node
+
+def factor():
+    if peek()[0] == "NUMBER":
+        return ("num", int(eat("NUMBER")))
+    if peek()[0] == "LPAREN":
+        eat("LPAREN"); node = expr(); eat("RPAREN"); return node
+    raise SyntaxError(f"unexpected {peek()[1]!r}")
+
+
+tokens = lex("1 + 2 * 3")               # reuse the Syntax &amp; Notation lexer
+print(expr())   # ('+', ('num',1), ('*', ('num',2), ('num',3)))</code></pre>
+        <h3 id="reading">How to Read It</h3>
+        <p>One function per nonterminal, one token of lookahead, and iteration where the grammar wrote <code>{ ... }</code>. Precedence falls out of the call order: <code>term</code> binds tighter than <code>expr</code>, exactly as the grammar declared.</p>
+
+        <h2 id="next-steps">Next Steps</h2>
+        <h3 id="continue">Continue Phase 1</h3>
+        <p>With a tree in hand, meaning begins: <a href="/roadmap/dsl/semantics-scoping.html">Semantics &amp; Scoping</a> then <a href="/roadmap/dsl/types-values.html">Types &amp; Values</a>, and Phase 2 turns the tree into a running program.</p>
+        <h3 id="resources">Resources</h3>
+        <ul>
+          <li><a href="https://craftinginterpreters.com/parsing-expressions.html" target="_blank" rel="noopener noreferrer nofollow">Crafting Interpreters &mdash; parser chapters with a working tree-walker</a></li>
+          <li><a href="https://www.martinfowler.com/bliki/EmbeddedLanguage.html" target="_blank" rel="noopener noreferrer nofollow">Martin Fowler on embedded languages &mdash; when to skip parsing entirely</a></li>
+          <li><a href="/roadmap/dsl/references.html">References &amp; Downloads — the full catalog for this roadmap</a></li>
+        </ul>
+        </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'dsl',
+    topicId: 'parsing-trees',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

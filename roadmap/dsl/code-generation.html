@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Code generation: from IR to native instructions — instruction selection, register allocation, calling conventions, and when a DSL should stop at LLVM instead.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, dsl, code generation, native code, instruction selection, register allocation, calling convention, ABI">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Code Generation — DSL Roadmap</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsl/code-generation.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="code-generation">Code Generation</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Native codegen is the deepest rung of the IR ladder: instructions, registers, calling conventions, and object code. Most DSLs never climb it — they hand the IR to LLVM or a host compiler instead — but knowing the rung explains every back-end decision.
+        </div>
+
+        <h2 id="instruction-selection">Instruction Selection</h2>
+        <p>Map each IR operation to target instructions. Choice for <code>t1 = t2 * 3</code> on x86-64: <code>imul t1, t2, 3</code> (fold the constant into the instruction) — the same job the Bytecode emitter did, now with target details like addressing modes.</p>
+        <h3 id="coverage">Coverage, Not Beauty</h3>
+        <p>A correct-but-slow selector beats a clever one that misses cases; compilers generate obscure code far more often than they make it beautiful.</p>
+
+        <h2 id="register-allocation">Register Allocation</h2>
+        <p>Registers are fast and few; memory is slow and large. Allocation decides which IR values live where, and what spills (moves to stack) when a function has more live values than registers.</p>
+        <h3 id="linear-scan">One Practical Algorithm</h3>
+        <p><strong>Linear scan</strong> assigns registers in program order, expiring values that are no longer live (liveness from liveness analysis) and spilling when a register is unavailable. Simple, fast, perfectly adequate for DSL-sized functions.</p>
+
+        <h2 id="calling-conventions">Calling Conventions</h2>
+        <h3 id="abi-basics">ABI Basics</h3>
+        <p>An ABI contract: which registers pass arguments, who saves callee-saved registers, and how the stack is aligned and unwound. If you emit only your own calls, a minimal home-grown convention suffices; the moment you call the host or the OS, you must obey theirs.</p>
+
+        <h2 id="when-native">When to Go Native (And When Not)</h2>
+        <h3 id="llvm-escape">The LLVM Escape Hatch</h3>
+        <p>Native codegen pays off when there is a hot loop to speed up and no foreign function interface will do. Otherwise the correct engineering answer is: emit LLVM IR (Phase 3) and let a battle-tested back-end own registers, ABIs, and peepholes. Writing your eighth register allocator is rarely the DSL&rsquo;s best investment.</p>
+        <h2 id="example">Example: IR to Instructions</h2>
+        <p>One selector rule and one comment shows the entire native rung.</p>
+        <h3 id="select">select.py (commented)</h3>
+<pre><code># select.py -- map the three-address IR onto a target
+#   IR:        t1 = t2 * t3          t4 = t1 + 1
+#   x86-64:    mov  rax, [t2]        add  rax, t1[+1 is folded]
+#              imul rax, [t3]
+#              mov  [t1], rax</code></pre>
+        <h3 id="reading">How to Read It</h3>
+        <p>Selection, then registers, then the ABI — each step adds target detail. If this looks like a lot of system code, that is correct: it is exactly the machinery LLVM owns (Phase 3) so your DSL need not.</p>
+
+        <h2 id="next-steps">Next Steps</h2>
+        <h3 id="continue">Continue Phase 2</h3>
+        <p>Speed has one more chapter: <a href="/roadmap/dsl/code-optimization.html">Code Optimization</a>, then Phase 3 (LLVM IR, Triton, Mojo) takes these ideas to production compilers.</p>
+        <h3 id="resources">Resources</h3>
+        <ul>
+          <li><a href="https://llvm.org/docs/WritingAnLLVMBackend.html" target="_blank" rel="noopener noreferrer nofollow">Writing an LLVM backend — what production codegen looks like</a></li>
+          <li><a href="https://www.godbolt.org/" target="_blank" rel="noopener noreferrer nofollow">Compiler Explorer — watch IR become assembly instantly</a></li>
+          <li><a href="/roadmap/dsl/references.html">References &amp; Downloads — the full catalog for this roadmap</a></li>
+        </ul>
+        </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'dsl',
+    topicId: 'code-generation',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

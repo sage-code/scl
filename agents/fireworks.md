@@ -45,13 +45,16 @@ client = OpenAI(
 )
 
 # FROZEN_SYSTEM_PREFIX = byte-identical copy of agents/static-context-prefix.md
+# CONTEXT_SIGNATURE     = "sha256:<digest>" from `npm run signature` (see §4.1)
 response = client.chat.completions.create(
     model="accounts/fireworks/models/deepseek-v4-flash-0731",
     messages=[
         {"role": "system", "content": FROZEN_SYSTEM_PREFIX},
-        {"role": "user", "content": f"{STABLE_CONTEXT}\n\n{VARIABLE_TASK}"},
+        # feed block = the signed-context marker a new task must carry (§4.1)
+        {"role": "user", "content": f"SCL_CONTEXT_SIGNATURE={CONTEXT_SIGNATURE}\n\n{STABLE_CONTEXT}\n\n{VARIABLE_TASK}"},
     ],
-    extra_headers={"x-session-affinity": "sage-code-build-session"},
+    extra_headers={"x-session-affinity": f"sage-code-build-session:{CONTEXT_SIGNATURE}"},
+    user=f"scl-ctx:{CONTEXT_SIGNATURE}",
     max_tokens=1024,
 )
 print(response.choices[0].message.content)
@@ -104,9 +107,66 @@ Every request MUST keep this fixed order:
 To maximize hit rate:
 
 - Freeze the system-prompt prefix (see above).
-- Pin the replica: send a stable identifier in the `x-session-affinity` header (or the OpenAI `user` field) per session so repeated prefixes route to the same replica.
+- Sign the context: generate `SCL_CONTEXT_SIGNATURE` with `scripts/tools/context_signature.py` (or `npm run signature`), paste the feed block at task start, and open replies with `CONTEXT-SIGNED:` — the digest lets remote replicas identify the cached prefix (see §4.1).
+- Pin the replica: send the digest in the `x-session-affinity` header (or the OpenAI `user` field) per session so repeated prefixes route to the same replica.
 - Batch same-prefix requests into one session rather than scattering across sessions.
 - Read truth from `usage` in each response (`prompt_tokens`, `completion_tokens`) and from cache-related headers on non-streamed responses.
+
+### 4.1 Immutable Context Signature (remote session identity)
+
+The **context signature** is a content-addressed SHA-256 over the static-context
+manifest (frozen prefix, `.clinerules/`, agent profiles, `manual/`, skills). It
+is deterministic (LF-normalized, path-sorted, timestamp-free) and **immutable**
+— it changes only when the context content itself changes, never per task or
+per commit. Same context bytes on any machine or replica => same digest, which
+is exactly what a remote prompt cache needs to recognize the prefix.
+
+Manage it only through the dedicated tool (never by hand):
+
+```bash
+npm run signature                                                       # compute + print feed block
+python scripts/tools/context_signature.py                               # same, verbose
+python scripts/tools/context_signature.py --verify sha256:<digest>      # exit 0 = context matches
+python scripts/tools/context_signature.py --scope                       # list manifest paths
+```
+
+Artifact: `.temp/context-signature.json` (full per-file manifest + digest,
+git-ignored).
+
+**Feed block** — paste at the top of a new task, right after the frozen prefix:
+
+```
+SCL_CONTEXT_SIGNATURE=sha256:<digest>; v1; files=14
+```
+
+**Signed context (model contract).** When a task carries the feed block, the
+model MUST:
+
+1. Confirm every file of the signature scope is present in its loaded context —
+   the tool hard-errors on a missing manifest file, so a session can never
+   silently sign a different context.
+2. Open its first reply with `CONTEXT-SIGNED: sha256:<digest>` — the signed
+   marker proving frozen prefix + stable context entered the session
+   byte-identical.
+3. Keep the marker byte-identical for the whole session; never re-issue or
+   re-sign it mid-session.
+4. Record the signature in the task report (`SIGNATURE:` line) so failed or
+   cached sessions can be correlated offline.
+
+**Remote session / hosted runner.** Pin the digest into the replica-affinity
+fields so repeated same-prefix requests land on the same cached replica, and
+verify the loaded context before starting a batch:
+
+```python
+# verify the runner's context matches the repo before the batch
+subprocess.run(["python", "scripts/tools/context_signature.py", "--verify", CONTEXT_SIGNATURE], check=True)
+# then pin the replica on every request
+extra_headers={"x-session-affinity": f"sage-code-build-session:{CONTEXT_SIGNATURE}"},
+user=f"scl-ctx:{CONTEXT_SIGNATURE}",
+```
+
+The signature is not a security token — it is a cache-identity marker. Treat it
+as public; never put API keys or secrets in the manifest scope.
 
 ---
 
