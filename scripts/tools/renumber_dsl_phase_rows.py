@@ -26,7 +26,7 @@ TOPIC_NUM = {
     "semantics-scoping": "06",
     "types-values": "07",
     "errors-diagnostics": "08",
-    # phase 2
+    # phase 2 - implementation (compiler building)
     "compiler-design": "01",
     "semantic-analysis": "02",
     "intermediate-representations": "03",
@@ -36,21 +36,25 @@ TOPIC_NUM = {
     "virtual-machines": "07",
     "code-generation": "08",
     "code-optimization": "09",
-    # phase 3
+    # phase 3 - DSL implementation languages
+    "antlr": "01",
+    "racket": "02",
+    "ocaml": "03",
+    # phase 4 - execution models
     "forth": "01",
     "fasm": "02",
     "verilog": "03",
     "llvm": "04",
-    # phase 4
+    # phase 5 - AI domain-specific languages
     "triton": "01",
     "mojo": "02",
     "julia": "03",
-    # phase 5
+    # phase 6 - statistics & scientific languages
     "r": "01",
     "matlab": "02",
     "wolfram": "03",
     "stan": "04",
-    # phase 6
+    # phase 7 - logic languages
     "prolog": "01",
     "datalog": "02",
     "clingo": "03",
@@ -58,7 +62,7 @@ TOPIC_NUM = {
     "lisp": "05",
     "autolisp": "06",
     "clojure": "07",
-    # phase 7
+    # phase 8 - practice & reference
     "references": "01",
 }
 
