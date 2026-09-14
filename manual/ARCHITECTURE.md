@@ -147,6 +147,15 @@ All roadmap code is rendered by a **single Prism bundle** that supports every la
   - Only when the page contains a table: `content-tables.css`.
   - Track index pages (`roadmap/<track>/index.html`) use `roadmap-index.css`, not the content-* set.
 
+#### Exotic-Language Special Case (DSL Implementation Languages)
+
+The Prism bundle is deliberately NOT extended for niche survey languages that ship only small examples (ANTLR `.g4`, Racket, Lisp/AutoLISP, Forth, Verilog, LLVM IR, Prolog, Datalog, Clingo, MiniZinc, MATLAB, Wolfram, Stan, FASM). For exactly those pages the DSL roadmap wires a per-page special case — never the global bundle:
+
+- `assets/css/dsl-exotic.css` — per-language token refinements (numbers, directives, language-specific tweaks), linked on each affected page right after `content-code.css`.
+- `assets/js/dsl-exotic.js` — a small dependency-free tokenizer with ordered per-language rule tables. It runs on `pre code.language-<lang>` blocks whose language is NOT in the bundle, skips Prism-owned blocks (detected via `.token` spans), is idempotent (`data-scl-highlighted`), and emits the same span classes `content-code.css` already styles: `comment`, `string`, `keyword`, `number`, `operator`, `directive`.
+
+Rules of thumb: prefer registering the grammar centrally in `assets/prism.js` (the global bundle stays the first-class path); use the exotic pair only when the language is a niche DSL with one-page examples. Keep the per-language rule tables ordered (comments → strings → keywords → numbers → directives) so longer constructs match before shorter ones.
+
 ### Topic sidebar JSON — template
 
 The sidebar is a tree with THREE collapsible levels: the page TITLE is the root folder, the `<h2>` chapters hang from it, and each chapter owns its `<h3>` anchors. `roadmap/<track>/data/<topic>.json` must obey that hierarchy — flat lists break `topic-loader.js`.
