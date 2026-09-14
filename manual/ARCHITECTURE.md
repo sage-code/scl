@@ -220,10 +220,12 @@ Every roadmap track MUST include a **practice & demo** section.
 - Number files sequentially (`01`, `02`, ...) and group them by lesson category (the demo page groups them).
 - Keep files single-file, commented, consistent with the track's tutorial style, and runnable with the language's standard tooling (e.g. `dotnet run` for C#).
 - Demo folders are part of the published `roadmap/**` namespace, so the build copies them to `public/` unchanged.
+- The demo folder MAY contain subfolders to group demos by phase or category: `roadmap/<track>/demo/<group>/NN_name.<ext>`; the demo page and the code viewer accept the subfolder path.
+- Demos may also be embedded inline in topic pages ("spread around the tutorial"), so a lesson can link its own example; the centralized demo page remains the single index.
 
 ### 2. Demo Page — `roadmap/<track>/demo_examples.html`
 - Standard lab topic page: `topicId: 'demo_examples'`, `labId: <track>`, powered by `assets/js/topic-loader.js`.
-- Exactly one `h1`; one `h2` per category; each category lists its demos in a table: `# | Description | Link`.
+- Exactly one `h1`; one `h2` per phase/category (demos may be centralized per phase); each category lists its demos in a table: `# | Description | Link`.
 - The Link column opens the unified code viewer:
   `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<filename>`
 - The code viewer highlights by file extension (`assets/js/code-viewer.js` `langMap`). It uses the
