@@ -1,0 +1,381 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Odin collections explained: fixed arrays, array programming and swizzles, slices as views, and allocator-backed dynamic arrays with append, remove and delete.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, arrays, slices, dynamic arrays, append, bounds checking, len, cap, memory layout">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Arrays, Slices &amp; Dynamic Arrays</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-collections">Arrays, Slices &amp; Dynamic Arrays</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          One value is a value; many values are a program. Odin gives you three containers, and the difference between them is not decoration — it decides whether you are holding a block of data, a window onto someone else's data, or a block that can grow. Getting that distinction right is most of what makes Odin's memory behaviour predictable.
+        </div>
+
+        <p>We will take them in the order that makes sense rather than the order they are usually taught: a fixed array first, then the slice — the window — and finally the dynamic array that can change size while your program runs.</p>
+
+        <h2 id="arrays">Fixed Arrays</h2>
+        <p>A fixed array is the simplest container: a known number of elements stored one after another, with the length written into the type itself.</p>
+
+        <h3 id="declaring">Declaring an Array</h3>
+        <p>The type <code>[N]T</code> means "an array of N elements of type T", and N must be known while compiling:</p>
+        <pre><code class="language-odin line-numbers">// Declaration and literal, side by side.
+scores: [5]int                        // five ints, all zero
+dice   := [5]int{10, 20, 30, 40, 50}  // five ints, filled in
+
+fmt.println(len(dice))     // 5 — part of the type, known at compile time
+fmt.println(dice[0])       // 10
+fmt.println(dice[4])       // 50
+</code></pre>
+        <p>The follow-on fact matters more than it looks: <strong>the length is part of the type</strong>. A <code>[5]int</code> and a <code>[6]int</code> are not the same type and cannot be swapped for one another, and <code>len</code> is a compile-time constant rather than something you look up at runtime.</p>
+        <p>The other half of the story is that the elements live <em>inside</em> the array — no pointer, no separate allocation, no indirection. Copying the array copies all five numbers. That is why Odin calls arrays values, and it is exactly the property that slices exist to relax.</p>
+
+        <h3 id="inferred-length">Inferred Length with <code>?</code></h3>
+        <p>Writing the count by hand is a chance to get it wrong. Put <code>?</code> in the brackets and the compiler counts the elements for you:</p>
+        <pre><code class="language-odin line-numbers">// `?` asks the compiler to count the elements.
+small := [?]int{1, 2, 3, 4, 5}
+
+fmt.println(len(small))    // 5
+</code></pre>
+
+        <h3 id="indexing">Indexing and Bounds Checking</h3>
+        <p>Indexing uses square brackets and starts at zero, so <code>dice[0]</code> is the first element. Reading past the end is one of the oldest bugs in programming, so Odin checks:</p>
+        <pre><code class="language-odin line-numbers">values := [3]int{7, 8, 9}
+
+fmt.println(values[2])     // 9 — the last valid index
+
+// values[3]   // ERROR: index out of range.
+</code></pre>
+        <p>A constant index is checked while compiling; a computed index is checked as the program runs. Both checks are on by default, and both can be turned off for a block once you have proven the bounds yourself:</p>
+        <pre><code class="language-odin line-numbers">// A deliberate promise: "these indices are known to be safe".
+#no_bounds_check {
+    total := values[0] + values[1] + values[2]
+    fmt.println(total)     // 24
+}
+</code></pre>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Make that promise carefully.</strong> Bounds checks are how Odin turns silent memory corruption into a clear message naming the offending line. Turning them off buys a little speed and costs you the safety net, so do it where a hot loop has proven it needs the speed — not as a habit. <code>#bounds_check</code> switches them back on inside a block when you only wanted the outer scope unchecked.
+        </div>
+
+        <h3 id="composite">Designated Initialisers</h3>
+        <p>Elements can be filled by index, and by ranges of indices — which is how you write tables that would otherwise be a wall of repeated values:</p>
+        <pre><code class="language-odin line-numbers">favourite_animals := [?]string{
+    0     = "Raven",     // by index
+    1     = "Zebra",
+    3..=5 = "Frog",      // by inclusive range: 3, 4 and 5
+    6..&lt;8 = "Cat",       // by exclusive range: 6 and 7
+}
+
+fmt.println(favourite_animals[0])     // Raven
+fmt.println(favourite_animals[4])     // Frog
+fmt.println(len(favourite_animals))   // 8 — inferred from the highest index
+</code></pre>
+        <p>The length was inferred from the highest index you used, and any slot you did not name keeps its zero value — exactly as the types lesson promised. That combination is what makes these tables pleasant to read: the shape of the data is visible, and the gaps are deliberate rather than accidental.</p>
+
+        <h2 id="array-programming">Array Programming</h2>
+        <p>Fixed arrays support arithmetic on the whole array at once, element by element. This is a small feature with a large payoff, and it is where Odin's graphics and mathematics code gets its clean look.</p>
+
+        <h3 id="elementwise">Element by Element</h3>
+        <p>The familiar operators work on arrays directly, and comparisons work the same way:</p>
+        <pre><code class="language-odin line-numbers">Vector3 :: [3]f32
+
+a := Vector3{1, 4, 9}
+b := Vector3{2, 4, 8}
+
+c := a + b      // {3, 8, 17}  — added element by element
+d := a * b      // {2, 16, 72} — multiplied element by element
+e := c != d     // true        — compared element by element
+
+fmt.println(c)
+</code></pre>
+        <p>There is no loop in the source, and yet the work happens for every element. The compiler is free to turn that into the vector instructions your processor actually has.</p>
+
+        <h3 id="swizzle">Swizzles and Components</h3>
+        <p>Swizzling reorders — and can repeat — the components of a small array, using the same idea graphics programmers have used in shader languages for decades:</p>
+        <pre><code class="language-odin line-numbers">a := [3]f32{10, 20, 30}
+
+b := swizzle(a, 2, 1, 0)     // [30, 20, 10]  — reversed
+c := swizzle(a, 0, 0)        // [10, 10]      — repeated, and shorter
+
+fmt.println(b)
+fmt.println(c)
+</code></pre>
+        <p>Arrays of up to four elements also answer to the component names <code>x y z w</code> and <code>r g b a</code> directly, so a three-component vector can be read the way a mathematician writes it:</p>
+        <pre><code class="language-odin line-numbers">Vector3 :: distinct [3]f32
+
+v := Vector3{1, 2, 3}
+
+fmt.println(v.x + v.y + v.z)   // 6
+</code></pre>
+        <p>Put those three ideas together — a distinct array type, array arithmetic, and swizzle fields — and you have vector mathematics without a special vector type in the language. That is the "orthogonality" principle doing real work.</p>
+
+        <h2 id="slices">Slices</h2>
+        <p>Now the container you will use most, and the one with the biggest conceptual step: a slice does not hold data at all.</p>
+
+        <h3 id="what-is">A View, Not a Copy</h3>
+        <p>A slice describes a section of someone else's data. Internally it is just two things: <em>where the data starts</em>, and <em>how many elements</em>.</p>
+        <pre><code class="language-odin line-numbers">numbers := [6]int{0, 1, 1, 2, 3, 5}
+
+// A slice of the array: indices 1 up to, but not including, 4.
+s: []int = numbers[1:4]
+
+fmt.println(s)        // [1, 1, 2]
+fmt.println(len(s))   // 3 — the slice's own length, not the array's
+</code></pre>
+        <p>The type <code>[]int</code> — square brackets with nothing inside — is "a slice of int", and the missing number is the point: a slice's length is a runtime fact, not part of its type.</p>
+
+        <h3 id="slicing">Making a Slice</h3>
+        <p>The notation is a low and a high bound separated by a colon, and there are shorthands for the common cases:</p>
+        <pre><code class="language-odin line-numbers">a: [6]int
+
+// Four ways to describe the whole array:
+a[0:6]
+a[:6]        // from the start
+a[0:]        // to the end
+a[:]         // everything
+
+// A chunk, said two ways: by bounds, and by offset then length.
+a[2:5]       // indices 2, 3, 4
+a[2:][:3]    // the same three elements, described differently
+</code></pre>
+        <p>Two practical notes. A slice is a <em>half-open</em> range — the low bound is included, the high bound is not — which is the same rule you learned for <code>..&lt;</code>, so there is only one convention in the language to remember. And an array is not a slice: writing <code>a[:]</code> is how you hand an array to something that expects a slice.</p>
+
+        <h3 id="references">Reference Behaviour — the Important Bit</h3>
+        <p>Writing through a slice writes the underlying data. That is not a quirk to work around; it is what a window means:</p>
+        <pre><code class="language-odin line-numbers">numbers := [6]int{0, 1, 1, 2, 3, 5}
+
+s := numbers[1:4]      // a VIEW of numbers
+
+s[0] = 99              // write through the slice...
+
+fmt.println(numbers)   // [0, 99, 1, 2, 3, 5] — ...and the array changed
+fmt.println(s)         // [99, 1, 2]
+</code></pre>
+        <p>This is the fact to take away from the whole lesson. Passing a slice to a procedure hands over that same window rather than a copy — which is why slices are the normal way to pass collections around, and why structs (which copy) and slices (which do not) feel so different in practice.</p>
+        <p>A slice literal looks like an array literal without a length. The compiler creates an array behind the scenes and gives you a slice over it:</p>
+        <pre><code class="language-odin line-numbers">dice := []int{1, 6, 3}
+
+fmt.println(len(dice))   // 3
+</code></pre>
+
+        <h3 id="aliasing">Two Slices, One Memory</h3>
+        <p>Two slices taken from the same array are two views of one block of memory. A change made through one is visible through the other:</p>
+        <pre><code class="language-odin line-numbers">numbers := [6]int{0, 1, 1, 2, 3, 5}
+
+head := numbers[:3]     // [0, 1, 1]
+tail := numbers[3:]     // [2, 3, 5]
+
+head[0] = 100           // one array, so both views see it
+fmt.println(numbers)    // [100, 1, 1, 2, 3, 5]
+</code></pre>
+        <p>That is a feature — no copying, effortless sharing — and a hazard, because a change made through one name quietly appears through the other. The habit that keeps you safe is knowing which array a slice came from. In Phase 4 we will exploit this sharing on purpose.</p>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/array-slice-dynamic.svg" width="620" class="img-fluid protect rounded shadow border" alt="Memory layout of the three containers: a fixed array holding its elements inline, a slice holding a pointer and a length that point into existing data, and a dynamic array holding a pointer, a length and a capacity allocated from an allocator">
+          <figcaption class="small text-secondary mt-2">The three containers drawn honestly. An array <em>is</em> its elements; a slice names a window into existing memory; a dynamic array owns a block and tracks how much of it is in use.</figcaption>
+        </figure>
+
+        <h2 id="dynamic">Dynamic Arrays</h2>
+        <p>The third container is the one that can grow. Its length changes while the program runs, which means its memory must come from somewhere — and in Odin you decide where.</p>
+
+        <h3 id="declaring">Growing at Runtime</h3>
+        <p>The type is <code>[dynamic]T</code>. A brand-new one is empty and owns nothing until it needs space:</p>
+        <pre><code class="language-odin line-numbers">// An empty dynamic array — no allocation has happened yet.
+queue: [dynamic]int
+
+// Or reserve room up front: make(type, length, capacity).
+notes := make([dynamic]int, 0, 8)
+defer delete(notes)                   // always pair make with delete
+
+fmt.println(len(notes), cap(notes))   // 0 8
+</code></pre>
+        <p>Two numbers describe it, and the difference is worth holding on to. <code>len</code> is how many elements are in use; <code>cap</code> is how many fit before the buffer has to grow. A dynamic array also remembers which allocator produced it, which is how the matching <code>delete</code> knows where to return the memory.</p>
+
+        <h3 id="append">append, and the Allocator</h3>
+        <p>Adding elements uses the built-in <code>append</code>. Watch the ampersand — it is there for a reason:</p>
+        <pre><code class="language-odin line-numbers">queue: [dynamic]int
+
+// One element, several at once, or a whole slice spread out.
+append(&amp;queue, 10)
+append(&amp;queue, 20, 30)
+
+more := []int{40, 50}
+append(&amp;queue, ..more[:])
+
+fmt.println(queue[:])   // [10, 20, 30, 40, 50]
+</code></pre>
+        <p>Why the <code>&amp;</code>? Because appending may have to <em>grow</em> the buffer: allocate a larger block, copy the existing elements across, and store the new pointer and length inside the dynamic array. Passing the address is how those changes travel back to you — the by-pointer parameter from the procedures lesson, doing real work in ordinary code.</p>
+        <p>That is also why growth is not free. Each time the capacity runs out, the old elements are copied to a bigger block. The cost is spread out rather than paid on every append (the capacity grows in steps, not by one), and if you already know the final size, reserving it up front with <code>make</code> removes the copying altogether.</p>
+
+        <h3 id="remove">Removing Elements</h3>
+        <p>Removing has two flavours, and Odin makes you choose between them deliberately:</p>
+        <pre><code class="language-odin line-numbers">queue := make([dynamic]int, 0, 8)
+defer delete(queue)
+
+append(&amp;queue, 1, 2, 3, 4, 5)
+fmt.println(queue[:])         // [1, 2, 3, 4, 5]
+
+pop(&amp;queue)                   // [1, 2, 3, 4] — take the last element off
+ordered_remove(&amp;queue, 0)     // [2, 3, 4]    — the rest keep their order
+unordered_remove(&amp;queue, 0)   // [4, 3]       — faster: the last element moves in
+</code></pre>
+        <p><code>ordered_remove</code> copies every element after the gap, so the sequence stays intact. <code>unordered_remove</code> drops the last element into the gap instead — a constant-time operation, but it shuffles the order. When the order of your elements is meaningless (a bag of particles, a set of pending jobs) the unordered version is dramatically cheaper; when it means something, pay for the ordered one.</p>
+        <p>To empty an array without giving the memory back, use <code>clear</code>: the length drops to zero and the capacity stays, so the next few appends cost nothing.</p>
+        <pre><code class="language-odin line-numbers">clear(&amp;queue)                          // [] — length 0, capacity kept
+
+fmt.println(len(queue), cap(queue))    // 0 8
+</code></pre>
+
+        <h3 id="cleanup">delete, and Why It Matters</h3>
+        <p>Odin has no garbage collector. Memory you allocate is memory you must give back, and <code>defer</code> is how you make sure that happens on every exit path:</p>
+        <pre><code class="language-odin line-numbers">read_config :: proc() {
+    buffer := make([dynamic]u8, 0, 1024)
+    defer delete(buffer)      // scheduled here, runs however we leave
+
+    append(&amp;buffer, 0x4F, 0x64)
+
+    // ... work with the buffer, including any early returns ...
+}   // delete runs at this point, no matter which path we took
+</code></pre>
+        <p>The <code>make</code> / <code>defer delete</code> pair is worth memorising as an idiom. Writing the cleanup on the line after the allocation — rather than at the end of the procedure — means it cannot be forgotten when a new early return is added six months later.</p>
+        <p>One clarification, to prevent needless worry: not everything needs deleting. A slice that points at an array you did not allocate needs no cleanup, and a slice literal's hidden array looks after itself. Free what you allocated; leave the rest alone.</p>
+
+        <h2 id="helpers">Handy Helpers</h2>
+        <p>A handful of built-in procedures appear whenever you work with collections. Most of them you have met already in this lesson; here they are in one place.</p>
+
+        <h3 id="len-cap">len, cap, and Friends</h3>
+        <p><code>len</code> asks how many elements there are, and it works on nearly everything. Where the size is part of the type, the answer is a compile-time constant:</p>
+        <pre><code class="language-odin line-numbers">dice := [5]int{2, 4, 6, 8, 10}
+fmt.println(len(dice))            // 5 — known while compiling
+
+ring := dice[1:4]
+fmt.println(len(ring))            // 3 — a runtime fact
+
+bag := make([dynamic]int, 0, 16)
+fmt.println(len(bag), cap(bag))   // 0 16
+</code></pre>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Built-in</th><th>What it does</th><th>Works on</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>len</code></td><td>How many elements</td><td>Arrays, slices, dynamic arrays, maps, and strings</td></tr>
+            <tr><td><code>cap</code></td><td>How much room is reserved</td><td>Dynamic arrays</td></tr>
+            <tr><td><code>make</code></td><td>Allocate with a length and a capacity</td><td>Slices, dynamic arrays, maps</td></tr>
+            <tr><td><code>append</code></td><td>Add one element, several, or a spread slice</td><td>Dynamic arrays</td></tr>
+            <tr><td><code>pop</code></td><td>Remove and return the last element</td><td>Dynamic arrays</td></tr>
+            <tr><td><code>ordered_remove</code>, <code>unordered_remove</code></td><td>Remove at an index — order kept, or sacrificed for speed</td><td>Dynamic arrays</td></tr>
+            <tr><td><code>clear</code></td><td>Length to zero, capacity kept</td><td>Dynamic arrays</td></tr>
+            <tr><td><code>delete</code></td><td>Give allocated memory back</td><td>Dynamic arrays and slices you allocated</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="slice-package">The core:slice Package</h3>
+        <p>Beyond the built-ins, the standard library provides operations that walk or rearrange a slice. Sorting is the one you will reach for first:</p>
+        <pre><code class="language-odin line-numbers">import "core:slice"
+
+s := []int{1, 6, 3, 5, 7, 3, 0}
+
+slice.sort(s[:])          // sorts in place
+fmt.println(s)            // [0, 1, 3, 3, 5, 6, 7]
+</code></pre>
+        <p>Notice what "in place" means here. The sort rearranged the memory your slice points at — no copy was made, and any other view of the same data now sees the new order. That is the slice behaviour from earlier in the lesson, doing something useful rather than surprising.</p>
+
+        <h2 id="choosing">Choosing a Container</h2>
+        <p>Three containers, three jobs. The question to ask is not "which is fastest?" but "what relationship do I want with the data?"</p>
+
+        <h3 id="decision-table">Which One, When</h3>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>If you need…</th><th>Reach for</th><th>Because</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>A fixed number of values, known while compiling</td><td><code>[N]T</code></td><td>Stored inline, no allocation, copied with the value</td></tr>
+            <tr><td>To hand a lot of data to a procedure cheaply</td><td><code>[]T</code></td><td>A window: no copying, and changes are visible to the caller</td></tr>
+            <tr><td>A section of an array you already have</td><td><code>arr[low:high]</code></td><td>One convention, half-open bounds</td></tr>
+            <tr><td>Something that grows while the program runs</td><td><code>[dynamic]T</code></td><td>Allocator-backed; <code>append</code> grows it for you</td></tr>
+            <tr><td>To look values up by key rather than by position</td><td><code>map[K]V</code></td><td>The subject of the next lesson</td></tr>
+          </tbody>
+        </table>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Odin:</strong> the sentence to make automatic is <em>an array copies, a slice is a view, a dynamic array owns</em>. Once that is second nature, the interesting question becomes "who owns this memory, and who is responsible for freeing it?" — which is the subject of the whole of Phase 4.
+        </div>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>One container remains, and it is the one you reach for when you look things up by <em>name</em> rather than by position: the map. The next lesson covers it — and then revisits bit sets as the smallest and cheapest set type of all.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li><code>[N]T</code> is a fixed array: the length is part of the type, elements live inline, and copying copies all of them.</li>
+          <li><code>[?]T</code> lets the compiler count the elements, and designated initialisers fill by index or by range.</li>
+          <li>Array access is bounds-checked by default; <code>#no_bounds_check</code> trades the check for speed inside one block.</li>
+          <li>Fixed arrays do arithmetic element by element, and small ones answer to <code>swizzle</code> and to <code>x y z w</code> / <code>r g b a</code>.</li>
+          <li><code>[]T</code> is a slice: a pointer plus a length — a <em>view</em> of data owned elsewhere, so writing through it changes the original.</li>
+          <li><code>[dynamic]T</code> can grow: <code>make</code>, <code>append</code> (with <code>&amp;</code>), <code>pop</code>, <code>ordered_remove</code> / <code>unordered_remove</code>, <code>clear</code>, <code>delete</code>.</li>
+          <li>There is no garbage collector: pair <code>make</code> with <code>defer delete</code>, and free only what you allocated.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Well done.</strong> A good exercise: make a dynamic array of ten numbers, take a slice over the middle three, sort that slice with <code>core:slice</code>, then print the whole array — and explain to yourself why the array changed. If that explanation comes easily, this lesson has landed.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/maps.html">Maps &amp; bit_set Sets</a> →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'collections',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

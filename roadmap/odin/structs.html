@@ -1,0 +1,355 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Modelling data in Odin: structs with grouped fields, field promotion with using, enums, bit_set flag collections, unions, and layout directives.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, struct, enum, bit_set, union, using, field promotion, data modelling, layout">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Structs, Enums &amp; Unions</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-structs">Structs, Enums &amp; Unions</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          So far every value has stood on its own: a number, a string, a boolean. Real programs deal in <em>concepts</em> — a player, a colour, a request — and those are made of several values that belong together. This lesson gives those bundles a name, and shows how to choose the shape that fits.
+        </div>
+
+        <p>Four shapes are covered here, and they answer four different questions: how do I group fields (<code>struct</code>), how do I name a fixed set of options (<code>enum</code>), how do I track a handful of yes/no flags (<code>bit_set</code>), and how do I say "one of these types, but I am not sure which" (<code>union</code>).</p>
+
+        <h2 id="records">Grouping Data with struct</h2>
+        <p>A <code>struct</code> is a bundle of named fields stored together. It is the most common way to describe anything in Odin, from a two-dimensional point to the entire state of an application.</p>
+
+        <h3 id="defining">Defining a Struct</h3>
+        <p>Fields that share a type are grouped, exactly as in variable and parameter declarations, and the fields are separated by commas:</p>
+        <pre><code class="language-odin line-numbers">// Two numbers that belong together.
+Vector2 :: struct {
+    x, y: f32,
+}
+
+// Fields of different types, one per line for readability.
+Player :: struct {
+    name:   string,
+    health: int,
+    score:  f64,
+}
+
+// A struct can contain another struct — this is how real models grow.
+Rectangle :: struct {
+    origin: Vector2,
+    size:   Vector2,
+}
+</code></pre>
+        <p>Notice the <code>::</code> again: a struct definition is a compile-time entity, like a constant or a procedure. Defining one costs nothing at runtime — it is a description of memory, not memory itself.</p>
+
+        <h3 id="literals">Building Values</h3>
+        <p>There are two ways to build a struct value, and one of them is almost always better:</p>
+        <pre><code class="language-odin line-numbers">a := Vector2{1, 2}              // positional: values in field order
+b := Vector2{x = 1, y = 2}      // named: field = value, in any order
+
+// Nested structs use the same rules at every level.
+box := Rectangle{origin = {x = 0, y = 0}, size = {x = 10, y = 5}}
+
+fmt.println(a)      // Vector2{1, 2}
+fmt.println(b)      // Vector2{1, 2}
+</code></pre>
+        <p>Prefer the named form as soon as a struct has more than two or three fields. It survives somebody reordering the fields, it tells the reader what each value means, and the compiler checks the names for you. The positional form is fine for small things whose field order will never change, like a point.</p>
+
+        <h3 id="access">Reaching the Fields</h3>
+        <p>A field is reached with a dot and behaves like an ordinary variable — you can read it, assign to it, and use it in any expression:</p>
+        <pre><code class="language-odin line-numbers">p := Player{name = "Ada", health = 100}
+
+fmt.println(p.name)     // Ada
+
+p.health -= 25          // fields are ordinary variables
+fmt.println(p.health)   // 75
+</code></pre>
+        <p>One property deserves a demonstration, because it is where Odin differs from languages where objects are always references: <strong>a struct value is a value</strong>, so assigning one copies it.</p>
+        <pre><code class="language-odin line-numbers">q := p                  // the whole struct is copied
+q.health = 1            // only the copy changes
+
+fmt.println(p.health)   // 75 — p is untouched
+fmt.println(q.health)   // 1
+</code></pre>
+        <p>This is a real difference from slices, maps, and dynamic arrays, which are references. We meet that rule in full in the next lesson; for now, hold on to this: two struct variables never secretly share their fields.</p>
+
+        <h3 id="zero">Zero by Default, Again</h3>
+        <p>You met the zero-value guarantee in the types lesson. It applies to structs too, and it is what makes them safe to declare without writing a single value:</p>
+        <pre><code class="language-odin line-numbers">// Not one value given, and yet every field is valid.
+blank: Player
+
+fmt.println(blank.name)     // "" — an empty string
+fmt.println(blank.health)   // 0
+fmt.println(blank.score)    // 0.0
+
+// #assert checks the layout at compile time — free documentation.
+#assert(size_of(Vector2) == 8)   // two f32 fields, four bytes each
+</code></pre>
+        <p>Because Odin has no constructors, there is no half-built object and no hidden setup step. A struct value <em>is</em> its fields; if a field holds nonsense, someone put the nonsense there.</p>
+
+        <h2 id="using">Sharing Fields with using</h2>
+        <p>Sometimes a struct is mostly another struct with a little extra. Odin's <code>using</code> prefix lets the inner fields behave as though they belonged to the outer one, which removes a layer of dots from your code.</p>
+
+        <h3 id="promotion">Field Promotion</h3>
+        <p>Mark a field with <code>using</code> and its fields are <em>promoted</em> — reachable directly, as if they were declared on the outer struct:</p>
+        <pre><code class="language-odin line-numbers">Pos :: struct {
+    line, col: int,
+}
+
+Token :: struct {
+    using pos: Pos,     // the `using` prefix
+    text: string,
+}
+
+t := Token{pos = {line = 3, col = 12}, text = "hello"}
+
+// Reach through the field explicitly...
+fmt.println(t.pos.line)     // 3
+
+// ...or directly, because `using` promoted the fields.
+fmt.println(t.line)         // 3
+fmt.println(t.col)          // 12
+fmt.println(t.text)         // hello
+</code></pre>
+        <p>That is genuinely useful for values that share a common core: a token has a position, an entity has a transform, an event has a timestamp. Without <code>using</code> you would write <code>t.pos.line</code> everywhere; with it, the common fields read as though they were part of the outer type.</p>
+
+        <h3 id="subtype">using as Subtyping</h3>
+        <p>Promotion has a second consequence, and it is the closest Odin comes to inheritance — without any of inheritance's machinery. Because the promoted fields are reachable, a value of the outer type can be used where the inner type is expected:</p>
+        <pre><code class="language-odin line-numbers">// A procedure that only cares about a position.
+render :: proc(p: Pos) {
+    fmt.printfln("line %d, column %d", p.line, p.col)
+}
+
+t := Token{pos = {line = 3, col = 12}, text = "hello"}
+
+render(t)          // line 3, column 12 — passing the Token where a Pos is wanted
+</code></pre>
+        <p>Use this sparingly and honestly. It fits when the outer type genuinely <em>is</em> a thing of the inner kind — a token really is something with a position. It is not a mechanism for building class hierarchies, and trying to use it as one will produce code that is harder to follow than plain composition.</p>
+
+        <h2 id="enums">Enumerations</h2>
+        <p>An <code>enum</code> names a fixed set of options. Reach for one whenever a value can only ever be one of a known list: a compass direction, a connection state, a suit of cards.</p>
+
+        <h3 id="defining-enum">Naming a Set of Options</h3>
+        <p>Nowhere in this page will you write the number three to mean "South". That is the entire point of an enumeration:</p>
+        <pre><code class="language-odin line-numbers">// A closed set: these four, and nothing else.
+Direction :: enum {
+    North,
+    East,
+    South,
+    West,
+}
+
+// Enum members are written with a leading dot when the type is known.
+heading: Direction = .North
+
+fmt.println(heading)          // North
+</code></pre>
+        <p>Compared with a bare <code>int</code>, an enum buys you two things. The valid values are written down in one place for the reader, and <code>switch</code> over an enum is checked for exhaustiveness — the self-maintaining checklist you met in the control-flow lesson.</p>
+        <pre><code class="language-odin line-numbers">switch heading {
+case .North:
+    fmt.println("going up the map")
+case .South:
+    fmt.println("going down the map")
+case .East, .West:
+    fmt.println("going sideways")
+}
+</code></pre>
+
+        <h3 id="values">Values and Ordering</h3>
+        <p>Members are numbered from zero upwards unless you say otherwise, and Odin can tell you how many there are. That count is a compile-time constant, which makes it useful in assertions and array sizes:</p>
+        <pre><code class="language-odin line-numbers">// The default numbering: 0, 1, 2, 3, 4.
+Grade :: enum { A, B, C, D, F }
+
+fmt.println(len(Grade))     // 5 — the number of members
+
+// Explicit values, when the number itself carries meaning (HTTP status codes).
+Http_Status :: enum {
+    OK        = 200,
+    Forbidden = 403,
+    NotFound  = 404,
+}
+</code></pre>
+        <p>Members compare with <code>==</code> and <code>!=</code>, and they also have an order — the order you declared them in. That is a design opportunity rather than a detail: declare <code>Grade</code> from best to worst, and any future sorting or "is this at least a B?" comparison will mean what a reader expects.</p>
+
+        <h3 id="enum-tables">Enum-Indexed Tables</h3>
+        <p>An array can be indexed by an enum, which turns a lookup into a table and removes the branching entirely. Name the index with a dot and the compiler knows which slot you mean:</p>
+        <pre><code class="language-odin line-numbers">Suit :: enum { Hearts, Diamonds, Clubs, Spades }
+
+// One slot per enum member — the size comes from the enum.
+symbols := [Suit]rune{
+    .Hearts   = '&#9829;',
+    .Diamonds = '&#9830;',
+    .Clubs    = '&#9827;',
+    .Spades   = '&#9824;',
+}
+
+fmt.println(symbols[.Spades])   // the spade symbol
+</code></pre>
+        <p>The idiom is worth remembering: a table indexed by an enum is often clearer than a <code>switch</code>, and it is noticeably faster — one indexed read instead of a chain of comparisons. The trade is that the compiler will not warn you about a slot you forgot to fill, so write the initialisers in enum order and keep the list visibly complete.</p>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/struct-enum-bitset-union.svg" width="600" class="img-fluid protect rounded shadow border" alt="Four data shapes side by side: a struct holding fields together, an enum as a named set of numbered options, a bit_set packing flags into one integer, and a union holding one value at a time with a tag">
+          <figcaption class="small text-secondary mt-2">Four shapes, four questions. Grouping fields, naming options, tracking flags, and holding one of several possible types.</figcaption>
+        </figure>
+
+        <h2 id="bitsets">bit_set — Sets of Flags</h2>
+        <p>In the operators lesson you packed flags into a <code>u8</code> by hand, with names like <code>0b0000_0001</code>. Odin has a type for exactly that pattern, and it reads far better.</p>
+
+        <h3 id="bitset-define">Declaring a Bit Set</h3>
+        <p>A bit set names the <em>possible members</em> and then holds whichever of them are true. The natural source of members is an enum:</p>
+        <pre><code class="language-odin line-numbers">Permission  :: enum { Read, Write, Execute }
+Permissions :: bit_set[Permission]
+
+// A set literal names the members it contains.
+perms: Permissions = { .Read, .Write }
+
+fmt.println(perms)                    // Permissions{Read, Write}
+</code></pre>
+        <p>Under the surface this is a small integer with one bit per possible member — so a set over eight options fits in a single byte, and every test or update is a handful of machine instructions. You no longer have to invent mask constants or remember which bit meant what.</p>
+
+        <h3 id="bitset-ops">Testing, Adding, and Removing</h3>
+        <p>Membership uses the <code>in</code> and <code>not_in</code> operators you met in the operators lesson, and adding a member uses <code>+</code>, which reads surprisingly naturally:</p>
+        <pre><code class="language-odin line-numbers">perms: Permissions = { .Read, .Write }
+
+// Ask whether a member is present.
+fmt.println(.Read in perms)          // true
+fmt.println(.Execute in perms)       // false
+fmt.println(.Execute not_in perms)   // true  — the question the other way round
+
+// Adding a member: "this set, plus that one".
+perms = perms + { .Execute }
+fmt.println(perms)                   // Permissions{Read, Write, Execute}
+</code></pre>
+        <div class="alert alert-info shadow-sm">
+          <strong>Removing a member</strong> uses the bitwise family from Phase 2 — a bit set is literally bits, so <code>&amp;</code> and <code>&amp;~</code> have set meanings here. We will show those operations next to a picture of the bits in the data-oriented lessons, where the hardware reason for each one becomes visible. For now, membership and union are the two you will use constantly.
+        </div>
+        <p>One last shape worth knowing: a bit set does not require an enum. A range of small integers works too, which is handy when the flags are numbered by a hardware specification:</p>
+        <pre><code class="language-odin line-numbers">// Eight flags, numbered 0 to 7 — no enum needed.
+Flags :: bit_set[0..&lt;8]
+</code></pre>
+
+        <h2 id="unions">Unions</h2>
+        <p>Sometimes a value can be one of several types and you only discover which at the moment you look. That is what a union expresses, and Odin's version is checked rather than scary.</p>
+
+        <h3 id="union-define">One Value, Several Possible Types</h3>
+        <p>A union declares the possibilities, and the compiler keeps track of which one is live:</p>
+        <pre><code class="language-odin line-numbers">// The value is either an int or an f64 — nothing else.
+value: union{int, f64}
+
+value = 42            // right now it holds an int
+
+// Ask what it holds, and take the value out only if the answer is yes.
+if i, ok := value.(int); ok {
+    fmt.println("it is an int:", i)
+} else {
+    fmt.println("not an int")
+}
+</code></pre>
+        <p>That <code>.(type)</code> form is a type assertion, and it has the two-value shape you already know from map lookups — the value, and whether it was the type you asked for. When you would rather have a fallback than a branch, <code>or_else</code> says it in one line:</p>
+        <pre><code class="language-odin line-numbers">// "Give me the int if that is what it is, otherwise -1."
+i := value.(int) or_else -1
+fmt.println(i)       // 42
+</code></pre>
+
+        <h3 id="union-safety">Why the Compiler Is Careful Here</h3>
+        <p>Internally a union reserves room for its largest member plus a small <em>tag</em> recording which member is currently stored. Odin tracks that tag, which is exactly why you must ask before taking a value out: reading a union as the wrong type is not a mistake the language allows you to make silently.</p>
+        <p>Odin also has a companion form used for optional values — a union that can also be "nothing" — which is how the standard library expresses "a value that may or may not be there". You will meet it in the errors lesson, together with the <code>?</code> shorthand it shares its syntax with.</p>
+
+        <h2 id="layout">A Taste of Layout Control</h2>
+        <p>Because Odin talks about memory honestly, a struct can carry directives that change how it is laid out. You will not need these for months — but seeing them now explains why this track keeps mentioning sizes and alignment.</p>
+
+        <h3 id="packed">Packed and Aligned</h3>
+        <p>Fields are normally placed so that each one begins on a boundary its type prefers, which leaves small gaps of padding between them. Two directives let you override that, one for exactness and one for speed:</p>
+        <pre><code class="language-odin line-numbers">// #packed removes the padding: the struct occupies exactly the sum of its fields.
+Header :: struct #packed {
+    tag:  u8,
+    size: u32,
+}
+
+#assert(size_of(Header) == 5)    // one byte plus four, with nothing between
+
+// #align(N) makes the struct start on a boundary you choose —
+// 64 bytes is one cache line on most modern processors.
+Aligned_Block :: struct #align(64) {
+    data: [64]u8,
+}
+</code></pre>
+        <p><code>#packed</code> exists because binary file formats and network protocols describe <em>bytes</em>, not structures with padding — when you read such a file, the layout must match exactly. The trade is real: an unaligned field can be slower to read, and some processors refuse it outright, so packing is a decision about the data you exchange rather than a general habit.</p>
+        <p><code>#align</code> exists for the opposite reason: performance. When a hot data structure begins exactly on a cache-line boundary, the processor stops straddling two lines to reach it. In Phase 4 we will measure what choices like these actually cost and save, on real layouts, with real timings.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>You can now describe data: a single value, a bundle of fields, one of a closed set of options, a collection of flags. The next lesson is about holding <em>many</em> of something — the three container types Odin gives you, and the difference between them that matters most, which is which ones are copies and which are references.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li><code>struct</code> groups named fields together; fields sharing a type are grouped, and <code>#assert(size_of(T) == n)</code> documents the layout for free.</li>
+          <li>Build struct values positionally or by field name — prefer names beyond two or three fields.</li>
+          <li>A struct is a <em>value</em>: assignment copies it, and two struct variables never secretly share fields.</li>
+          <li><code>using</code> promotes a nested struct's fields, and lets the outer value stand in where the inner type is expected.</li>
+          <li><code>enum</code> names a closed set of options; <code>len(EnumType)</code> counts the members, and an array can be indexed by the enum.</li>
+          <li><code>bit_set[Enum]</code> holds flags in one small integer: test with <code>in</code>, add with <code>+</code>.</li>
+          <li><code>union{...}</code> holds one of several types at a time; ask with <code>value.(Type)</code> or supply a fallback with <code>or_else</code>.</li>
+          <li><code>#packed</code> and <code>#align(N)</code> control the byte layout — a decision about formats and performance, not a default.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Well done.</strong> A good exercise: model a playing card as a struct holding a <code>Suit</code> and a rank, build the table of suit symbols indexed by the enum shown earlier, then print a hand of five cards. Everything you need is on this page.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/collections.html">Arrays, Slices &amp; Dynamic Arrays</a> →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'structs',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

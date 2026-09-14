@@ -1,0 +1,277 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Parametric polymorphism in Odin: $T parameters, where clauses with intrinsic constraints, generic structs and unions, the typeid/Type form, and generic procedure groups.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, generics, parametric polymorphism, $T, where clause, intrinsics, typeid">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Parametric Polymorphism</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-generics">Parametric Polymorphism</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          The long name means something quite simple: <em>one piece of code that works for many types</em>. You have been using it already — <code>len</code> works on arrays, slices, maps and strings; <code>append</code> works on any dynamic array. This lesson is about writing such code yourself.
+        </div>
+
+        <p>Odin's version of the feature is deliberately modest. There are no template metaprogrammes, no angle brackets, and no separate generics syntax to learn: a type parameter is a name with a dollar sign in it, and a constraint is written with the <code>where</code> you already know from ordinary conditions.</p>
+
+        <h2 id="why">Why Parametric Polymorphism</h2>
+        <p>Two procedures with the same body and different types are a sign that something is missing from the language.</p>
+
+        <h3 id="duplication">The Duplication Problem</h3>
+        <p>Suppose you want the largest value in a slice. Without type parameters you need one procedure per element type:</p>
+        <pre><code class="language-odin line-numbers">// The same five lines, once per type. Four types, four copies to keep in step.
+max_int :: proc(values: []int) -&gt; int { /* ... */ }
+max_f32 :: proc(values: []f32) -&gt; f32 { /* ... */ }
+max_f64 :: proc(values: []f64) -&gt; f64 { /* ... */ }
+max_u8  :: proc(values: []u8)  -&gt; u8  { /* ... */ }
+</code></pre>
+        <p>Every copy is a place for the logic to drift, and a place to forget a fix. The bodies are identical; only the types differ — which is exactly the situation parametric polymorphism exists for.</p>
+
+        <h3 id="what-it-is">One Procedure, Many Types</h3>
+        <p>Replace the concrete type with a <em>type parameter</em> and the duplication disappears:</p>
+        <pre><code class="language-odin line-numbers">// One body. `$T` stands for whatever type the caller uses.
+max_value :: proc(values: []$T) -&gt; T {
+    best := values[0]
+    for v in values[1:] {
+        if v &gt; best {
+            best = v
+        }
+    }
+    return best
+}
+
+fmt.println(max_value([]int{3, 9, 4}))     // 9
+fmt.println(max_value([]f64{1.5, 0.5}))    // 1.5
+</code></pre>
+        <p>The dollar sign is the whole of Odin's new syntax. Read <code>$T</code> as "<em>some type, to be decided by the call</em>". The compiler works out which type from the arguments you pass, exactly as it works out the type of <code>x := 42</code> without being told.</p>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/generic-specialisation.svg" width="600" class="img-fluid protect rounded shadow border" alt="One generic procedure taking a $T parameter, from which the compiler produces separate specialised versions for int, f64 and u8 at compile time">
+          <figcaption class="small text-secondary mt-2">One source procedure, one compiled version per type your program actually uses. There is no runtime type check and no dispatch table.</figcaption>
+        </figure>
+
+        <h2 id="procs">Generic Procedures</h2>
+        <p>The mechanics are three small things: where the <code>$</code> goes, how constraints are written, and how a call resolves the type.</p>
+
+        <h3 id="dollar">The <code>$T</code> Parameter</h3>
+        <p>Put <code>$</code> before a type name in the parameter list and that name becomes a type parameter. Here is a real one from the standard library, quoted verbatim:</p>
+        <pre><code class="language-odin line-numbers">// From core:slice — `^$T` binds T wherever the type appears.
+from_ptr :: proc "contextless" (ptr: ^$T, count: int) -&gt; []T {
+    return ([^]T)(ptr)[:count]
+}
+</code></pre>
+        <p>Notice the pattern: the dollar sign appears on the <em>first</em> use, and every later use is the bare name — <code>[]T</code> in the result, <code>[^]T</code> in the body. You are naming a type, then using that name like any other type in the language.</p>
+        <p>There is also a slash form that binds two names at once: the container and its contents. From the same file:</p>
+        <pre><code class="language-odin line-numbers">// `$T/[]$E` means: T is the whole slice type, and E is its element type.
+swap :: proc(array: $T/[]$E, a, b: int) { ... }
+</code></pre>
+        <p>That form is worth recognising when you read library code, because it lets a procedure talk about "the slice" and "the thing inside the slice" separately — which is exactly what a swap needs.</p>
+
+        <h3 id="where">Constraints with <code>where</code></h3>
+        <p>A type parameter with no constraint can be <em>any</em> type, which means the body has to be legal for whichever type you actually call it with. A body that compares with <code>&gt;</code> is fine for numbers and wrong for a type that has no ordering — so stating your requirement up front turns a puzzling failure into a clear one.</p>
+        <p>That is what a <code>where</code> clause does, and it reads like a condition because it is one. Here is a standard-library procedure that compares with <code>==</code>, so it asks for a comparable element type:</p>
+        <pre><code class="language-odin line-numbers">// From core:slice — the body uses ==, so the constraint says "comparable".
+linear_search :: proc "contextless" (array: $A/[]$T, key: T) -&gt; (index: int, found: bool)
+    where intrinsics.type_is_comparable(T) {
+    for x, i in array {
+        if x == key {
+            return i, true
+        }
+    }
+    return -1, false
+}
+</code></pre>
+        <p>And here is one that asks for numbers instead, because its body multiplies:</p>
+        <pre><code class="language-odin line-numbers">// From core:slice — the body multiplies, so the constraint says "numeric".
+dot_product :: proc "contextless" (a, b: $S/[]$T) -&gt; (r: T, ok: bool)
+    where intrinsics.type_is_numeric(T) {
+    if len(a) != len(b) {
+        return
+    }
+    #no_bounds_check for _, i in a {
+        r += a[i] * b[i]
+    }
+    return r, true
+}
+</code></pre>
+        <p>Read a constraint as a promise travelling in both directions. To the compiler: <em>everything in this body is legal for any type satisfying this</em>. To the reader: <em>here is precisely what this procedure needs from its type</em>. Several constraints can be listed, separated by commas, which is how the standard library asks for an integer that is also unsigned:</p>
+        <pre><code class="language-odin line-numbers">// Two constraints, comma separated.
+log2 :: proc "contextless" (x: $T) -&gt; (res: T)
+    where intrinsics.type_is_integer(T), intrinsics.type_is_unsigned(T)
+</code></pre>
+        <p>The placement is fixed and easy to remember: <code>where</code> comes after the results, immediately before the body. It is the same keyword you will meet again with polymorphic types, and the same keyword you would use to express a condition anywhere else.</p>
+
+        <h3 id="calling">Calling: Inference and Explicit Types</h3>
+        <p>Most calls say nothing about types at all, because the type can be read off the arguments:</p>
+        <pre><code class="language-odin line-numbers">// Inference: T is int here, because the slice holds ints.
+fmt.println(max_value([]int{3, 9, 4}))       // 9
+
+// And here T is f64, for the same reason.
+fmt.println(max_value([]f64{1.5, 0.5}))      // 1.5
+</code></pre>
+        <p>When a type cannot be inferred — because it appears nowhere in the arguments — you pass it explicitly, as a value of type <code>typeid</code>. The standard library's own documentation examples show both styles, quoted verbatim:</p>
+        <pre><code class="language-odin line-numbers">// From the docs of core:slice — the type argument is passed positionally.
+small_items := slice.reinterpret([]i32, large_items)
+
+// And here the type names the set type to build.
+bs := slice.enum_slice_to_bitset(my_flag_slice, rl.ConfigFlags)
+</code></pre>
+        <p>So the rule is short: types that can be inferred <em>are</em> inferred, and types that cannot are written where the parameter sits. There is no special angle-bracket syntax for "the type argument list" — a <code>typeid</code> parameter is an ordinary parameter that happens to receive a type.</p>
+
+        <h2 id="types">Generic Types</h2>
+        <p>Procedures are only half the story. Types can take type parameters too, and this is how containers are written in Odin.</p>
+
+        <h3 id="struct-param">Parameterised Structs and Unions</h3>
+        <p>The parameters go in parentheses between the keyword and the body. The clearest example is Odin's own demo file, which builds a "maybe" — a union that either holds a value or holds nothing:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from Odin's demo file: a union parameterised by its payload type.
+Maybe :: union($T: typeid) {T}
+
+// Written with a concrete type at the point of use:
+i: Maybe(u8)
+p: Maybe(^u8)      // for pointers, nil is the sentinel value
+</code></pre>
+        <p>Read <code>Maybe(u8)</code> as "the Maybe type, instantiated for u8" — the same idea as a generic procedure, applied to a type instead of a call. And the comment in the original is worth keeping in mind: for a pointer payload no tag is needed at all, because <code>nil</code> already means "nothing is there".</p>
+        <p>Structs follow exactly the same shape, and that is how container types are written: a queue, a tree, a cache, a grid — each parameterised by whatever it holds.</p>
+
+        <h3 id="typeid-slash">The <code>typeid/…</code> Form</h3>
+        <p>The slash form appears in type parameters as well, and it is how a procedure says "give me a <em>type</em>, and it must be one of these". Two verified examples from the standard library:</p>
+        <pre><code class="language-odin line-numbers">// From core:slice — T receives a whole slice type; U is its element type.
+reinterpret :: proc "contextless" ($T: typeid/[]$U, s: []$V) -&gt; []U
+
+// And here T must be a bit set over the same element type E as the slice.
+enum_slice_to_bitset :: proc "contextless" (enums: []$E, $T: typeid/bit_set[E]) -&gt; (bits: T)
+    where intrinsics.type_is_enum(E), intrinsics.type_bit_set_elem_type(T) == E
+</code></pre>
+        <p>The second one is worth reading slowly, because it shows how much a constraint can express. <code>T</code> must be a bit set <em>whose element type is the same E as the slice you passed</em>. That ties the two arguments together: they cannot be mismatched, and no runtime check is involved — the compiler proves it while the program is being built.</p>
+
+        <h2 id="intrinsics">Asking the Compiler About Types</h2>
+        <p>Every constraint in this lesson is a question asked about a type, and the answers come from <code>base:intrinsics</code> — the compiler's own toolbox. You have met one of its members already, in <code>size_of</code>.</p>
+
+        <h3 id="type-is">The <code>type_is_*</code> Family</h3>
+        <p>These are the questions you will meet most often, spelled as the standard library spells them:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Intrinsic</th><th>True when the type…</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>intrinsics.type_is_integer(T)</code></td><td>is an integer</td></tr>
+            <tr><td><code>intrinsics.type_is_unsigned(T)</code></td><td>is an unsigned integer</td></tr>
+            <tr><td><code>intrinsics.type_is_numeric(T)</code></td><td>is a number — integer or floating point</td></tr>
+            <tr><td><code>intrinsics.type_is_comparable(T)</code></td><td>can be compared with <code>==</code></td></tr>
+            <tr><td><code>intrinsics.type_is_enum(E)</code></td><td>is an enumeration</td></tr>
+            <tr><td><code>intrinsics.type_is_enumerated_array(T)</code></td><td>is an array indexed by an enum</td></tr>
+          </tbody>
+        </table>
+        <p>All six refer to ideas from earlier in the track — enums from the structs lesson, comparison from the operators lesson, enum-indexed arrays from the structs lesson. A constraint is nothing more than asking the compiler to confirm one of those properties before the body is allowed to depend on it.</p>
+
+        <h3 id="type-elem">Questions About Structure</h3>
+        <p>Two more intrinsics answer a different kind of question: not "what is this type like?" but "what is inside it?"</p>
+        <pre><code class="language-odin line-numbers">// From core:slice:
+//   intrinsics.type_elem_type(T)         — the element type of an array or slice
+//   intrinsics.type_bit_set_elem_type(T) — the element type of a bit set
+</code></pre>
+        <p>Both turn up in return types and constraints, which is how a result type can be <em>computed</em> from an argument type. It is the last piece of the mechanism: a generic procedure can name a type it has never seen, and let the compiler work out what it is.</p>
+
+        <h2 id="groups">Generic Procedure Groups</h2>
+        <p>You met procedure groups in the procedures lesson: one name, a list of implementations, the compiler choosing the one that fits. They work with generics as well, and the standard library uses them to hide a decision the caller should not have to make.</p>
+
+        <h3 id="specialize">One Name, Several Implementations</h3>
+        <pre><code class="language-odin line-numbers">// Quoted from core:slice — two implementations behind one name.
+bitset_to_enum_slice :: proc{bitset_to_enum_slice_with_make, bitset_to_enum_slice_with_buffer}
+</code></pre>
+        <p>Behind that name are two procedures: one allocates a buffer for you, and one fills a buffer you supply. Both are generic over the set type and the element type. A caller who writes <code>slice.bitset_to_enum_slice(bs)</code> gets whichever version matches the arguments they passed — one concept, one name, and the choice of strategy made where it belongs.</p>
+
+        <h3 id="resolution">Resolution Is Explicit</h3>
+        <p>Two properties of that mechanism are worth holding on to. A group must be <em>declared</em> — Odin will not quietly accept two same-named procedures, so you can never arrive at an overloaded name by accident. And when no member of the group fits your call, the error appears at the call site, naming what you gave it.</p>
+        <p>That is the same principle as the explicit conversions in the types lesson: nothing in Odin converts, resolves, or guesses silently. A call either matches something exactly, or it does not compile.</p>
+
+        <h2 id="limits">What Generics Do Not Do</h2>
+        <p>Two things Odin's parametric polymorphism deliberately is <em>not</em>, and one practical consequence worth knowing before you reach for it everywhere.</p>
+
+        <h3 id="no-templates">No Text Substitution</h3>
+        <ul>
+          <li><strong>Not a preprocessor.</strong> Nothing is pasted into your source as text. A <code>$T</code> is a type name the compiler understands, so there is no separate expansion step that could produce code you cannot read in your editor or step through in a debugger.</li>
+          <li><strong>Not runtime polymorphism.</strong> There is no dispatch table and no type tag being tested while the program runs. The versions are resolved during compilation, so a call into a generic procedure is as direct as any other call.</li>
+        </ul>
+        <p>And the practical consequence: each distinct type your program uses produces its own compiled version. Use a generic procedure with four types and the binary contains four versions. That is usually exactly what you want — it is what makes the call direct and the optimisation possible — but it also means generics are not a way to make a program smaller.</p>
+        <p>When you want <em>one</em> implementation shared by many types at runtime, the tool is a union rather than a type parameter. So ask which kind of flexibility the problem needs — compile-time or runtime — because they are different problems, and Odin keeps them separate on purpose.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>The next lesson takes the same idea further: telling the compiler to evaluate things while it builds your program, so that whole branches and whole computations simply do not exist by the time it runs.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li><code>$T</code> names a type. The compiler infers it from the arguments, or you pass a <code>typeid</code> explicitly.</li>
+          <li>The slash form <code>$T/[]$E</code> binds the container and its element type together.</li>
+          <li>A <code>where</code> clause states what the type must support; several constraints are comma separated, and it sits after the results.</li>
+          <li>Constraints come from <code>base:intrinsics</code> — <code>type_is_integer</code>, <code>type_is_comparable</code>, <code>type_is_enum</code> and friends.</li>
+          <li>Types take parameters too: <code>union($T: typeid) {T}</code> is how the standard library writes a "maybe".</li>
+          <li><code>type_elem_type</code> and <code>type_bit_set_elem_type</code> let a result type be computed from an argument type.</li>
+          <li>Procedure groups give one name to several implementations, and resolution is always explicit.</li>
+          <li>No preprocessor and no runtime dispatch: there is one compiled version per type your program actually uses.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Well done.</strong> A good exercise: write <code>max_value</code> from the start of this page, then write a second version whose constraint uses <code>intrinsics.type_is_numeric</code>, and call each with a slice of <code>int</code> and a slice of <code>f64</code>. Then call the numeric one with a slice of strings and read the error — the message will show you exactly what the constraint bought you.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/compile-time.html">Compile-time Programming</a> →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'generics',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

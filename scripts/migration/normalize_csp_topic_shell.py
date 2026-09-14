@@ -24,8 +24,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ROADMAP_DIR = ROOT / "roadmap"
 PROGRAMMING_TOPIC_DIRS = {
-    "ada", "assembly", "bash", "c", "carbon", "cpp", "csharp", "css", "dart",
-    "fortran", "go", "html", "java", "julia", "nim", "php", "plsql", "python",
+    "ada", "assembly", "bash", "c", "cpp", "csharp", "css", "dart",
+    "fortran", "go", "html", "java", "julia", "nim", "odin", "php", "plsql", "python",
     "react", "ruby", "rust", "scala", "script", "svelte", "swift", "tscript", "zig"
 }
 SKIP_FILES = {"index.html", "template.html", "topic.html"}

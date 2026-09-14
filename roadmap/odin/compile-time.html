@@ -1,0 +1,255 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Compile-time programming in Odin: when, the ODIN_* build constants, size_of and offset_of, build tags and platform files, the #+ directives, bit and type intrinsics, and caller location.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, compile time, when, build tags, intrinsics, ODIN_OS, directives, conditional compilation">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Compile-time Programming</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-compile-time">Compile-time Programming</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Odin's compiler is not a translator that keeps its opinions to itself: it answers questions. How wide is this type? Which system am I building for? Is this structure laid out the way I assumed? This lesson is about asking those questions and letting the answers change what gets built.
+        </div>
+
+        <p>The theme of the phase continues. First you made failure explicit; then you made one procedure work for many types; now you make whole decisions belong to the build rather than to the run. A branch that the compiler resolves cannot be slow, cannot be wrong at runtime, and cannot be forgotten.</p>
+
+        <h2 id="when">when, Revisited</h2>
+        <p>You met <code>when</code> in the control-flow lesson as "the <code>if</code> that the compiler decides". Here is what that is worth.</p>
+
+        <h3 id="zero-cost">The Branch That Never Exists</h3>
+        <p>Plain <code>if</code> picks a branch while the program runs; <code>when</code> picks one while it is being compiled, and the loser is not merely skipped — it is never built:</p>
+        <pre><code class="language-odin line-numbers">// Only one of these blocks reaches the executable at all.
+when ODIN_OS == .Windows {
+    fmt.println("this build targets Windows")
+} else when ODIN_OS == .Linux {
+    fmt.println("this build targets Linux")
+} else {
+    fmt.println("some other platform")
+}
+</code></pre>
+        <p>Two consequences follow, and the second one is the important one. The first: no runtime test, so the cost is zero. The second: code for another platform need not even be <em>valid</em> where you are building — a Windows-only procedure call inside a <code>when ODIN_OS == .Windows</code> block causes no trouble on Linux, because the compiler never looks inside it.</p>
+        <p>That is why <code>when</code>, not <code>if</code>, is the tool for platform differences. An <code>if</code> would have to compile both sides.</p>
+
+        <h3 id="expression">when as an Expression</h3>
+        <p><code>when</code> also works inside an expression, in the form <em>value when condition else value</em>. The standard library uses it to pick a constant that depends on the machine:</p>
+        <pre><code class="language-odin line-numbers">// The shape used by the standard library itself.
+INT_MAX :: 9223372036854775807 when size_of(int) == 8 else 2147483647
+</code></pre>
+        <p>The value is fixed before your program starts, so reading it later costs nothing at all — there is no comparison left to perform.</p>
+        <div class="alert alert-info shadow-sm">
+          <strong>Get into the habit early.</strong> When you write a condition whose answer is already known to the compiler — a size, a platform, a build mode — ask whether it belongs in <code>when</code> instead of <code>if</code>. Nothing is lost and a branch disappears.
+        </div>
+
+        <h2 id="constants">What the Compiler Already Knows</h2>
+        <p>Odin defines a family of constants that describe the build itself. They need no import, they are fixed while compiling, and each one answers a question you would otherwise have to hard-code — or discover at three in the morning on someone else's machine.</p>
+
+        <h3 id="odin-constants">The ODIN_* Constants</h3>
+        <p>The file that declares them documents each one, so let us quote it rather than paraphrase. Four of its descriptions, verbatim:</p>
+        <pre><code class="language-text line-numbers">ODIN_ARCH
+  "An enum value indicating the target's CPU architecture.
+   Possible values are .amd64, .i386, .arm32, .arm64, .wasm32,
+   .wasm64p32, and .riscv64."
+
+ODIN_DEBUG
+  "true if the -debug command line switch is passed, which enables
+   debug info generation."
+
+ODIN_ENDIAN
+  "An enum value indicating the endianness of the target.
+   Possible values are .Little and .Big."
+
+ODIN_NO_BOUNDS_CHECK
+  "true if the -no-bounds-check command line switch is passed, which
+   disables bounds checking at runtime."
+</code></pre>
+        <p>Read the last one twice, because it ties two earlier lessons together. The bounds checking you met in the collections lesson can be switched off for an entire build with one command-line flag — and your own code can <em>ask</em> whether that happened. The flag changes the build; the constant lets the code know.</p>
+        <p>Three more deserve to be in your hands immediately, since they answer questions you will otherwise guess at:</p>
+        <pre><code class="language-odin line-numbers">// Which system and which processor is this build for?
+when ODIN_OS == .Windows { /* ... */ }
+when ODIN_ARCH == .arm64 { /* ... */ }
+
+// Is this a debug build, or a release one?
+when ODIN_DEBUG {
+    fmt.println("verbose diagnostics enabled")
+}
+
+// Which byte order does the target use? This matters for binary formats.
+when ODIN_ENDIAN == .Big { /* ... */ }
+</code></pre>
+        <p>There are around twenty of these constants in total — the build mode, the project name, the compile timestamp, the micro-architecture, the Windows subsystem — and they are all listed and described in the standard library's own source file. When you need one, read it there rather than guessing a name.</p>
+
+        <h3 id="size-of">size_of, align_of, offset_of</h3>
+        <p>The other half of what the compiler knows concerns your own types. Three built-ins answer questions about layout, and all three are compile-time constants:</p>
+        <pre><code class="language-odin line-numbers">Header :: struct {
+    tag:  u8,
+    size: u32,
+}
+
+fmt.println(size_of(Header))          // 8  — four bytes of data, four of padding
+fmt.println(align_of(Header))         // 4  — the boundary it must start on
+fmt.println(offset_of(Header, size))  // 4  — where the second field begins
+</code></pre>
+        <p>You have met these before, in the types, structs and data-oriented lessons. What this lesson adds is that they can be <em>asserted</em>, turning an assumption into something the build enforces:</p>
+        <pre><code class="language-odin line-numbers">#assert(size_of(Particle) == 24)          // the layout from the DOD lesson
+#assert(offset_of(Header, size) == 4)     // the padding is where I think it is
+</code></pre>
+        <p>An assumption written that way is a promise with a witness. If a later edit adds a field, the build stops and tells you — instead of a benchmark quietly getting slower, or a file format quietly becoming unreadable.</p>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/compile-time-phases.svg" width="620" class="img-fluid protect rounded shadow border" alt="Source code entering the compiler, which resolves branches, type widths and layout assumptions, producing an executable that contains one branch, real numbers and no runtime checks">
+          <figcaption class="small text-secondary mt-2">What compile-time programming removes. Every question answered while building is a test, a branch or a whole copy of code that the executable never has to carry.</figcaption>
+        </figure>
+
+        <h2 id="directives">Directives: Talking to the Build</h2>
+        <p>Some decisions do not belong inside a procedure at all — they belong to a whole file. Odin handles those with directives: lines beginning with <code>#+</code> at the top of a file, read before anything else in it.</p>
+
+        <h3 id="build-tags">Build Tags and Platform Files</h3>
+        <p>The standard library organises platform code by <em>filename</em>, and the pattern is unmistakable once you look at one package's file list:</p>
+        <pre><code class="language-text line-numbers">dir.odin     dir_linux.odin     dir_posix.odin     dir_windows.odin
+pipe.odin    pipe_linux.odin    pipe_posix.odin    pipe_windows.odin
+path.odin    path_linux.odin    path_posix.odin    path_windows.odin
+</code></pre>
+        <p>One package, several files, and the suffix tells the compiler which file belongs to which system. Building on Linux takes <code>dir_linux.odin</code> together with the shared <code>dir.odin</code>; on Windows it takes <code>dir_windows.odin</code> instead. Nobody writes one file sprinkled with platform tests, because the platform <em>is</em> the file.</p>
+        <p>For cases a filename cannot express — "this file is for Linux and macOS but not Windows", or "only when a certain feature is enabled" — a file can carry an explicit build tag: a <code>#+build</code> line at the top, listing what it belongs to. You will meet those lines at the head of library files, and they do the same job as the filename suffix, said out loud.</p>
+
+        <h3 id="other-directives">The Rest of the <code>#+</code> Family</h3>
+        <p>Four more file-level directives, each quoted from a file in the standard library:</p>
+        <pre><code class="language-text line-numbers">#+private                       // core:os — everything in this file is private
+#+vet !using-stmt !using-param  // the demo file — which vet checks to relax
+#+feature dynamic-literals      // the demo file — opt into a newer feature
+#+no-instrumentation            // the runtime — do not instrument this file
+</code></pre>
+        <p>Two of them deserve a sentence each. <code>#+private</code> hides everything in the file from other packages — the tool you want for a helper that is nobody else's business, and the next lesson looks at visibility properly. And <code>#+feature</code> is how a newer language feature is opted into per file, which explains the occasional line of it you will see at the top of otherwise ordinary code.</p>
+        <p>The pattern behind all of them is the same as the ODIN_* constants: instead of discovering something at runtime, you state it to the compiler and let it act on the statement.</p>
+
+        <h2 id="intrinsics">intrinsics — The Compiler's Toolbox</h2>
+        <p><code>base:intrinsics</code> holds the operations only a compiler can perform: asking about types, counting bits, loading memory without alignment assumptions, reading the processor's cycle counter. You met several of its names in the generics lesson; here is the rest.</p>
+
+        <h3 id="bit-tools">Bit Intrinsics</h3>
+        <p>The bit-level operations are collected in <code>core:math/bits</code>, which binds each of these names to the intrinsic that implements it:</p>
+        <pre><code class="language-odin line-numbers">// From core:math/bits:
+//   count_ones            how many bits are set
+//   count_zeros           how many are not
+//   count_trailing_zeros  position of the lowest set bit
+//   count_leading_zeros   position of the highest set bit
+//   reverse_bits          flip the order of the bits
+//   byte_swap             swap the byte order — an endianness conversion
+//   overflowing_add/sub/mul   arithmetic that reports overflow instead of trapping
+</code></pre>
+        <p>Each of these is a single processor instruction that no hand-written loop can match — counting set bits, locating the highest one, reversing a word. Reaching for the intrinsic instead of writing a loop is not micro-optimisation; it is using the tool the hardware provides.</p>
+
+        <h3 id="type-tools">Type Intrinsics</h3>
+        <p>The questions about types come from the same package, and you have already used them as constraints:</p>
+        <pre><code class="language-odin line-numbers">// The type questions from the generics lesson:
+//   type_is_integer, type_is_unsigned, type_is_numeric,
+//   type_is_comparable, type_is_enum, type_is_enumerated_array
+//   type_elem_type, type_bit_set_elem_type
+//
+// And introspection on values:
+//   typeid_of(x)      the type id of a value
+//   type_of(x)        its type
+//   type_info_of(T)   the compiler's own description of a type
+</code></pre>
+        <p>All of them are answered while compiling, which is exactly why they may appear in a constraint, in a result type, or inside a <code>when</code> block — places where a runtime value would simply be too late.</p>
+
+        <h3 id="caller-location">#caller_location — Knowing Where You Are</h3>
+        <p>One more built-in deserves its own section, because it appears in real signatures as a default parameter. It carries the location of the call: file, line and procedure.</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core:slice: a parameter that defaults to the caller's own
+// location, so callers never pass it.
+bitset_to_enum_slice_with_make :: proc(bs: $T, $E: typeid,
+                                       allocator := context.allocator,
+                                       loc := #caller_location) -&gt; (slice: []E)
+</code></pre>
+        <p>That pair of default parameters is an idiom you will see throughout the standard library: an allocator defaulting to the context's, and a location defaulting to the caller's. The practical effect is that an allocation which fails can report <em>where in your code</em> it was requested — without you passing anything at all.</p>
+        <p>You can use it in the same way. Give any procedure of your own a default <code>loc := #caller_location</code> and it acquires the ability to say where it was called from: useful in a logging helper, an assertion wrapper, or your own error reporter.</p>
+
+        <h3 id="assert-compile">#assert as Living Documentation</h3>
+        <p>The last idea of this lesson is the one to carry forward. You have already seen <code>#assert</code> guard the size of the error type in <code>core:os</code>; here it is doing the same job for assumptions from earlier lessons:</p>
+        <pre><code class="language-odin line-numbers">// A comment can rot; an assertion cannot.
+#assert(size_of(Error) == size_of(u64))   // the error type stays one word wide
+#assert(size_of(Particle) == 24)          // the DOD layout is intact
+#assert(offset_of(Header, size) == 4)     // the padding has not moved
+</code></pre>
+        <p>Every one of those could have been a sentence in a comment — and every one would have become quietly false the first time somebody added a field. As assertions, they are statements the build refuses to accept once they stop being true.</p>
+        <p>That is the same instinct as <code>assert</code> in the errors lesson, aimed at the facts that exist <em>before</em> a program runs: write the assumption down where a machine can check it, so that the earliest possible moment is also the moment you find out.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>The last lesson of Phase 5 is about where code <em>lives</em>: how Odin arranges files into packages, how packages are found when you import them, and what "public" and "private" mean in a language with no access keywords.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li><code>when</code> is decided while compiling, so the losing branch is never built — and code for another platform need not even be valid where you are building.</li>
+          <li><code>value when condition else value</code> picks a constant at compile time, leaving nothing to evaluate at runtime.</li>
+          <li>The <code>ODIN_*</code> constants describe the build: <code>ODIN_OS</code>, <code>ODIN_ARCH</code>, <code>ODIN_DEBUG</code>, <code>ODIN_ENDIAN</code>, <code>ODIN_NO_BOUNDS_CHECK</code>, and about twenty more.</li>
+          <li><code>size_of</code>, <code>align_of</code> and <code>offset_of</code> answer layout questions, and <code>#assert</code> turns those answers into checks.</li>
+          <li>Platform code lives in files named for the platform — <code>_linux</code>, <code>_windows</code>, <code>_posix</code> — with explicit build tags for combinations a filename cannot express.</li>
+          <li>The <code>#+</code> directives configure a whole file: <code>#+private</code>, <code>#+vet</code>, <code>#+feature</code>, <code>#+no-instrumentation</code>.</li>
+          <li><code>base:intrinsics</code> provides the bit operations, type questions and introspection — all answered at compile time.</li>
+          <li><code>#caller_location</code> as a default parameter lets a procedure know where it was called from, at no cost to its callers.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Well done.</strong> A good exercise: write a procedure that prints one message on Windows and another on Linux using <code>when</code>, put <code>#assert(size_of(int) == 8)</code> beside it, and then change the number to 4 and read what the compiler says. That message is the compiler doing your thinking for you — which is the whole idea of Phase 5.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/packages.html">Packages &amp; Collections</a> →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'compile-time',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

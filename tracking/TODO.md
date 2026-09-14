@@ -68,10 +68,20 @@ Demo collection added (2026-09-11): `roadmap/cpp/demo/` holds 14 grouped, heavil
 (PHASE 6: CONCURRENCY & ENTERPRISE, PHASE 7: PRACTICE & DEMO).
 When complete, remove this entry and mark the track done under the completed list.
 
+## ✅ odin — Full track written (2026-09-14)
+`odin` replaces the retired Carbon track and is now complete across 8 phases (24 rows):
+- 21 lessons: `overview`, `setup`, `syntax`, `types`, `operators`, `control`, `loops`, `procedures`, `structs`, `collections`, `maps`, `pointers`, `allocators`, `dod`, `errors`, `generics`, `compile-time`, `packages`, `ffi`, `threads`, `testing`.
+- Every lesson has a 3-level sidebar (`roadmap/odin/data/<topic>.json`) and its own SVG in `roadmap/odin/img/` (21 diagrams).
+- Practice & Demo: 17 commented single-file demos (`demo/01..17`) indexed by `demo_examples.html`; `samples.html` adds 3 study projects (linked list, generic stack with tests, command-line word counter); `references.html` closes the track with verified official links.
+- `assets/js/code-viewer.js` langMap gained `'odin'` (grammar already bundled in `assets/prism.js`).
+- Content verified against the Odin repository (`base/builtin`, `base/runtime`, `core/{c,thread,slice,strings,math/bits}`, `content/docs/*`, `content/spec`, `examples/*`) and the official site; wording-critical passages are quoted verbatim.
+- Caveat: the Odin toolchain is not installed in this environment, so the 17 demo programs were written against verified syntax but not executed.
+- Follow-up fix (2026-09-14): the six pages authored in phases 6-8 shipped with a non-standard page shell (`class="study-sidebar"` instead of `id="study-sidebar"`, `inject-layout.js`, no `#open-sidebar`, no `inlineContent`), which rendered a second empty sidebar. Normalised with `scripts/tools/fix_topic_shell_tail.py` (shell only, content byte-identical) and guarded in `scripts/test/test_sources.py` so a loader-driven topic page without `#study-sidebar` now warns under `npm run test`.
+
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py)
 - [x] `assembly/` — rebuilt as a full 17-topic track (x86-64 NASM primary; ARM64, RISC-V, WebAssembly in the Flavors lesson), 20 demo programs, hierarchical sidebars, references page.
 - [ ] `swift/` — 13 topic pages are "Work in progress!" ~3.6 KB placeholder shells.
-- [ ] `carbon/` — 8 topic pages are "Work In Progress" stubs (syntax.html has real content).
+- [x] `odin/` — COMPLETE (8 phases, 21 lessons + 17 demos + 3 study projects + references); see the ✅ section above.
 - [ ] `ada/` — real topic pages but only `data/topic.json` (per-topic sidebar JSONs missing).
 - [ ] `cse/` — legacy `topic.html` meta-refresh redirect remains; `data/topic.json` missing (topic pages + JSONs exist otherwise).
 - [ ] `go/` — legacy `topic.html` meta-refresh redirect remains; `data/topic.json` missing (topic pages + JSONs exist otherwise).

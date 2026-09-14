@@ -1,0 +1,287 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Odin allocators and the context system: where make, new and delete get memory, the fields of the context, passing an allocator explicitly, swapping it for a scope, and new/free vs make/delete.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, allocator, context, memory, make, new, free, delete, arena, temp_allocator">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Allocators &amp; the Context System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-allocators">Allocators &amp; the Context System</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          This is the lesson that answers the question Odin has been asking you since Phase 1: <em>where does the memory come from?</em> The answer is an <strong>allocator</strong>, chosen by you, carried in a small structure called the <strong>context</strong>. Understanding these two words explains most of what makes Odin feel different from a language with a garbage collector.
+        </div>
+
+        <p>There is no new syntax to learn here. Everything you already write — <code>make</code>, <code>new</code>, <code>append</code>, <code>delete</code> — already goes through this machinery. This lesson just makes the machinery visible, so you can control it when it matters.</p>
+
+        <h2 id="where">Where Memory Comes From</h2>
+        <p>Start with the decision that shapes everything else.</p>
+
+        <h3 id="no-gc">There Is No Garbage Collector</h3>
+        <p>Odin has no runtime that watches your allocations and reclaims them for you. Memory is acquired explicitly and released explicitly. That is a real trade, and both halves are worth knowing:</p>
+        <ul>
+          <li><strong>What you gain:</strong> no pauses you did not ask for, no runtime sitting between you and the machine, and a cost model that is visible in the source. A loop that allocates says so; a loop that does not, does not.</li>
+          <li><strong>What you pay:</strong> memory you allocate is your responsibility. Forget a <code>delete</code> and the program quietly uses more memory than it should.</li>
+        </ul>
+        <p>Odin's answer to that second half is not a garbage collector but a set of habits — and the most important habit is one you already met: <code>defer delete(...)</code> written directly under the allocation that it matches.</p>
+
+        <h3 id="who-allocates">Who Actually Allocates</h3>
+        <p>Here is the detail that surprises people arriving from C. <code>make</code> and <code>new</code> do not each call the operating system. They ask <em>something</em> for memory, and that something is chosen by your program:</p>
+        <pre><code class="language-odin line-numbers">// A dynamic array: memory comes from the CURRENT context's allocator.
+queue := make([dynamic]int, 0, 8)
+defer delete(queue)
+
+// A single value: new allocates one zeroed int and gives you its address.
+node := new(int)          // node is a ^int
+defer free(node)
+
+node^ = 42
+fmt.println(node^)        // 42
+</code></pre>
+        <p>Two different pairs of procedures, and mixing them up is a genuine bug: <code>make</code> goes with <code>delete</code>, and <code>new</code> goes with <code>free</code>. You will see them side by side in the last section of this page.</p>
+        <p>So who is <em>"the current context"</em>? That is the next section, and it is the reason this lesson exists.</p>
+
+        <h2 id="context">The Context</h2>
+        <p>Most languages answer "where do allocations come from" with a global: one system allocator, one logger, one random-number source, fixed for the life of the program. Odin's alternative is to make that bundle an ordinary value and thread it through your code automatically.</p>
+
+        <h3 id="what-is">A Bag of Implicit Services</h3>
+        <p>That bundle is the <strong>context</strong>. There is one variable named <code>context</code> in scope, the compiler maintains it for you, and — this is the part that matters — it is a plain struct that you can read, copy, and replace.</p>
+        <p>Its job is to carry the things that a built-in procedure needs but cannot sensibly take as an argument. Nobody wants to write <code>make(allocator, type, length, capacity)</code> in every line, so the allocator travels alongside instead.</p>
+
+        <h3 id="fields">What Lives in a Context</h3>
+        <p>Five fields, and the list is short enough to memorise. Each one supplies something the language needs at a moment's notice:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Field</th><th>What it is for</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>allocator</code></td><td>Where <code>make</code>, <code>new</code>, and most allocation comes from</td></tr>
+            <tr><td><code>temp_allocator</code></td><td>Scratch memory for short-lived values inside a scope</td></tr>
+            <tr><td><code>logger</code></td><td>Where your program's logging output goes</td></tr>
+            <tr><td><code>assertion_failure_proc</code></td><td>What happens when an assertion fails</td></tr>
+            <tr><td><code>random_generator</code></td><td>The source of random numbers</td></tr>
+          </tbody>
+        </table>
+        <p>Look at what is <em>not</em> in that list. There is no hidden heap that a library can reach into behind your back, no implicit global logger, no global random state. Everything a built-in needs is in one struct you can inspect — and that is the whole design.</p>
+        <div class="alert alert-info shadow-sm">
+          <strong>Why bother with all this?</strong> Because a global heap makes two things impossible: using a different allocation strategy for one part of a program, and testing allocating code without touching a real heap. Threading the choice through a context keeps both doors open, and costs you nothing on the days when you do not care.
+        </div>
+
+        <h3 id="reading">Reading and Setting the Allocator</h3>
+        <p>Because the context is an ordinary value, you can look at it and change the parts you care about. Begin by reading the allocator that is in force right now:</p>
+        <pre><code class="language-odin line-numbers">// The allocator currently in use is just a value you can hold on to.
+current := context.allocator
+
+fmt.println(current)     // whatever is installed, shown as its parts
+</code></pre>
+        <p>An allocator is less mysterious than its name suggests. It is a <strong>procedure</strong> that knows how to satisfy an allocation, plus a <strong>data</strong> pointer that carries whatever bookkeeping the strategy needs. Two parts — which is exactly why an allocator can be any strategy you like: the default that talks to the system, a bump allocator that hands out slices of one big block, a pool that recycles fixed-size objects, or an arena that frees everything at once.</p>
+        <p>Whole-context replacement works too, and it has one specific use worth knowing. A procedure with the C calling convention may be entered straight from the operating system or a C library, with no context set up for it. The first line of such a procedure installs the standard one:</p>
+        <pre><code class="language-odin line-numbers">import "base:runtime"
+
+// Rebuild the standard context — the usual opening line of a `proc "c"` entry point.
+context = runtime.default_context()
+</code></pre>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/context-allocator.svg" width="620" class="img-fluid protect rounded shadow border" alt="The context structure with its five fields, showing make and new drawing memory from context.allocator, which points at an allocator made of a procedure and some data, which in turn obtains memory from the system">
+          <figcaption class="small text-secondary mt-2">The path from a line of Odin to real memory. <code>make</code> and <code>new</code> consult the context; the allocator in it decides where the bytes actually come from.</figcaption>
+        </figure>
+
+        <h2 id="explicit">Passing an Allocator Explicitly</h2>
+        <p>The context is a convenience, not a cage. When a particular collection needs a particular allocator, say so — the built-ins accept one as an extra argument.</p>
+
+        <h3 id="make-allocator">make with an Allocator</h3>
+        <pre><code class="language-odin line-numbers">// The allocator becomes an ordinary argument; the context is not consulted.
+buffer := make([]u8, 4096, context.allocator)
+defer delete(buffer)
+
+fmt.println(len(buffer))     // 4096
+</code></pre>
+        <p>Read that as: "make me a buffer, and take the memory from <em>this</em> allocator rather than from whatever happens to be installed." The same extra argument works for dynamic arrays, and it is how a function that receives an allocator from its caller can guarantee where its data lives.</p>
+
+        <h3 id="why-explicit">When to Be Explicit</h3>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Situation</th><th>Why an explicit allocator helps</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Lifetimes differ</td><td>Data that must outlive a temporary scope cannot come from that scope's scratch allocator</td></tr>
+            <tr><td>Strategies differ</td><td>A long-lived collection may deserve the general allocator while a per-frame buffer does not</td></tr>
+            <tr><td>You are testing</td><td>A test can pass an allocator that refuses, and check how the code behaves when memory runs out</td></tr>
+            <tr><td>You are writing a library</td><td>Accepting an allocator from the caller means your code never assumes how much memory it may use</td></tr>
+          </tbody>
+        </table>
+        <p>One obligation comes with the choice: an allocator must stay alive as long as the data allocated from it. A dynamic array remembers where its memory came from, but it cannot keep your arena from being destroyed underneath it.</p>
+
+        <h2 id="what-is-allocator">What an Allocator Actually Is</h2>
+        <p>Time to demystify the word. An allocator is not a class hierarchy or a plugin system; it is two fields.</p>
+
+        <h3 id="proc-data">A Procedure and Some Data</h3>
+        <p>Here is the default context being built, quoted from Odin's own runtime. It is the clearest possible definition:</p>
+        <pre><code class="language-odin line-numbers">// From the runtime, while it initialises the standard context:
+c.allocator.procedure = default_allocator_proc
+c.allocator.data      = nil
+</code></pre>
+        <p>An allocator is a <strong>procedure</strong> that services requests — allocate, resize, free, free everything — plus a <strong>data</strong> pointer that carries whatever that strategy needs to remember. The context's allocator starts as the default one, and stays that way until you replace it.</p>
+        <p>That is the entire interface, and it explains a phrase you will read in Odin discussions: <em>an allocator is just a procedure with some data</em>. Writing your own is therefore a reasonable thing to do, because the rest of the language will treat it as if it were the system's.</p>
+
+        <h3 id="strategies">Three Strategies You Will Meet</h3>
+        <p>You do not have to invent a strategy to benefit from one. Three patterns cover most needs, and Odin's <code>core:mem</code> provides all three:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Strategy</th><th>The idea</th><th>What it buys</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Arena / region</td><td>One big block, handed out piece by piece</td><td>Freeing everything is a single operation</td></tr>
+            <tr><td>Pool</td><td>Fixed-size slots, recycled as they are returned</td><td>No fragmentation for many equal objects; reuse is immediate</td></tr>
+            <tr><td>Stack / temp</td><td>Last in, first out, within a scope</td><td>Scratch memory that costs almost nothing to reclaim</td></tr>
+          </tbody>
+        </table>
+        <p>Notice that each one is an answer to a <em>shape of problem</em> rather than a general improvement. That is the reason the choice is left to you: no single strategy wins at everything, and a language that hides the choice cannot help you make it well.</p>
+
+        <h2 id="scope">Swapping the Allocator for a Scope</h2>
+        <p>Now the payoff. Because the allocator travels in the context, redirecting allocation for a block of work takes three lines of ordinary code.</p>
+
+        <h3 id="save-restore">Save, Replace, Restore</h3>
+        <pre><code class="language-odin line-numbers">// 1. remember what is in force
+previous := context.allocator
+
+// 2. install the allocator this scope should use
+context.allocator = scratch_allocator
+
+// 3. put the old one back — on every exit path, not just the happy one
+defer context.allocator = previous
+
+// ... everything here that allocates now uses scratch_allocator ...
+</code></pre>
+        <p>The third line is the one people forget, and it is the one that matters. The context belongs to the <em>caller's</em> world, not yours: leaving your scratch allocator installed means the next procedure — possibly one you have never read — allocates its own data out of your scratch space. That is exactly the kind of cross-module surprise Odin's design exists to prevent.</p>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Save, replace, restore.</strong> The pattern is worth memorising as a trio, because it works for the other context fields too: swap the logger to capture messages, swap the allocator to change strategy — and always restore when the scope ends.
+        </div>
+
+        <h3 id="temp">temp_allocator — Scratch Space</h3>
+        <p>One of those five context fields is already an allocator meant for exactly this job. <code>temp_allocator</code> is a scratch allocator whose contents you are expected to abandon when a scope ends.</p>
+        <p>Think of the shape of work it suits: parse a document, build a handful of temporary slices while doing so, then discard the lot at the end of the function. Freeing item by item would be pointless — the whole region is going away. Because it is a stack-style allocator, discarding is not a loop of frees; it is one pointer moving back, and the built-in <code>free_all</code> is how you say "everything from this allocator, now":</p>
+        <pre><code class="language-odin line-numbers">process_frame :: proc() {
+    // Temporary strings, temporary buffers, temporary slices — all of them
+    // come out of the scratch allocator...
+    name := strings.clone_to_cstring(text, context.temp_allocator)
+
+    // ...and one line releases every one of them at once.
+    defer free_all(context.temp_allocator)
+
+    // ... work with name ...
+}
+</code></pre>
+        <p>Look at where that <code>defer</code> sits: inside a procedure, so the scratch space is released when the procedure ends. In a loop it would release the scratch space at the end of <em>each iteration</em>, which is exactly what a per-frame or per-request scratch budget wants. That single line is the idiom you will see most often in Odin code that handles text and buffers.</p>
+
+        <h2 id="new-free">new, free, make, delete</h2>
+        <p>Two pairs of procedures, and confusing them is a real bug rather than a matter of style.</p>
+
+        <h3 id="pairing">Two Pairs You Must Not Mix Up</h3>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>To create</th><th>Use</th><th>To release</th><th>What you get back</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>A slice, dynamic array, or map</td><td><code>make</code></td><td><code>delete</code></td><td>The collection itself</td></tr>
+            <tr><td>A single value on the heap</td><td><code>new</code></td><td><code>free</code></td><td>A pointer to it — <code>^T</code></td></tr>
+          </tbody>
+        </table>
+        <p>Both pairs take memory from the context's allocator unless you pass one explicitly, and both pairs must be matched: <code>delete</code> on something that came from <code>new</code>, or <code>free</code> on a dynamic array, is simply wrong — each pair expects the bookkeeping the other one did not write.</p>
+        <p>Notice also how their purposes differ. A dynamic array is a container that grows; <code>new</code> is for a single long-lived value that needs an address of its own — a node in a tree, an object shared by several owners, something too large for the stack.</p>
+
+        <h3 id="defer">defer Is the Idiom</h3>
+        <p>With no garbage collector, the discipline that replaces it is a habit rather than a feature: write the release on the line <em>under</em> the acquisition.</p>
+        <pre><code class="language-odin line-numbers">process :: proc() {
+    scratch := make([dynamic]u8, 0, 4096, context.allocator)
+    defer delete(scratch)      // written once, runs on every exit path
+
+    append(&amp;scratch, 1, 2, 3)
+
+    // ... real work, including any early returns added later ...
+}   // delete runs here — whichever route we took to reach it
+</code></pre>
+        <p>Why this habit rather than a tidy cleanup at the end of the function? Because code changes. A <code>return</code> added six months from now would skip a cleanup written at the bottom, and the leak would be invisible. A <code>defer</code> attached to the allocation cannot be bypassed.</p>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Odin:</strong> the context system and the two allocator pairs are the same idea seen twice — memory is a resource with an owner, and the owner should be visible in the source. You are not expected to account for every byte by hand; you are expected to know, at every allocation, where the memory came from and when it goes back.
+        </div>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>The last lesson of Phase 4 puts the two previous ones together. You now know where memory is and who provides it; next we look at how to <em>arrange</em> it — because on modern hardware the shape of your data decides how fast the program runs.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li>Odin has no garbage collector: memory is acquired and released explicitly, and <code>defer delete(...)</code> is the habit that replaces the collector.</li>
+          <li><code>make</code> and <code>new</code> take memory from the <strong>context</strong>, a plain struct holding five services: allocator, temp_allocator, logger, assertion_failure_proc, random_generator.</li>
+          <li>An allocator is a procedure plus a data pointer — that is the whole type, which is why writing your own is a reasonable thing to do.</li>
+          <li>Pass an allocator explicitly when a collection's lifetime or strategy must differ from the scope's: <code>make(..., context.allocator)</code>.</li>
+          <li>Redirect allocation for a scope with save, replace, restore — and never skip the restore.</li>
+          <li><code>temp_allocator</code> is scratch space, discarded wholesale when the scope ends.</li>
+          <li><code>make</code>/<code>delete</code> and <code>new</code>/<code>free</code> are two pairs; matching them is part of writing correct code.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Well done.</strong> A good exercise with nothing to run: take three allocations from your own programs — or from the earlier lessons — and write down, for each, which allocator provided the memory and which line releases it. If either answer is "I am not sure", that is precisely the situation this lesson exists to prevent.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/dod.html">Data-Oriented Design (SOA/AOS)</a> →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'allocators',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Odin packages and collections: a folder is a package, the package declaration, core/base/vendor collections, imports and aliases, visibility with private, and how projects are organised.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, packages, collections, import, core, vendor, private, project layout">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Packages &amp; Collections</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-packages">Packages &amp; Collections</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          You have been importing packages since the first lesson, and the rule behind them is simpler than in most languages: <strong>a package is a folder</strong>. This lesson covers where packages come from, how names are resolved, what "private" means in a language with no access keywords, and how to lay out a project of your own.
+        </div>
+
+        <p>It is the last lesson of Phase 5, and it answers a question you may have been carrying since the setup lesson: when you typed <code>odin run .</code>, what exactly did you build?</p>
+
+        <h2 id="packages">Packages</h2>
+        <p>Odin's model of code organisation is small enough to state in one sentence — and the standard library's own beginner example states it: <em>packages are just folders</em>.</p>
+
+        <h3 id="folder">A Package Is a Folder</h3>
+        <p>The quoted explanation, from Odin's beginner example:</p>
+        <pre><code class="language-text line-numbers">This imports the `fmt` package from the core collection. You find the core
+collection in `&lt;odin&gt;/core`, where `&lt;odin&gt;` is the folder where you installed
+Odin. `fmt` is just a subfolder of `core`. Again, packages are just folders!
+</code></pre>
+        <p>That is the whole mechanism. A folder holds <code>.odin</code> files; those files are one package; and the folder's path is how the package is found. There is no build file listing sources, no project manifest, and no registration step.</p>
+        <p>It also explains the command you have been typing all along. From the same example:</p>
+        <pre><code class="language-text line-numbers">When you ran `odin run .`, then all the `.odin` files in this folder were
+compiled into a single package.
+</code></pre>
+        <p>The <code>.</code> meant "this folder", and the compiler treated every <code>.odin</code> file in it as one package. That is why the setup lesson described Odin as thinking in directory-based packages, and why <code>odin run file.odin -file</code> needed a special flag to mean "just this one file".</p>
+
+        <h3 id="declaration">The <code>package</code> Line</h3>
+        <p>Every file begins by naming its package, and the beginner example is unusually explicit about the rules:</p>
+        <pre><code class="language-text line-numbers">This is the package name. All files in a package must use the same package
+name. The package name must be unique project-wide (no other imported package
+may use the same name).
+</code></pre>
+        <p>Two rules, and the second is the one that surprises people. The name is <em>project-wide unique</em>, so two packages can never both be called <code>utils</code> — and that is deliberate, because it removes the awkward import-renaming that other ecosystems need when names collide.</p>
+        <p>One freedom is worth knowing as well: the package name need not match the folder name. The standard library proves it — <code>core:math/bits</code> is a folder called <code>bits</code>, and its files declare <code>package math_bits</code>. What you write in the <code>package</code> line is the package's identity; the folder is simply how the compiler finds it.</p>
+
+        <h3 id="multi-file">Several Files, One Package</h3>
+        <p>Files in the same folder are the same package, and they see each other's declarations with no import at all. Odin's beginner example relies on exactly that — its <code>main</code> procedure calls procedures that live in five other files — and says why it works:</p>
+        <pre><code class="language-text line-numbers">This runs another procedure called `variables`. But there is no such procedure
+in this file! Where is it? All files within this folder are part of the same
+package. So this procedure can be in any of the `.odin` files in this folder.
+</code></pre>
+        <p>Imports are therefore for <em>other</em> packages only. Inside one folder there is no ceremony — no header files, no forward declarations, no import lines between the files — just one shared namespace, which is what makes a folder-sized project feel like a single document.</p>
+        <p>The one ordering rule from the setup lesson still stands: each file declares its package first, and its imports after.</p>
+
+        <h2 id="collections">Collections</h2>
+        <p>An import must say <em>where</em> the package lives. Odin answers with collections: named folders that the compiler already knows about.</p>
+
+        <h3 id="three">core, base, and vendor</h3>
+        <p>Three collections ship with the compiler, and you have used all of them:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Prefix</th><th>What lives there</th><th>Examples you have used</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>core:</code></td><td>The standard library — the everyday packages</td><td><code>core:fmt</code>, <code>core:strings</code>, <code>core:os</code>, <code>core:slice</code>, <code>core:time</code>, <code>core:math</code></td></tr>
+            <tr><td><code>base:</code></td><td>The language's own foundation: runtime, builtins, intrinsics</td><td><code>base:runtime</code>, <code>base:intrinsics</code>, <code>base:builtin</code></td></tr>
+            <tr><td><code>vendor:</code></td><td>Bindings maintained by the Odin team for third-party libraries</td><td><code>vendor:raylib</code></td></tr>
+          </tbody>
+        </table>
+        <p>The beginner example gives the clearest way to hold this in mind: <code>core:fmt</code> means "the <code>fmt</code> folder inside the core collection", and the core collection is the <code>core</code> folder wherever you installed Odin. There is nothing more magical to it than that — which is precisely the point.</p>
+
+        <h3 id="import">Importing</h3>
+        <p>Paths nest, and you have already met several shapes of them:</p>
+        <pre><code class="language-odin line-numbers">import "core:fmt"            // one package from a collection
+import "core:math/big"       // a package nested inside another
+import "core:unicode/utf8"   // and deeper still
+import "base:intrinsics"     // from the foundation
+import "vendor:raylib"       // a third-party binding
+</code></pre>
+        <p>The name you use afterwards is the <em>last segment of the path</em> — which is why code says <code>fmt.println(...)</code>, <code>big.…</code>, <code>utf8.…</code>, <code>intrinsics.…</code>, and <code>raylib.…</code>.</p>
+        <p>It is worth noticing that this name comes from the path rather than from the <code>package</code> line. The folder <code>core:math/bits</code> is used as <code>bits.</code> in code, even though its files declare <code>package math_bits</code>. The path is what the compiler needs; the last segment is what you type.</p>
+
+        <h3 id="aliases">Aliases</h3>
+        <p>When a name is long, you can bind a shorter one at the import. The examples repository does exactly that for raylib, whose real name is a mouthful:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from an example: import the package under a shorter name.
+import rl "vendor:raylib"
+
+// ... and use the short name everywhere afterwards.
+rl.InitWindow(800, 200, "text field")
+defer rl.CloseWindow()
+</code></pre>
+        <p>Notice the shape: the alias comes before the path, with no <code>:=</code> and no <code>as</code>. Two words, and the meaning is obvious from context.</p>
+        <p>Use aliases for genuinely long names and leave everything else alone. An alias that is not clearly shorter than the original is simply one more translation step for whoever reads the code next — and since the package name is already chosen to be unique and short, most imports need nothing added.</p>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/package-collections.svg" width="620" class="img-fluid protect rounded shadow border" alt="The three collections, core, base and vendor, each holding package folders, each folder holding .odin files, with an import path resolving down through the collection to a single package">
+          <figcaption class="small text-secondary mt-2">An import path read from the outside in: collection, then folder, then the package. Everything Odin needs in order to find your code is in that one line.</figcaption>
+        </figure>
+
+        <h2 id="visibility">Public and Private</h2>
+        <p>Odin has no <code>public</code>, <code>private</code>, or <code>protected</code> keywords — and the way it handles visibility is the opposite of what most languages teach.</p>
+
+        <h3 id="default">Everything Is Visible, Until You Say Otherwise</h3>
+        <p>Every declaration in a package is visible to any package that imports it: procedures, types, constants, all of them. There is no keyword to type and no default-private rule to memorise.</p>
+        <p>That is a deliberate trade. Most declarations in a package exist to be used by somebody, so the common case needs no ceremony at all — and protection remains available, at two different scales, for the cases that genuinely need it.</p>
+        <p>It also fits the thread that runs through this track. Odin prefers a small number of things you must know to a large number of rules you must remember, and "visible unless marked" is one rule instead of several.</p>
+
+        <h3 id="private">@(private) and #+private</h3>
+        <p>The first form hides a single declaration. Quoted from <code>core:os</code>, where a conversion helper stays inside the package:</p>
+        <pre><code class="language-odin line-numbers">// One declaration, hidden from every other package.
+@(private)
+error_to_io_error :: proc(ferr: Error) -&gt; io.Error {
+    // ...
+}
+</code></pre>
+        <p>The second form hides an entire file, and it is how the standard library keeps its platform implementations out of the public surface. Quoted from <code>core:os</code>'s Linux pipe file:</p>
+        <pre><code class="language-odin line-numbers">#+private
+package os
+
+import "core:sys/linux"
+</code></pre>
+        <p>Read the second one carefully, because it shows the intent. That file implements part of <code>os</code> for Linux and offers nothing new to the outside world — so the whole file is marked private, and the package's public face stays exactly as documented.</p>
+        <p>The judgement to apply is the same one you would apply anywhere: <em>would a caller want this?</em> If the answer is no, mark it, and the compiler will stop anyone outside the package from reaching it — including your future self, who will otherwise be tempted.</p>
+
+        <h2 id="projects">Organising a Project</h2>
+        <p>Because a folder is a package, project structure in Odin is a folder tree and nothing else.</p>
+
+        <h3 id="layout">A Folder Layout That Works</h3>
+        <pre><code class="language-text line-numbers">my_project/
+├── main.odin          package main      — the entry point
+├── game.odin          package main      — same folder, same package
+├── maths/
+│   └── vector.odin    package vector    — its own package
+└── io/
+    └── files.odin     package files
+</code></pre>
+        <p>Two files sitting side by side are one package, so <code>main.odin</code> can call anything in <code>game.odin</code> without an import. The subfolders are separate packages, and you reach them by path — a subfolder of your project is simply an import without a collection prefix:</p>
+        <pre><code class="language-odin line-numbers">import "maths"            // the folder next to this file
+import "maths/vector"     // a package nested inside it
+</code></pre>
+        <p>The entry point is the procedure named <code>main</code>, in whichever package you build. The folder holding it is conventionally called <code>main</code> too, but the package name is your choice — Odin's own beginner example calls it <code>basics</code> and runs it perfectly well with <code>odin run .</code>.</p>
+
+        <h3 id="no-manager">No Package Manager</h3>
+        <p>Odin ships no package manager, and there is nothing to install before you begin: the standard library arrives with the compiler, third-party bindings come in the <code>vendor:</code> collection, and anything else is a folder you place in your project and import by path.</p>
+        <p>The practical consequence is worth internalising, because it is unusual these days. <em>A project's dependencies are visible in the file tree.</em> Open the folder and you can see everything the program is built from — no lock file to read, no manifest to interpret, and no resolved dependency tree that exists only in a tool's cache.</p>
+
+        <h2 id="using-imports">Using What You Import</h2>
+        <p>Two small habits complete the picture.</p>
+
+        <h3 id="qualify">Qualified Names</h3>
+        <p>An import brings the package's name into scope, and everything inside it is reached through that name. Here is a real sequence from the examples repository:</p>
+        <pre><code class="language-odin line-numbers">import "core:strings"
+
+builder := strings.builder_make()
+defer strings.builder_destroy(&amp;builder)
+
+strings.write_string(&amp;builder, "Edit me!")
+text := strings.to_string(builder)
+</code></pre>
+        <p>Notice what is absent: no unqualified names, no "bring these symbols into my scope" form, and no doubt about where <code>builder_make</code> came from. The package name is part of every call — which is precisely why Odin's packages are named briefly, and why an alias is the remedy when a name is long.</p>
+
+        <h3 id="unused">Unused Imports and the <code>_</code> Idiom</h3>
+        <p>Odin will not let an import sit unused: if you import a package, you refer to it. Occasionally a package is needed for its side effects rather than for its names, and then the discard from the loops lesson does the job. Quoted from the standard library, which imports three foundation packages and then accounts for each one:</p>
+        <pre><code class="language-odin line-numbers">import "base:intrinsics"
+
+// Needed for side effects rather than by name, so discarded explicitly.
+_ :: intrinsics
+</code></pre>
+        <p>It reads oddly the first time — and then it clicks, because it is the same <code>_</code> you met in <code>q, _ := divmod(17, 5)</code>: "<em>this exists, and I am deliberately not using it by name</em>". The language asks for everything to be accounted for, and the discard is how you answer.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>Phase 5 is complete: failure is explicit, one procedure serves many types, the build answers questions, and code has a home. Phase 6 turns outward — calling C libraries, using threads, and testing what you have written.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li>A package is a folder. Every file names its package, and package names are unique project-wide.</li>
+          <li>Files in one folder share a scope, so they need no imports between them. Imports are for other packages.</li>
+          <li>Three collections ship with the compiler: <code>core:</code> for the standard library, <code>base:</code> for the foundation, <code>vendor:</code> for third-party bindings.</li>
+          <li>The name you type afterwards is the last segment of the import path — not the name in the <code>package</code> line.</li>
+          <li>An alias is written before the path: <code>import rl "vendor:raylib"</code>.</li>
+          <li>Everything is visible by default; <code>@(private)</code> hides one declaration and <code>#+private</code> hides a whole file.</li>
+          <li>There is no package manager, and dependencies are visible in the file tree.</li>
+          <li>Names are qualified at every call site, and an unused import is accounted for with <code>_ :: package</code>.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Phase 5 complete.</strong> A good exercise: turn the example above into a project of your own. Put the entry point in one file, a helper in a second file of the same folder, and a small maths package in a subfolder. Import the subfolder from the entry point, mark one declaration <code>@(private)</code>, and run it with <code>odin run .</code>. You will have used every idea on this page, and the folder tree will explain itself.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/ffi.html">Foreign Interface (C Interop)</a> — the beginning of Phase 6 →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'packages',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

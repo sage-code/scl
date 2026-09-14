@@ -1,0 +1,342 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Odin control flow for beginners: if, else, conditions with an initialiser, compile-time when, and switch with multiple values, fallthrough and #partial.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, control flow, if, else, when, switch, compile time, fallthrough, partial switch">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Control Flow: if, when &amp; switch</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-control">Control Flow: if, when &amp; switch</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Until now our programs have run straight down the page. This lesson is about <em>choosing</em>: running one block instead of another, and — Odin's own twist — making some of those choices while the program is still being compiled, so they cost nothing at all at runtime.
+        </div>
+
+        <p>Three tools do all the work: <code>if</code> decides at runtime, <code>switch</code> decides between many possibilities at runtime, and <code>when</code> decides at compile time. Once you know all three, you have everything you need to express any branch in a program.</p>
+
+        <h2 id="decision">Making Decisions</h2>
+        <p>A computer does exactly what it is told, in the order it is told. Everything that looks like judgement — reacting to input, handling an error, choosing a different layout — is code that <em>chose</em> a path. Let us look at what that choice costs and how it is written.</p>
+
+        <h3 id="why">A Program That Chooses</h3>
+        <p>The idea is simple enough to state in one sentence: evaluate a condition, and if it is true, run the block. The subtlety is <em>when</em> the condition can be evaluated — and that is where Odin's compile-time branch comes in.</p>
+
+        <h3 id="anatomy">The Anatomy of an if</h3>
+        <p>An <code>if</code> statement has three parts: the keyword, a condition that must produce a <code>bool</code>, and a block of statements in braces.</p>
+        <pre><code class="language-odin line-numbers">temperature := 31.5
+
+// The condition sits between `if` and the opening brace.
+// The block runs only when the condition is true.
+if temperature &gt; 30.0 {
+    fmt.println("it is hot today")
+}
+</code></pre>
+        <p>The braces are not optional, even for a single statement. That is a deliberate choice: in languages where they can be omitted, a stray edit has changed the meaning of code more times than anyone can count.</p>
+
+        <h2 id="if">The if Statement</h2>
+        <p>Most decisions in a program are yes-or-no questions asked while it runs. Odin's <code>if</code> is deliberately plain, with one small feature that keeps related code together.</p>
+
+        <h3 id="else">else and else if</h3>
+        <p>Add <code>else</code> to run a different block when the condition is false, and <code>else if</code> to test another condition instead of nesting deeper and deeper. The chain is read from the top, and the <strong>first</strong> match wins:</p>
+        <pre><code class="language-odin line-numbers">score := 72
+
+if score &gt;= 90 {
+    fmt.println("excellent")
+} else if score &gt;= 70 {
+    fmt.println("good")        // this one runs
+} else if score &gt;= 50 {
+    fmt.println("a pass")
+} else {
+    fmt.println("try again")
+}
+</code></pre>
+        <p>Because the first match wins, the order of the tests is part of the logic. Put <code>&gt;= 50</code> first in that chain and every score above fifty would print "a pass", including a ninety. Order branches from the most specific to the most general and the problem disappears.</p>
+
+        <h3 id="initializer">An Initialiser Inside the Condition</h3>
+        <p>Sometimes the value you want to test has to be <em>computed</em> first. Odin lets you put that statement inside the <code>if</code>, separated from the condition by a semicolon, and the names you declare live only inside the <code>if</code>/<code>else</code> structure:</p>
+        <pre><code class="language-odin line-numbers">stock: map[string]int
+
+// A map lookup produces two values: the value, and whether the key was found.
+// The lookup runs first; the condition then tests the second value.
+if count, ok := stock["apples"]; ok {
+    fmt.println("we have", count)
+} else {
+    fmt.println("no apples in stock")
+}
+
+// `count` and `ok` do not exist out here — they are scoped to the if.
+</code></pre>
+        <p>This pattern is worth adopting on purpose, because it removes a whole category of leak: a temporary value that was only meaningful for one decision cannot be used by mistake three lines later.</p>
+
+        <h3 id="no-truthy">Conditions Must Be Booleans</h3>
+        <p>Odin has no truthy values, so a condition must be an actual <code>bool</code>. The comparison is mandatory, and it documents the intent:</p>
+        <pre><code class="language-odin line-numbers">count := 0
+name  := ""
+
+// if count { ... }     // ERROR: an int is not a bool
+if count != 0 {
+    fmt.println("not empty")
+}
+
+// if name { ... }      // ERROR: nor is an empty string
+if len(name) == 0 {
+    fmt.println("no name yet")
+}
+</code></pre>
+        <p>Coming from a language where <code>0</code>, <code>""</code>, and <code>null</code> are all quietly false, the first week feels fussy. The payoff is that you never again have to remember <em>which</em> falsy values this codebase treats as false — because the author had to write it down.</p>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/decision-runtime-vs-compile-time.svg" width="600" class="img-fluid protect rounded shadow border" alt="Left: a runtime decision where a condition is evaluated as the program runs and one branch executes. Right: a compile-time when decision where the false branch is erased from the program entirely.">
+          <figcaption class="small text-secondary mt-2">The two kinds of decision in Odin. <code>if</code> and <code>switch</code> choose a branch while the program runs; <code>when</code> chooses while the compiler runs, so only one branch ever reaches the binary.</figcaption>
+        </figure>
+
+        <h2 id="when">Compile-Time Decisions: when</h2>
+        <p>Here is the idea that makes Odin feel different from most languages you may know. A <code>when</code> block looks like an <code>if</code>, but it is decided <em>while the program is being compiled</em>. The branch that does not apply is not skipped — it is never compiled at all.</p>
+
+        <h3 id="when-what">What when Does</h3>
+        <p>Odin defines several constants about the build itself, such as which operating system you are targeting. Plain <code>if</code> cannot use them meaningfully, because code for another platform might not even be legal to compile. <code>when</code> solves exactly that problem:</p>
+        <pre><code class="language-odin line-numbers">// Only ONE of these blocks is compiled into the program.
+when ODIN_OS == .Windows {
+    fmt.println("this build targets Windows")
+} else when ODIN_OS == .Linux {
+    fmt.println("this build targets Linux")
+} else {
+    fmt.println("some other platform")
+}
+</code></pre>
+        <p>Think about what that means for the final binary: the version you built on Windows contains no Linux code at all. No dead branch, no runtime test, no wasted bytes. It is the same mechanism Odin uses to keep a single codebase working across systems without littering it with platform puzzles.</p>
+
+        <h3 id="when-else">when, else when, else</h3>
+        <p>The structure mirrors <code>if</code>/<code>else if</code>/<code>else</code>, and for good reason — you already know how to read it. The difference is only <em>when</em> the tests happen:</p>
+        <ul>
+          <li><code>when</code> — tested by the compiler, this time.</li>
+          <li><code>else when</code> — tested only if the previous condition was false.</li>
+          <li><code>else</code> — the fallback, and it must be reachable from a compile-time decision you can actually evaluate.</li>
+        </ul>
+        <p>Everything inside a <code>when</code> condition must be known at compile time. You cannot test user input with it, and the compiler will tell you so — which is a kindness, because it means a mistyped condition can never silently become a runtime branch.</p>
+
+        <h3 id="when-expression">when as an Expression</h3>
+        <p><code>when</code> also works in the middle of an expression, in the form <em>value when condition else value</em>. Read it as a sentence: "this value when the condition holds, otherwise that one."</p>
+        <pre><code class="language-odin line-numbers">// The shape used by the standard library itself: pick a constant that
+// depends on how wide the machine's int is — decided when you compile.
+INT_MAX :: 9223372036854775807 when size_of(int) == 8 else 2147483647
+
+fmt.println(INT_MAX)   // 9223372036854775807 on a 64-bit machine
+</code></pre>
+        <p>This is the compile-time cousin of the ternary operator you may know from other languages, and it has the same pleasant property: the value is fixed before your program starts, so reading it costs nothing.</p>
+
+        <h2 id="switch">The switch Statement</h2>
+        <p>An <code>if</code>/<code>else if</code> chain compares one value against several possibilities. Odin, like most modern languages, gives that job its own statement — and then makes it safer than the C version you might be picturing.</p>
+
+        <h3 id="switch-basic">A Cleaner Ladder</h3>
+        <p><code>switch</code> takes a value and a list of <code>case</code> labels. The matching case runs, and <code>case:</code> with nothing after it is the catch-all:</p>
+        <pre><code class="language-odin line-numbers">day := 6
+
+switch day {
+case 1:
+    fmt.println("Monday")
+case 2:
+    fmt.println("Tuesday")
+case:
+    fmt.println("some other day")   // 6 lands here
+}
+</code></pre>
+        <p>Compared with the equivalent chain of <code>else if</code> lines, the switch version has less punctuation, no repeated subject, and the fallback is impossible to miss. When you find yourself comparing the same value three times or more, reach for <code>switch</code>.</p>
+
+        <h3 id="multi-value">Several Values, One Case</h3>
+        <p>A case can list as many values as you like, which collapses parallel branches into one readable line. And a case can be a <em>range</em>, which is exactly what you want for bands of values:</p>
+        <pre><code class="language-odin line-numbers">grade := 'B'
+
+switch grade {
+case 'A', 'B':
+    fmt.println("well done")      // 'B' lands here
+case 'C':
+    fmt.println("solid")
+case 'D', 'F':
+    fmt.println("needs work")
+case:
+    fmt.println("unknown grade")
+}
+
+score := 87
+
+// Ranges read beautifully for thresholds — no arithmetic in the condition.
+switch score {
+case 90..=100:
+    fmt.println("excellent")
+case 70..&lt;90:
+    fmt.println("good")           // 87 lands here
+case:
+    fmt.println("keep going")
+}
+</code></pre>
+        <p>Notice how the range version removes the arithmetic from the conditions. With an <code>else if</code> ladder you would be writing <code>score &gt;= 70 &amp;&amp; score &lt; 90</code> and silently hoping you got the boundaries right. The range states the band directly, so the boundary is visible, and off-by-one mistakes stop being possible.</p>
+
+        <h3 id="fallthrough">No Fallthrough by Default</h3>
+        <p>If you have written C, you are bracing for the missing <code>break</code>. There isn't one: in Odin, control never continues into the next case unless you ask it to, in writing.</p>
+        <pre><code class="language-odin line-numbers">day := 1
+
+switch day {
+case 1:
+    fmt.println("Monday")
+    fallthrough            // deliberately continue into the next case
+case 2:
+    fmt.println("Tuesday")
+case:
+    fmt.println("some other day")
+}
+</code></pre>
+        <p>Running that prints <em>Monday</em> and then <em>Tuesday</em>, because <code>fallthrough</code> is an explicit instruction. This is the kind of design decision Odin makes over and over: the behaviour people usually want is the default, and the unusual behaviour has to be spelled out where a reviewer will see it.</p>
+
+        <h3 id="partial">Exhaustive by Default: #partial</h3>
+        <p>When you switch on an enum, the compiler insists that every variant is handled. That sounds strict until you consider what it buys you:</p>
+        <pre><code class="language-odin line-numbers">Weather :: enum { Sunny, Rainy, Snowy }
+
+today: Weather = .Sunny
+
+// Every variant is handled. Now add a fourth variant to the enum, and
+// this switch stops compiling until you have thought about it.
+switch today {
+case .Sunny:
+    fmt.println("bring a hat")
+case .Rainy:
+    fmt.println("bring an umbrella")
+case .Snowy:
+    fmt.println("bring boots")
+}
+</code></pre>
+        <p>That is a checklist that maintains itself. Add <code>Foggy</code> to the enum in a year's time and the compiler walks you to every place in the codebase where a decision must now be made. In most languages that work is left to your memory and your tests.</p>
+        <p>Sometimes, though, ignoring most variants is genuinely correct. Then you say so out loud with <code>#partial</code>:</p>
+        <pre><code class="language-odin line-numbers">// #partial means: "I intend to handle only some of these cases."
+// Any variant not listed here quietly does nothing.
+#partial switch today {
+case .Sunny:
+    fmt.println("bring a hat")
+}
+</code></pre>
+        <p>Adding a catch-all <code>case:</code> also satisfies the compiler, which is why the two features can look redundant at first glance. The difference is intent: a catch-all says "everything else is handled the same way", while <code>#partial</code> says "everything else is none of my business". Choosing between them is a small design decision each time — and the compiler makes you make it.</p>
+
+        <h2 id="guard">Writing Readable Conditions</h2>
+        <p>Choosing a branch is easy; choosing <em>readably</em> is the part that separates code people enjoy from code people avoid. Two habits do most of the work.</p>
+
+        <h3 id="early-return">Guard Clauses and Early Returns</h3>
+        <p>Nesting is the enemy of clarity. Deeply indented code forces the reader to hold several conditions in their head at once. The fix is to deal with the refusals <em>first</em> and return, so the main path stays flat:</p>
+        <pre><code class="language-odin line-numbers">// Harder to read: the real decision is buried in two levels of nesting.
+check_access :: proc(age: int, tickets: int) -&gt; bool {
+    if age &gt;= 18 {
+        if tickets &gt; 0 {
+            return true
+        }
+    }
+    return false
+}
+</code></pre>
+        <pre><code class="language-odin line-numbers">// Easier to read: each refusal is named, and the happy path is last.
+check_access :: proc(age: int, tickets: int) -&gt; bool {
+    if age &lt; 18 {
+        return false        // too young — nothing else matters
+    }
+    if tickets &lt;= 0 {
+        return false        // no ticket — nothing else matters
+    }
+    return true             // by elimination, entry is allowed
+}
+</code></pre>
+        <p>Both functions behave identically. The second one, however, can be read top to bottom without holding anything in your head: by the time you reach the final line, every reason to refuse has already been ruled out. This pattern is called a <em>guard clause</em>, and you will see it constantly in Odin code — including in the standard library.</p>
+
+        <h3 id="choosing">Choosing the Right Tool</h3>
+        <p>Three tools, three jobs. When you are unsure which to reach for, ask what the <em>question</em> is and when its answer exists:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Your situation</th><th>Reach for</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>One yes/no test, decided while running</td><td><code>if</code></td><td>Simplest thing that expresses the choice</td></tr>
+            <tr><td>Several possibilities from the same value</td><td><code>switch</code></td><td>States the subject once; exhaustiveness is checked</td></tr>
+            <tr><td>Bands of values or a group of matching labels</td><td><code>switch</code> with ranges</td><td>Boundaries are visible instead of hidden in arithmetic</td></tr>
+            <tr><td>The answer is fixed before the program runs</td><td><code>when</code></td><td>The unused branch is never compiled</td></tr>
+            <tr><td>The answer decides which code even exists on this system</td><td><code>when</code></td><td>Platform-specific code cannot be an <code>if</code></td></tr>
+            <tr><td>A short value chosen between two options</td><td><code>value when cond else value</code></td><td>Reads as a sentence, costs nothing at runtime</td></tr>
+          </tbody>
+        </table>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Odin:</strong> the interesting question is rarely "which syntax is shorter?". It is "where should this decision live?" Decisions that can be made by the compiler should be, because a branch that does not exist cannot be wrong, cannot be slow, and cannot be forgotten.
+        </div>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>You can now choose between possibilities. The last piece of control flow is repeating something deliberately — which is what loops are for, and Odin's single loop keyword has a few pleasant surprises in it.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li><code>if</code> takes a condition that must be a <code>bool</code> — Odin has no truthy values.</li>
+          <li>An initialiser before the semicolon keeps a temporary value scoped to the <code>if</code> that needed it.</li>
+          <li>Order an <code>else if</code> chain from the most specific test to the most general, because the first match wins.</li>
+          <li><code>when</code> is decided while compiling: the losing branch never reaches the binary. It also works mid-expression as <em>value when condition else value</em>.</li>
+          <li><code>switch</code> compares one value against many: several labels per case, ranges, an optional catch-all <code>case:</code>, and no implicit fallthrough.</li>
+          <li>Switching on an enum is exhaustive by default — a self-maintaining checklist — unless you say <code>#partial</code>.</li>
+          <li>Guard clauses keep the happy path flat and the reasons for refusal explicit.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Well done.</strong> A small exercise that uses everything on this page: write a procedure that grades a score with a <code>switch</code> over ranges, then add a <code>when</code> expression that picks a label depending on whether this is a debug build, and print both. The whole page fits in ten lines of your own code.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/loops.html">Loops &amp; Iteration</a> →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'control',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

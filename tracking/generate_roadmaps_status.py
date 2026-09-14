@@ -37,9 +37,14 @@ NOTES = {
         "track-specific SVG diagrams. Primary dialect x86-64 with NASM; "
         "ARM64, RISC-V, and WebAssembly covered in the Flavors lesson."
     ),
-    "carbon": (
-        'Most topic pages are bare "Work In Progress" stubs; data/ has '
-        "sidebar JSONs but content is not written."
+    "odin": (
+        "Complete track: 8 phases / 24 rows — 21 lessons from overview through "
+        "testing, each with a 3-level hierarchical sidebar and its own SVG "
+        "diagram in roadmap/odin/img/ (21 diagrams); `demo_examples.html` "
+        "indexes 17 commented single-file demo programs; `samples.html` holds "
+        "3 study projects (linked list, generic stack with tests, CLI word "
+        "count); `references.html` closes the track with verified official "
+        "links. Replaced the retired Carbon track."
     ),
     "swift": (
         'All topic pages are "Work in progress!" / "Template page for '

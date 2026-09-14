@@ -1,0 +1,252 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta content="Odin C interop explained: the vendor library, foreign import and foreign blocks, core:c types, calling conventions, cstring across the boundary, and packed structs." name="description">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, ffi, c interop, foreign import, cstring, core:c, calling convention, bindings">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Foreign Interface (C Interop)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-ffi">Foreign Interface (C Interop)</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Phase 6 turns outward. Odin has a large standard library, but the world is full of C libraries — decades of code for graphics, audio, compression, networking, and everything else. Odin talks to them directly, and this lesson is how.
+        </div>
+
+        <p>Two paths lead to the same place. The easy path takes bindings the Odin team already maintains; the direct path declares the C function you want yourself. Most projects use the first and fall back to the second, so we will take them in that order.</p>
+
+        <h2 id="why">Why Interop Matters</h2>
+        <p>A language with no way out of itself makes you rewrite the world. Odin's answer is not a special "foreign" syntax layer but an ordinary part of the language: a procedure can be declared without a body, and the compiler leaves the call for the linker to resolve.</p>
+
+        <h3 id="vendored">The Easy Path: <code>vendor:</code></h3>
+        <p>You met the <code>vendor:</code> collection in the packages lesson: bindings maintained by the Odin team, shipped with the compiler. If the library you need is there, interop is one import line:</p>
+        <pre><code class="language-odin line-numbers">import "vendor:raylib"          // or, with a shorter name:
+import rl "vendor:raylib"
+
+rl.InitWindow(800, 200, "text field")
+defer rl.CloseWindow()
+</code></pre>
+        <p>Nothing in that code looks foreign at all — no pointer juggling, no manual string conversion, no ceremony. That is the point of the <code>vendor:</code> collection: somebody has already dealt with the boundary so you do not have to.</p>
+        <p>So the first question to ask of any C library is not "how do I bind this?" but "has this already been bound?" The answer is often yes, and the Odin website's package documentation lists what is available.</p>
+
+        <h3 id="when-foreign">The Direct Path: <code>foreign</code></h3>
+        <p>When no binding exists, you write the declarations yourself. Here is a real example, quoted from Odin's own runtime — it declares two Windows functions:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from Odin's runtime: link against a system library...
+foreign import kernel32 "system:Kernel32.lib"
+
+// ...and declare the procedures that live in it.
+@(default_calling_convention="system")
+foreign kernel32 {
+    GetConsoleOutputCP :: proc() -> u32 ---
+    SetConsoleOutputCP :: proc(codepage: u32) -> b32 ---
+}
+</code></pre>
+        <p>Three things to notice, and they are the whole of the mechanism. <code>foreign import</code> names a library to link against. The <code>foreign { }</code> block declares procedures inside it. And each procedure ends with <code>---</code> instead of a body, which is how Odin says "this one is not written here — the linker will find it".</p>
+        <p>The boundary is a place where two worlds meet, and each side has its own idea of what a string or an integer is. The diagram shows what has to be translated:</p>
+        <figure class="figure text-center">
+          <img src="/roadmap/odin/img/c-boundary.svg" alt="Diagram of the Odin-to-C boundary: Odin values on the left, C values on the right, with foreign import and a foreign block in the middle, and the conversions needed for strings, integers and structs" class="figure-img img-fluid rounded">
+          <figcaption class="figure-caption">The Odin side keeps its strings, slices and allocators; the C side receives pointers and fixed-width integers. The <code>foreign</code> block is the only place where the two languages meet, and the conversions happen on the Odin side of it.</figcaption>
+        </figure>
+
+        <h2 id="c-types">The C Types You Will Meet</h2>
+        <p>A C header says <code>int</code>, <code>long</code>, <code>size_t</code>. Odin cannot simply call those <code>int</code> and <code>long</code>, because Odin's own <code>int</code> is a platform-sized integer and it would be a lie to reuse the name for a C type whose width depends on the compiler and the platform. So Odin keeps C's types in their own package.</p>
+
+        <h3 id="core-c">The <code>core:c</code> Package</h3>
+        <p>Quoted from the package source, whose header comment states its job exactly: "Defines the basic types used by <code>C</code> programs for foreign function and data structure interop."</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core/c/c.odin — a selection of the definitions:
+package c
+
+char           :: builtin.u8  // assuming -funsigned-char
+
+schar          :: builtin.i8
+short          :: builtin.i16
+int            :: builtin.i32
+long           :: builtin.i32 when (ODIN_OS == .Windows || size_of(builtin.rawptr) == 4) else builtin.i64
+longlong       :: builtin.i64
+
+uchar          :: builtin.u8
+ushort         :: builtin.u16
+uint           :: builtin.u32
+ulong          :: builtin.u32 when (ODIN_OS == .Windows || size_of(builtin.rawptr) == 4) else builtin.u64
+ulonglong      :: builtin.u64
+
+size_t         :: builtin.uint
+ssize_t        :: builtin.int
+wchar_t        :: builtin.u16 when (ODIN_OS == .Windows) else builtin.u32
+</code></pre>
+        <p>Notice that the whole nation of compile-time technique you learned in Phase 5 shows up in a five-line type definition. C's <code>long</code> is 32 bits on Windows and 64 bits on 64-bit Unix, and Odin says so precisely: <code>i32 when (ODIN_OS == .Windows || size_of(rawptr) == 4) else i64</code>. The <code>when</code> expression chooses the definition per platform, so a binding written for <code>c.long</code> is correct everywhere without a single <code>#ifdef</code>.</p>
+
+
+
+        <h3 id="mapping">Reading the Table</h3>
+        <p>Four groups cover almost everything a header will hand you. First the plain integer and float types — <code>c.char</code>, <code>c.short</code>, <code>c.int</code>, <code>c.long</code>, <code>c.float</code>, <code>c.double</code> — whose widths follow the C compiler's rules, not Odin's.</p>
+        <p>Second, the fixed-width types that were added to C later and whose widths are guaranteed: <code>c.int32_t</code>, <code>c.uint64_t</code> and the rest. When a header offers you the choice, these are the ones to bind to, because their size cannot surprise you on another platform.</p>
+        <p>Third, the size-related types you will see in arguments and return values constantly: <code>size_t</code>, <code>ssize_t</code>, <code>intptr_t</code>, <code>uintptr_t</code> and <code>ptrdiff_t</code>.</p>
+        <table class="table table-dark table-striped table-hover">
+          <thead><tr><th>C spelling</th><th>Odin</th><th>Why you care</th></tr></thead>
+          <tbody>
+            <tr><td><code>char *</code>, a C string</td><td><code>cstring</code></td><td>NUL-terminated, no length — must be converted before Odin sees it</td></tr>
+            <tr><td><code>void *</code></td><td><code>rawptr</code></td><td>An untyped pointer; you must convert it to something typed to use it</td></tr>
+            <tr><td><code>size_t</code></td><td><code>c.size_t</code></td><td>Counts bytes; not the same as Odin's <code>int</code></td></tr>
+            <tr><td><code>NULL</code></td><td><code>c.NULL</code></td><td>Defined in the package as <code>rawptr(uintptr(0))</code></td></tr>
+            <tr><td>A struct you never inspect, like <code>FILE</code></td><td>An opaque struct</td><td>Declared with no fields, because you only ever pass it around</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="foreign">Declaring Foreign Procedures</h2>
+        <p>Now the mechanism in full. A foreign import and a foreign block are the two halves of every binding, and both are ordinary declarations with a keyword attached.</p>
+
+        <h3 id="import-block"><code>foreign import</code> and a <code>foreign</code> Block</h3>
+        <p>The import names the library; the block declares what lives inside it. Between them you have a complete binding. In the runtime example earlier the library was given as <code>"system:Kernel32.lib"</code> — the <code>system:</code> prefix means "a library the operating system already provides", so nothing needs to be bundled with your program. A plain name instead points at a library file to link against.</p>
+        <p>Inside the block, each procedure looks like an ordinary signature followed by <code>---</code>. Quoted from the language grammar, this is exactly what <code>---</code> is for — a procedure may have a body, or a dash:</p>
+        <pre><code class="language-text line-numbers">ProcBody = "---" | Block or Expression
+</code></pre>
+        <p>So a foreign procedure is not a special kind of declaration. It is an ordinary declaration whose body has been postponed to link time. That also means everything you know about parameters still applies: pass the C types from <code>core:c</code>, and the compiler will type-check every call site for you.</p>
+
+        <h3 id="conventions">Calling Conventions</h3>
+        <p>A calling convention is the agreement between caller and callee about where arguments go and who cleans up — registers in one order, stack in another, x86 versus ARM. Getting it wrong produces not a compile error but a crash or silent nonsense.</p>
+        <p>The runtime example sets a default for its whole block: <code>@(default_calling_convention="system")</code>, so every procedure in the block uses the platform's system convention. This is the pattern to copy when binding a system library. Note the word <em>default</em>: it can be overridden, and for that Odin has a calling convention that is part of the procedure's type, written between <code>proc</code> and its parameters. From the language's own bindings for time functions:</p>
+        <pre><code class="language-odin line-numbers">// A procedure whose convention is part of its type:
+time :: proc "c" (loc: ^LTime) -> time_t ---
+
+// And a contextless procedure: no implicit context is passed in.
+gmtime :: proc "contextless" (time: ^time_t) -> ^Tm ---
+</code></pre>
+        <p>The <code>"c"</code> convention is the one C libraries expect, and <code>"contextless"</code> is Odin's own convention for procedures that must not rely on the implicit context — you will see why that matters in the threading lesson.</p>
+        <div class="alert alert-info shadow-sm">
+          <strong>A rule of thumb for bindings:</strong> copy the convention from the header you are binding. If a function is a plain C function, it is <code>"c"</code>. If the block is a system library, set the default once for the whole block rather than repeating it on every declaration.
+        </div>
+        <h2 id="strings">Strings Across the Boundary</h2>
+        <p>Almost every interesting thing you pass to a C library is text, and text is where the two worlds disagree most.</p>
+
+        <h3 id="cstring"><code>cstring</code> and <code>string(cstr)</code></h3>
+        <p>An Odin <code>string</code> is a pointer <em>with</em> a length: it may contain zero bytes, and it knows where it ends without scanning. A C string is a pointer <em>without</em> a length: it runs until the first zero byte. Odin has a type for the C version, and it is called <code>cstring</code>.</p>
+        <p>The conversion from C to Odin is a plain conversion, which makes the important work visible: something has to count the bytes.</p>
+        <pre><code class="language-odin line-numbers">// Quoted in spirit from Odin's text editor example: the editor's own
+// string type is converted to a C string at the call site.
+if text.bytes != nil {
+    // A nil check first: a C string is a pointer, and this one may be nil.
+    cstr := string(text.bytes)
+    // `cstr` is now an ordinary Odin string, with a length.
+    fmt.println(cstr)
+}
+</code></pre>
+        <p>Converting the other way requires an allocation, because a C string must live in memory that C can read and that is NUL-terminated. Odin's <code>strings</code> package provides the helper, and — in the spirit of everything you learned in Phase 4 — it takes an allocator explicitly:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from Odin's text editor example: the temporary allocator is a
+// natural fit for a string that only needs to survive one call.
+cstr := strings.clone_to_cstring(text, context.temp_allocator)
+</code></pre>
+        <p>Read that line carefully, because it contains the entire discipline of interop in miniature. The allocator is named, so nobody has to guess where the memory came from. The temporary allocator is used, so the memory is freed automatically when the temporary region is cleaned up — no leak even if the C function throws the pointer away.</p>
+
+        <h3 id="alloc">Giving C a String That Outlives the Call</h3>
+        <p>The temporary allocator is the right answer when the C function only reads the string during the call — passing a filename, setting a window title, logging a message. It is the wrong answer when C keeps the pointer, because after the temporary region is cleaned the pointer dangles, and a dangling pointer on the C side is a bug that appears somewhere else entirely.</p>
+        <p>For those cases you allocate from a longer-lived allocator, keep the resulting pointer, and free it yourself when the C library tells you it is done with it. This is the same lifetime reasoning as Phase 4, only now the length of the lifetime is dictated by someone else's API documentation:</p>
+        <table class="table table-dark table-striped table-hover">
+          <thead><tr><th>What C does with the pointer</th><th>What you should pass</th></tr></thead>
+          <tbody>
+            <tr><td>Reads it during the call only</td><td>A clone on <code>context.temp_allocator</code> — freed for you</td></tr>
+            <tr><td>Stores it and reads it later</td><td>A clone on a long-lived allocator; free it when the library says it is finished</td></tr>
+            <tr><td>Owns and frees it itself</td><td>Read the library's documentation — ownership has to be spelled out on one side only</td></tr>
+          </tbody>
+        </table>
+
+
+        <h2 id="layout">Data Across the Boundary</h2>
+        <p>Functions are the easy part. Structs are where interop gets interesting, because a struct is nothing but a memory layout, and both sides must agree on it to the byte.</p>
+
+        <h3 id="packed">Structs That Must Match C</h3>
+        <p>When you mirror a C struct in Odin, you declare the fields in the same order with the same types from <code>core:c</code>, and the compiler lays them out with the same alignment rules a C compiler would. That works for ordinary structs. The trouble starts with a header that pads or packs its struct deliberately — a C compiler directive that changes the layout.</p>
+        <p>For those, Odin lets the struct carry its alignment explicitly, which is the same idea as the alignment control you met in Phase 3. The rule is to copy what the header says rather than guessing: if the C declaration rests on compiler-specific packing, the binding has to say so too, and a mismatch here shows up as a wrong value read from the middle of a struct rather than as a panic.</p>
+
+        <h3 id="opaque">Opaque Types: <code>FILE</code></h3>
+        <p>Plenty of C types are only ever handled through pointers; you never look inside them. The standard library gives the pattern a name and the short definition it deserves. Quoted from <code>core/c/c.odin</code>:</p>
+        <pre><code class="language-odin line-numbers">// An opaque C struct: the fields are a secret, and that is fine,
+// because you only ever pass a pointer to it around.
+FILE :: struct {}
+
+// A varargs parameter list for C functions, defined in terms of
+// an intrinsic rather than a type Odin could write itself.
+va_list :: intrinsics.c_va_list
+</code></pre>
+        <p>Two lessons in two lines. First, an empty struct is a legitimate declaration when you mean "there is a type here, but its contents are not mine to know". Second, the package reaches for <code>intrinsics</code> when the C feature has no equivalent Odin could express — that is what the <code>intrinsics</code> package is for, and it is a signal to read the source rather than the summary.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>The next lesson takes the program beyond a single thread of execution, and with it the context — the quiet companion of every procedure you have written so far — becomes something you must reason about explicitly. Interop and threading meet in exactly that place, which is why they are taught next to each other.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li>Check the <code>vendor:</code> collection before writing a line of binding code.</li>
+          <li><code>foreign import</code> names the library; <code>foreign { }</code> declares its procedures; <code>---</code> postpones the body to link time.</li>
+          <li>Use the types from <code>core:c</code>, and prefer the fixed-width ones when the header allows a choice.</li>
+          <li>The calling convention belongs to the procedure's type; system libraries set one default per block.</li>
+          <li>Convert <code>cstring</code> deliberately, and choose the allocator by asking how long C will keep the pointer.</li>
+          <li>Mirror structs exactly; an empty struct is how you declare a type whose inside is not your business.</li>
+        </ul>
+        <p>In the next lesson the program acquires more than one thread of execution — and the context you have been taking for granted since the very first lesson turns out to be a per-thread object with real consequences for your allocators.</p>
+
+        <nav class="d-flex justify-content-between mt-4">
+          <a class="btn btn-outline-secondary" href="/roadmap/odin/packages.html">&larr; Packages</a>
+          <a class="btn btn-outline-primary" href="/roadmap/odin/threads.html">Concurrency &amp; Threading &rarr;</a>
+        </nav>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'ffi',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
+
+

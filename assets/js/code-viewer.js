@@ -125,6 +125,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         'h': 'c',
         'rs': 'rust',   // Rust — grammar bundled in assets/prism.js
         'zig': 'zig',
+        // Odin — grammar bundled in assets/prism.js (see its download header)
+        'odin': 'odin',
         'cpp': 'cpp',
         'cc': 'cpp',
         'cxx': 'cpp',
