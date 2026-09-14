@@ -119,7 +119,7 @@
 <tbody>
 <tr>
 <td>!</td>
-<td>Logical NOT (unary prefix) | Range/set modifier in !. !! !&isin;</td>
+<td>Logical NOT (unary prefix) — Decision 12. Prefix-negates any relation operator: x !&isin; y &equiv; !(x &isin; y)</td>
 </tr>
 <tr>
 <td>?</td>
@@ -135,7 +135,7 @@
 </tr>
 <tr>
 <td>$</td>
-<td>System sigil | Las element in collection</td>
+<td>System sigil | Dynamic end anchor: index of the last element in a collection (1-based, Decision 1)</td>
 </tr>
 <tr>
 <td>&amp;</td>
@@ -217,8 +217,12 @@
 <td>Power symbol used with fractions or expressions</td>
 </tr>
 <tr>
-<td>√</td>
-<td>Radical: x√n is equivalent to x^(1/n)</td>
+<td>² &nbsp; ³ &nbsp; ⁿ</td>
+<td>Superscript power exponents: right-associative, bind tighter than radicals (D10)</td>
+</tr>
+<tr>
+<td>√ &nbsp; ²√ &nbsp; ³√ &nbsp; ⁿ√</td>
+<td>Radical (prefix, D10): &sup2;&radic;n is equivalent to n^(1/2), &sup3;&radic;n to n^(1/3). Power inside the operand resolves first, so &sup3;&radic; 2&sup3; = 2</td>
 </tr>
 <tr>
 <td>*</td>
@@ -273,19 +277,19 @@
 </tr>
 <tr>
 <td>..</td>
-<td>Define range/domain/slice (n..m) | [n..m]</td>
+<td>Range/domain/slice, both limits inclusive (n..m) | [n, m]</td>
 </tr>
 <tr>
-<td>.!</td>
-<td>Define range/domain with excluded limit (n.!m) | [n.!m]</td>
+<td>..&lt;</td>
+<td>Range with excluded upper limit (n..&lt;m) — left-inclusive, right-exclusive | [n, m)</td>
 </tr>
 <tr>
-<td>!.</td>
-<td>Define range/domain with excluded limit (n!.m) | [n.!m] </td>
+<td>&gt;..</td>
+<td>Range with excluded lower limit (n&gt;..m) — left-exclusive, right-inclusive | (n, m]</td>
 </tr>
 <tr>
-<td>!!</td>
-<td>Define range/domain with excluded limits: (n!!m) | [n.!m] </td>
+<td>&gt;..&lt;</td>
+<td>Range with both limits excluded (n&gt;..&lt;m) — fully exclusive | (n, m)</td>
 </tr>
 <tr>
 <td>-.</td>
@@ -474,6 +478,24 @@
  @a ¬ @b;  -- reference inequality: true when a and b are distinct allocations
  @a = 1;   -- always false: @a is a reference, 1 is a constant value
 </pre>
+
+<h2 id="deprecated-forms">Deprecated operator forms</h2>
+<p>Legacy spellings still lex but emit a non-fatal <code>E0010 DeprecatedSymbol</code>
+warning and map to their canonical equivalents (Decisions 12 &amp; 13):</p>
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Deprecated</th><th>Canonical</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>&ne;   &lt;&gt;   !=</td><td>&not;</td><td>value inequality (D12)</td></tr>
+<tr><td>==</td><td>=</td><td>value equality (D12)</td></tr>
+<tr><td>.!</td><td>..&lt;</td><td>range — exclude upper endpoint (D13)</td></tr>
+<tr><td>!.</td><td>&gt;..</td><td>range — exclude lower endpoint (D13)</td></tr>
+<tr><td>!!</td><td>&gt;..&lt;</td><td>range — fully exclusive (D13)</td></tr>
+<tr><td>(min..max : step)</td><td>(min..max)(step)</td><td>postfix step (D13)</td></tr>
+</tbody>
+</table>
+
 <h2 id="collection-operators">Collection operators</h2>
 <table class="table table-bordered table-striped">
 <thead>
@@ -726,6 +748,24 @@
 </table>
 
 <!-- work in progress-->
+<h2 id="diagnostics">Diagnostic error codes</h2>
+
+<p>Diagnostic codes raised by the <em>operators</em> module (<code>spec/01</code> §6):</p>
+<table class="table table-bordered table-striped table-sm">
+  <thead>
+    <tr><th>Code</th><th>Violation</th><th>Mitigation / diagnostic action</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>E0101</code></td><td><code>UTF8BomMarker</code>: Unexpected UTF-8 BOM marker at source start.</td><td>Strip the BOM from the source header.</td></tr>
+    <tr><td><code>E0102</code></td><td><code>UnterminatedBlockComment</code>: Block comment (<code>+-</code>) without a closing <code>-+</code>.</td><td>Ensure closing <code>-+</code> exists.</td></tr>
+    <tr><td><code>E0103</code></td><td><code>InvalidEscapeSequence</code>: Invalid escape sequence in a string literal.</td><td>Use valid <code>\n</code>, <code>\t</code>, <code>\uXXXX</code> escapes.</td></tr>
+    <tr><td><code>E0104</code></td><td><code>SingleLetterUppercaseIdentifier</code>: Single-letter uppercase variable identifier.</td><td>Use a lowercase start or a multi-letter type identifier.</td></tr>
+    <tr><td><code>E0105</code></td><td><code>UnterminatedStringOrMarkup</code>: Unterminated string literal or markup block.</td><td>Check closing quotes or the matching markup tag.</td></tr>
+    <tr><td><code>E0010</code></td><td><code>DeprecatedSymbol</code>/<code>DeprecatedKeyword</code>: Legacy form encountered: <code>repeat</code> (use <code>next</code>, D15); <code>&ne;</code>/<code>==</code>/<code>!=</code>/<code>&lt;&gt;</code> (use <code>&not;</code>/<code>=</code>/<code>&not;</code>, D12); <code>.!</code>/<code>!.</code>/<code>!!</code> range glyphs (use <code>..&lt;</code>/<code>&gt;..</code>/<code>&gt;..&lt;</code>, D13).</td><td>Replace with the canonical form; non-fatal until Phase 7.2 hardens to E0009.</td></tr>
+    <tr><td><code>E0011</code></td><td><code>DeprecatedSymbol</code> 'using': Legacy <code>using</code>/<code>using:</code> postfix on io_stmt or rule call (D6).</td><td>Use curried named-argument call form <code>(sep: ...)</code>; non-fatal until hardened to E0009.</td></tr>
+  </tbody>
+</table>
+
 <!-- Footer -->
 
 </div>

@@ -91,6 +91,15 @@ def check_html(path: Path) -> None:
             warn(f"{rel}: roadmap topic page should have at least one <h1> (found {h1_count})")
         if not H2_RE.search(text):
             warn(f"{rel}: roadmap topic page should contain at least one <h2>")
+        # Loader-driven topic pages must use the standard shell. Both the
+        # sidebar CSS and topic-loader.js target #study-sidebar by id, so a page
+        # whose sidebar wrapper lacks it renders a second, empty sidebar beside
+        # the heading -- a rendering bug rather than style debt.
+        if "topic-loader.js" in text:
+            if 'id="study-sidebar"' not in text:
+                warn(f"{rel}: topic page loads topic-loader.js but has no #study-sidebar container")
+            if "inject-layout.js" in text:
+                warn(f"{rel}: topic page uses assets/js/inject-layout.js; use the standard sage.js shell")
 
 
 def main() -> int:

@@ -1,0 +1,395 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Odin procedures explained: declaring procs, parameters with defaults, variadic arguments, multiple and named results, require_results, procedures as values, and procedure groups.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, procedures, proc, parameters, return values, variadic, procedure values, overloading">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Procedures &amp; Parameters</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-procedures">Procedures &amp; Parameters</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Phase 3 begins here, and it is a shift of direction: instead of using the pieces the language gave you, you start building your own. A <em>procedure</em> is the first of those pieces — a named block of work that takes input and hands back a result. Everything you write from now on is made of them.
+        </div>
+
+        <p>If you have written functions in any other language, most of this page will feel familiar. Two things in Odin are worth special attention: results can be several values at once with names, and procedures are ordinary values you can pass around — which is how Odin gets overloading without a special feature for it.</p>
+
+        <h2 id="why">Why Procedures</h2>
+        <p>A procedure exists to give a name to a piece of work. That sounds modest, and it is the single most powerful idea in programming: naming things is how we stop holding all the details in our head at the same time.</p>
+
+        <h3 id="shape">The Shape of a Procedure</h3>
+        <p>Every Odin procedure follows the same pattern: a name, the keyword <code>proc</code>, a parameter list, an optional result, and a body in braces. Here is the whole shape with the parts labelled:</p>
+        <pre><code class="language-odin line-numbers">//        name        parameters            results       body
+//         |              |                    |            |
+greet :: proc(name: string) -&gt; string {        // &lt;-- signature
+    return "Hellope, " + name                  // &lt;-- body
+}
+
+main :: proc() {
+    message := greet("Ada")
+    fmt.println(message)   // Hellope, Ada
+}
+</code></pre>
+        <p>Read the first line as a sentence: <em>"greet is a procedure that takes a string called name and produces a string."</em> Everything a caller needs to know is in that line — no hidden parameters, no implicit state, no surprises inside.</p>
+
+        <h3 id="naming">Naming and Reading</h3>
+        <p>Odin procedure names are <code>snake_case</code> and, by convention, begin with a verb when they do something. The name plus the signature should be enough to use the procedure without reading its body:</p>
+        <ul>
+          <li><code>parse_age(text: string) -&gt; (age: int, ok: bool)</code> — takes text, returns a number and whether it worked.</li>
+          <li><code>average(values: []f64) -&gt; f64</code> — takes a slice of numbers, returns one number.</li>
+          <li><code>is_empty(queue: []int) -&gt; bool</code> — a question, so the name starts with <code>is_</code> and the result is a <code>bool</code>.</li>
+        </ul>
+        <p>That last habit is worth adopting early: a procedure whose name is a question and whose result is a <code>bool</code> reads well at every call site, because <code>if is_empty(queue)</code> is a sentence.</p>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/procedure-anatomy.svg" width="600" class="img-fluid protect rounded shadow border" alt="The parts of an Odin procedure signature: name, parameters, and results, with the call and return flow between caller and body">
+          <figcaption class="small text-secondary mt-2">The signature is the contract: what goes in, what comes out. The body is an implementation detail that callers never need to read.</figcaption>
+        </figure>
+
+        <h2 id="parameters">Parameters</h2>
+        <p>Parameters are the inputs of a procedure. Odin's syntax for them has a small convenience that removes most of the repetition, and three features that are worth knowing by name.</p>
+
+        <h3 id="typed">One Type, Many Names</h3>
+        <p>Names that share a type are grouped together — exactly as they are in a variable declaration:</p>
+        <pre><code class="language-odin line-numbers">// `a, b: int` gives both parameters the same type.
+add :: proc(a, b: int) -&gt; int {
+    return a + b
+}
+
+fmt.println(add(2, 3))   // 5
+</code></pre>
+        <p>Writing <code>a: int, b: int</code> is also legal and means precisely the same thing; the grouped form is simply what Odin code looks like. Beyond a couple of parameters, grouping is the difference between a signature you can read at a glance and one you have to squint at.</p>
+
+        <h3 id="defaults">Default Values</h3>
+        <p>A parameter can carry a default, which lets callers leave it out when the common value is fine:</p>
+        <pre><code class="language-odin line-numbers">// The second parameter has a default, so callers may skip it.
+greet :: proc(name: string, greeting: string = "Hellope") -&gt; string {
+    return greeting + ", " + name
+}
+
+fmt.println(greet("Ada"))            // Hellope, Ada
+fmt.println(greet("Ada", "Hello"))   // Hello, Ada
+</code></pre>
+        <p>Defaults are best for small variations — a separator, a width, a greeting. If a choice genuinely matters to the caller, ask for it as a normal parameter and let them say what they mean; a default that nobody should ever override is just a constant in disguise.</p>
+
+        <h3 id="variadic">Variadic Parameters</h3>
+        <p>Put <code>..</code> before a parameter's type and it accepts <em>any number</em> of arguments, collected into a slice. Inside the procedure you cannot even tell the difference — it is a slice like any other, so every loop you learned in Phase 2 applies:</p>
+        <pre><code class="language-odin line-numbers">// `..int` collects every number after the label into a slice.
+total :: proc(label: string, numbers: ..int) -&gt; int {
+    sum := 0
+
+    for n in numbers {     // `numbers` is a slice of int
+        sum += n
+    }
+    return sum
+}
+
+fmt.println(total("small", 1, 2, 3))   // 6
+fmt.println(total("empty"))            // 0
+</code></pre>
+        <p>You have been using this feature since the first lesson: <code>fmt.println</code> is variadic, which is why it can take one value or twelve.</p>
+        <p>When the values already live in a slice, spread them into the call with <code>..</code> — the same operator you met in the range lesson:</p>
+        <pre><code class="language-odin line-numbers">values := []int{4, 5, 6}
+
+// `..` spreads the slice into individual arguments.
+fmt.println(total("from a slice", ..values[:]))   // 15
+</code></pre>
+
+        <h3 id="passing">Passing Data In: Value or Pointer</h3>
+        <p>By default a parameter is passed <strong>by value</strong>: the procedure receives its own copy, and nothing it does can change the caller's data. When a change <em>should</em> be visible outside, pass a pointer instead:</p>
+        <pre><code class="language-odin line-numbers">// By value: the parameter is a copy, so the caller is unaffected.
+shout_wrong :: proc(text: string) {
+    text = text + "!"       // only the local copy changes
+}
+
+// By pointer: ^string means "the address of a string".
+// The ^ inside the body dereferences it — it means "the value at that address".
+shout :: proc(text: ^string) {
+    text^ = text^ + "!"
+}
+
+main :: proc() {
+    word := "hello"
+
+    shout_wrong(word)
+    fmt.println(word)       // hello — untouched
+
+    shout(&amp;word)            // &amp; takes the address of `word`
+    fmt.println(word)       // hello! — changed by the procedure
+}
+</code></pre>
+        <p>Reach for a pointer in two situations: the procedure must report a change back through its parameters, or the value is large enough that copying it is a real cost. In every other case, pass by value — a procedure that cannot modify your data is a procedure that cannot surprise you.</p>
+
+        <h2 id="results">Returning Results</h2>
+        <p>Odin's result list is where the language quietly shows off. A procedure can hand back several values at once, which removes a whole category of awkward code you may have written in other languages.</p>
+
+        <h3 id="single">One Result</h3>
+        <p>The arrow introduces the result type. Nothing more is needed:</p>
+        <pre><code class="language-odin line-numbers">square :: proc(x: int) -&gt; int {
+    return x * x
+}
+
+fmt.println(square(7))   // 49
+</code></pre>
+        <p>A procedure that reports nothing simply omits the arrow — you have been writing one of those since the first lesson, because <code>main</code> has no results:</p>
+        <pre><code class="language-odin line-numbers">// No arrow: this procedure does something and reports nothing back.
+print_banner :: proc(title: string) {
+    fmt.println("=== " + title + " ===")
+}
+
+print_banner("Report")   // === Report ===
+</code></pre>
+
+        <h3 id="multiple">Several Results</h3>
+        <p>Wrap the results in parentheses and you can return more than one value. This is the idiomatic Odin answer to the question "what happened?" — no wrapper type, no output parameter, no global state:</p>
+        <pre><code class="language-odin line-numbers">// Two results, both named in the signature.
+divmod :: proc(a, b: int) -&gt; (quotient, remainder: int) {
+    return a / b, a % b
+}
+
+main :: proc() {
+    q, r := divmod(17, 5)
+    fmt.println(q, r)      // 3 2
+}
+</code></pre>
+        <p>Look closely at what that does for the caller: <code>divmod(17, 5)</code> cannot be misused into computing one half of an answer, because the two halves arrive together.</p>
+        <p>Very often the second result is a "did it work?" flag — you already met the pattern in the control-flow lesson:</p>
+        <pre><code class="language-odin line-numbers">// A lookup returns the value and whether it existed.
+if count, ok := stock["apples"]; ok {
+    fmt.println("we have", count)
+}
+</code></pre>
+        <p>We will formalise this properly in the errors lesson. For now, note the shape: <em>return the answer and how it went.</em> In Odin that is ordinary, expected, everyday code.</p>
+
+        <h3 id="named">Named Results</h3>
+        <p>Naming a result does more than document it. The name becomes an ordinary variable inside the body, already set to its zero value, and a bare <code>return</code> hands back whatever it currently holds:</p>
+        <pre><code class="language-odin line-numbers">divide :: proc(a, b: int) -&gt; (result: int, ok: bool) {
+    if b == 0 {
+        return          // a guard clause: returns 0, false — the zero values
+    }
+
+    result = a / b      // the named result is a normal variable
+    ok = true
+    return              // returns whatever result and ok hold now
+}
+
+fmt.println(divide(10, 2))   // 5 true
+fmt.println(divide(10, 0))   // 0 false
+</code></pre>
+        <p>This is where named results earn their keep. Two <code>int</code> results are impossible to tell apart at the call site, but <code>(result, ok)</code> explains itself. And the bare <code>return</code> after a guard clause is a tidy way to say "give the caller the zeros" — the same zero-value guarantee you met in the types lesson, now working in your favour.</p>
+
+        <h3 id="require-results">The require_results Attribute</h3>
+        <p>Some procedures are pointless to call if you throw the answer away. Odin lets the procedure say so, and then the compiler enforces it:</p>
+        <pre><code class="language-odin line-numbers">// @(require_results) makes it an error to call this and drop the results.
+@(require_results)
+parse_port :: proc(text: string) -&gt; (port: int, ok: bool) {
+    return 0, false
+}
+
+main :: proc() {
+    // The compiler would reject `parse_port("8080")` on its own line.
+    port, ok := parse_port("8080")
+
+    if ok {
+        fmt.println("listening on", port)
+    }
+}
+</code></pre>
+        <p>That attribute is a small act of API design: the author of the procedure knows that ignoring the result is almost always a bug, so they encode that knowledge into the signature instead of writing it in a comment that nobody reads.</p>
+
+        <h2 id="values">Procedures as Values</h2>
+        <p>In Odin a procedure is not merely a piece of syntax — it is a <em>value</em>, like a number or a string. That single fact gives the language most of the flexibility you might expect to need interfaces for.</p>
+
+        <h3 id="proc-value">Assigning a Procedure</h3>
+        <p>Because a procedure is a value, you can give it a second name simply by writing the name with no parentheses:</p>
+        <pre><code class="language-odin line-numbers">double :: proc(x: int) -&gt; int {
+    return x * 2
+}
+
+// No parentheses: we are naming the procedure itself, not calling it.
+twice :: double
+
+fmt.println(twice(21))   // 42
+</code></pre>
+        <p>And because it is a value, it can be a parameter — which is how you hand <em>behaviour</em> to a procedure, not just data:</p>
+        <pre><code class="language-odin line-numbers">// The second parameter is itself a procedure type: proc(int) -> int.
+apply :: proc(values: []int, transform: proc(int) -&gt; int) -&gt; int {
+    total := 0
+
+    for v in values {
+        total += transform(v)      // call the procedure we were handed
+    }
+    return total
+}
+
+values := []int{1, 2, 3}
+fmt.println(apply(values, double))   // 12
+</code></pre>
+        <p>Read the signature of <code>apply</code> again. "Give me some values and a way to transform one value." That is an extraordinarily useful shape, and it needed no new syntax: a procedure type is written <code>proc(...) -&gt; ...</code>, exactly like the procedures you have been declaring all along.</p>
+
+        <h3 id="proc-group">Explicit Overloading with Procedure Groups</h3>
+        <p>Odin does not silently pick between procedures with the same name — silent overload resolution makes call sites ambiguous to read. But sometimes one name <em>should</em> work for several types, and then you say so explicitly by listing the implementations:</p>
+        <pre><code class="language-odin line-numbers">// One implementation per concrete type.
+double_i32 :: proc(x: i32) -&gt; i32 { return x * 2 }
+double_f64 :: proc(x: f64) -&gt; f64 { return x * 2 }
+
+// A procedure GROUP: one name, several implementations.
+double :: proc{ double_i32, double_f64 }
+
+fmt.println(double(i32(21)))   // 42
+fmt.println(double(1.5))       // 3.0
+</code></pre>
+        <p>This is what "explicit procedure overloading" means in Odin: the name carries the list, the compiler chooses the one that fits the argument, and when nothing fits you get a clear error at the call site. Nothing is decided behind your back, and nothing converts silently to make a call work.</p>
+
+        <h2 id="inside">Inside a Procedure</h2>
+        <p>Two last facts about procedures, one about where they can live and one about what they are not.</p>
+
+        <h3 id="nested">Nested Procedures</h3>
+        <p>A procedure can declare another procedure inside it. The inner one is visible only within the body that declares it, which is exactly right for a helper that exists for one caller:</p>
+        <pre><code class="language-odin line-numbers">classify :: proc(score: int) -&gt; string {
+    // Declared inside, so nothing outside can see or call it.
+    label :: proc(s: int) -&gt; string {
+        if s &gt;= 90 { return "excellent" }
+        if s &gt;= 70 { return "good" }
+        return "keep going"
+    }
+
+    return label(score)        // use it like any other procedure
+}
+
+fmt.println(classify(72))      // good
+</code></pre>
+        <p>Nesting like this is a form of documentation. When a helper has exactly one caller, moving it inside that caller's body says so, and removes a name from the rest of the file.</p>
+
+        <h3 id="no-methods">No Methods, No Self</h3>
+        <p>Odin has no methods. A procedure that works on one of your types simply takes that type as a parameter — you met this on the very first page of the track:</p>
+        <pre><code class="language-odin line-numbers">import "core:math"
+
+Vector2 :: struct { x, y: f32 }
+
+// Not a method: a procedure that takes the data as its first parameter.
+length :: proc(v: Vector2) -&gt; f32 {
+    return math.sqrt(v.x*v.x + v.y*v.y)
+}
+
+main :: proc() {
+    v := Vector2{3, 4}
+    fmt.println(length(v))     // 5
+}
+</code></pre>
+        <p>The consequence is worth holding on to: nothing is attached to the type. There is no hidden table of functions, no inheritance chain, and no ambiguity about which procedure a call site runs — it is named right there.</p>
+        <p>By convention the data comes first, so <code>length(v)</code> reads almost like the method you might have written in another language. It is two characters away from <code>v.length()</code>, and considerably more honest about what happens.</p>
+
+        <h2 id="design">Designing Good Procedures</h2>
+        <p>A signature is a tiny interface between two parts of your own program. Two principles keep those interfaces pleasant to use.</p>
+
+        <h3 id="small">One Job Per Procedure</h3>
+        <p>A procedure should do one thing, and its name should say which thing. If you cannot name it without the word "and", it is really two procedures wearing one hat — and it will be hard to test, hard to reuse, and hard to read. A well-shaped one tells you everything without its body:</p>
+        <pre><code class="language-odin line-numbers">// Three numbers in, one number out, no surprises.
+clamp :: proc(value, low, high: int) -&gt; int {
+    if value &lt; low  { return low }
+    if value &gt; high { return high }
+    return value
+}
+
+fmt.println(clamp(15, 0, 10))   // 10
+fmt.println(clamp(4, 0, 10))    // 4
+</code></pre>
+        <p>You could write that inline every time you needed it, and after the third copy you would have three chances to get the boundaries wrong. Naming it once is cheaper.</p>
+
+        <h3 id="guard-again">Fail Early, Return Early</h3>
+        <p>Guard clauses matter most inside procedures, because a procedure has a contract to keep. Check every reason to refuse <em>before</em> you do any work, and the work below can assume a good input:</p>
+        <pre><code class="language-odin line-numbers">// Refuse the cases you cannot handle, then do the real work in peace.
+parse_positive :: proc(text: string) -&gt; (value: int, ok: bool) {
+    if len(text) == 0 {
+        return 0, false        // empty input: refuse, and say so
+    }
+
+    // (Turning text into a number properly comes later in the track.
+    //  The lesson here is the ORDER of the checks, not the parsing.)
+    value = len(text)          // stand-in work, so the shape is complete
+    ok = true
+    return
+}
+</code></pre>
+        <p>Notice how the two named results make the refusals honest. The caller gets a definite answer either way — a value and a flag — so there is no ambiguous state to reason about, and no error path that quietly forgets to set something.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>You can now build behaviour. The next lesson is about building <em>data</em>: grouping related values into your own named types with <code>struct</code>, naming sets of options with <code>enum</code>, and combining several possibilities with <code>union</code>.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li>A procedure is <code>name :: proc(parameters) -&gt; results</code>, and its signature is a contract the body must keep.</li>
+          <li>Names sharing a type are grouped: <code>proc(a, b: int)</code>.</li>
+          <li>Parameters can have defaults, and a <code>..</code> parameter collects any number of arguments into a slice.</li>
+          <li>Parameters are passed by value unless you ask for a pointer with <code>^T</code>, which is what lets a change travel back to the caller.</li>
+          <li>Results can be several and named; a bare <code>return</code> hands back whatever the named results hold.</li>
+          <li><code>@(require_results)</code> makes dropping a result a compile error.</li>
+          <li>Procedures are values: you can rename them, pass them, and collect several implementations under one name with a procedure group.</li>
+          <li>Numbers add up: procedures can nest, and there are no methods — the data comes first by convention.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Well done.</strong> A good exercise: write <code>divmod</code> yourself, but with named results and a guard clause that refuses a zero divisor. Then rename it with a plain assignment and pass it to <code>apply</code> from this page. You will have used most of the page in about fifteen lines.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/structs.html">Structs, Enums &amp; Unions</a> →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'procedures',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

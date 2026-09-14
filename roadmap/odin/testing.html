@@ -1,0 +1,292 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta content="Odin testing and tools explained: the @(test) attribute, core:testing expectations, running odin test, memory tracking and leaks, odinfmt, vet flags, and debugging with traps and cycle counters." name="description">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, testing, odin test, core:testing, expect_value, odinfmt, vet, debugging, debug_trap, cycle counter">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Testing, Formatting &amp; Debugging</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-testing">Testing, Formatting &amp; Debugging</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A program that works once is an anecdote. This lesson is about the tools that turn it into a claim you can repeat: tests the compiler itself collects, a runner that catches leaks while it runs them, a formatter that removes style arguments from your life, and the debugging aids for when the program misbehaves rather than merely disagreeing.
+        </div>
+
+        <p>The teaching becomes unusually direct here, because Odin's test runner is written in Odin, is documented in the same voice as the language, and is part of the standard library. Most of this lesson is quoted from that documentation — which is also the best argument for the design: nothing about testing in Odin needs a framework of its own.</p>
+
+        <h2 id="tests">A Test Is a Procedure</h2>
+        <p>Odin's testing documentation makes a claim that defines the whole approach. Quoted verbatim:</p>
+        <pre><code class="language-text line-numbers">In Odin, we run tests by using the `odin test` command to compile and run our
+test suites. An Odin test suite is no different from a regular Odin program,
+and a test itself is no different from an Odin procedure.
+</code></pre>
+        <p>That is not a slogan; it is the mechanism. There is no test class to inherit from, no assertion macro that rewrites your source, and no separate test language. There is an attribute, and there is a package.</p>
+
+        <h3 id="test-attr">The <code>@(test)</code> Attribute</h3>
+        <p>Quoted from the same page, this is a complete test file:</p>
+        <pre><code class="language-odin line-numbers">package tests
+
+import "core:testing"
+
+@(test)
+my_test :: proc(t: ^testing.T) {
+    // This tests succeeds by default.
+}
+</code></pre>
+        <p>And the rules that go with it, quoted verbatim:</p>
+        <pre><code class="language-text line-numbers">All individual tests require the `@(test)` attribute. This is how the compiler
+knows which ones to send to the test runner. They also must accept one and only
+one argument: `^testing.T`. It can be named anything you want it to be, but by
+convention, virtually every test uses `t`.
+
+`^testing.T` is a pointer to a special `struct` defined by the `core:testing`
+package.
+</code></pre>
+        <p>A test is an ordinary procedure, so it lives in your package and can call your package's unexported procedures — no test-only visibility tricks, because private in Odin is private to the package, and the test is in the package. The single argument is the test's own state: a pointer, because the runner updates it as expectations are checked. And since the compiler identifies tests by attribute rather than by file name or naming convention, you can put them beside the code they test, in the same package, without any build configuration at all.</p>
+
+        <h3 id="expect">Expectations</h3>
+        <p>An empty test proves nothing. The checking procedure is <code>testing.expect</code>, and the documentation describes it as "the heart of how tests are measured". Quoted verbatim:</p>
+        <pre><code class="language-odin line-numbers">@(test)
+my_test :: proc(t: ^testing.T) {
+    n := 2 + 2
+
+    // Check if `n` is the expected value of `4`.
+    // If not, fail the test with the provided message.
+    testing.expect(t, n == 4, "2 + 2 failed to equal 4.")
+}
+</code></pre>
+        <p>Three arguments, and the third is the one that makes failures readable later: a message you write for the person who will see the failure, which may well be you in six months. A good message states the expectation, not the symptom.</p>
+        <p>When a comparison has an expected value on one side, there is a procedure that says so and remembers both operands so the failure can report them. Quoted from the documentation's own example:</p>
+        <pre><code class="language-odin line-numbers">// Add up all the rune values in the string.
+my_very_simple_hash_function :: proc(str: string) -> (result: int) {
+    for r in str {
+        result += cast(int)r
+    }
+    return
+}
+
+@(test)
+my_test :: proc(t: ^testing.T) {
+    hash := my_very_simple_hash_function("hellope")
+    testing.expect_value(t, hash, 745)
+}
+</code></pre>
+        <p>Note the by-now-familiar machinery in the procedure under test: <code>for r in str</code> iterates the runes (Phase 2), the named result is assigned rather than returned explicitly (Phase 3), and <code>cast(int)r</code> converts each rune — the same conversion rule as always, written out in the open. The test then states the expected value, and <code>expect_value</code> has both numbers in hand if the expectation fails.</p>
+        <p>The documentation adds a note worth keeping in mind while writing tests:</p>
+        <pre><code class="language-text line-numbers">**Note:** A test can have multiple `expect`ations, not just one. You can use any
+combination of the procedures documented here.
+</code></pre>
+
+
+        <h2 id="running">Running the Tests</h2>
+        <p>You already met the command in the setup lesson: <code>odin test .</code>. What the runner does with your package is worth seeing in full, because several of its features are things you would otherwise build yourself.</p>
+        <p>Quoted verbatim from the documentation's feature list:</p>
+        <pre><code class="language-text line-numbers">- Multi-threaded by default.
+- Memory usage tracking: tests will report leaks and bad frees when complete.
+- Logging: each test is given a thread-safe logging interface.
+- Cancel early with `CTRL-C`.
+- Gracefully handles segmentation violations, asserts, and panics from within tests.
+- End-of-run summary with a listing of failed tests.
+- ANSI-colored animated progress report.
+- Test-wide per-run random seed.
+</code></pre>
+
+        <figure class="figure text-center">
+          <img src="/roadmap/odin/img/test-runner.svg" alt="Diagram: a package of procedures marked with the test attribute is compiled by odin test, executed by the multi-threaded runner in core:testing where each worker has its own logger and temporary allocator, and finally reported with passed, failed and memory results" class="figure-img img-fluid rounded">
+          <figcaption class="figure-caption">Your package on the left, the runner in the middle, the report on the right. The runner gives each worker its own logging interface and allocator, which is why it can track memory per test rather than per program.</figcaption>
+        </figure>
+
+        <h3 id="odin-test"><code>odin test</code></h3>
+        <p>Run it on the directory you are working in — <code>odin test .</code> — and the runner compiles the package, finds every procedure carrying the attribute, and runs them. Two of those features deserve a second look.</p>
+        <p>"Multi-threaded by default" connects straight to the previous lesson. Each test runs on a worker thread with its own context, which is precisely the context-per-thread rule you just learned. It also means tests must not depend on each other: any shared state they touch is shared across threads that run in an order you did not choose.</p>
+        <p>"Memory usage tracking" is the feature that makes Odin's runner more than a convenience. Because every allocation in Odin names an allocator, the runtime can see what a test allocated and what it freed — so a test that forgets to release something fails, even though its expectations were satisfied. The documentation is explicit that this is on by default and that you can turn it off with a compile-time option: <code>ODIN_TEST_TRACK_MEMORY=false</code>.</p>
+        <p>And "gracefully handles segmentation violations, asserts, and panics" means one broken test does not take the run with it: the failure is caught and attributed, and the remaining tests still execute. That is the same robustness from the errors lesson, applied to the test runner itself.</p>
+
+        <h3 id="all-packages">Several Packages at Once</h3>
+        <p>By default the runner tests the package you named and not the packages it imports. To run everything in a tree of subdirectories, the documentation gives the command and the idiom:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from the testing documentation: a top-level file that pulls in
+// the packages whose tests you want run.
+package tests
+
+@require import "foo"
+@require import "bar"
+@require import "gadgets"
+@require import "widgets"
+</code></pre>
+        <pre><code class="language-bash line-numbers">odin test tests/ -all-packages
+</code></pre>
+        <p>The <code>@require</code> and <code>-all-packages</code> pair is a small example of a larger idea: the compiler can be told to keep things it would otherwise discard. A normal import that is never used is an error in Odin, so the language provides an attribute for the case where the import <em>is</em> the point.</p>
+
+        <h3 id="options">Tuning the Runner</h3>
+        <p>Everything about the runner's behaviour is adjustable, and the documentation explains why the switches are compile-time constants rather than command-line flags:</p>
+        <pre><code class="language-text line-numbers">The test runner is written in Odin itself, so these are `#config` options, as
+opposed to regular flags.
+</code></pre>
+        <p>They are passed with <code>-define:</code>, exactly as in the compile-time lesson. Here are the ones you will reach for first, quoted from the documentation's list:</p>
+        <table class="table table-dark table-striped table-hover">
+          <thead><tr><th>Option</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>ODIN_TEST_THREADS=&lt;n&gt;</code></td><td>How many threads to use; <code>0</code> means one per core</td></tr>
+            <tr><td><code>ODIN_TEST_NAMES=&lt;...&gt;</code></td><td>Run only the tests you name</td></tr>
+            <tr><td><code>ODIN_TEST_TRACK_MEMORY=false</code></td><td>Turn memory tracking off</td></tr>
+            <tr><td><code>ODIN_TEST_RANDOM_SEED=&lt;n&gt;</code></td><td>Fix the per-run seed, to reproduce a failure that only happens on some runs</td></tr>
+            <tr><td><code>ODIN_TEST_FANCY=false</code></td><td>Plain output instead of the animated progress report</td></tr>
+            <tr><td><code>ODIN_TEST_SHORT_LOGS=true</code></td><td>Shorter log lines: no date, time, or emitting procedure</td></tr>
+          </tbody>
+        </table>
+        <p>The invocation, quoted from the documentation:</p>
+        <pre><code class="language-bash line-numbers">odin test . -define:ODIN_TEST_SHORT_LOGS=true
+</code></pre>
+        <p>That random seed is worth noticing. Because the runner hands every test a seed for the run, a test that involves randomly generated data is reproducible — when it fails, the failure comes with the seed that caused it, and you can ask for that seed again.</p>
+
+
+        <h2 id="diagnostics">When Something Fails</h2>
+        <p>A test suite is a conversation with your future self, and the failure message is the part of the conversation that matters most. Odin's messages are designed to be read in a terminal without further investigation.</p>
+
+        <h3 id="messages">Reading a Failure</h3>
+        <p>Quoted verbatim from the documentation, this is what a failed expectation prints — the example is the hash test from earlier, deliberately broken:</p>
+        <pre><code class="language-text line-numbers">[ERROR] --- [2024-06-10 17:45:38] [tests.odin:16:my_test()] expected 745, got 752
+</code></pre>
+        <p>Four pieces of information, and it is worth naming them, because each one answers a different question. <code>[ERROR]</code> is the severity, so it sorts among other messages. The timestamp tells you the run it belongs to. <code>[tests.odin:16:my_test()]</code> gives file, line, and procedure — the line being the one that holds the expectation, which is where you look first. And <code>expected 745, got 752</code> is the comparison itself, both numbers, because <code>expect_value</code> kept them.</p>
+        <p>The documentation recommends noticing the last part when writing tests, and it is the same advice as anywhere else in this tutorial: state the expectation in the message, because that is the sentence that has to make sense later:</p>
+        <pre><code class="language-text line-numbers">Check if `n` is the expected value of `4`.
+If not, fail the test with the provided message.
+</code></pre>
+
+        <h3 id="leaks">Leaks Are Failures Too</h3>
+        <p>Memory tracking deserves its own paragraph, because it changes what "the test passed" means. When it is on, the runner reports leaks and bad frees; the documentation lists it as a feature of the runner rather than of the tests, which is the important part — you do not have to opt in per test to get it.</p>
+        <p>This is also why the runner gives each test thread its own temporary allocator. A temporary allocator is reset wholesale, so allocations made through it disappear at the end of the test's life — while an allocation made through the general allocator and never freed remains visible to the tracker, exactly as it should.</p>
+        <p>To see every test's memory figures, rather than only the problems, the documentation offers <code>ODIN_TEST_ALWAYS_REPORT_MEMORY=true</code>: "By default, only issues with memory usage are reported, such as leaks or bad frees."</p>
+        <p>Two habits follow from this, and both come from Phase 4. When a procedure in your package takes an allocator, a test can hand it an allocator it controls and then check the accounting; and when a test creates something with <code>defer</code>, the deferral runs at the end of the test, before the tracker looks at the books.</p>
+
+
+        <h2 id="tools">The Other Tools</h2>
+        <p>Two smaller tools complete the daily loop, and both exist to remove a category of argument rather than a category of bug.</p>
+
+        <h3 id="odinfmt">Formatting Without Opinions</h3>
+        <p>You met <code>odinfmt</code> in the setup lesson: one community style, applied for you, configured by the three settings in <code>odinfmt.json</code> — line width, tabs, and tab width. Quoted from that lesson's habit list, the command is as short as it should be:</p>
+        <pre><code class="language-bash line-numbers">odinfmt -w main.odin
+</code></pre>
+        <p>Two consequences are worth spelling out for anyone arriving from a language with a formatter they configure extensively. First, style never appears in a code review, because no reviewer can disagree with a tool's output — the discussion moves to the code. Second, the standard library itself is written in that style, so reading Odin's source teaches the same conventions your editor produces, and the examples in this roadmap look like everything else you will read.</p>
+        <p>One thing <code>odinfmt</code> will not do is change meaning. Its job is presentation: where a line breaks, how indentation is written, how declarations line up. If a line needs rewriting to be clearer, that is your job, and no formatter will do it for you.</p>
+
+        <h3 id="vet">Checking Harder With the Vet Flags</h3>
+        <p><code>odin check .</code> type-checks a directory without producing an executable, which makes it the cheapest feedback in the toolchain. But the language deliberately permits some things a stricter reading would reject, and for those there is a family of extra diagnostics — flags whose names begin with <code>-vet</code>.</p>
+        <table class="table table-dark table-striped table-hover">
+          <thead><tr><th>Flag</th><th>What extra complaint it enables</th></tr></thead>
+          <tbody>
+            <tr><td><code>-vet</code></td><td>The whole set of extra warnings, not just the default ones</td></tr>
+            <tr><td><code>-vet-unused</code></td><td>Unused variables and imports, which Odin normally reports only when required</td></tr>
+            <tr><td><code>-vet-shadowing</code></td><td>A name that hides an outer declaration with the same name</td></tr>
+            <tr><td><code>-vet-using-stmt</code></td><td>A complaint about every <code>using</code> statement, for codebases that forbid them</td></tr>
+          </tbody>
+        </table>
+        <p>Turn <code>-vet</code> on continuously while learning, and consider making <code>-vet-shadowing</code> part of your normal build. Shadowing is the mistake this tutorial warned about when it introduced nested scopes and <code>using</code>: the code compiles, the meaning is not what the reader assumes, and nothing else will tell you.</p>
+        <p>The flag list is a moving target — new vet checks are added as the compiler grows — so treat <code>odin help build</code> as the authority for the version you have installed rather than any table, including this one.</p>
+
+
+        <h2 id="debugging">Debugging</h2>
+        <p>Tests catch what you expected to go wrong. A debugger catches what you did not. Odin sits comfortably in both worlds: it compiles to native code with debug information, so your usual debugger applies, and it also gives you two things of its own — traps and a cycle counter.</p>
+
+        <h3 id="print">Printing and Location</h3>
+        <p>The oldest debugging tool still works, and Odin's printing has one feature worth using properly from the start: <code>fmt.println</code> writes to standard output, and <code>fmt.eprintln</code> writes to standard error, so debug output does not contaminate the output you are piping somewhere else.</p>
+        <p>A <code>-debug</code> build is what makes the more useful tools available. Debug builds keep assertions active and carry the information the runtime uses to describe what went wrong, and Odin exposes the distinction to your own code as a compile-time constant. Quoted from <code>core/c/c.odin</code>, where the C macro that disables assertions is defined in terms of Odin's own switch:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core/c/c.odin: the C macro NDEBUG, which disables
+// assertions, is the negation of Odin's own debug constant.
+NDEBUG :: !ODIN_DEBUG
+</code></pre>
+        <p>That single line is a lesson in itself: a build mode is not a command-line detail that happens to exist — it is a compile-time constant, and therefore something your code can branch on with <code>when</code>, keeping expensive checks in debug builds and out of release builds.</p>
+
+        <h3 id="traps">Traps, Asserts and Cycle Counters</h3>
+        <p>When a program is in a state that should be impossible, the fastest way to find out how it got there is to stop and look. Odin gives you a trap for exactly that, defined in the runtime in terms of the intrinsic underneath:</p>
+        <pre><code class="language-odin line-numbers">// Quoted in form from base/runtime/core.odin: the named entry points
+// for stopping the program at a point you choose.
+trap        :: intrinsics.trap
+debug_trap  :: intrinsics.debug_trap
+</code></pre>
+        <p>Two names, two intentions. <code>trap</code> stops regardless of build mode — a hard stop that cannot be optimised away. <code>debug_trap</code> is the debugging breakpoint: a debugger attached to the process stops here, and without one it behaves like its ordinary counterpart. Choosing between them is a matter of whether the stop is permanent or merely convenient.</p>
+        <p>Both sit next to <code>assert</code>, which you have been using since Phase 2. The relationship is worth stating plainly: an assertion is a conditional trap with a message attached, compiled in or out according to the build. When an assertion's condition is false, you get the file and line for free — which is why <code>assert</code> beats a print statement whenever the question is "should this ever happen?"</p>
+        <p>For the opposite question — "why is this slow?" — the runtime offers a cycle counter. Quoted in form from the same file, it reads the processor's own clock, the finest measurement available on a machine:</p>
+        <pre><code class="language-odin line-numbers">// Quoted in form from base/runtime/core.odin:
+read_cycle_counter :: proc() -> i64
+</code></pre>
+        <p>Read it before and after a section of code, subtract, and you have a number of cycles — no profiler, no instrumentation, no build flags. It is a crude instrument and an excellent first measurement, and it pairs naturally with the data-oriented reasoning of Phase 4: measure what you changed, one change at a time.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>Phase 6 ends here, with a program that can call into C, run on several threads, prove itself with tests, and be investigated when it misbehaves. Phase 7 is where the language stops being described and starts being used: a page of runnable demonstrations, one per phase, and a gallery of larger sample programs to read.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li>A test is an ordinary procedure marked <code>@(test)</code> that takes exactly one <code>^testing.T</code>; <code>expect</code> and <code>expect_value</code> are the checks.</li>
+          <li><code>odin test .</code> compiles and runs your package's tests; the runner is multi-threaded, catches crashes, and tracks memory.</li>
+          <li>A leak is reported even when every expectation held, so writing tests means thinking about allocators as much as about values.</li>
+          <li>Runner behaviour is configured with <code>#config</code> options passed as <code>-define:</code>, including the thread count and the random seed.</li>
+          <li><code>odinfmt</code> makes style a non-topic; <code>-vet</code> makes the compiler stricter about shadowing and unused declarations.</li>
+          <li><code>assert</code>, <code>trap</code>, <code>debug_trap</code> and <code>read_cycle_counter</code> are the built-in instruments for state and for time.</li>
+        </ul>
+
+        <nav class="d-flex justify-content-between mt-4">
+          <a class="btn btn-outline-secondary" href="/roadmap/odin/threads.html">&larr; Concurrency &amp; Threading</a>
+          <a class="btn btn-outline-primary" href="/roadmap/odin/demo_examples.html">Demo Examples &rarr;</a>
+        </nav>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'testing',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

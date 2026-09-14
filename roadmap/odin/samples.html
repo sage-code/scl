@@ -1,0 +1,372 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta content="Odin study projects: a pointer-driven singly linked list, a generic stack with tests, and a command-line word counter that combine the whole track in three small programs." name="description">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, projects, linked list, generic stack, CLI tool, os.args, allocators">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Study Projects</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-samples">Odin Study Projects</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Three small programs that pull the track together: a pointer-driven linked list, a generic stack with tests, and a command-line word counter. Each is short enough to type out in one sitting, and each one combines two or three phases at once.
+        </div>
+
+        <p>Type them rather than copying them. A three-hundred-line program you have written yourself teaches more than a three-thousand-line program you have read, because every line you type was a decision you had to make. When a project works, break it on purpose and put it back together.</p>
+        <h2 id="linked-list">Singly Linked List</h2>
+        <p>The linked list is the classic exercise for pointers, and it stays classic because nothing about it is hidden: nodes are allocated one at a time, the chain exists only through <code>next</code> pointers, and releasing the structure means walking it in the right order. It also demonstrates the two-value result in the form that suits a list — "here is the value, and here is whether there was one".</p>
+
+        <h3 id="list-basics">Node, Allocator and Operations</h3>
+        <p>Two types carry the whole design. A <code>Node</code> holds a value and points forward; a <code>List</code> holds the head pointer and a count. The count is a convenience, and everything else is derived by walking.</p>
+        <pre><code class="language-odin line-numbers">package main
+
+import "core:fmt"
+
+// A node owns its value and points at the next node. That pointer is the only
+// link in the chain, which is what makes the structure growable.
+Node :: struct {
+	value: int,
+	next:  ^Node,
+}
+
+// A list is the head pointer plus a count. With no nodes, head is nil — so
+// "empty" and "points at nothing" are the same condition, and no separate flag
+// is needed.
+List :: struct {
+	head:  ^Node,
+	count: int,
+}
+
+// push adds a node at the front. The new node becomes the head, and its next
+// points at whatever was the head before — two assignments, and no shifting.
+push :: proc(list: ^List, value: int) {
+	node := new(Node)			// one node, from the context allocator
+	node.value = value
+	node.next = list.head
+	list.head = node
+	list.count += 1
+}
+
+// pop removes the front node and hands back its value. The second result says
+// whether there was anything to remove, which is how an empty list is handled
+// rather than crashed into.
+pop :: proc(list: ^List) -> (value: int, ok: bool) {
+	if list.head == nil {
+		return 0, false			// nothing to remove, and we say so
+	}
+
+	old := list.head			// remember the node before unlinking it
+	list.head = old.next		// the list now starts at the second node
+	list.count -= 1
+
+	value = old.value
+	free(old)					// the node is no longer reachable — release it
+	return value, true
+}
+</code></pre>
+        <p>Read <code>pop</code> twice, because the order of its three lines is the whole of manual memory management. Save the node, unlink it, release it. Releasing before unlinking would leave the list pointing at freed memory, and that mistake is exactly what this exercise exists to make you feel.</p>
+
+
+        <h3 id="list-walk">Traversing and Freeing</h3>
+        <p>Traversal and freeing have the same shape — follow the links — and both must respect the same rule: read what you need from the current node <em>before</em> moving on.</p>
+        <pre><code class="language-odin line-numbers">// walk visits every node and hands each value to a procedure. Passing the
+// action in as a parameter keeps traversal and use separate: the same walk
+// serves a printer, a sum, and a search.
+walk :: proc(list: ^List, visit: proc(value: int)) {
+	current := list.head
+	for current != nil {		// nil is the end of the chain
+		visit(current.value)
+		current = current.next
+	}
+}
+
+// destroy releases every node. The order is the important part: the link is
+// saved BEFORE the node is freed, because after `free` the node is gone and
+// its `next` field cannot be read any more.
+destroy :: proc(list: ^List) {
+	current := list.head
+	for current != nil {
+		next := current.next	// save the link first...
+		free(current)			// ...then release the node
+		current = next			// ...then continue from the saved link
+	}
+	list.head = nil				// the list is genuinely empty now
+	list.count = 0
+}
+
+main :: proc() {
+	list: List					// zero-valued: head is nil, count is 0
+	defer destroy(&amp;list)		// one release for the whole structure
+
+	for value in []int{3, 7, 11} {
+		push(&amp;list, value)
+	}
+	fmt.println("count after pushes:", list.count)		// 3
+
+	// Newest first, because push works at the front.
+	walk(&amp;list, proc(value: int) {
+		fmt.println("value:", value)					// 11, 7, 3
+	})
+
+	// Popping hands back the value and the fact that it existed.
+	top, ok := pop(&amp;list)
+	fmt.println("popped:", top, "ok:", ok)				// 11 true
+
+	// Keep popping until the list is empty — the classic loop for this shape.
+	for {
+		value, more := pop(&amp;list)
+		if !more {
+			break
+		}
+		fmt.println("draining:", value)
+	}
+	fmt.println("count after draining:", list.count)	// 0
+}
+</code></pre>
+        <p>Two things are worth noticing in <code>main</code>. The <code>defer destroy</code> is written on the line after the list is declared, so every exit path — including an early return you add tomorrow — releases the nodes. And the procedure literal passed to <code>walk</code> is an ordinary procedure, which is how a traversal stays reusable without a callback registry or an interface.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Where to take it next:</strong> give <code>push</code> a comparator and keep the list sorted, or make the node generic with <code>Node :: struct($T: typeid)</code> so the list can hold strings. Both changes are small, and both will make you think about ownership: whoever allocates a node is still the one who must free it.
+        </div>
+
+
+        <h2 id="generic-stack">Generic Stack With Tests</h2>
+        <p>The second project is a container you can reuse, which means two things at once: the type parameter that makes it work for any element type, and the tests that make it trustworthy. Odin supports both without leaving the language — <code>$T</code> for the parameter, <code>@(test)</code> for the checks.</p>
+
+        <h3 id="stack-impl">The Container</h3>
+        <p>A stack is a dynamic array plus a rule about which end you use. Because a dynamic array owns its memory, every stack needs a matching release.</p>
+        <pre><code class="language-odin line-numbers">package stack
+
+// The element type is a parameter, so the container does not care what it
+// holds. One source definition, one compiled version per element type used.
+Stack :: struct($T: typeid) {
+	items: [dynamic]T,
+}
+
+// push puts an item on top. The address of the stack is needed because
+// append may need to grow the backing array.
+push :: proc(s: ^Stack($T), item: T) {
+	append(&amp;s.items, item)
+}
+
+// pop removes the top item. Taking from an empty stack is a normal outcome,
+// not an error: the second result answers "was there anything?".
+pop :: proc(s: ^Stack($T)) -> (item: T, ok: bool) {
+	if len(s.items) == 0 {
+		return item, false		// `item` is the zero value of T; ok says it is not real
+	}
+	// pop on the dynamic array removes and returns its last element.
+	return pop(&amp;s.items), true
+}
+
+// peek looks at the top item without removing it.
+peek :: proc(s: ^Stack($T)) -> (item: T, ok: bool) {
+	if len(s.items) == 0 {
+		return item, false
+	}
+	return s.items[len(s.items)-1], true
+}
+
+// destroy releases the container's buffer. The caller allocated nothing
+// directly, and the caller still has to release it — the same rule as any
+// other owner.
+destroy :: proc(s: ^Stack($T)) {
+	delete(s.items)
+}
+</code></pre>
+        <p>Note the shape of the release rule here. Nobody called <code>new</code> or <code>make</code> in this file, and yet <code>destroy</code> exists and must be called — because <code>append</code> grew a buffer from the context allocator. Ownership is about who called the allocator, not about where the call appears.</p>
+
+        <h3 id="stack-tests">Tests That Keep It Honest</h3>
+        <p>The tests assert the three properties that make a stack a stack. They also demonstrate the detail that makes Odin's test runner more than a convenience: because memory is tracked, a test that forgets its <code>destroy</code> is reported even when every expectation held.</p>
+        <pre><code class="language-odin line-numbers">// A separate file in the SAME package. That is why the tests can call the
+// container's procedures directly, and why no import of the stack is needed.
+import "core:testing"
+
+@(test)
+stack_is_last_in_first_out :: proc(t: ^testing.T) {
+	s: Stack(int)
+	defer destroy(&amp;s)		// the test allocated, the test releases
+
+	push(&amp;s, 1)
+	push(&amp;s, 2)
+	push(&amp;s, 3)
+
+	// The most recent push must come back first — the defining property.
+	top, ok := pop(&amp;s)
+	testing.expect(t, ok, "a stack with three items must not be empty")
+	testing.expect_value(t, top, 3)
+	testing.expect_value(t, len(s.items), 2)
+}
+
+@(test)
+popping_an_empty_stack_is_reported :: proc(t: ^testing.T) {
+	s: Stack(string)
+	defer destroy(&amp;s)
+
+	// No pushes at all: an empty stack must answer, not crash.
+	value, ok := pop(&amp;s)
+
+	testing.expect(t, !ok, "an empty stack must report that there was nothing")
+	testing.expect_value(t, value, "")		// the zero value of string
+}
+
+@(test)
+peek_does_not_remove :: proc(t: ^testing.T) {
+	s: Stack(f64)
+	defer destroy(&amp;s)
+
+	push(&amp;s, 1.5)
+
+	// Looking and taking are different operations, and a test should show it.
+	_, found := peek(&amp;s)
+	testing.expect(t, found, "peek must find the item that was pushed")
+	testing.expect_value(t, len(s.items), 1)	// still there after peeking
+
+	_, taken := pop(&amp;s)
+	testing.expect(t, taken, "pop must find the same item")
+	testing.expect_value(t, len(s.items), 0)	// and now it is gone
+}
+</code></pre>
+        <p>Run these with <code>odin test .</code> from the folder holding the package. The run reports passes, failures, and any memory that was acquired and never released — so the three <code>defer destroy</code> lines above are not decoration: without them, three passing tests would be reported as leaking.</p>
+
+
+        <h2 id="cli-tool">Command-Line Word Count</h2>
+        <p>The third project turns the language outwards: it takes its input from the command line and reports on it. It is the smallest program on this page that you could genuinely keep and use, and it puts <code>os.args</code>, a map and a sort to work in about thirty lines.</p>
+
+        <h3 id="cli-args">Reading <code>os.args</code></h3>
+        <p>A program receives its arguments in <code>os.args</code>, with the program's own path at index 0. That first entry is why an argument count is never simply what the user typed — you have to remember to skip past yourself.</p>
+        <pre><code class="language-odin line-numbers">package main
+
+import "core:fmt"
+import "core:os"
+import "core:slice"
+
+main :: proc() {
+	// Index 0 is the program itself, so the words start at index 1.
+	// Slicing with [1:] gives "everything from here on", which is exactly the
+	// argument list and nothing else.
+	words := os.args[1:]
+
+	if len(words) == 0 {
+		// A usage message belongs on standard error, not on standard output:
+		// it is a complaint, and someone may be piping the real output onward.
+		fmt.eprintln("usage: wordcount &lt;word&gt; [word...]")
+		return
+	}
+
+	fmt.println("received", len(words), "word(s)")
+}
+</code></pre>
+        <p>Run it with arguments passed after the separator, so the compiler does not try to interpret them:</p>
+        <pre><code class="language-bash line-numbers">odin run wordcount.odin -file -- the quick brown fox the fox
+</code></pre>
+
+        <h3 id="cli-run">Tallying and Reporting</h3>
+        <p>The counting itself is the map idiom from Phase 3: an absent key reads as zero, so <code>counts[word] += 1</code> handles the first sighting without a special case.</p>
+        <pre><code class="language-odin line-numbers">	// The tally. A map owns memory, so it is made and released in the same
+	// breath — the habit from the allocators lesson.
+	counts := make(map[string]int)
+	defer delete(counts)
+
+	for word in words {
+		counts[word] += 1		// an absent key reads as zero, so this just works
+	}
+
+	// A map yields its entries in no particular order, so the keys are gathered
+	// and sorted before anything is printed. Predictable output is worth three
+	// extra lines.
+	keys := make([dynamic]string, 0, len(counts))
+	defer delete(keys)
+
+	for word, _ in counts {
+		append(&amp;keys, word)
+	}
+	slice.sort(keys[:])
+
+	// The report is one line per word, in the sorted order gathered above.
+	// printfln takes a format string and its values, which keeps the layout in
+	// one place instead of spread across separate write calls.
+	for word in keys {
+		fmt.printfln("%v : %v", word, counts[word])
+	}
+
+	// The summary line answers the question the tool exists for.
+	fmt.println("total words:", len(words), "distinct words:", len(keys))
+}
+</code></pre>
+        <p>Three habits from this project are worth carrying into everything you write from now on. The release is written next to the acquisition (<code>defer delete</code> under <code>make</code>). The error message goes to standard error, so a pipeline stays clean. And the output is sorted even though the map has no order, because a tool that prints the same input in different orders on different runs is a tool nobody can test.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Where to take it next:</strong> reading a file instead of arguments is the natural next step, and it is where the platform-facing side of <code>core:os</code> comes in. Once your program reads text from somewhere other than its command line, the tallying code above does not change at all — which is the point of keeping the counting and the input in separate places.
+        </div>
+
+        <h2 id="at-the-end">After the Three Projects</h2>
+        <p>You now have a container you wrote yourself, a structure built from raw pointers and freed by hand, and a small tool that talks to its caller. Between them they exercise every phase of this track: values and control flow, data shapes, manual memory, generic reuse, and the standard packages that do the boring work.</p>
+        <p>From here the useful move is not a fourth exercise but a real program — something you actually want. A program you have a reason to finish will teach you the standard library far faster than any list of features can, and the habits are already in place: name the allocator, release what you acquire, state your expectations in a test, and prefer the shape that makes the failure visible.</p>
+
+        <nav class="d-flex justify-content-between mt-4">
+          <a class="btn btn-outline-secondary" href="/roadmap/odin/demo_examples.html">&larr; Lab Examples</a>
+          <a class="btn btn-outline-primary" href="/roadmap/odin/references.html">References &amp; Tooling &rarr;</a>
+        </nav>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'samples',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
+

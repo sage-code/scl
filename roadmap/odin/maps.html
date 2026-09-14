@@ -1,0 +1,286 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Odin maps explained: making a map, setting and getting values, the two-value lookup and or_else, iterating keys and values, plus bit_set revisited as a set type.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, maps, hash map, lookup, or_else, keys, bit_set, sets, membership">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Maps &amp; bit_set Sets</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-maps">Maps &amp; bit_set Sets</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Arrays and slices answer the question "what is at position three?". The last container answers a different question: "what is stored under this <em>name</em>?". That is a map, and it closes out Phase 3 with the most useful lookup tool in the language.
+        </div>
+
+        <p>The second half of the lesson returns to <code>bit_set</code> — not as a set of flags this time, but as a genuine set type, and the cheapest one Odin has.</p>
+
+        <h2 id="maps">Maps</h2>
+        <p>A map stores values under keys. Where an array's index is a position you count, a map's key is something you <em>know</em>: a name, an identifier, a word.</p>
+
+        <h3 id="why">Looking Things Up by Name</h3>
+        <p>The contrast is easiest to see with a concrete question. Suppose you have heights, and you want the height of one particular person. With an array, the index is meaningless — you would have to remember that Ada is at position one:</p>
+        <pre><code class="language-odin line-numbers">// The index says nothing about who is where.
+heights := [3]int{170, 165, 180}
+fmt.println(heights[1])      // 165 — whose height is that?
+
+// A map removes the guessing: the key IS the person.
+tall := make(map[string]int)
+tall["ada"] = 170
+tall["bill"] = 165
+tall["cyra"] = 180
+
+fmt.println(tall["bill"])    // 165 — and the code says who
+</code></pre>
+        <p>That is the whole idea. A map is worth its cost the moment your identity for a thing is not its position.</p>
+
+        <h3 id="make">Making a Map</h3>
+        <p>The type is written <code>map[K]V</code> — keys of type K, values of type V. Like a dynamic array, a map must be <em>made</em> before it can hold anything, and it must be deleted when you are finished with it:</p>
+        <pre><code class="language-odin line-numbers">// Keys are strings, values are integers.
+ages := make(map[string]int)
+defer delete(ages)             // a map owns memory, so it must be freed
+
+fmt.println(len(ages))         // 0 — empty, and ready
+</code></pre>
+        <p>Why the <code>make</code>? Because a map has to acquire somewhere to put its entries. A map declared without <code>make</code> is empty and cannot be written to; reading from one is safe and simply finds nothing.</p>
+
+        <h3 id="set-get">Setting and Getting</h3>
+        <p>Writing into a map uses the same square brackets as an array, and reading uses them the same way:</p>
+        <pre><code class="language-odin line-numbers">ages := make(map[string]int)
+defer delete(ages)
+
+// Writing.
+ages["ada"]  = 36
+ages["bill"] = 44
+
+// Reading.
+fmt.println(ages["ada"])     // 36
+
+// A key that is NOT present gives the ZERO value — not an error.
+fmt.println(ages["grace"])   // 0
+</code></pre>
+        <p>That last line is both a convenience and a trap. A missing key does not fail; it hands you the zero value for the value type. So a 0 from <code>ages["grace"]</code> is indistinguishable from a stored age of zero — which matters the moment zero is a meaningful value in your data.</p>
+
+        <h3 id="ok-idiom">The Two-Value Lookup</h3>
+        <p>When the difference matters, ask for it. A lookup can produce two values: the value, and whether the key was there at all.</p>
+        <pre><code class="language-odin line-numbers">// The lookup produces the value AND whether the key was present.
+if age, ok := ages["grace"]; ok {
+    fmt.println("grace is", age)
+} else {
+    fmt.println("grace is not in the map")
+}
+</code></pre>
+        <p>You have met this shape twice already — in the <code>if</code> initialiser and in procedure results. It is the same idea a third time: an operation that can fail reports the failure as a value rather than by throwing you out of the code.</p>
+
+        <h3 id="or-else">The or_else Shorthand</h3>
+        <p>Very often you do not care whether the key was present — you simply want a usable value. <code>or_else</code> says that in one line:</p>
+        <pre><code class="language-odin line-numbers">// "The stored value if there is one, otherwise this default."
+age := ages["grace"] or_else 0
+
+fmt.println(age)          // 0 — the fallback, since grace is not in the map
+</code></pre>
+        <p>Choose between the two forms deliberately. Use <code>or_else</code> when absent and zero mean the same thing to your program; use the two-value form when the difference matters, because a fallback is exactly what hides that difference.</p>
+
+        <h3 id="keys">Keys, Values, and a Counting Idiom</h3>
+        <p>Keys must be a comparable type — strings and integers cover most uses — and values can be anything at all. Put those together and you get an idiom you will use constantly:</p>
+        <pre><code class="language-odin line-numbers">words := []string{"spam", "eggs", "spam"}
+
+tally := make(map[string]int)
+defer delete(tally)
+
+// An absent key reads as zero, so counting is a single line.
+for word in words {
+    tally[word] = tally[word] + 1
+}
+
+for word, count in tally {        // KEY first, then the value
+    fmt.printfln("%s: %d", word, count)
+}
+</code></pre>
+        <p>Two loops, two shapes: the first walks a slice and hands over values, the second walks the map and hands over the key first — exactly as the loops lesson described. And the counting line works because the missing-key rule, reading zero, is precisely what a counter wants on its first sight of a word.</p>
+
+        <h3 id="order">Map Order Is Not Yours to Assume</h3>
+        <p>One warning, repeated here because it bites people: the order in which a map yields its entries is unspecified. They arrive in whatever order the hash table happens to be in, and that can change as the map grows. When a predictable order matters, gather the keys, sort them, then present:</p>
+        <pre><code class="language-odin line-numbers">import "core:slice"
+
+keys := make([dynamic]string, 0, len(tally))
+defer delete(keys)
+
+for word, _ in tally {           // take both, keep the key, discard the value
+    append(&amp;keys, word)
+}
+
+slice.sort(keys[:])
+
+for word in keys {
+    fmt.printfln("%s: %d", word, tally[word])
+}
+</code></pre>
+        <p>A handful of extra lines buys a great deal of predictability, and this gather-sort-present recipe is worth recognising when you meet it in other people's code.</p>
+
+        <h3 id="cleanup">Maps and Lifetime</h3>
+        <p>Maps follow the ownership rules from the previous lesson, with one addition:</p>
+        <ul>
+          <li><code>make</code> acquires memory and <code>delete</code> releases it — write <code>defer delete(m)</code> immediately after the <code>make</code>, so no exit path can leak it.</li>
+          <li>A map is a <strong>reference</strong>, like a slice: handing it to a procedure hands over the same entries, not a copy.</li>
+          <li>Keys and values are stored in the map's own memory, so a large value type makes for a large map.</li>
+        </ul>
+        <pre><code class="language-odin line-numbers">// The map is a reference, so the caller sees the new entry.
+add_age :: proc(db: map[string]int, name: string, age: int) {
+    db[name] = age           // writes into the caller's map
+}
+
+main :: proc() {
+    ages := make(map[string]int)
+    defer delete(ages)
+
+    add_age(ages, "ada", 36)
+    fmt.println(ages["ada"])     // 36
+}
+</code></pre>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/map-lookup.svg" width="620" class="img-fluid protect rounded shadow border" alt="A map lookup: the key is hashed to find a bucket; if the key is present the stored value is returned with true, and if it is absent the zero value is returned with false">
+          <figcaption class="small text-secondary mt-2">One lookup, two possible answers. The second result of a map lookup is what lets you tell "the value is zero" apart from "there is no value".</figcaption>
+        </figure>
+
+        <h2 id="sets">bit_set as a Set</h2>
+        <p>The other half of this lesson returns to a type you met while modelling data: <code>bit_set</code>. Last time it held flags; this time, look at it as what it really is — a set.</p>
+
+        <h3 id="revisit">Flags You Already Met</h3>
+        <p>Recall the permissions from the structs lesson. Written out again, with the two operations you will use most:</p>
+        <pre><code class="language-odin line-numbers">Permission  :: enum { Read, Write, Execute }
+Permissions :: bit_set[Permission]
+
+readable: Permissions = { .Read, .Write }
+
+// Membership: is this member in the set? One test, no allocation.
+fmt.println(.Read in readable)        // true
+fmt.println(.Execute in readable)     // false
+
+// Union: this set, plus another member.
+all := readable + { .Execute }
+fmt.println(all)                      // Permissions{Read, Write, Execute}
+</code></pre>
+        <p>Seen as a data structure, that is a set: no order, no duplicates, and membership in constant time. And because a bit set is stored entirely <em>inside</em> the value — no pointer, no heap block — it never needs a <code>make</code> or a <code>delete</code>. That makes it the cheapest collection in the language by a wide margin.</p>
+        <p>Two more operations are worth knowing, because they turn the set into something you can walk like any other collection. <code>card</code> tells you how many members are in it, and a plain <code>for</code> loop visits them:</p>
+        <pre><code class="language-odin line-numbers">readable: Permissions = { .Read, .Write }
+
+fmt.println(card(readable))       // 2 — how many members are set
+
+// A set can be iterated: each step gives you one member.
+for p in readable {
+    fmt.println(p)                // Read, then Write
+}
+</code></pre>
+        <p>That last loop is the bridge between the two halves of this lesson: a set can be walked member by member, and the standard library uses exactly that to turn a set into a slice of its members when a plain list is what you need.</p>
+
+        <h3 id="set-ops">Union, and the Rest</h3>
+        <p>Two bit sets of the same type combine with the same <code>+</code>, because a set literal is already a set:</p>
+        <pre><code class="language-odin line-numbers">read_write: Permissions = { .Read, .Write }
+write_exec: Permissions = { .Write, .Execute }
+
+// Union: everything that is in either set. Duplicates collapse by nature —
+// a member is either present or not, so there is no "twice".
+everything := read_write + write_exec
+
+fmt.println(everything)     // Permissions{Read, Write, Execute}
+</code></pre>
+        <div class="alert alert-info shadow-sm">
+          <strong>And the other set operations?</strong> Intersection and difference are written with the bitwise operators from Phase 2 — <code>&amp;</code> and <code>&amp;~</code> — because underneath, a bit set <em>is</em> a bit pattern. The data-oriented lesson closes that loop: it shows the bits a set is stored in, and what the bitwise operators do to them, so the mapping is something you have seen rather than something you memorise.
+        </div>
+
+        <h3 id="bit-set-or-map">bit_set, or a Map?</h3>
+        <p>Both can answer "is this thing in the collection?", and choosing between them is a design question about your data:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Question</th><th><code>bit_set</code></th><th><code>map[K]V</code></th></tr>
+          </thead>
+          <tbody>
+            <tr><td>How many possible members?</td><td>Small and fixed — it must fit in a machine word or two</td><td>Any number, growing as needed</td></tr>
+            <tr><td>What can be a member?</td><td>One of a known set, usually an enum</td><td>Any comparable value</td></tr>
+            <tr><td>Memory</td><td>Inline in the value; nothing to free</td><td>Allocated; needs <code>make</code> and <code>delete</code></td></tr>
+            <tr><td>Membership test</td><td>A few machine instructions</td><td>Hash the key, then compare</td></tr>
+            <tr><td>Carries data per member?</td><td>No — only present or absent</td><td>Yes, that is the whole point</td></tr>
+          </tbody>
+        </table>
+        <p>The rule of thumb: if the members are named options from an enum and you only need to know "in or out", a bit set is both simpler and faster. If you need to associate data with each key, or the keys could be anything at all, you want a map.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>That completes Phase 3. You can now build your own procedures, describe your own data, and hold as many of anything as you need. Phase 4 turns to the subject Odin has the strongest opinions about — memory and the layout of data — and it is where the language starts to reward you for choosing carefully.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li>A map stores values under keys: <code>map[K]V</code>, created with <code>make</code> and released with <code>delete</code>.</li>
+          <li>Reading a key that is not there gives the <em>zero value</em>, so a lookup can also produce a second result saying whether the key was present.</li>
+          <li><code>or_else</code> supplies a fallback when absent and zero mean the same thing to you.</li>
+          <li>Counting occurrences is a one-liner, because an absent key reads as zero.</li>
+          <li>Map iteration order is not guaranteed — gather the keys, sort them, then present.</li>
+          <li>A map is a <em>reference</em>: handing it to a procedure hands over the same entries.</li>
+          <li><code>bit_set</code> is a set: no allocation, membership with <code>in</code>, union with <code>+</code>, and nothing to free.</li>
+          <li>Choose a bit set for a small fixed set of options; choose a map when the keys could be anything or you need data stored per key.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Phase 3 complete.</strong> You have now built every kind of thing a program is made of: procedures, structs, enums, sets, and the three containers. A good closing exercise: write a word-frequency counter over a slice of strings, print a sorted key list before presenting the results, and then ask yourself why a <code>bit_set</code> could not have done this job — it records only presence, never a count.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/pointers.html">Pointers &amp; Memory Addressing</a> — the beginning of Phase 4 →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'maps',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

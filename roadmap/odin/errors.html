@@ -1,0 +1,365 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Odin error handling explained: errors as values, the bool and union shapes, or_else, or_return with named results, defer for cleanup, and assert versus #assert.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, errors, or_return, or_else, defer, assert, error union, no exceptions">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Errors, defer &amp; or_return</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-errors">Errors, defer &amp; or_return</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          You have been handling failure since Phase 2 — every <code>if count, ok := stock[…]; ok</code> was an error check. This lesson makes that pattern explicit, shows the richer form the standard library uses, and covers the two pieces of Odin that make error handling tolerable in practice: <code>or_return</code> and <code>defer</code>.
+        </div>
+
+        <p>There is one idea underneath all of it, and it is the same idea as the very first page of this track: <strong>failure is a value</strong>. Nothing throws, nothing unwinds your stack behind your back, and a procedure that can fail says so in its signature.</p>
+
+        <h2 id="values">Errors Are Values</h2>
+        <p>Start with what that costs and what it buys, because the trade is the whole design.</p>
+
+        <h3 id="no-exceptions">No Exceptions, Again</h3>
+        <p>In a language with exceptions, any call on any line might jump somewhere else entirely, and you cannot tell which by reading the code. In Odin that possibility does not exist: a procedure returns, and what it returns is everything you need to know about how it went.</p>
+        <p>The cost is visible lines of checking. The benefit is that a function's control flow is exactly what you read — which is why Odin spends the rest of this lesson making those lines as cheap as it can.</p>
+
+        <h3 id="two-shapes">Two Shapes of Failure</h3>
+        <p>Odin code uses two shapes, and choosing between them is a small design decision you will make over and over:</p>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Shape</th><th>Signature</th><th>Use it when</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>The simple shape</td><td><code>(value, ok: bool)</code></td><td>There is one way to fail, or the caller does not care which way it was</td></tr>
+            <tr><td>The rich shape</td><td><code>(value, err: Error)</code></td><td>Several failures are possible and a caller might handle them differently</td></tr>
+          </tbody>
+        </table>
+        <p>Both put the answer in the results, where it cannot be missed. The difference is only how much you say about <em>what</em> went wrong.</p>
+
+        <figure class="my-4 text-center">
+          <img src="/roadmap/odin/img/error-flow.svg" width="620" class="img-fluid protect rounded shadow border" alt="A chain of calls where each procedure checks the value it receives, and or_return sends a failure straight back to the caller while the success path continues to the next step">
+          <figcaption class="small text-secondary mt-2">Failure travels backwards, one step at a time. <code>or_return</code> is the shorthand for "if this failed, hand it straight back to whoever called me".</figcaption>
+        </figure>
+
+        <h2 id="ok-bool">The Simple Shape: a Bool</h2>
+        <p>Most failures a beginner meets are of one kind only: the thing did not work. For those, one extra boolean is enough.</p>
+
+        <h3 id="ok-idiom">"And Whether It Worked"</h3>
+        <pre><code class="language-odin line-numbers">// The second result answers one question: did it work?
+parse_age :: proc(text: string) -&gt; (age: int, ok: bool) {
+    if len(text) == 0 {
+        return 0, false          // refuse, and say so
+    }
+    // (a real parser would live here)
+    return 42, true
+}
+
+main :: proc() {
+    age, ok := parse_age("42")
+
+    if !ok {
+        fmt.eprintln("that is not an age")
+        return
+    }
+    fmt.println("age:", age)     // 42
+}
+</code></pre>
+        <p>Notice that the result type does not hint at failure — nothing in <code>int</code> or <code>bool</code> says "these belong together". What makes the pattern work is that <code>age</code> alone is meaningless without <code>ok</code>, and the language gives you both in one statement.</p>
+        <p>If you have followed this track, you have written this shape four times already: in the <code>if</code> initialiser, in procedure results, in map lookups, and in union assertions. That repetition is not a coincidence — it is the house style, and once you notice it you will see it everywhere in the standard library.</p>
+
+        <h3 id="or-else">or_else — A Fallback in One Line</h3>
+        <p>Sometimes you do not care <em>whether</em> it worked; you just want a usable value. <code>or_else</code> says that in the call itself. Here it is on a map lookup and on a type assertion, both taken from Odin's own demo file:</p>
+        <pre><code class="language-odin line-numbers">// The fallback replaces a whole if-block: "the value if there is one,
+// otherwise 123".
+i := m["hellope"] or_else 123
+
+// The same operator works with type assertions, because they carry the
+// same "did it work?" semantics.
+i = v.(int) or_else 123
+</code></pre>
+        <p>Read it as a sentence and it needs no further explanation, which is the point of the operator's name.</p>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Use it deliberately.</strong> <code>or_else</code> is exactly right when "absent" and "the fallback" mean the same thing to your program — a default port, a missing configuration value, an empty list. It is exactly wrong when the difference matters, because a fallback is precisely what hides the difference. The test to apply is simple: <em>could I tell, afterwards, that the fallback was used?</em> If not, and you would want to know, use the two-value form.
+        </div>
+
+        <h2 id="unions">The Rich Shape: Error Unions</h2>
+        <p>"It did not work" is rarely enough in real software. A file can be missing, a network can time out, memory can run out, and a caller may well want to treat those differently. That needs a value that says <em>which</em> failure happened — and Odin's answer is a union.</p>
+
+        <h3 id="union-error">A Union of Possible Errors</h3>
+        <p>The standard library shows the pattern clearly. From <code>core:os</code>, quoted verbatim:</p>
+        <pre><code class="language-odin line-numbers">// The error KINDS are ordinary enums, exactly as you met them in the
+// structs lesson.
+General_Error :: enum u32 {
+    None,
+    Exist,
+    Not_Exist,
+    Timeout,
+    Broken_Pipe,
+    Invalid_Path,
+    // ...
+}
+
+// The error TYPE is a union of the kinds a caller might receive.
+Error :: union #shared_nil {
+    General_Error,
+    io.Error,
+    runtime.Allocator_Error,
+    Platform_Error,
+}
+
+#assert(size_of(Error) == size_of(u64))      // one machine word
+</code></pre>
+        <p>Three things are worth noticing here. The kinds are enums, so each is small and can be switched on. The error <em>type</em> is a union, so one value can carry any of them. And <code>#shared_nil</code> lets all the members share the <code>nil</code> state — which is how "there was no error at all" is represented.</p>
+
+        <h3 id="nil">The nil Error Means "Fine"</h3>
+        <p>Because the union has a shared empty state, one comparison covers every kind. Both lines below come from the same standard-library file:</p>
+        <pre><code class="language-odin line-numbers">// The check for "no error" is a comparison with nil.
+if ferr == nil {
+    return ""
+}
+
+// And the "no error" value is the union's zero value.
+ERROR_NONE :: Error{}
+</code></pre>
+        <p>Two ideas you already know, meeting again. The <code>nil</code> sentinel from the pointers lesson is doing the same job here: a single, obvious empty state. And <code>Error{}</code> is the zero-value guarantee from the types lesson — a union with nothing in it.</p>
+        <p>That is why procedures return <code>nil</code> when nothing went wrong, and why the first thing an error helper does is compare against nil. It costs one comparison and there is nothing subtle to get wrong.</p>
+
+        <h3 id="in-switch">Dispatching with <code>switch … in</code></h3>
+        <p>When you do want to know <em>which</em> error it was, the union can be asked. The form is <code>switch e in value</code>, and the example is once more the real helper from <code>core:os</code>:</p>
+        <pre><code class="language-odin line-numbers">// Ask the union which member it holds, then switch on the enum inside it.
+switch e in ferr {
+case General_Error:
+    switch e {
+    case .None:          return ""
+    case .Not_Exist:     return "file does not exist"
+    case .Timeout:       return "i/o timeout"
+    case .Broken_Pipe:   return "Broken pipe"
+    case .Invalid_Path:  return "invalid path"
+    // ...
+    }
+case io.Error:
+    switch e {
+    case .Permission_Denied: return "permission denied"
+    case .Closed:            return "file already closed"
+    // ...
+    }
+case runtime.Allocator_Error:
+    switch e {
+    case .Out_Of_Memory: return "out of memory"
+    // ...
+    }
+}
+</code></pre>
+        <p>Read the structure rather than the individual cases. The outer switch tells you which <em>kind</em> of error arrived; the inner switch tells you which case of that kind. Both levels are exhaustiveness-checked, so adding a new error variant turns into a compile error until you have dealt with it — the self-maintaining checklist from the enums lesson, now protecting your error handling.</p>
+        <p>A procedure that reports errors looks like this, condensed from the same family of standard-library code to the shape that matters:</p>
+        <pre><code class="language-odin line-numbers">Error_Kind :: enum { None, Invalid_Argument, Out_Of_Space }
+
+// The procedure returns what it produced, plus an error.
+read_bytes :: proc(count: int) -&gt; (data: []u8, err: Error_Kind) {
+    if count &lt;= 0 {
+        return nil, .Invalid_Argument      // a bare enum value is a valid error
+    }
+
+    // ... the real work ...
+
+    return data, nil                       // nil means "no error"
+}
+</code></pre>
+        <p>Both returns deserve a second look. On failure the value is left empty and the error says why; on success the error is <code>nil</code>. There is no third state — no way to hand back a value while claiming something failed, or to claim success with nothing in hand, because the caller receives both together in one statement.</p>
+
+        <h2 id="or-return">or_return</h2>
+        <p>Now the piece that makes error handling bearable in practice. Everything so far has been honest; this is where it becomes <em>short</em>.</p>
+
+        <h3 id="what-it-does">Passing a Failure Along</h3>
+        <p>Picture a procedure that calls several fallible steps, each of which should be handed back to the caller if it fails. Written out plainly, it looks like this — and this is the code the language is trying to save you from:</p>
+        <pre><code class="language-odin line-numbers">// Three invented helpers, shown for the shape of it.
+size, err := read_size(path)
+if err != nil {
+    return nil, err
+}
+
+data, err := read_data(size)
+if err != nil {
+    return nil, err
+}
+
+// ... and so on, three lines for every call ...
+</code></pre>
+        <p>Every one of those blocks says the same sentence: <em>if this failed, stop and pass the failure on</em>. Odin lets you say it inside the call, with <code>or_return</code>. The mechanism, quoted verbatim from Odin's own demo file:</p>
+        <pre><code class="language-text line-numbers">The concept of 'or_return' will work by popping off the end value in a
+multiple valued expression and checking whether it was not 'nil' or
+'false', and if so, set the end return value to value if possible.
+</code></pre>
+        <p>Three clauses, and each one matters. It looks at the <strong>last</strong> result of the call. It tests that result against nil or false. And when the test says "failure", it fills in the enclosing procedure's own error result and returns immediately.</p>
+        <p>Here is the operator in the standard library, quoted from <code>core:os</code>:</p>
+        <pre><code class="language-odin line-numbers">// Attempt each call, then or_return: on failure, hand it straight back.
+r = _new_file(uintptr(fds[0]), "", file_allocator()) or_return
+w = _new_file(uintptr(fds[1]), "", file_allocator()) or_return
+</code></pre>
+        <p>Read each of those lines as a sentence: <em>make a file; if that failed, return the failure to my caller; otherwise store it in <code>r</code> and carry on.</em> The check has not disappeared — it has moved into the call, where it cannot be forgotten, and it is now three words long.</p>
+
+        <h3 id="named-results">Why Named Results Are Required</h3>
+        <p>The demo's explanation continues with the rule that catches everyone the first time:</p>
+        <pre><code class="language-text line-numbers">If the procedure only has one return value, it will do a simple return.
+If the procedure had multiple return values, 'or_return' will require
+that all parameters be named so that the end value could be assigned to
+by name and then an empty return could be called.
+</code></pre>
+        <p>In plain words: when a procedure returns several values, those values need names before <code>or_return</code> can work. That is exactly the named-result syntax from the procedures lesson, and here it is earning its keep:</p>
+        <pre><code class="language-odin line-numbers">// (new_file is a stand-in for the real call, for the shape of it.)
+open_thing :: proc(name: string) -&gt; (file: ^File, err: Error) {
+    file = new_file(name) or_return
+
+    // ... more steps, each one checked by or_return ...
+
+    return          // a bare return hands back `file` and `err`
+}
+</code></pre>
+        <p>The last line is the second half of the rule. Once the results have names, a bare <code>return</code> sends back whatever they hold at that moment — the values produced by the successful calls, and <code>nil</code> for the error, because nothing ever assigned it.</p>
+
+        <h3 id="when-not">When Not to Use It</h3>
+        <p><code>or_return</code> is not always the right tool, and knowing when to skip it is part of using it well. Three situations call for the explicit version:</p>
+        <ul>
+          <li><strong>You want to handle the failure</strong>, not pass it on. Then check it and do something — fall back, retry, report.</li>
+          <li><strong>You want to change the error.</strong> Converting one kind into another, or adding context about what you were doing, means writing the return yourself. <code>or_return</code> passes the original along untouched.</li>
+          <li><strong>The error is not the last result.</strong> <code>or_return</code> always looks at the final value, so a different ordering of results needs an explicit check.</li>
+        </ul>
+        <p>Used where it fits, it turns eight lines into two. Used where it does not, it hides handling you actually wanted — which is the same rule that runs through this whole phase: make the error path visible first, then make it short.</p>
+
+        <h2 id="defer">defer: Cleanup That Cannot Be Skipped</h2>
+        <p>You have been writing <code>defer delete(...)</code> since the collections lesson. Here are the mechanics, because two details about <code>defer</code> surprise almost everyone.</p>
+
+        <h3 id="scope">It Runs at the End of the Scope</h3>
+        <p>Not the end of the function — the end of the <strong>scope</strong> in which it was written. Inside a loop, that means the end of each iteration, and that single fact is what makes <code>defer</code> perfect for per-frame work. Quoted from a real example:</p>
+        <pre><code class="language-odin line-numbers">for !rl.WindowShouldClose() {
+    defer free_all(context.temp_allocator)     // runs EVERY iteration
+
+    handle_input(&amp;state, font)
+    // ...
+}
+</code></pre>
+        <p>Read that as a budget. Whatever this frame puts into the scratch allocator is released when the frame ends — the same line, every frame, with no bookkeeping and no chance of drift as the loop body grows. It is exactly the per-frame scratch pattern from the allocators lesson, and it is a large part of why <code>temp_allocator</code> exists at all.</p>
+        <p>The same rule explains something that may have puzzled you: a <code>defer</code> written inside an <code>if</code> block fires when that block ends, not when the procedure does. Defers attach to the block they are written in, which is usually what you want and occasionally worth remembering.</p>
+
+        <h3 id="stack">Defers Run in Reverse</h3>
+        <p>Several defers in one scope run in the opposite order to the one you wrote them in:</p>
+        <pre><code class="language-odin line-numbers">load_pair :: proc() {
+    big := make([]u8, 4096, context.allocator)
+    defer delete(big)               // scheduled first  → runs LAST
+
+    small := make([dynamic]u8, 0, 64, context.allocator)
+    defer delete(small)             // scheduled second → runs FIRST
+
+    // ... work with both ...
+}
+</code></pre>
+        <p>Last scheduled, first run — the same way nested braces close from the inside out. That ordering is exactly right when resources depend on each other, because you schedule the cleanups in the order the dependencies allow, and the reverse order takes care of itself.</p>
+        <p>And now the pair you have been writing all along has a reason attached:</p>
+        <pre><code class="language-odin line-numbers">buffer := make([dynamic]u8, 0, 1024, context.allocator)
+defer delete(buffer)        // written together, so they cannot drift apart
+</code></pre>
+        <p>Two lines, side by side. Written as a pair they cannot be separated by a later edit, and because <code>defer</code> runs on <em>every</em> exit path — an early return, a failed check, the end of a loop turn — no new exit path can bypass the cleanup. With no garbage collector to fall back on, this tiny habit is what stands between your program and a slow leak.</p>
+
+        <h2 id="assert">Assertions</h2>
+        <p>Sometimes the right response to a broken assumption is to stop immediately. Odin gives you two ways to say that, and they work at different moments.</p>
+
+        <h3 id="runtime-assert">assert — the Runtime Check</h3>
+        <p><code>assert</code> is an ordinary procedure call that stops the program when its condition is false. You have seen it in the standard library's examples:</p>
+        <pre><code class="language-odin line-numbers">// From the standard library's own documentation examples.
+assert(len(small_items) == 8)
+assert(index == 0 &amp;&amp; found == true)
+</code></pre>
+        <p>Use it for things that must already be true if your code is correct: an invariant, a precondition, a value you would far rather crash on than use. It is not an input validator — it is a statement about your own reasoning, written where the reasoning happened.</p>
+        <p>What happens when one fails is decided by the context, which is why this belongs in the same phase as the allocators lesson: <code>assertion_failure_proc</code> is one of the five fields you met there. A program can therefore decide how a failed assertion is reported, and the build can be told to drop assertions entirely for a release build.</p>
+
+        <h3 id="compile-assert">#assert — the Compile-Time Check</h3>
+        <p>Add a hash and the check moves to compile time. The build fails instead of the program, and nothing at all is left in the binary:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core:os, where it guards the size of the error union.
+#assert(size_of(Error) == size_of(u64))
+
+// And a few of the layout facts from earlier lessons:
+#assert(size_of(Particle) == 24)
+#assert(size_of(Vector2) == 8)
+</code></pre>
+        <p>The difference in one line: <code>#assert</code> fails the build, <code>assert</code> fails the run. Which one you want follows from when the fact becomes true. Facts about your <em>types</em> are true before the program starts, so a programmer is the only one who needs to be told — <code>#assert</code>. Facts about <em>values</em> only exist once the program runs, so <code>assert</code> is the one that can check them.</p>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Thinking in Odin:</strong> these two checks are the same instinct as the rest of this phase — make the assumption explicit, so it fails loudly at the earliest possible moment. A layout assumption that a #assert guards fails while you are compiling. The same assumption left in your head fails in front of a customer.
+        </div>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>Phase 5 continues with the machinery that lets you write one piece of code for many types — parametric polymorphism — and then with the compile-time programming tools that make some of it disappear entirely.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li>Failure is a value in the results. Nothing throws, and a procedure that can fail says so in its signature.</li>
+          <li>Two shapes cover everything: <code>(value, ok: bool)</code> for a single failure, <code>(value, err: Error)</code> when the reason matters.</li>
+          <li><code>or_else</code> gives a fallback in one line — use it when "absent" and "the fallback" mean the same thing.</li>
+          <li>An error type is usually a union of error kinds, with <code>#shared_nil</code> so that one <code>err == nil</code> test means "no error".</li>
+          <li><code>switch e in err</code> dispatches on the kind; the inner switch handles the case. Both are exhaustiveness-checked.</li>
+          <li><code>or_return</code> pops the last result, and returns early if it is not nil or false — it needs named results when there are several.</li>
+          <li><code>defer</code> runs at the end of its <em>scope</em> (each loop iteration included), in reverse order, and on every exit path.</li>
+          <li><code>assert</code> checks while running; <code>#assert</code> checks while compiling and leaves nothing in the binary.</li>
+        </ul>
+        <div class="alert alert-success shadow-sm">
+          <strong>Well done.</strong> A good exercise: take <code>parse_age</code> from the start of this page and change it to return a real error kind — an enum with <code>Empty</code> and <code>Not_A_Number</code>. Then write a caller that uses <code>or_return</code>, and a second caller that switches on the error to print a useful message. You will have used every idea on the page.
+        </div>
+        <p class="mt-4">Continue with <a href="/roadmap/odin/generics.html">Parametric Polymorphism</a> →</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'errors',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

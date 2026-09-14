@@ -1,0 +1,254 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta content="Odin concurrency explained: core:thread, creating, starting and joining threads, thread arguments, why each thread gets its own context and temporary allocator, atomics from intrinsics, and core:sync." name="description">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, odin, threads, concurrency, core:thread, join, atomic, mutex, channel, temp allocator, context">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Odin — Concurrency &amp; Threading</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="odin-threads">Concurrency &amp; Threading</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Everything you have written so far runs on one thread, in one order, from the first line of <code>main</code> to the last. This lesson makes the program run in several places at once — and explains why the context, the invisible companion of every procedure since lesson one, suddenly matters.
+        </div>
+
+        <p>Odin's approach is worth stating before any code. There is no <code>async</code> keyword, no implicitly scheduled coroutine, and no runtime that decides when your function runs. A thread is a thread: it starts, it runs a procedure, and it ends. Everything about the order of events is yours to manage, which is more work than a magic keyword and considerably less surprising when something goes wrong.</p>
+
+        <h2 id="why">Concurrency in Odin</h2>
+        <p>Look at Odin's own library description, quoted from the first line of the threading package:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core/thread/thread.odin, the package's own header comment:
+// Multi-threading operations to spawn threads and thread pools.
+package thread
+</code></pre>
+        <p>Two nouns: threads and thread pools. That is the whole feature list at the package level, and it tells you what to expect — the language gives you the ability to run procedures in parallel and to manage a group of workers, then stops there.</p>
+
+        <h3 id="philosophy">Threads, Not Magic</h3>
+        <p>The procedural model you learned in Phase 3 still holds. A thread runs one of your procedures; that procedure has an implicit context like every other procedure; and the context is the part that changes when a second thread appears.</p>
+        <p>Concurrency is also not free. Two threads touching the same memory create a race: the result depends on which one arrives first, and that order is not something you can read from the source. Everything else in this lesson is a way of either avoiding that situation or making it well-defined.</p>
+
+        <h3 id="toolbox">The Toolbox</h3>
+        <p>Three packages carry the weight:</p>
+        <table class="table table-dark table-striped table-hover">
+          <thead><tr><th>Package</th><th>What it holds</th></tr></thead>
+          <tbody>
+            <tr><td><code>core:thread</code></td><td>Creating, starting, joining threads and thread pools</td></tr>
+            <tr><td><code>core:sync</code></td><td>Synchronisation primitives: atomics, mutexes, conditions, and per-platform futex operations</td></tr>
+            <tr><td><code>core:sync/chan</code></td><td>Channels — a queue between threads, so they can pass values instead of sharing them</td></tr>
+          </tbody>
+        </table>
+        <p>And one you already know: <code>base:intrinsics</code>. The atomic operations you will use are intrinsics, compiled to the right instruction for the target — the same package that gave you <code>unaligned_load</code> and the threading package its own internal aliases for it.</p>
+
+        <h2 id="spawn">Spawning a Thread</h2>
+        <p>A thread runs a procedure, and the procedure's signature is fixed by the package. Quoted from <code>core:thread</code>:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core/thread/thread.odin:
+Thread_Proc :: #type proc(^Thread)
+</code></pre>
+        <p>Read the type carefully, because it explains a design decision you will see everywhere below. The thread procedure takes a pointer to the thread itself — not to your data. Your data is reached <em>through</em> that thread, from fields the creator fills in before starting it. This is why the thread procedure always has the same signature no matter what you want to pass: the parameter is the handle, and the payload hangs off it.</p>
+
+        <h3 id="create">create, start, and join</h3>
+        <p>The lifecycle has three steps and the package documents each. Quoted from the doc comment on <code>create</code>:</p>
+        <pre><code class="language-text line-numbers">Create a thread in a suspended state with the given priority.
+
+This procedure creates a thread that will be set to run the procedure
+specified by `procedure` parameter with a specified priority. The returned
+thread will be in a suspended state, until `start()` procedure is called.
+
+To start the thread, call `start()`. Also the `create_and_start()`
+procedure can be called to create and start the thread immediately.
+</code></pre>
+        <p>And the signature, quoted from the same file:</p>
+        <pre><code class="language-odin line-numbers">create :: proc(procedure: Thread_Proc, priority := Thread_Priority.Normal, name: Maybe(string) = nil) -> ^Thread
+</code></pre>
+        <p>Three things in one line. The priority is a defaulted parameter, so most calls do not mention it. The name is a <code>Maybe(string)</code> — the optional-value pattern from Phase 2, here defaulting to <code>nil</code>, which is a small and honest use of it: a thread may or may not have been given a name. And the result is a pointer, <code>^Thread</code>, because a thread is a thing the runtime owns and you hold a handle to.</p>
+        <p>Because creation and starting are separate, there is a window in which you can fill in the handle's fields before the thread starts running — which is exactly how arguments are passed. The package is explicit that this is the design, quoted from the field comments in the <code>Thread</code> struct:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from the Thread struct's field comments:
+// User-supplied pointer, that will be available to the thread once it is
+// started. Should be set after the thread has been created, but before
+// it is started.
+data: rawptr,
+</code></pre>
+        <p>So the shape of a hand-written thread is: create it, set its <code>data</code> to point at your payload, start it, and join it later. The join is what keeps you honest — quoted from the documentation of the automatic-cleanup flag, which warns you not to use it and join at the same time:</p>
+        <pre><code class="language-text line-numbers">**Do not** dereference the `^Thread` pointer, if this flag is specified.
+That includes calling `join`, which needs to dereference `^Thread`.
+</code></pre>
+        <p>Threads come with a small state record so the runtime can keep track of where each one is. Quoted from the package:</p>
+        <pre><code class="language-odin line-numbers">Thread_State :: enum u8 {
+    Started,
+    Joined,
+    Done,
+    Self_Cleanup,
+}
+</code></pre>
+        <p>Those four names are the four things that can be true of a thread: it has been started, someone has joined it, it has finished, and it is responsible for cleaning up after itself. The framework is deliberately small — no scheduler states, no suspend and resume, no priorities in the state machine beyond the separate <code>Thread_Priority</code> enum.</p>
+
+
+        <h3 id="poly">Threads With Arguments</h3>
+        <p>Passing a payload through a <code>rawptr</code> works, but it costs you a conversion and a moment of care: <code>rawptr</code> is untyped, so nothing checks that the pointer you stored is the pointer the thread reads. Odin offers a friendlier door — a family of procedures that take normal typed arguments and do the packing for you. Quoted from the package, with the argument list abbreviated:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core/thread/thread.odin, abbreviated:
+create_and_start_with_poly_data4 :: proc(arg1: $T1, arg2: $T2, arg3: $T3, arg4: $T4,
+        fn: proc(arg1: T1, arg2: T2, arg3: T3, arg4: T4),
+        init_context: Maybe(runtime.Context) = nil,
+        priority := Thread_Priority.Normal, self_cleanup := false,
+        name: Maybe(string) = nil) -> (t: ^Thread)
+    where size_of(T1) + size_of(T2) + size_of(T3) + size_of(T4) &lt;= size_of(rawptr) * MAX_USER_ARGUMENTS
+</code></pre>
+        <p>This is Phase 5's parametric polymorphism doing real work. The <code>$T1</code> parameters are polymorphic, so <code>fn</code> is checked against the very types you passed — pass a <code>string</code> and an <code>int</code>, and <code>fn</code> must accept a <code>string</code> and an <code>int</code>. The <code>where</code> clause then constrains the size of the whole payload, and the constant it names explains the limit:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core/thread/thread.odin:
+// Maximum number of user arguments for polymorphic thread procedures.
+MAX_USER_ARGUMENTS :: 8
+</code></pre>
+        <p>The arguments travel in an array of raw pointers, so eight machine words is the ceiling; the family exists in variants from one argument up to eight. Inside, the package stores the bytes of each argument into that array and reads them back out in the same order — a miniature demonstration of the bytes-and-offsets reasoning from the data-oriented lesson, and a good reason to prefer the helper over hand-packing your own struct.</p>
+
+        <figure class="figure text-center">
+          <img src="/roadmap/odin/img/thread-context.svg" alt="Diagram showing the main thread with its context and temporary allocator, a worker thread with its own context and temporary allocator, a join arrow back to the main thread, and a shared data box reachable by both" class="figure-img img-fluid rounded">
+          <figcaption class="figure-caption">The main thread creates and starts a worker, then joins it. Each thread carries its own context, so each has its own temporary allocator; the data both threads can reach is the part that needs protecting.</figcaption>
+        </figure>
+
+        <h2 id="context">The Context Is Per Thread</h2>
+        <p>Here is the part of threading that surprises people, and Odin documents it at length in the <code>Thread</code> struct. Quoted verbatim:</p>
+        <pre><code class="language-text line-numbers">**Note**: If this field is **not** set, the temp allocator will be managed
+automatically. If it is set, the allocators must be handled manually.
+
+**IMPORTANT**:
+By default, the thread proc will get the same context as `main()` gets.
+In this situation, the thread will get a new temporary allocator which
+will be cleaned up when the thread dies. ***This does NOT happen when
+`init_context` field is initialized***.
+</code></pre>
+
+        <h3 id="own-context">A Thread Gets Its Own Context</h3>
+        <p>Recall what the context is: a small struct carrying your allocators, logger, random generator, and the other ambient services. Every procedure body has an implicit one. Until now there was exactly one of them and it belonged to <code>main</code>.</p>
+        <p>With threads there is one per thread, and the reason is memory. A temporary allocator is a bump pointer into a block of memory: "allocate" advances the pointer, "free all" resets it. That is fast precisely because it is not thread-safe — two threads sharing one bump pointer would hand out the same block twice. So the runtime gives each new thread a fresh temporary allocator, and cleans it up when the thread dies.</p>
+        <p>That is the good default, and it comes with one sentence you must not skip: <em>"This does NOT happen when <code>init_context</code> field is initialized."</em> If you supply the thread's context yourself, the automatic bookkeeping is switched off. The package states the consequence plainly in the next comment:</p>
+        <pre><code class="language-text line-numbers">If `init_context` is initialized, and `temp_allocator` field is set to
+the default temp allocator, then `runtime.default_temp_allocator_destroy()`
+procedure needs to be called from the thread procedure, in order to prevent
+any memory leaks.
+</code></pre>
+
+
+        <p>And the source comments record why the library has to intervene at all, with a phrase worth remembering. Quoted from the private helper that prepares a thread's context:</p>
+        <pre><code class="language-text line-numbers">NOTE(tetra, 2023-05-31):
+    Ensure that the temp allocator is thread-safe when the user provides a specific initial context to use.
+    Without this, the thread will use the same temp allocator state as the parent thread, and thus, bork it up.
+</code></pre>
+
+        <h3 id="temp-warning">The Temporary Allocator Warning</h3>
+        <p>Put the three quotes together and you get the practical rules for memory in threads:</p>
+        <table class="table table-dark table-striped table-hover">
+          <thead><tr><th>Situation</th><th>What happens to the temporary allocator</th></tr></thead>
+          <tbody>
+            <tr><td>You create a thread with no context of your own</td><td>The thread gets a fresh temporary allocator, destroyed when it dies — nothing to do</td></tr>
+            <tr><td>You pass your own <code>init_context</code></td><td>The automatic management is off: allocators are your responsibility</td></tr>
+            <tr><td>Your custom context uses the default temporary allocator</td><td>Call <code>runtime.default_temp_allocator_destroy()</code> from the thread procedure, or leak</td></tr>
+          </tbody>
+        </table>
+        <p>Notice how squarely this sits on Phase 4. Every allocation in Odin names its allocator, which is why a per-thread allocator is expressible at all; and the temporary allocator's "free everything at once" rule is what makes it the natural choice for a worker whose whole lifetime is one task. The same theme explains a convention you met in the foreign-interface lesson: where no context exists to pass in, the library reaches for <code>proc "contextless"</code>.</p>
+
+        <h2 id="sync">Sharing Data Without Ruining It</h2>
+        <p>Threads would be easy if they never touched the same memory, and useless if they never could. The interesting middle is: they share, but only through mechanisms that make the order of events well-defined.</p>
+
+        <h3 id="atomics">Atomic Operations</h3>
+        <p>The simplest mechanism is the atomic operation: an instruction the hardware guarantees will complete as one indivisible step. Odin exposes them as intrinsics, and the threading package itself uses them for its own bookkeeping. Quoted from the package, where a thread marks itself as self-cleaning:</p>
+        <pre><code class="language-odin line-numbers">// Quoted from core/thread/thread.odin: setting a flag in a bit_set
+// that another thread may be reading at the same time.
+if self_cleanup {
+    intrinsics.atomic_or(&amp;t.flags, {.Self_Cleanup})
+}
+</code></pre>
+        <p>Everything in that line is already familiar: <code>flags</code> is a <code>bit_set</code> (Phase 3), <code>{.Self_Cleanup}</code> is a set literal, and <code>atomic_or</code> is the atomic cousin of the <code>|</code> operator. What changes is only the guarantee: a plain OR followed later by a plain read could interleave on another core, while <code>atomic_or</code> cannot.</p>
+        <p>Odin's <code>intrinsics</code> package provides the atomic family — load, store, add, and the bitwise forms, together with exchange and compare-and-swap variants — so compound operations can be built on a guaranteed foundation rather than approximated.</p>
+
+        <h3 id="primitives">Mutexes and Channels</h3>
+        <p>Atomics are enough for a flag or a counter and awkward for anything larger, because protecting a <em>region</em> of code is a different problem from protecting a single word. For regions, <code>core:sync</code> offers the classic machinery — a mutex to serialize access, a read-write mutex when readers may share, a condition variable and a wait group for coordinating completion — alongside the per-platform futex operations they are built on.</p>
+        <p>The package's other half is a different idea entirely, and often the better one. A channel is a queue with thread-safe send and receive, and it lets two threads cooperate by <em>passing</em> values rather than sharing them: one thread owns the data at any moment, and ownership travels with the value. When the data has a natural producer and consumer, this removes the shared region instead of protecting it, which is why it lives in its own subpackage, <code>core:sync/chan</code>.</p>
+        <div class="alert alert-info shadow-sm">
+          <strong>A rule of thumb:</strong> if two threads only need to agree on a flag or a counter, use an atomic. If they take turns over a structure, protect it with a mutex. If one produces and the other consumes, hand the value over through a channel and share nothing at all.
+        </div>
+
+
+        <h2 id="pools">Threads and Pools</h2>
+        <p>Creating a thread is not free: the operating system has to reserve a stack and register the thread with the scheduler, which costs far more than the work in a typical small task. That is why the package's own description says "threads and thread pools" in the same breath.</p>
+
+        <h3 id="when">When a Thread Is the Wrong Tool</h3>
+        <p>The pattern that pays is: create a fixed number of workers once, give them jobs from a shared queue, and let them run until the queue is empty. Then the per-task cost is a queue operation rather than a thread creation. Odin's threading package provides that shape directly with its pool type, and the queues and guards it needs come from <code>core:sync</code>.</p>
+        <p>The same logic sits behind a fact from the next lesson: Odin's test runner is multi-threaded by default, and the testing documentation warns you to keep that in mind — too little parallelisable work and the extra cores go to waste. That is the worker-pool judgement in one sentence: parallelise coarse tasks, not tiny ones.</p>
+
+        <h2 id="next">Where This Goes Next</h2>
+        <p>You now have programs that run in several places at once, and programs that talk to C. The last lesson of this phase is about believing them: automated tests to check what should stay true, a formatter to keep the source honest, and the tools you reach for when a program misbehaves instead of merely disagreeing with you.</p>
+
+        <h3 id="summary">The Page in One Breath</h3>
+        <ul>
+          <li>A thread is a procedure with a fixed signature, <code>proc(^Thread)</code>, and your data travels through the handle it is given.</li>
+          <li><code>create</code> produces a suspended thread, <code>start</code> begins it, <code>join</code> waits — and a self-cleaning thread must not be joined.</li>
+          <li><code>create_and_start_with_poly_data*</code> passes up to <code>MAX_USER_ARGUMENTS</code> (8) typed arguments, checked by polymorphic parameters and a <code>where</code> clause.</li>
+          <li>Each thread gets its own context and its own temporary allocator; supplying your own context switches that bookkeeping off.</li>
+          <li>Use atomics for a word, a mutex for a region, and a channel when you can pass ownership instead of sharing it.</li>
+          <li>Prefer a pool of workers over a thread per task.</li>
+        </ul>
+
+        <nav class="d-flex justify-content-between mt-4">
+          <a class="btn btn-outline-secondary" href="/roadmap/odin/ffi.html">&larr; Foreign Interface</a>
+          <a class="btn btn-outline-primary" href="/roadmap/odin/testing.html">Testing &amp; Tooling &rarr;</a>
+        </nav>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'odin',
+    topicId: 'threads',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
