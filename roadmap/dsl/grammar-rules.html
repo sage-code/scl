@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="DSL grammar and rules: EBNF productions, terminal and nonterminal symbols, ambiguity, precedence and associativity, grammar classes, and validation.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, dsl, grammar, EBNF, BNF, productions, terminals, nonterminals, ambiguity, precedence, associativity, LL, LR">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Grammar &amp; Rules — DSL Roadmap</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsl/grammar-rules.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="grammar-rules">Grammar &amp; Rules</h1>
+        <div class="alert alert-secondary shadow-sm">
+          A grammar names the language: a small set of rules (productions) over the tokens that Syntax &amp; Notation defined. Rules decide what is a valid program, where meaning attaches, and where the parser will fail &mdash; so a DSL&rsquo;s grammar is its contract.
+        </div>
+
+        <h2 id="grammar-basics">Grammar Basics</h2>
+        <p>Formal grammars describe strings of tokens the same way recipes describe meals: ingredients on the left, process on the right.</p>
+        <h3 id="productions">Productions and Symbols</h3>
+        <p>A <strong>production</strong> rewrites one <em>nonterminal</em> into a sequence of <em>terminals</em> (tokens) and other nonterminals. The root rule (usually called <code>program</code> or <code>start</code>) anchors everything. Example: <code>request = "room", name;</code> says a request can be the keyword <code>room</code> followed by a name.</p>
+        <h3 id="ebnf-notation">EBNF Notation</h3>
+        <p>Extended BNF adds three conveniences: alternation <code>|</code> (choose one), repetition <code>{ ... }</code> (zero or more), and optionality <code>[ ... ]</code>. EBNF is itself a DSL for languages &mdash; the meta-DSL this chapter teaches.</p>
+        <pre><code class="language-ebnf">(* the whole notation in seven lines *)
+request   = "room", name, [ "time-until", time ] ;
+name      = ? letters, digits or dashes ? ;
+time      = number, ":", number ;
+number    = digit, { digit } ;
+digit     = "0" | "1" | ... | "9" ;</code></pre>
+        <h2 id="ambiguity-precedence">Ambiguity, Precedence &amp; Associativity</h2>
+        <p>If a sentence has two possible trees, the language is ambiguous and users will disagree about meaning. The grammar must pick one reading.</p>
+        <div class="text-center">
+          <img src="/roadmap/dsl/img/grammar-associativity.svg" alt="8 minus 3 minus 2 parsed left and right associative yields different trees: (8-3)-2=3 versus 8-(3-2)=7" class="img-fluid protect rounded shadow border" width="740">
+          <p class="text-secondary">Figure 2 — Associativity changes the result; a grammar without a rule permits both.</p>
+        </div>
+        <h3 id="fixing-ambiguity">Fixing with Levels</h3>
+        <p>The standard cure is <em>precedence levels</em>: one nonterminal per binding strength. Multiplication gets its own level below addition, and each level&rsquo;s rule fixes associativity explicitly:</p>
+<pre><code class="language-ebnf">(* resolved: lower level, tighter binding *)
+expr    = term, { ( "+" | "-" ), term } ;   (* left-associative by iteration *)
+term    = factor, { ( "*" | "/" ), factor } ;
+factor  = number | "(", expr, ")" ;</code></pre>
+        <h3 id="edge-cases">Classic Ambiguities</h3>
+        <p>The <em>dangling else</em> (which <code>if</code> owns the trailing <code>else</code>?), optional separators, and empty rules are the usual culprits. Each must be resolved in the grammar, never in the parser by convenience.</p>
+
+        <h2 id="grammar-classes">Grammar Classes</h2>
+        <p>Not every grammar parses equally easily; two families dominate practice.</p>
+        <h3 id="ll-intuition">LL (top-down)</h3>
+        <p>Left-to-right scan, <em>leftmost</em> derivation, one token of lookahead: the rule decides by the next token. Elegant to write by hand (recursive descent works on LL grammars) but left recursion must be avoided.</p>
+        <h3 id="lr-intuition">LR (bottom-up)</h3>
+        <p>Trees are built from the leaves up; LR parsers (including LALR, as in yacc) accept a much larger language family and handle left recursion naturally &mdash; at the cost of tables and tooling instead of readable functions.</p>
+        <h3 id="generators">Choice of Weapon</h3>
+        <p>Hand-written recursive descent is the best default for small DSLs; ANTLR, PLY/lark, or Menhir are the choice when the grammar grows or must stay provably unambiguous.</p>
+
+        <h2 id="validation">Validating the Grammar</h2>
+        <h3 id="example-suite">An Example Suite</h3>
+        <p>Keep a corpus of <em>must-parse</em> examples (the vocabulary in action) and <em>must-reject</em> examples. If the grammar cannot explain one of its own examples, the grammar is wrong, not the example.</p>
+        <h3 id="tool-checks">Tooling Checks</h3>
+        <p>EBNF checkers and parser generators will report ambiguity, useless rules (nonterminals never used), and unreachable rules. Treat each report as a design finding, because every one of them is a corner a user will find.</p>
+
+        <h2 id="example">Example: Resolving the Grammar</h2>
+        <p>Start ambiguous, end resolved. The two grammars below describe the same arithmetic &mdash; only the second one is a specification.</p>
+        <h3 id="ambiguous">Ambiguous (do not ship)</h3>
+<pre><code class="language-ebnf">(* expr = expr, "+", expr | number   — two trees for 1+2+3 *)
+expr = expr, ( "+" | "-" ), expr | number ;</code></pre>
+        <h3 id="resolved">Resolved (ship this)</h3>
+<pre><code class="language-ebnf">(* one level per precedence; iteration makes it left-associative *)
+expr = term, { ( "+" | "-" ), term } ;
+term = factor, { ( "*" | "/" ), factor } ;
+factor = number | "(", expr, ")" ;</code></pre>
+        <h3 id="check">The Check</h3>
+        <p>Hand-parse two examples against both: <code>1 + 2 + 3</code> and <code>2 * 3 + 4</code>. The first grammar offers two trees for the former; the second offers exactly one for both &mdash; that is the whole job of this chapter in miniature.</p>
+
+        <h2 id="next-steps">Next Steps</h2>
+        <h3 id="continue">Continue Phase 1</h3>
+        <p>Rules produce the tree; <a href="/roadmap/dsl/parsing-trees.html">Parsing &amp; Trees</a> shows how the machine builds it, and <a href="/roadmap/dsl/semantics-scoping.html">Semantics &amp; Scoping</a> explains what it means.</p>
+        <h3 id="resources">Resources</h3>
+        <ul>
+          <li><a href="https://www.antlr.org/" target="_blank" rel="noopener noreferrer nofollow">ANTLR &mdash; a generator that validates grammars and reports ambiguity</a></li>
+          <li><a href="https://craftinginterpreters.com/parsing-expressions.html" target="_blank" rel="noopener noreferrer nofollow">Crafting Interpreters, expression parsing &mdash; precedence by hand</a></li>
+          <li><a href="/roadmap/dsl/references.html">References &amp; Downloads — the full catalog for this roadmap</a></li>
+        </ul>
+        </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'dsl',
+    topicId: 'grammar-rules',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

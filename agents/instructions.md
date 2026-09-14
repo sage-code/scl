@@ -10,6 +10,7 @@ Each agent has its own subfolder containing specific instructions.
 - `/deepseek/executor.md`: DeepSeek Executor instructions (acting model — precise execution, command tracing, minimal feedback; Act mode).
 - `fireworks.md`: Shared Fireworks configuration (endpoint, model IDs, pricing, Static Context Prefix / prompt caching, escalation, validation, shared shell & temp rules) used by the DeepSeek Planner and Executor.
 - `static-context-prefix.md`: Frozen system prefix — loaded first, byte-identical, in every request (cache alignment).
+- Context signature: `scripts/tools/context_signature.py` (`npm run signature`) hashes the static-context manifest into an immutable `SCL_CONTEXT_SIGNATURE=sha256:<digest>` feed block (artifact `.temp/context-signature.json`); paste it at task start so the model signs its context — see `agents/fireworks.md` §4.1.
 
 ## Cline integration
 - Project rules: `.clinerules/` — `01-core.md` (core + tracing), `02-architecture.md` (static site architecture), `03-execution-protocol.md` (acting protocol).

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="DSL types and values: kinds of values, dynamic, static and gradual typing, what type checking buys, and memory semantics from value to ownership.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, dsl, types, values, dynamic typing, static typing, gradual typing, type inference, memory semantics">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Types &amp; Values — DSL Roadmap</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsl/types-values.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="types-values">Types &amp; Values</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Values are what programs compute with; types classify values and decide when operations are legal. Choosing a typing mode is one of the first semantic decisions a DSL makes — and one of the hardest to change later.
+        </div>
+
+        <h2 id="values">Values &amp; Data</h2>
+        <p>Every DSL names its universe of values: numbers, strings, structured data, and sometimes functions themselves.</p>
+        <h3 id="kinds">Kinds of Values</h3>
+        <ul>
+          <li><strong>Primitives:</strong> integers, reals, booleans, and text &mdash; decide how many there are; fewer is simpler.</li>
+          <li><strong>Composite:</strong> records/lists/tables &mdash; the shape of data the DSL manipulates (rows for SQL, circuits for Verilog).</li>
+          <li><strong>Callable:</strong> functions as values &mdash; powerful, but often worth omitting in DSLv1.</li>
+        </ul>
+        <h3 id="representation">Representation Is an Implementation Detail</h3>
+        <p>The spec describes values abstractly (an integer is a mathematical integer); the Phase 2 implementation picks the bit-level encoding. Keep the two layers separate and the semantics stay clean.</p>
+
+        <h2 id="typing-modes">Typing Modes</h2>
+        <div class="text-center">
+          <img src="/roadmap/dsl/img/typing-modes.svg" alt="Typing modes spectrum: dynamic at runtime, gradual in between, static at compile time" class="img-fluid protect rounded shadow border" width="780">
+          <p class="text-secondary">Figure 1 — Earlier checks are safer; later checks are more flexible. Choose one and document it.</p>
+        </div>
+        <h3 id="dynamic">Dynamic Typing</h3>
+        <p>Kinds are checked when operations run (Python, JS). Fast to write, slow to catch mistakes &mdash; and the easiest to prototype a DSL in.</p>
+        <h3 id="static">Static Typing</h3>
+        <p>Kinds are checked before any run (Java, C, Rust, and the stricter dialects). More ceremony now, fewer crashes later, and better tooling feedback.</p>
+        <h3 id="gradual">Gradual &amp; Inferred</h3>
+        <p>TypeScript and mypy mix both; Haskell/Rust/Julia infer types so you write fewer annotations. For a DSL, inference plus optional checks is often the sweet spot: domain files stay short, errors stay early.</p>
+        <h2 id="what-typing-buys">What Type Checking Buys</h2>
+        <h3 id="catch-early">Catching Errors Early</h3>
+        <p>Type errors are semantic errors with a flag: &ldquo;capacity needs a number, got <code>yes</code>&rdquo; found before any run is worth dozens of runtime messages. For configuration-like DSLs this is usually the single best safety feature.</p>
+        <h3 id="tooling">Better Tooling, Better Models</h3>
+        <p>Types power completion, hover documentation, refactoring, and more accurate AI assistance. A DSL with a stated type model gets all four &mdash; and the model is also its contract with humans.</p>
+        <h3 id="soundness">Soundness on Purpose</h3>
+        <p>&ldquo;Type sound&rdquo; means accepted programs cannot crash with a type error. Promise soundness explicitly, or state where escapes live (casts, dynamic slots); silent ambiguity damages trust.</p>
+
+        <h2 id="memory-semantics">Memory Semantics</h2>
+        <p>Value semantics and ownership preview the deepest evolution a DSL can undergo; most DSLs never need more than the first two.</p>
+        <h3 id="value-reference">Value vs. Reference</h3>
+        <p>Value semantics copy on assignment (predictable, costly on big data); reference semantics share storage (cheap, surprising to beginners). Documents: pick one per composite kind and state it.</p>
+        <h3 id="ownership">Ownership &amp; Borrowing</h3>
+        <p>Systems languages (Rust) replace GC with static ownership rules &mdash; the &ldquo;disruption that pays&rdquo; example from Design Considerations. A DSL targeting embedded or systems use should study it; a configuration DSL should not.</p>
+
+        <h2 id="example">Example: The Same Function, Two Modes</h2>
+        <h3 id="dynamic-fn">Dynamic (unannotated)</h3>
+<pre><code class="language-python line-numbers"># dynamic.py — mistakes surface at runtime
+def book(room, seats):
+    return room + seats            # what if seats is "six"?
+book("A10", "six")                 # TypeError when it runs, not before</code></pre>
+        <h3 id="annotated-fn">Annotated (checked)</h3>
+<pre><code class="language-python line-numbers"># checked.py — the same function with a stated type model
+def book(room: int, seats: int) -&gt; int:
+    return room + seats            # a checker rejects "six" before any run
+book(10, 6)                        # the fix is visible in one line</code></pre>
+        <p>Nothing about the algorithm changed; only where the mistake is found. That location is the typing-mode decision in miniature.</p>
+
+        <h2 id="next-steps">Next Steps</h2>
+        <h3 id="continue">Continue Phase 1</h3>
+        <p>Values and checks meet reality in <a href="/roadmap/dsl/errors-diagnostics.html">Errors &amp; Diagnostics</a>; then Phase 2 (Compiler Design onward) builds the machinery that checks and runs what this chapter specified.</p>
+        <h3 id="resources">Resources</h3>
+        <ul>
+          <li><a href="https://craftinginterpreters.com/types-of-values.html" target="_blank" rel="noopener noreferrer nofollow">Crafting Interpreters, types of values &mdash; values and runtime representation</a></li>
+          <li><a href="https://docs.racket-lang.org/guide/contracts.html" target="_blank" rel="noopener noreferrer nofollow">Racket contracts &mdash; gradual-style checking in practice</a></li>
+          <li><a href="/roadmap/dsl/references.html">References &amp; Downloads — the full catalog for this roadmap</a></li>
+        </ul>
+        </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'dsl',
+    topicId: 'types-values',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
