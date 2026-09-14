@@ -1,10 +1,10 @@
 # Architecture — Sage-Code SCL (always active)
 
-Static-first vanilla website generator. Deployed to Vercel from `public/`. Supabase optional for roadmap auth.
+SCL is a sophisticated static website for learning software engineering and programming — didactic, practical, and highly accurate. Static-first vanilla HTML/CSS/JS generator. Deployed to Vercel from `public/`. Supabase optional for roadmap auth.
 
 ## Layout
 - `assets/` — shared CSS/JS/fonts/images; templates `assets/roadmap_template.html`, `assets/topic_template.html`.
-- `roadmap/` — learning tracks: source pages + `roadmap/<track>/data/<topic>.json` sidebars; each track has `demo/` single-file demos and a `demo_examples.html` index page (see manual/ARCHITECTURE.md §Demo Example Pages).
+- `roadmap/` — learning tracks: source pages + `roadmap/<track>/data/<topic>.json` sidebars; each track has `demo/` single-file demos (subfolders allowed) and a `demo_examples.html` index page (see manual/ARCHITECTURE.md §Demo Example Pages).
 - `projects/` — standalone project sites (topic contract in `manual/PROJECTS-ARCHITECTURE.md`).
 - `layouts/` — header/footer/base wrappers injected at build time (never runtime DOM assembly).
 - `public/` — generated deploy output. Never hand-edit.
@@ -32,3 +32,34 @@ Static-first vanilla website generator. Deployed to Vercel from `public/`. Supab
 ## Curriculum style
 - Technical, step-by-step, fundamentals → production. No promotional adjectives.
 - Full details: `manual/ARCHITECTURE.md`.
+## Mission & quality bar
+- Roadmaps are didactic, practical, and highly accurate: every factual claim is verified against official documentation; no filler, no placeholders, no promotional adjectives.
+- Lab quality is high at every level: concepts progress from complete-beginner to expert through 5 or more phases of sophistication.
+
+## Roadmap phases (5+ required)
+- Every track MUST define at least five phases of increasing sophistication — a typical ladder: foundations → implementation/advanced → domain/application → practice & demos → reference.
+- Phase headers and topic rows are numbered sequentially across the track (`01..NN`); inserting a topic renumbers later rows and phase headers.
+
+## SVG diagrams & explanations (mandatory)
+- Any spatial, relational, or structural concept must be illustrated with an SVG and an explanatory caption — diagrams teach, they are never decoration.
+- Reuse a shared language-agnostic primitive (`assets/images/*.svg`, source path `/images/<name>.svg`) only when it faithfully matches; otherwise author a NEW SVG at `roadmap/<track>/img/<name>.svg` (projects: `projects/<project>/img/`). Never copy a shared SVG into a track.
+- Follow the dark-theme style spec in `manual/ARCHITECTURE.md` §Diagrams: solid non-transparent canvas and boxes, light-on-dark contrast, UML/logic shapes, aligned gaps.
+
+## Syntax highlighting (Prism + exotic languages)
+- Common languages: single Prism bundle `/assets/prism.css` + `/assets/prism.js`; no prism-loader or data-lang. Always link `content-code.css` + `content-sidebar.css`.
+- Grammars are added CENTRALLY to `assets/prism.js` (the download link in its header lists the included languages).
+- Exotic / uncommon languages in engineering roadmaps: register the grammar centrally when possible; when a grammar cannot be provided, the page MUST include additional CSS (a `content-code` extension or a track-level stylesheet) so comments, strings, and keywords stay visually distinguishable in the dark theme. Never ship unformatted code walls.
+- Local code viewer: extend `assets/js/code-viewer.js` `langMap` for every new file extension so `/roadmap/code-viewer.html?file=...` links highlight correctly (demo files included).
+
+## Code examples: comments are mandatory
+- A code example without comments is defective.
+- Every example has a preceding intro paragraph (what it shows + why) and didactic comments covering intent and edge cases — the comments teach correct commenting. Same standard in `03-execution-protocol`.
+
+## Practice & demos
+- `roadmap/<track>/demo/` holds runnable single-file examples (`NN_name.<ext>`) and MAY contain subfolders to group demos by phase or category (`demo/<group>/NN_name.<ext>`).
+- Demos may be spread around the tutorial (embedded in lesson pages) and/or centralized per phase.
+- Centralized page `demo_examples.html`: one `h1`, one `h2` per phase/category; each category lists its demos in a table `# | Description | Link`; the Link column opens the local code viewer:
+  `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<group>/<filename>` (subfolder paths included).
+- Sidebar `data/demo_examples.json`: template shape with leaf chapters; build with `migrate_sidebars.py --track <track>` or `gen_topic_sidebars.py --mixed`.
+- The track `index.html` lists a `demo_examples` row under a Practice & Demo phase. Full details: `manual/ARCHITECTURE.md` §Demo Example Pages.
+
