@@ -575,6 +575,16 @@ function shouldRelativizeRootLinks(sourcePath) {
     return false;
   }
 
+  // Community pages follow the same rule: /community/vip/<member>.html is
+  // published at the clean directory route /community/vip/<member>/, one
+  // level deeper than the file itself. Page-relative shared stylesheets,
+  // runtime scripts, member photos and certificate links would resolve one
+  // folder too high and 404, so keep root-absolute links for the whole
+  // community namespace (including /community/index.html).
+  if (normalized.includes("/public/community/")) {
+    return false;
+  }
+
   // Vercel's cleanUrls + trailingSlash config serves top-level pages like
   // /legal.html and /manifesto.html at a virtual /legal/ and /manifesto/
   // route (one directory level deeper than the file actually sits in
