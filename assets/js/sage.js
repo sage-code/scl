@@ -8,7 +8,27 @@ document.addEventListener("DOMContentLoaded", function () {
     initDynamicHeader();
     initHeroVisibilityToggle();
     wireHomeLogoTypewriterTrigger();
+    initTooltips();
 });
+
+/**
+ * Activate the Bootstrap tooltips declared in markup with
+ * data-bs-toggle="tooltip". Bootstrap 5 needs one constructor call per
+ * element, so without this the data attributes stay inert and only the
+ * native title hint shows up on hover.
+ *
+ * Pages that never load bootstrap.bundle.js are skipped silently, which
+ * keeps the shared script usable by every layout.
+ */
+function initTooltips() {
+    if (typeof window.bootstrap === "undefined" || !window.bootstrap.Tooltip) {
+        return;
+    }
+
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (node) {
+        window.bootstrap.Tooltip.getOrCreateInstance(node);
+    });
+}
 
 function initDynamicHeader() {
     const header = document.getElementById('dynamic-header');
