@@ -1,401 +1,166 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-  <meta charset="utf-8">
-  <meta name="description" content="Fortran program flow control statments: decision, repetition, selection.">
-  <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="sage, fortran, if, do, until, while, switch, cycle, exit, select, case, syntax">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+        <!DOCTYPE html>
+        <html lang="en" data-bs-theme="dark">
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="Fortran control flow: IF and SELECT CASE constructs, DO loops with CYCLE and EXIT, named constructs, and DO CONCURRENT for parallel-safe iteration.">
+          <meta name="author" content="Elucian Moise">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>Fortran Control Flow</title>
+          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+          <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+          <link rel="stylesheet" href="/assets/prism.css">
+          <script src="/assets/prism.js"></script>
+          <link rel="stylesheet" href="/assets/css/sage-common.css">
+          <link rel="stylesheet" href="/assets/css/content-topic.css">
+          <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+          <link rel="stylesheet" href="/assets/css/content-code.css">
+          <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+        </head>
+        <body>
+        <div class="container">
+          <header id="dynamic-header" class="container-fluid pb-2"></header>
+          <div class="container-fluid px-0">
+            <div class="row g-0">
+              <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+              <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+                <h1 id="fortran-control-flow">Fortran Control Flow</h1>
+                <div class="alert alert-secondary shadow-sm">
+                  Control flow decides what happens next. Fortran's constructs are block-structured like every modern language, but with two quirks: blocks are delimited by explicit END words (<code>end if</code>, <code>end do</code>), and the branch conditions use the dotted operators (<code>&gt;</code>, <code>.and.</code>, <code>.eqv.</code>). This lesson builds the complete decision and loop toolkit.
+                </div>
 
-  <!-- Website title -->
-  <title>Program Workflow</title>  
+                <h2 id="if-constructs">IF constructs</h2>
+                <p>The <code>if</code> family selects one block of statements. A bare logical expression between <code>if ( ... ) then</code> and <code>end if</code>; an <code>else if</code> ladder for several mutually exclusive branches; <code>else</code> for the fallback. One-line form <code>if (x &gt; 0) y = 1</code> exists but blocks are the readable default. Note the comparison operators: <code>&gt; &lt; &gt;= &lt;= == /=</code>, with <code>/=</code> meaning "not equal" — the <code>!=</code> you know from C-family languages is an error here.</p>
 
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
-  <!-- Prism Highlighter -->
-  <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-</head>
-<body>
+                <pre><code class="language-fortran line-numbers">program if_demo
+  implicit none
+  real :: temperature
+  print '(a)', 'Temperature (C)?'
+  read *, temperature
+  if (temperature &lt; 0.0) then
+     print '(a)', 'ice'
+  else if (temperature &lt; 100.0) then
+     print '(a)', 'liquid water'
+  else
+     print '(a)', 'steam'
+  end if
+end program if_demo</code></pre>
 
-<div class="container">
+                <p>Nested <code>if</code> blocks are allowed anywhere, but deep nesting is the first thing reviewers flag — reach for the <code>select case</code> construct below when the test is an equality against a small set of values.</p>
 
-  <header id="dynamic-header" class="container-fluid pb-2"></header>
+                <h2 id="select-case">SELECT CASE</h2>
+                <p><code>select case</code> evaluates one expression once and dispatches on equality with a list of values — the Fortran cousin of C's <code>switch</code>. The selector may be <code>integer</code>, <code>character</code>, or <code>logical</code>; <code>case default</code> catches everything else. Unlike C, no explicit break is needed: exactly one branch executes, then control jumps past <code>end select</code>.</p>
 
-  <div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
+                <div class="text-center">
+                  <img src="/roadmap/fortran/img/fortran-case-select.svg" alt="SELECT CASE dispatch diagram" class="img-fluid protect rounded shadow border" width="860">
+                  <p><em>Fig. 1 — One selector, one branch, one merge point.</em></p>
+                </div>
+
+                <pre><code class="language-fortran line-numbers">program case_demo
+  implicit none
+  integer :: slot
+  print '(a)', 'Slot 1..3?'
+  read *, slot
+  select case (slot)
+  case (1)
+     print '(a)', 'first'
+  case (2)
+     print '(a)', 'second'
+  case default
+     print '(a)', 'unknown slot'
+  end select
+end program case_demo</code></pre>
+                <h2 id="do-loops">DO loops</h2>
+                <p>The <code>do</code> loop iterates a control variable over a range with an optional step: <code>do i = first, last, step</code>. All three bounds may be expressions, evaluated once at entry. The loop body runs for <code>i = 1, 3</code> then 4, 5 (zero step is a compile-time error; a reversed range runs zero times — which is standard and useful for "skip if empty" logic).</p>
+
+                <pre><code class="language-fortran line-numbers">program do_demo
+  implicit none
+  integer :: i, total
+  total = 0
+  do i = 1, 5, 2          ! odd steps: i = 1, 3, 5
+     total = total + i
+     print '(a,i2,a,i3)', 'i =', i, ' running total =', total
+  end do
+  print '(a,i3)', 'final: ', total     ! 1 + 3 + 5 = 9
+end program do_demo</code></pre>
+
+                <h3 id="cycle-and-exit">CYCLE and EXIT</h3>
+                <p><code>cycle</code> skips the rest of the current iteration and jumps to the next value; <code>exit</code> leaves the loop entirely. They replace the C-family <code>continue</code>/<code>break</code>. The idiom below scans a list for the first negative value — <code>exit</code> stops the scan the moment it is found, which is both faster and clearer than looping forever and testing inside.</p>
+
+                <pre><code class="language-fortran line-numbers">program scan
+  implicit none
+  integer :: i, data(10)
+  integer :: first_negative = 0
+  data = [3, 7, 2, -5, 9, 1, -2, 8, 4, 6]
+  do i = 1, size(data)
+     if (data(i) &lt; 0) then
+        first_negative = data(i)
+        exit                  ! stop searching
+     end if
+  end do
+  print '(a,i0,a,i0)', 'first negative ', first_negative, ' at index ', i
+end program scan</code></pre>
+
+                <h3 id="named-constructs">Named constructs</h3>
+                <p>Any block construct can carry a name — <code>outer: do i = 1, n</code> — and the name makes nested exits unambiguous: <code>exit outer</code> ends the outer loop from inside an inner one. Naming every loop in a three-deep nest is the standard answer to the "which end does this end?" question, and gfortran's <code>-Wall</code> verifies that end labels match.</p>
+
+                <h3 id="do-while">DO WHILE and infinite loops</h3>
+                <p><code>do while (condition)</code> repeats until the condition is false, testing at the top. The classic convergence loop <code>do while (err &gt; tol)</code> fits it perfectly. For an unbounded loop use the even simpler <code>do</code> with an <code>exit</code> inside — the "loop forever until told otherwise" shape every simulation uses.</p>
+
+                <pre><code class="language-fortran line-numbers">program convergence
+  implicit none
+  real :: x, err
+  x = 2.0
+  err = huge(1.0)
+  do while (err &gt; 1.0e-5)        ! iterate a sequence until it settles
+     x = 0.5 * (x + 2.0 / x)     ! Newton step for sqrt(2)
+     err = abs(x - sqrt(2.0))
+     print '(f12.8)', x
+  end do
+end program convergence</code></pre>
+
+                <h2 id="do-concurrent">DO CONCURRENT: the parallel-ready loop</h2>
+                <p><code>do concurrent</code> looks like a <code>do</code> loop but declares that iterations are independent — no iteration reads or writes a value another iteration writes. That independence is a contract, not a wish: the compiler may parallelize, vectorize, or redistribute the iterations, and it must return the same answer. Body restrictions enforce the contract (no <code>exit</code>, no writes to a variable shared across iterations except reductions). All the parallel lessons build on it:</p>
+
+                <pre><code class="language-fortran line-numbers">program concurrent_sum
+  use iso_fortran_env, only: int64
+  implicit none
+  integer, parameter :: n = 100000
+  real :: v(n), result
+  call random_number(v)
+  result = 0.0
+  ! Every iteration touches only v(i): the compiler may use any
+  ! thread count or SIMD width to add the elements. The reduce
+  ! locality specifier (Fortran 2018) makes the summation legal.
+  do concurrent (i = 1:n) reduce(+:result)
+     result = result + v(i)      ! reduction with explicit locality
+  end do
+  print '(a,es15.7)', 'sum = ', result
+end program concurrent_sum</code></pre>
+
+                <p>Without the <code>reduce</code> clause the summation would be a race — two iterations mutating the same scalar — and the standard forbids it. The same pattern generalizes to <code>reduce(min:...)</code>, <code>reduce(*:...)</code> and user-defined reductions. The message is the same: <em>write the loop as if it will run on a hundred cores, because the parallel lessons will make that true.</em></p>
+
+              </main>
+            </div>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <footer class="footer copyright">
+            <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+          </footer>
         </div>
-      </aside>
-
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h1 id="program-workflow">Program Workflow</h1>
-
-
-<div class="alert alert-secondary shadow-sm">
-Control flow statements are managing the logic workflow of the application. It makes the program non linear. Most languages are using control flow to resolve problems step by step. Fortran is the original, other languages are just inheriting these ideas and create diverse variations.</div>
-
-
-<h2 id="conditional">Conditional</h2>
-
-<p>Conditionals are Logic expressions that can return value .true. or .false. Conditional expressions are usually enclosed in round brackets when used in statements. Also, you can combine multiple conditional expressions in larger expressions using logic operators. Conditionals are used to create branches, ladders and conditional loops.</p>
-
-<h4>Example</h4>
-
-<pre><code class="language-fortran"
->if ((a .gt. b) .and. .not. (a .lt. c)) then ...    
-</code></pre>
-
-<h3 id="bra"><a ></a>Branches</h3>
-
-<p>This is a set of 2 alternative blocks of code. The first block is executed when the conditional is true. The second is executed when conditional is false. The second block is optional.</p>
-
-<div class="text-center">
-  <img src="/images/decision.svg" alt="decision logic diagram"
-       width="600" class="img-fluid protect rounded shadow border" >
-  <p>Decision Branch</p>
-</div>
-
-<!--code panel-->
-<div class="panel">
-<div class="panel-heading">syntax pattern</div>
-<div class="panel-body">
-<pre class="code-panel"><code class="language-fortran line-numbers"> if (logical_expression1) then
-    ! True branch
-    ...
- else
-    ! False branch
-    ...
- end if
-</code></pre>
-</div></div>
-
-
-<h3 id="lad"><a ></a>Ladder</h3>
-
-<p>A decision ladder is a set of exclusive conditions. Each condition enable or disable execution of next block. When all conditions fail the default block that has no condition is executed. The default block is optional.</p>
-
-<div class="text-center">
-  <img src="/images/ladder.svg" alt="decision logic diagram"
-       width="600" class="img-fluid protect rounded shadow border" >
-  <p>Decision Ladder</p>
-</div>
-
-
-<!--code panel-->
-<div class="panel">
-<div class="panel-heading">syntax pattern</div>
-<div class="panel-body">
-<pre class="code-panel"><code class="language-fortran line-numbers"
-> if (logical_expression_1) then
-    ! First branch
- else if (logical_expression_2) then
-    ! Second branch
- ...
- else if (logical_expression_N) then
-    ! N'th branch
- else
-    ! Default branch    
- end if
-</code></pre>
-</div></div>
-
-<h2 id="repetition">Repetition</h2>
-
-<p>Repetitive statements are also called loops. In Fortran there are several kind of loops controlled in different ways. You must always have at least one interruption in a loop, otherwise you can create by mistake an in infinite loop that can jam your computer!</p>
-
-<h4>keywords</h4>
-<ul>
-    <li>do - start the loop</li>
-    <li>while - create a conditional</li>
-    <li>cycle - restart the loop</li>
-    <li>exit - force stop the loop</li>  
-    <li>end do - end the loop block</li>  
-</ul>
-
-<h3 id="until"><a ></a>do - until</h3>
-
-<p>Fortran 95 has a consistent syntax. You can use keyword do for all loops in differed ways. The most simple loop is actually unconditional, infinite loop that should be avoided in practice. To make a "until" stop condition you need to use conditional "if" statement with keyword "exit".</p>
-
-<!-- a regular diagram -->
-<div class="text-center">
-  <img src="/images/do-while.svg" alt="do loop diagram"
-       width="600" class="img-fluid protect rounded shadow border" >
-  <p>do-until loop</p>
-</div>
-
-<!--code panel-->
-<div class="panel">
-<div class="panel-heading">example</div>
-<div class="panel-body">
-<pre class="code-panel"><code class="language-fortran line-numbers"
->! do-until loop
-program until
-  integer:: i = 0
-  do  
-    print *, i
-    i = i + 1
-    if (i > 4) then 
-       exit
-    end if
-  end do
-end program
-</code></pre>
-</div></div>
-
-
-<h3 id="while"><a ></a>do - while</h3>
-
-<p>This kind of loop execute a block of code as long as condition is true. It do not start if the condition is false in the first place.  It can be interrupted by an exit statement using a secondary condition.</p>
-
-<!-- a regular diagram -->
-<div class="text-center">
-  <img src="/images/while.svg" alt="while loop diagram"
-       width="600" class="img-fluid protect rounded shadow border" >
-  <p>do-while loop</p>
-</div>
-
-<!--code panel-->
-<div class="panel">
-<div class="panel-heading">example</div>
-<div class="panel-body">
-<pre class="code-panel"><code class="language-fortran line-numbers"
->! conditional loop
-program loop
-  integer:: i = 0
-  do while (i<5)
-  print *, i
-    i = i + 1
-  end do
-end program
-</code></pre>
-</div></div>
-
-<h3 id="range"><a ></a>range - loop</h3>
-
-<p>Range loop is used to iterate over a limited number of values. It is useful to iterate over array elements or matrix or do other things that can depend on an index number. It can progress ascending or descending with a specified positive or negative ratio.</p>
-
-<!--two columns pattern-->
-<div class="row">
-<!-- first column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">example</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-fortran line-numbers"
->! range scan
-program for
-
-do i=1,10,2 !ratio +2
-  print *, i
-end do
-
-print *,""
-do i=10,1,-2 !ratio -2
-  print *, i
-end do
-
-end program
-</code></pre>
-</div>
-</div>
-
-<!-- second column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">console</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-output">&gt; ./for
-           1
-           3
-           5
-           7
-           9
- 
-          10
-           8
-           6
-           4
-           2
->
-</code></pre>
-</div>
-</div>
-</div>
-
-<h2 id="select"><a ></a>Selection</h2>
-
-<p>Selection statement is similar to switch statement of other languages. This is basically a jump table controlled by a single variable. It can have multiple cases and one default case. This statement can be used to create menu option in a CLI app or do other things like in example below. </p>
-
-<div class="text-center">
-  <img src="/images/select.svg" alt="selection diagram"
-       width="600" class="img-fluid protect rounded shadow border" >
-  <p>Selection Diagram</p>
-</div>
-
-
-<!--two columns pattern-->
-<div class="row">
-<!-- first column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">example</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-fortran line-numbers"
->! number of days in a month
-program main
-integer:: month, num_days
-write (*,*) "month #"
-read *, month
-select case (month)
-    case (2)
-        num_days = 28
-    case (7:8)
-        num_days = 31
-    case (1,3,5,10,12)
-        num_days = 31
-    case default
-        num_days = 30
-end select
-print *, "num days = ", num_days
-end program
-</code></pre>
-</div>
-</div>
-
-<!-- second column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">console</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-output">&gt;./select
- month #
-2
- num days =           28
->./select
- month #
-1
- num days =           31
->./select
- month #
-3
- num days =           31
->./select
- month #
-9
- num days =           30
->    
-</code></pre>
-</div>
-</div>
-</div>
-
-<p><em>Notes:</em> Cases are exclusive and the default case is optional. You can have a list of cases separated by coma and a range separated by column. Cases should not overlap. Only one case block is execute. You do not have to use break like in other languages. 
-</p>
-
-<h2 id="labels"><a ></a>Labels</h2>
-
-<p>In Fortran 77 we have a legacy system of numeric labels that is deprecated. Modern Fortran has preserved labels only to give names for specific block statements. The syntax is <code>label:</code>, if you try to use numeric labels, your code will not compile.</p>
-
-<p><em>Deleted features</em>:Related to labels, the ASSIGN statement was deprecated, and GO TO was replaced by "goto" statement. Though this statement is not recommended. You should use "cycle" and "exit" with a label if you use nested loop.</p>
-
-<!--two columns pattern-->
-<div class="row">
-<!-- first column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">example</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-fortran line-numbers"
->! using labels
-program label
-real :: r
-integer i, j
-i = 0 ! initialize the index
-outer: do i=0, 3
-  inner: do j=0, 6
-    call random_number(r)
-    if (modulo(j,2) == 0) then
-       cycle inner;  
-    end if;
-    print "(i2,i2,f8.2)",i, j, r
-  end do inner 
-end do outer
-print *, "done"
-end program
-</code></pre>
-</div>
-</div>
-
-<!-- second column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">console</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-output"
->&gt; ./label
- 0 1    0.39
- 0 3    0.24
- 0 5    0.29
- 1 1    0.26
- 1 3    0.30
- 1 5    0.90
- 2 1    0.01
- 2 3    0.52
- 2 5    0.23
- 3 1    0.29
- 3 3    0.55
- 3 5    0.05
- done
-</code></pre>
-</div>
-</div>
-</div>
-<!-- work in progress-->
-
-<hr>
-
-
-</main>
-    </div>
-  </div>
-
-  <hr>
-
-  <footer class="footer copyright">
-    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
-  </footer>
-
-</div>
-
-<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
-  <span style="font-size: 24px;">&#9776;</span>
-</button>
-
-<script>
-  window.TOPIC_CONFIG = {
-    labId: 'fortran',
-    topicId: 'control',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
-    inlineContent: true
-  };
-</script>
-<script src="/assets/js/sage.js" defer></script>
-<script src="/assets/js/topic-loader.js" defer></script>
-
-</body>
-</html><script src="/sage.js"></script>
-</html>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+          <span style="font-size: 24px;">&#9776;</span>
+        </button>
+        <script>
+          window.TOPIC_CONFIG = {
+            labId: 'fortran',
+            topicId: 'control',
+            homeLink: './index.html#topics',
+            labHomeLink: './index.html',
+            inlineContent: true
+          };
+        </script>
+        <script src="/assets/js/sage.js" defer></script>
+        <script src="/assets/js/topic-loader.js" defer></script>
+        </body>
+        </html>

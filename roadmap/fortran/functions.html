@@ -1,0 +1,156 @@
+        <!DOCTYPE html>
+        <html lang="en" data-bs-theme="dark">
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="Fortran procedures: functions versus subroutines, INTENT contracts, optional and keyword arguments, pure and elemental procedures, recursion, and internal vs module procedures.">
+          <meta name="author" content="Elucian Moise">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>Fortran Functions &amp; Subroutines</title>
+          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+          <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+          <link rel="stylesheet" href="/assets/prism.css">
+          <script src="/assets/prism.js"></script>
+          <link rel="stylesheet" href="/assets/css/sage-common.css">
+          <link rel="stylesheet" href="/assets/css/content-topic.css">
+          <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+          <link rel="stylesheet" href="/assets/css/content-code.css">
+          <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+        </head>
+        <body>
+        <div class="container">
+          <header id="dynamic-header" class="container-fluid pb-2"></header>
+          <div class="container-fluid px-0">
+            <div class="row g-0">
+              <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+              <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+                <h1 id="fortran-functions">Functions &amp; Subroutines</h1>
+                <div class="alert alert-secondary shadow-sm">
+                  Procedures are where Fortran code starts to be reusable. The language offers two kinds — functions, which compute one return value, and subroutines, which perform effects — and a set of attributes (intent, pure, elemental, optional) that turn a pile of legacy calls into a checked, optimizable interface. This lesson builds that interface vocabulary.
+                </div>
+
+                <h2 id="functions-vs-subroutines">Functions vs subroutines</h2>
+                <p>A <strong>function</strong> is called in an expression and yields one value; its name acts as the result variable. A <strong>subroutine</strong> is invoked with <code>call</code>, returns nothing by name, and communicates through its arguments. The rule of thumb from the scientific-computing style guides: use functions for pure math (<code>y = my_sqrt(x)</code>), and subroutines for anything that writes, allocates, or moves data.</p>
+
+                <pre><code class="language-fortran line-numbers">program procedure_demo
+  implicit none
+  real :: a, b
+  a = 3.0
+  b = 4.0
+  print *, hypot2(a, b)        ! function call inside an expression
+  call report(a, b)            ! subroutine call as a statement
+contains
+  ! A function: returns one value through its name.
+  real function hypot2(x, y)
+    real, intent(in) :: x, y
+    hypot2 = sqrt(x*x + y*y)
+  end function hypot2
+
+  ! A subroutine: performs an effect, returns nothing by name.
+  subroutine report(x, y)
+    real, intent(in) :: x, y
+    print '(a,2f6.2)', 'args: ', x, y
+  end subroutine report
+end program procedure_demo</code></pre>
+
+                <p>Notice the two spellings of the function header: legacy <code>real function hypot2(x, y)</code> and modern <code>function hypot2(x, y) result(r)</code> with an explicit result name, which is preferred when a <code>result</code> name clarifies the code or is needed for recursion.</p>
+
+                <h2 id="intent-contracts">INTENT: the argument contract</h2>
+                <p>Fortran passes arguments by reference — the callee sees the caller's actual variable. <code>intent(in)</code> promises the callee only reads it (the compiler may copy it behind your back, enabling huge optimization wins), <code>intent(out)</code> declares the callee writes it fresh, and <code>intent(inout)</code> means read-modify-write. Declaring intent turns bugs like accidentally overwriting an input into compile-time errors.</p>
+
+                <div class="text-center">
+                  <img src="/roadmap/fortran/img/fortran-argument-passing.svg" alt="INTENT data-flow contract diagram" class="img-fluid protect rounded shadow border" width="860">
+                  <p><em>Fig. 1 — INTENT is a legal contract the compiler enforces and optimizes against.</em></p>
+                </div>
+                <h2 id="optional-and-keyword-arguments">Optional and keyword arguments</h2>
+                <p>Arguments may be declared <code>optional</code>, and every argument may be passed by keyword: <code>call report(x=a, y=b)</code>. Keyword calling frees you from memorizing positional order and makes each argument self-documenting at the call site. The intrinsic <code>present(name)</code> tests at runtime whether an optional argument was supplied — the idiom for defaults.</p>
+
+                <pre><code class="language-fortran line-numbers">module stats
+  implicit none
+contains
+  function mean(x, mask) result(m)
+    real, intent(in) :: x(:)
+    logical, intent(in), optional :: mask(:)   ! per-element filter
+    real :: m
+    logical :: keep(size(x))
+    if (present(mask)) then
+       keep = mask
+    else
+       keep = .true.                 ! default: use every element
+    end if
+    m = sum(x, mask=keep) / count(keep)
+  end function mean
+end module stats
+
+program optional_demo
+  use stats
+  implicit none
+  real :: data(5) = [1.0, 2.0, 3.0, 4.0, 100.0]
+  print *, mean(data)                     ! uses every element: 22.0
+  print *, mean(data, mask=data &lt; 10.0)   ! rejects the outlier:  2.5
+end program optional_demo</code></pre>
+
+                <h2 id="pure-and-elemental">Pure and elemental procedures</h2>
+                <p><code>pure</code> promises a procedure has no side effects: it reads arguments, computes, returns — it never writes globals or performs I/O. The compiler verifies the promise, and then <code>do concurrent</code> and OpenMP can safely call it from many threads at once. <code>elemental</code> is the sharper tool: an elemental function takes scalar arguments but is applied element-wise when given arrays — one body, both scalar and array callers:</p>
+
+                <pre><code class="language-fortran line-numbers">module physics
+  implicit none
+contains
+  ! One body; callable with scalars AND with arrays.
+  elemental real function fahrenheit(c)
+    real, intent(in) :: c
+    fahrenheit = c * 9.0 / 5.0 + 32.0
+  end function fahrenheit
+end module physics
+
+program elemental_demo
+  use physics
+  implicit none
+  real :: city(3) = [-5.0, 12.0, 27.0]
+  print *, fahrenheit(city)      ! whole array in one call
+  print *, fahrenheit(city(1))   ! scalar call, same body
+end program elemental_demo</code></pre>
+
+                <h2 id="recursion-and-other-attributes">Recursion and placement</h2>
+                <p>Functions that call themselves declare <code>recursive</code> (gfortran accepts it even without the keyword, but the standard and other compilers require it). The classic factorial is short but illuminating: watch the call stack grow, then unwind multiplying.</p>
+
+                <pre><code class="language-fortran line-numbers">recursive function fact(n) result(r)
+  integer, intent(in) :: n
+  integer :: r
+  if (n &lt;= 1) then
+     r = 1
+  else
+     r = n * fact(n - 1)          ! the recursive step
+  end if
+end function fact</code></pre>
+
+                <p>Where procedures live decides how they are shared. <strong>Internal procedures</strong> sit in a unit's <code>contains</code> block and see the host's variables (host association) — convenient, but hidden from other files. <strong>Module procedures</strong> live in a module, are usable by any unit that <code>use</code>s the module, and their interfaces are checked automatically at every call site — the default choice for anything reused. <strong>External procedures</strong> are the pre-module legacy; they demand hand-written <code>interface</code> blocks and are the source of most "unexpected argument types" bugs in old code.</p>
+
+                <div class="alert alert-info shadow-sm">
+                  <strong>Takeaway:</strong> every procedure gets an <code>intent</code> on every argument; math becomes <code>elemental</code> where possible, <code>pure</code> where it can be, and lives in a module the moment a second file needs it.
+                </div>
+
+              </main>
+            </div>
+          </div>
+          <hr>
+          <footer class="footer copyright">
+            <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+          </footer>
+        </div>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+          <span style="font-size: 24px;">&#9776;</span>
+        </button>
+        <script>
+          window.TOPIC_CONFIG = {
+            labId: 'fortran',
+            topicId: 'functions',
+            homeLink: './index.html#topics',
+            labHomeLink: './index.html',
+            inlineContent: true
+          };
+        </script>
+        <script src="/assets/js/sage.js" defer></script>
+        <script src="/assets/js/topic-loader.js" defer></script>
+        </body>
+        </html>

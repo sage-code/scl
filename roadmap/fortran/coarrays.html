@@ -1,0 +1,104 @@
+        <!DOCTYPE html>
+        <html lang="en" data-bs-theme="dark">
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="Fortran coarrays: images, square-bracket cosubscripts, one-sided communication, sync all, teams, events, collectives and coarray applications.">
+          <meta name="author" content="Elucian Moise">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>Fortran Coarrays</title>
+          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+          <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+          <link rel="stylesheet" href="/assets/prism.css">
+          <script src="/assets/prism.js"></script>
+          <link rel="stylesheet" href="/assets/css/sage-common.css">
+          <link rel="stylesheet" href="/assets/css/content-topic.css">
+          <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+          <link rel="stylesheet" href="/assets/css/content-code.css">
+          <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+        </head>
+        <body>
+        <div class="container">
+          <header id="dynamic-header" class="container-fluid pb-2"></header>
+          <div class="container-fluid px-0">
+            <div class="row g-0">
+              <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+              <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+                <h1 id="fortran-coarrays">Coarray Fortran</h1>
+                <div class="alert alert-secondary shadow-sm">
+                  Coarrays (Fortran 2008/2018) put distributed-memory parallelism <em>inside the language</em>: one program runs as N replicated <strong>images</strong>, each owns private data plus coarrays, and any image reads another's coarray with square-bracket syntax. The compiler and runtime own the communication.
+                </div>
+
+                <h2 id="images-and-cosubscripts">Images and cosubscripts</h2>
+                <p>Launch <code>./app</code> and <code>num_images()</code> tells you how many copies the runtime created (1 for a normal run; N with a coarray-aware scheduler). <code>this_image()</code> is your rank. A coarray is any variable with a cosubscript dimension — the trailing <code>[*]</code> — existing independently on every image. The square bracket selects <em>which image's copy</em> you mean, and reading it is one-sided: the owner is neither told nor paused:</p>
+
+                <pre><code class="language-fortran line-numbers">program images
+  implicit none
+  integer :: me
+  real :: buf[*]                    ! one copy per image, cosubscript address
+  me = this_image()                 ! which image am I? 1..num_images()
+  buf = real(me)                    ! write MY OWN copy (plain assignment)
+  sync all                          ! barrier: now every buf is published
+  if (me == 1) then
+     print '(a,i0,a,f4.1)', 'image 2 says ', buf[2]   ! one-sided READ
+  end if
+end program images</code></pre>
+
+                <p>Try it with <code>gfortran -std=f2008 -fcoarray=single images.f90</code> (syntax and single-image behaviour) and, where the runtime is installed, <code>gfortran -fcoarray=lib images.f90 &amp;&amp; cafrun -n 4 ./images</code> (multi-image execution).</p>
+
+                <div class="text-center">
+                  <img src="/roadmap/fortran/img/fortran-coarray-images.svg" alt="Coarray images share no memory but read each other's coarrays" class="img-fluid protect rounded shadow border" width="860">
+                  <p><em>Fig. 1 — Private data per image; square brackets reach across; sync is the rendezvous.</em></p>
+                <h2 id="collectives">Collectives: reductions across images</h2>
+                <p>Before Fortran 2018, summing a value across images meant explicit per-image reads in a loop, guarded by <code>sync all</code>. The <strong>collective subroutines</strong> — <code>co_sum</code>, <code>co_min</code>, <code>co_max</code>, <code>co_broadcast</code> and the general <code>co_reduce</code> — fold a value across every image in one call, with the synchronization built in. Every image calls them together; after the call, each image holds the combined result:</p>
+
+                <pre><code class="language-fortran line-numbers">program co_sum_demo
+  implicit none
+  integer :: me, n
+  real :: partial
+  me = this_image()
+  n = num_images()
+  partial = real(me * me)          ! each image contributes its own slice
+  call co_sum(partial)             ! collective: SUM over all n images
+  if (me == 1) then
+     print '(a,f8.0)', 'sum of squares across images = ', partial
+  end if
+end program co_sum_demo</code></pre>
+
+                <p><code>co_broadcast(value, source_image)</code> publishes one image's value to everyone — the standard way to distribute a solution vector or a parameter set at a checkpoint. <code>co_min</code>/<code>co_max</code> reduce error norms and residuals across images, giving every image the global stopping criterion for an iterative solver.</p>
+
+                <h2 id="coarray-applications">The classic application: distributed arrays</h2>
+                <p>Real coarray code distributes a large array over images — each image owns a contiguous slice, and the [ ] cosubscript reads the neighbours. For a 1-D domain decomposition of a time-dependent simulation, the pattern is: write my slice, <code>sync all</code>, read the two halo values from the neighbouring images' coarrays, compute, repeat. All communication is one-sided and data-flow spelled directly in the source. The MPI lesson contrasts the identical algorithm expressed with explicit message passing — the concepts transfer 1:1, which is precisely why the choice between them is a tooling decision more than a learning decision.</p>
+
+                <div class="alert alert-warning shadow-sm">
+                  <strong>Compiler reality check.</strong> gfortran implements coarrays thoroughly (<code>-fcoarray=single</code> for one image; <code>-fcoarray=lib</code> for the multi-image runtime); Cray/Intel have the deepest coarray implementations in HPC production. Teams and the full event model are F2018 and still maturing in free compilers — read the release notes, and when a group feature lags, <code>sync images</code> is the portable fallback.
+                </div>
+
+                </div>
+
+                <h2 id="sync-and-teams">Synchronization: sync all, sync images, teams</h2>
+                <p>Parallel programs misbehave when an image reads data before the writer published it. <code>sync all</code> is the full barrier — nobody passes until everyone reached it. <code>sync images(list)</code> syncs only with named partners, cheaper on big ensembles. <strong>Teams</strong> (F2018) partition images into groups that synchronize internally while the whole ensemble proceeds independently — the scalable pattern for million-image runs; <strong>events</strong> (post/wait) express producer-consumer handoffs that barriers would over-synchronize.</p>
+              </main>
+            </div>
+          </div>
+          <hr>
+          <footer class="footer copyright">
+            <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+          </footer>
+        </div>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+          <span style="font-size: 24px;">&#9776;</span>
+        </button>
+        <script>
+          window.TOPIC_CONFIG = {
+            labId: 'fortran',
+            topicId: 'coarrays',
+            homeLink: './index.html#topics',
+            labHomeLink: './index.html',
+            inlineContent: true
+          };
+        </script>
+        <script src="/assets/js/sage.js" defer></script>
+        <script src="/assets/js/topic-loader.js" defer></script>
+        </body>
+        </html>

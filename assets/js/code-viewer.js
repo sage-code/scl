@@ -145,7 +145,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         'aar': 'armasm',
         'wat': 'wasm',
         'wast': 'wasm',
-        'wasm': 'wasm'
+        'wasm': 'wasm',
+        // Fortran — grammar is bundled in assets/prism.js (see its download header)
+        'f90': 'fortran',
+        'f95': 'fortran',
+        'f03': 'fortran',
+        'f08': 'fortran',
+        'f18': 'fortran',
+        'f': 'fortran',   // legacy fixed-form Fortran 77
+        'for': 'fortran', // legacy fixed-form Fortran 77
+        'fpp': 'fortran'  // preprocessor output
     };
 
     display.className = `language-${langMap[ext] || 'javascript'}`;
