@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Nim build modes from debug to release and danger, optimization switches, memory management selection, panics, cross-compilation, static and dynamic libraries, Nimble packaging and release checklists.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, deployment, build, release, danger, optimization, panics, cross-compilation, nimble, library, CI">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Compilation, Build Modes &amp; Deployment</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-deployment">Compilation, Build Modes &amp; Deployment</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  A Nim program is not compiled once, it is compiled <em>for a purpose</em>. The switches you pass decide whether runtime checks and stack traces are present, how memory is managed, how large the binary is, and which platform it runs on. This lesson walks from the default debug build to a release artefact you would actually ship.
+</div>
+
+<h2 id="build-modes">Build Modes</h2>
+<p>The default invocation <code>nim c app.nim</code> produces a debug build: runtime checks, assertions and stack traces stay in, and the C compiler is not asked to optimize. That is the build you develop and test against, because it is the one that tells you <em>where</em> a bug happened.</p>
+
+<h3 id="debug-release-danger">Debug, Release and Danger</h3>
+<p>Nim's own <code>config/nim.cfg</code> defines what the two optimized modes mean. Reading the definitions is more reliable than any blog post about them:</p>
+<ul>
+  <li><code>-d:release</code> sets <code>stacktrace:off, excessiveStackTrace:off, linetrace:off, debugger:off, line_dir:off, opt:speed</code> and <code>define:release</code> — fast code, no helpful traces.</li>
+  <li><code>-d:danger</code> adds "all runtime checks off, assertions off" on top of the release settings — the fastest and smallest build, and the one allowed to skip index checks, overflow checks and <code>nil</code> checks.</li>
+</ul>
+<pre><code class="language-bash line-numbers">nim c app.nim                  # debug: checks on, traces on, optimizations off
+nim c -d:release app.nim       # ship this: speed on, traces off
+nim c -d:release --panics:on app.nim
+nim c -d:danger app.nim        # measurements only: no checks at all
+</code></pre>
+<p>Treat <code>-d:danger</code> as a benchmark tool, not a shipping mode: with checks disabled, an out-of-range index reads or writes whatever memory follows the array instead of terminating with a message. <code>--panics:on</code> ("turn panics into process terminations", off by default) is the safer middle ground — it removes the exception unwinding machinery for defects while leaving ordinary exceptions intact, which shrinks binaries and speeds up error paths.</p>
+
+<h3 id="memory-switch">Memory Management at Build Time</h3>
+<p>The strategy is a compile-time choice. The compiler option list describes <code>--mm</code> as selecting "which memory management to use; default is <code>'orc'</code>", so a stock 2.x build already has deterministic destruction plus cycle collection. Change it only with a measurement in hand:</p>
+<pre><code class="language-bash line-numbers">nim c -d:release app.nim                    # --mm:orc is already the default
+nim c -d:release --mm:arc app.nim           # no cycle collector: fewer instructions,
+                                            # leaks any reference cycle you create
+nim c -d:release --mm:none app.nim          # manual memory only: for freestanding targets
+</code></pre>
+<p>Never mix strategies inside one program, and re-run the test suite for every strategy you ship — <code>=destroy</code> hooks and <code>move</code> transfers behave differently once the tracing collector is gone.</p>
+
+<h3 id="optimization">Optimisation, Size and Checks</h3>
+<p>Three dials are independent of the build mode and are worth setting explicitly in a release recipe: the optimisation level, how much code the binary carries, and whether a defect terminates the process.</p>
+<pre><code class="language-bash line-numbers">nim c -d:release --opt:speed app.nim     # default for release: optimize for speed
+nim c -d:release --opt:size app.nim      # small targets, embedded systems
+nim c -d:release --opt:none app.nim      # no C optimizations: fastest to build
+nim c -d:release --panics:on app.nim     # defects terminate; less unwinding code
+nim c -d:release --passC:"-O3" --passL:"-s" app.nim   # extra C flags, stripped
+</code></pre>
+<p><code>--passC</code> and <code>--passL</code> forward flags verbatim to the C compiler and linker, which is how you reach backend-specific tuning without touching Nim code. Two warnings are worth remembering: stripping (<code>-s</code>) makes stack traces useless, and aggressive C optimisation can expose undefined behaviour a debug build tolerated — so always run the suite against the exact flags you ship.</p>
+
+<h2 id="packaging">Packaging</h2>
+<p>A Nim project is a source tree plus a manifest. The manifest is what turns "clone this and guess the commands" into <code>nimble build</code>.</p>
+
+<h3 id="artifacts">Executables, GUI Apps and Libraries</h3>
+<table class="table table-bordered table-dark">
+  <thead><tr><th><code>--app:</code></th><th>Produces</th><th>When to use</th></tr></thead>
+  <tbody>
+    <tr><td><code>console</code></td><td>A command-line executable (default)</td><td>Tools, servers, test binaries</td></tr>
+    <tr><td><code>gui</code></td><td>An executable with no console window on Windows</td><td>Windowed desktop programs</td></tr>
+    <tr><td><code>lib</code></td><td>A shared library (<code>.dll</code> / <code>.so</code>)</td><td>Plugins and components loaded at run time</td></tr>
+    <tr><td><code>staticLib</code></td><td>A static archive (<code>.a</code>)</td><td>Components embedded in a C or C++ program</td></tr>
+  </tbody>
+</table>
+<pre><code class="language-bash line-numbers">nim c -d:release -o:build/app app.nim                 # name the output
+nim c -d:release --app:gui src/desk.nim               # no console window
+nim c -d:release --app:lib --header:api.h --out:libapi.so api.nim
+</code></pre>
+<p>Libraries are the case that needs one extra step: an exported symbol is only usable if the host can declare it, so <code>--header</code> writes the C header matching your <code>{.exportc.}</code> declarations, and the host must call <code>NimMain()</code> once before using them.</p>
+
+<h3 id="nimble">Nimble Packages</h3>
+<p>The manifest is a <code>.nimble</code> file written in NimScript — real Nim syntax, executed by the Nimble tool. It declares the package, its dependencies and its tasks.</p>
+<pre><code class="language-nim line-numbers"># app.nimble — the package manifest read by the Nimble tool.
+version     = "0.1.0"
+author      = "Your Name"
+description = "A command line tool written in Nim"
+license     = "MIT"
+srcDir      = "src"                    # sources live in src/, not at the root
+bin         = @["app"]                 # 'nimble build' produces this executable
+
+requires "nim &gt;= 2.0.0"                # the compiler floor for this package
+requires "cligen &gt;= 1.7.0"             # third-party dependencies, with versions
+
+task test, "Run the test suite":
+  # Tasks are NimScript: ordinary statements run by Nimble, not a shell string.
+  exec "nim c -r tests/tall.nim"
+  exec "nim c -r -d:release tests/tall.nim"
+</code></pre>
+<pre><code class="language-bash line-numbers">nimble build      # compile everything listed in 'bin'
+nimble test       # run the 'test' task in the manifest
+nimble install    # build and install into the local package store
+nimble develop    # register this checkout so other projects pick it up live
+nimble dump       # print the resolved package: version, deps, source paths
+</code></pre>
+<p><code>nimble dump</code> is the debugging tool for dependency problems: it shows the version Nimble resolved, the paths it will compile from, and whether a checkout or an installed copy is in play — the answer to "why is my local edit not being used?".</p>
+
+<h2 id="workflow">A Release Workflow</h2>
+<p>Two properties separate a build you can trust from one you cannot: the same input produces the same output, and the flags live in the repository rather than in somebody's shell history. Nim supports both without any extra tooling.</p>
+
+<h3 id="reproducible">Flags in the Repository</h3>
+<p><code>config.nims</code> is a NimScript file the compiler loads automatically, so build switches that the project always wants can be committed next to the code.</p>
+<pre><code class="language-nim line-numbers"># config.nims — read automatically by the compiler from the project root.
+switch("path", "src")            # every build can 'import app' without prefixes
+switch("define", "release")      # a release binary is the default here
+switch("opt", "speed")           # explicit, instead of relying on the default
+
+when defined(windows):
+  switch("passL", "-static")     # platform-specific linking, in one place
+</code></pre>
+<pre><code class="language-nim line-numbers"># A per-target file wins over config.nims: tests keep the debug settings.
+# tests/config.nims
+switch("define", "debug")        # no traces lost while testing
+switch("define", "release")      # (remove the line above to re-enable release)
+</code></pre>
+<p>Because the file is executed rather than parsed, conditions read as normal Nim: <code>when defined(windows)</code>, <code>when hostOS == "linux"</code>. That is also why it must be reviewed like code — a switch here silently applies to every build in the directory tree.</p>
+
+<h3 id="cross-compiling">Cross-Compilation</h3>
+<p>The C backend turns the target into a pair of switches: <code>--os</code> and <code>--cpu</code> select what the generated C is compiled for, and <code>--cc</code> selects which C compiler does it.</p>
+<pre><code class="language-bash line-numbers">nim c -d:release --os:linux --cpu:arm64 --cc:clang -o:app-linux-arm64 app.nim
+nim c -d:release --os:windows --cpu:amd64 -o:app.exe app.nim
+nim c --os:any --cpu:wasm32 --cc:clang -o:app.wasm app.nim   # WebAssembly
+</code></pre>
+<p>Cross-compilation needs a C toolchain that targets the destination platform — the switches select it, the compiler does not supply it. Cross-compiled code must also be tested on the destination, or in an emulator: a runtime check that passes on the build machine proves nothing about a platform with a different word size or a different libc.</p>
+<p>The <a href="https://nim-lang.org/docs/nimc.html" target="_blank" rel="noopener noreferrer nofollow">compiler user guide</a> lists the complete switch reference — <code>--opt</code>, <code>--panics</code>, <code>--mm</code>, <code>--passC</code>, <code>--passL</code>, <code>--os</code>, <code>--cpu</code>, <code>--cc</code> — and the <a href="https://nim-lang.org/docs/nimble.html" target="_blank" rel="noopener noreferrer nofollow">Nimble documentation</a> covers the manifest fields and tasks used above.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "deployment",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Defining procedures, parameters and defaults, overloading by signature, operators as procedures, var parameters, scope rules and procedures as values.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, procedures, procs, parameters, overloading, var parameters, closures, scope">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Procedures &amp; Scope</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-procedures">Procedures &amp; Scope</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  A Nim program is a tree of procedures, and the language gives them two unusual powers: they can be overloaded by their argument types, and they can be called as if they belonged to their first argument. This lesson covers definitions, parameters, overloading and the scope rules that decide which name you are using.
+</div>
+
+<h2 id="defining">Defining Procedures</h2>
+<p>A procedure is declared with <code>proc</code>, a name, a parameter list in parentheses, and a return type. Everything after the colon is the body.</p>
+
+<h3 id="params">Parameters and Defaults</h3>
+<pre><code class="language-nim line-numbers">proc greet(name: string, greeting = "Hello"): string =
+  ## Parameters with a default may be omitted at the call site.
+  greeting & ", " & name & "!"
+
+echo greet("Ada")                    # Hello, Ada!
+echo greet("Ada", "Hi")              # Hi, Ada!
+echo greet(greeting = "Yo", name = "Bob")   # named arguments: order becomes free
+
+# Parameters are immutable by default, so the caller's data is safe to pass.
+proc length_(text: string): int = text.len
+echo length_("four")                 # 4
+</code></pre>
+
+<h3 id="result">Return Values</h3>
+<p>Every procedure has an implicit <code>result</code> variable of its return type. You can assign to it, return early with <code>return</code>, or write the body as a single expression.</p>
+<pre><code class="language-nim line-numbers">proc sumTo(limit: int): int =
+  result = 0                        # 'result' starts as the zero value of int
+  for i in 1 .. limit:
+    result += i                     # build the answer incrementally
+echo sumTo(4)                       # 10
+
+proc square(x: int): int = x * x    # expression body: no 'result', no 'return'
+echo square(9)                      # 81
+
+proc absolute(x: int): int =
+  if x < 0: return -x               # early return is idiomatic for guards
+  x
+echo absolute(-3), " ", absolute(3)
+</code></pre>
+
+<h2 id="overloading">Overloading and Operators</h2>
+<p>Several procedures may share a name if their parameter lists differ. The compiler picks the best match from the argument types, so you can give one natural name to several representations.</p>
+
+<h3 id="overloads">One Name, Several Signatures</h3>
+<pre><code class="language-nim line-numbers">proc area(side: int): int = side * side                       # square
+proc area(width, height: int): int = width * height           # rectangle
+proc area(radius: float): float = 3.14159 * radius * radius   # circle
+
+echo area(3)          # 9      — square overload
+echo area(3, 4)       # 12     — two-int overload
+echo area(2.0)        # 12.566 — float overload
+
+# Generic overloads keep one implementation for many element types.
+proc twice[T](value: T): seq[T] = @[value, value]
+echo twice(7), " ", twice("go")    # @[7, 7] @["go", "go"]
+</code></pre>
+
+<h3 id="operators">Operators Are Procedures</h3>
+<p>Operator symbols are just procedure names, so you can define one for your own type and it will participate in the same overload resolution as built-in operators.</p>
+<pre><code class="language-nim line-numbers">import std/strformat
+
+type Vector = object
+  x, y: float
+
+proc `+`(a, b: Vector): Vector = Vector(x: a.x + b.x, y: a.y + b.y)
+proc `$`(v: Vector): string = &"({v.x}, {v.y})"   # '$' is the stringify operator
+
+let total = Vector(x: 1.0, y: 2.0) + Vector(x: 3.0, y: 4.0)
+echo total                 # (4.0, 6.0) — echo calls the '$' we just defined
+</code></pre>
+
+<h2 id="scope">Scope, Mutability and First-Class Procedures</h2>
+<p>Parameters are read-only inside the procedure, so a callee cannot mutate the caller's data by accident. Scopes are lexical: a name defined inside a block disappears at its end. Two features extend that model — <code>var</code> parameters for output, and procedure values for behaviour passed as data.</p>
+
+<h3 id="var-params">Output Parameters with var</h3>
+<p>A <code>var</code> parameter is passed by reference, so the procedure can modify the caller's variable. Nim also has <code>out</code> parameters, which additionally initialize the value to its default first — making the intent explicit for readers.</p>
+<pre><code class="language-nim line-numbers">proc increment(counter: var int, amount = 1) =
+  counter += amount          # writes through to the caller's variable
+
+var hits = 0
+increment(hits)              # no '&' or '*' at the call site
+increment(hits, 5)
+echo hits                    # 6
+
+# 'out' parameters promise the callee writes a complete value, so the compiler
+# can treat them as initialized and warn if you forget to assign.
+proc divide(a, b: int, quotient, remainder: out int) =
+  quotient = a div b
+  remainder = a mod b
+var q, r: int
+divide(17, 5, q, r)
+echo q, " remainder ", r     # 3 remainder 2
+</code></pre>
+
+<h3 id="local-scope">Local Scopes and Shadowing</h3>
+<pre><code class="language-nim line-numbers">let name = "outer"
+
+block:
+  let name = "inner"         # a new binding inside this block only
+  echo name                  # inner
+
+echo name                    # outer — the block binding is gone
+
+# 'var' parameters and mutable locals both respect these scopes, so a helper
+# can never accidentally capture a loop index from its caller.
+proc double(value: int): int = value * 2
+for i in 1 .. 2:
+  echo double(i)             # 2 then 4
+</code></pre>
+
+<h3 id="proc-values">Procedures as Values</h3>
+<p>A procedure can be stored, passed and returned. <code>proc</code> types describe the signature; a captured local environment turns a procedure into a closure, allocated on the heap when needed.</p>
+<pre><code class="language-nim line-numbers">proc applyTwice(f: proc (x: int): int, start: int): int =
+  f(f(start))                # the callback is ordinary data to this procedure
+
+proc double(x: int): int = x * 2
+echo applyTwice(double, 3)   # 12
+
+# A closure captures 'factor' from its surrounding scope.
+proc makeScaler(factor: int): proc (x: int): int =
+  result = proc (x: int): int = x * factor   # closure: {.closure.} by default
+
+let times10 = makeScaler(10)
+echo times10(4)              # 40
+
+# Forward declaration: Nim allows using a name before its body when a
+# declaration appears first — common for mutually recursive procedures.
+proc isEven(n: int): bool     # forward declaration
+proc isOdd(n: int): bool = n != 0 and isEven(n - 1)
+proc isEven(n: int): bool = n == 0 or isOdd(n - 1)
+echo isEven(4), " ", isOdd(7)  # true true
+</code></pre>
+
+<h3 id="practice">Practice</h3>
+<p>Write a procedure <code>stats(values: seq[int], total, average: out float)</code> that computes both results in one pass, then pass a callback to sort the sequence descending without writing a loop. When both compile, continue with <a href="/roadmap/nim/collections.html">Collections</a>.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "procedures",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

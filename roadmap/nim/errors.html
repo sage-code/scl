@@ -2,31 +2,35 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Nim fundamentals: Error handling. A tutorial for absolute beginners.">
+  <meta name="description" content="Raising and catching exceptions in Nim, the exception hierarchy, custom error types, defer for cleanup, and the alternatives assert and Option for expected failure.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="nim, lang, language, syntax, tutorial">
+  <meta name="keywords" content="sage, code, nim, errors, exceptions, try, except, raise, defer, Option, assert">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Nim Errors</title>
-
-  <!-- Bootstrap CSS -->
+  <title>Errors &amp; Exceptions</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,186 +39,191 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
-
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="nim-errors">Nim Errors</h2>
-
+<h1 id="nim-errors">Errors &amp; Exceptions</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Errors can occur in Nim for a variety of reasons, such as invalid syntax, runtime errors, and errors in library code. When an error occurs, the Nim compiler will generate a stack trace that shows the location of the error in the code.
+  Nim treats exceptions as ordinary values: they are objects, they can be declared, raised and inspected, and their type forms a hierarchy you can catch at the level of detail that makes sense. The skill is choosing the right tool — exception, <code>Option</code>, or assertion — for each kind of failure.
 </div>
 
-<p>In Nim exceptions are objects. By convention, exception types are suffixed with 'Error'. The system module defines an exception hierarchy that you might want to stick to. Exceptions derive from system.Exception, which provides the common interface.</p>
+<h2 id="exceptions">Exceptions and try</h2>
+<p>An exception is raised with <code>raise</code> and handled by a <code>try</code> statement with one or more <code>except</code> branches. <code>finally</code> always runs, which is where cleanup belongs.</p>
 
-<div class="alert alert-warning"><b>Caution: </b>A convention is that exceptions should be raised in exceptional cases, they should not be used as an alternative method of control flow. Exceptions are more expensive and you should not do large programs in exception handlers.</div>
+<h3 id="try-except">try / except / finally</h3>
+<pre><code class="language-nim line-numbers">import std/strutils
 
-
-<h1 id="error-handling-in-nim">Error Handling in Nim</h1>
-
-<p>Nim has three types of errors:</p>
-
-<ul>
-<li>Fatal errors</li>
-<li>Errors</li>
-<li>Warnings</li>
-</ul>
-
-
-<h2 id="fatal-error">Fatal Error</h2>
-
-<p>The "try" keyword is used to execute a block of code that may contain errors. The "except" keyword is used to handle errors that occur in the "try" block.</p>
-
-<pre><code class="language-nim">
-try:
-    x = 1 / 0
-except FatalError:
-    print("Fatal error")
-</code></pre>
-
-<p>In this example, the "try" block attempts to divide 1 by 0. This will cause a fatal error, which is handled by the "except" block. The "except" block prints the message "Fatal error".</p>
-
-<h4>Errors</h4>
-
-<p>Errors can be handled by returning an error value from a function. For example, the following code shows how to handle an error by returning an error value:</p>
-
-<pre><code class="language-nim">
-func divide(x: int, y: int) -> int:
-if y == 0:
-    return Error
-return x / y
-</code></pre>
-
-<h2 id="raise-statement">Raise statement</h2>
-
-<p>Raising an exception is done with the raise statement. Before you can raise an exception you can define an initialize an error.</p>
-
-<pre><code class="language-nim line-numbers">
-var
-  e: ref OSError
-new(e)
-e.msg = "the request to the OS failed"
-raise e
-</code></pre>
-
-<p>If the raise keyword is not followed by an expression, the last exception is re-raised. For the purpose of avoiding repeating this common code pattern, the template newException in the system module can be used:</p>
-
-<pre><code class="language-nim">raise newException(OSError, "the request to the OS failed")</code></pre>
-
-<h2 id="error-handling">Error handling</h2>
-
-<p>The "try" keyword is used to execute a block of code that may contain errors. The "except" keyword is used to handle errors that occur in the "try" block. The try statement handles exceptions:</p>
-
-
-<div class="text-center">
-  <img src="/roadmap/nim/img/nim-except.svg" alt="try except"
-       width="460" class="img-fluid protect rounded shadow border" >
-  <p>Try Statement</p>
-</div>
-
-<h2 id="example">Example</h2>
-
-<pre><code class="language-nim line-numbers">
-from std/strutils import parseInt
-
-# read the first two lines of a text file that should contain numbers
-# and tries to add them
-var
-  f: File
-if open(f, "numbers.txt"):
+# parseInt raises ValueError on malformed input, so the failure is catchable.
+proc parseAmount(text: string): int =
   try:
-    let a = readLine(f)
-    let b = readLine(f)
-    echo "sum: ", parseInt(a) + parseInt(b)
-  except OverflowDefect:
-    echo "overflow!"
-  except ValueError:
-    echo "could not convert string to integer"
-  except IOError:
-    echo "IO error!"
-  except CatchableError:
-    echo "Unknown exception!"
-    # reraise the unknown exception:
-    raise
-  finally:
-    close(f)
-</code></pre>
+    result = parseInt(text.strip())          # may raise
+  except ValueError as error:
+    echo "cannot parse '", text, "': ", error.msg
+    result = 0                                # a defined fallback, not a crash
 
-<h4>Notes:</h4>
+echo parseAmount(" 42 ")          # 42
+echo parseAmount("forty")         # prints the message, then 0
 
-<p>1.The statements after the try are executed unless an exception is raised. Then the appropriate except part is executed.</p>
-
-<p>2.The empty except part is executed if there is an exception that is not explicitly listed. It is similar to an else part in if statements.</p>
-
-<p>3.If there is a finally part, it is always executed after the exception handlers.</p>
-
-<p>The exception is consumed in an except part. If an exception is not handled, it is propagated through the call stack. This means that often the rest of the procedure - that is not within a finally clause - is not executed (if an exception occurs).
-</p>
-
-<p>If you need to access the actual exception object or message inside an except branch you can use the getCurrentException() and getCurrentExceptionMsg() procs from the system module.</p> 
-
-<h4>Example:</h4>
-
-<pre><code class="language-nim line-numbers">
+# 'finally' runs on every path, including an unhandled exception.
+var handle = "closed"
 try:
-  doSomethingHere()
-except CatchableError:
-  let
-    e = getCurrentException()
-    msg = getCurrentExceptionMsg()
-  echo "Got exception ", repr(e), " with message ", msg
+  handle = "open"                 # acquire
+  # ... use the resource ...
+finally:
+  handle = "closed"               # always release
+echo handle                       # closed
 </code></pre>
 
-<!-- work in progress-->
+<h3 id="custom-exceptions">Declaring Your Own Errors</h3>
+<p>Define exception types for your own failure modes so callers can catch precisely what they expect: inherit from <code>CatchableError</code> and let the hierarchy express how broad the <code>except</code> clause should be.</p>
+<pre><code class="language-nim line-numbers">import std/tables
 
-<hr>
-<p><b>Try this:</b>
-href="/roadmap/nim/index.html#quiz">Quiz</a>
+type
+  ConfigError = object of CatchableError     # a new, catchable error family
+  MissingKeyError = object of ConfigError    # a more specific case
 
-</main>
+proc required(key: string, config: TableRef[string, string]): string =
+  if not config.hasKey(key):
+    raise newException(MissingKeyError, "missing key: " & key)
+  config[key]
+
+let config = newTable[string, string]({"host": "localhost"})
+echo required("host", config)                # localhost
+
+try:
+  discard required("port", config)
+except MissingKeyError as error:              # catch the specific type first
+  echo "config incomplete: ", error.msg
+except ConfigError:                           # then the broader family
+  echo "config error"
+</code></pre>
+
+<h2 id="non-exception">Expected Failures Without Exceptions</h2>
+<p>Not every failure deserves an exception: a missing record, an empty input, an optional setting. Those are ordinary outcomes and read better as values. Reserve exceptions for the unexpected, and assertions for bugs.</p>
+
+<h3 id="option">Option[T] for Absence</h3>
+<p><code>std/options</code> wraps a value that may or may not be there. The caller must test it, so absence cannot be forgotten the way a nil check can.</p>
+<pre><code class="language-nim line-numbers">import std/options
+
+proc findUser(id: int): Option[string] =
+  if id == 1:
+    some("ada")                   # present value
+  else:
+    none(string)                  # typed absence: not an error, just no value
+
+let user = findUser(1)
+if user.isSome:                   # inspect before unwrapping
+  echo user.get()                 # ada
+echo findUser(2).isNone           # true
+echo findUser(2).get("anonymous") # anonymous — a default instead of a crash
+
+# Inside a proc that also returns Option, '?' propagates absence automatically:
+proc greeting(id: int): Option[string] =
+  let name = findUser(id)?        # returns none(string) early when absent
+  some("hello " & name)
+
+echo greeting(1)                  # some("hello ada")
+echo greeting(2)                  # none(string)
+</code></pre>
+
+<h3 id="assertions">Assertions for Programmer Errors</h3>
+<p>An assertion states something your own code guarantees. If it fails, the bug is in the program, not in the input — so the failure should be loud and immediate.</p>
+<pre><code class="language-nim line-numbers">proc withdraw(balance, amount: int): int =
+  doAssert amount > 0, "amount must be positive"      # caller bug, not user input
+  doAssert amount <= balance, "insufficient funds"    # invariant of this operation
+  balance - amount
+
+echo withdraw(100, 30)            # 70
+# withdraw(100, 120)             # AssertionDefect — a defect, not a CatchableError
+
+# 'assert' is the optimizable form: the compiler may drop it with --assertions:off.
+# 'doAssert' survives every optimization level, so use it for real invariants.
+# Both raise a Defect, and in Nim 2 defects are NOT caught by 'except CatchableError'.
+</code></pre>
+
+
+<h2 id="defer">Cleanup with defer</h2>
+<p><code>defer</code> registers a statement to run when the enclosing scope exits — on the normal path, on <code>return</code>, and on an exception. It replaces most hand-written <code>finally</code> blocks and makes release logic sit next to acquisition.</p>
+
+<h3 id="defer-basics">Registering Cleanup</h3>
+<pre><code class="language-nim line-numbers">proc show(path: string) =
+  let file = open(path)            # acquire the resource
+  defer: file.close()              # release it when the proc exits, however it exits
+  for line in file.lines:
+    echo line
+
+show("README.md")                  # the file is closed before the first line prints
+                                   # back in the caller — no leak on early return
+</code></pre>
+
+<h3 id="defer-order">Order and Exceptions</h3>
+<pre><code class="language-nim line-numbers">proc process(payload: string) =
+  echo "acquire lock"
+  defer: echo "release lock"       # registered first, so it runs last (LIFO)
+  echo "acquire handle"
+  defer: echo "release handle"     # registered last, so it runs first
+  if payload.len == 0:
+    raise newException(ValueError, "empty payload")   # both defers still run
+  echo "process ", payload
+
+try:
+  process("")
+except ValueError as error:
+  echo "caught: ", error.msg
+
+# Output order: acquire lock, acquire handle, release handle, release lock,
+# then caught: empty payload. Defers are LIFO, like a stack of unwinding scopes.
+# Note: quit() ends the process immediately and does NOT run pending defers.
+</code></pre>
+
+<h3 id="error-boundary">Validate at the Boundary</h3>
+<p>The cleanest error strategy is structural: parse untrusted input once at the edge into a value that is valid by construction, then let the core work without checks. Defects are reserved for logic errors, and exceptions for the few failures the boundary cannot resolve.</p>
+<pre><code class="language-nim line-numbers">import std/strutils, std/options
+
+proc parsePort(raw: string): Option[int] =
+  ## Total function: every input yields a value, nothing raises.
+  let trimmed = raw.strip()
+  if trimmed.len == 0 or not trimmed.allCharsInSet(Digits):
+    return none(int)               # malformed input is an expected outcome
+  let value = parseInt(trimmed)
+  if value in 1 .. 65535: some(value) else: none(int)
+
+proc startServer(port: int) =
+  ## Inside the core, the range is an invariant: a violation means a bug.
+  doAssert port in 1 .. 65535, "the boundary guarantees the port range"
+  echo "listening on ", port
+
+for raw in ["8080", "0", "abc"]:
+  let port = parsePort(raw)
+  if port.isSome:
+    startServer(port.get())
+  else:
+    echo "rejected: ", raw
+</code></pre>
+
       </main>
     </div>
   </div>
-
   <hr>
-<footer class="footer copyright">
+  <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'nim',
-    topicId: 'errors',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "nim",
+    topicId: "errors",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>
 <script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

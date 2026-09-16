@@ -1,32 +1,36 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Nim fundamentals: Data types. A tutorial for absolute beginners.">
+  <meta name="description" content="Nim&#x27;s static type system in practice: primitive types, type inference, ranges, distinct types, conversions versus casts, and runtime checks.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="nim, lang, language, data, types">
+  <meta name="keywords" content="sage, code, nim, types, int, float, range, distinct, conversion, cast, inference">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Nim Types</title>
-
-  <!-- Bootstrap CSS -->
+  <title>Types &amp; Values</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,143 +39,170 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
-
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="nim-types">Nim Types</h2>
-
+<h1 id="nim-types">Types &amp; Values</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Nim is a strongly typed native language. That requires for all variables to be declared with a data type that can't be changed during runtime. This gives Nim compiler an opportunity to detect errors early and improve performance of algorithms.
+  Nim is statically typed, and the compiler uses types to catch whole categories of bugs before your program runs. This lesson introduces the primitive types, the inference you get for free, the types that encode constraints (ranges, distinct), and the difference between a checked conversion and an unchecked cast.
 </div>
 
-<h2 id="integer"><a ></a>Integer</h2>
+<h2 id="primitives">Primitive Types</h2>
+<p>Every value has a type known at compile time. Start with the everyday types, then refine only where an interface demands an exact width or an unsigned bit pattern.</p>
 
-<p>Integer are discrete numbers including negative numbers. In Computer Science, integer namber have a range limitation and does not support infinity. The range depend on number of bytes used for representation of the number. In all programming languages, the number of bytes is fixed.</p>
+<h3 id="integers">Integers</h3>
+<p><code>int</code> is the recommended default: it matches the machine word size and cannot overflow silently in checked builds. Fixed-width and unsigned types exist for binary formats, hashing and hardware registers.</p>
+<pre><code class="language-nim line-numbers">let small = 42              # int — the default, pointer-sized integer
+let limit = 255'i64         # explicit 64-bit width via a literal suffix
+let bits  = 0b1010'u8       # unsigned 8-bit: 10
+let big   = 9_000_000_000   # underscores group digits; value is still an int
+echo small, " ", limit, " ", bits, " ", big
 
-<!--two columns pattern-->
-<div class="row">
-<!-- first column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">example</div>
-<div class="panel-body">
-<pre class="code-panel line-numbers">
-<code class="language-nim"
->proc integer_demo: int =
-  let
-    a = 11
-    b = 4
-  
-  echo "a + b = ", a + b 
-  echo "a - b = ", a - b
-  echo "a * b = ", a * b
-  echo "a / b = ", a / b
-  echo "a div b = ", a div b
-  echo "a mod b = ", a mod b
-  return 0
+# Fixed widths: int8 int16 int32 int64, and their unsigned twins uint8..uint64.
+# Unsigned arithmetic wraps; signed overflow raises OverflowDefect while checks
+# are enabled (they are on for 'nim c' and '-d:release', off for '-d:danger').
+let byte: uint8 = 200'u8
+echo byte + 100'u8          # 44 — unsigned wrap-around is defined, not an error
 </code></pre>
-</div>
-</div>
-<!-- second column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">console</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-output"
->a + b = 15
-a - b = 7
-a * b = 44
-a / b = 2.75
-a div b = 2
-a mod b = 3
+
+<h3 id="floats-and-bools">Floats, Booleans and Characters</h3>
+<pre><code class="language-nim line-numbers">let ratio: float = 0.5      # float64 by default
+let fast  = 1.5'f32         # float32 when a layout or a C API requires it
+echo ratio / 3.0            # 0.1666666666666667
+
+let ready = true            # bool: 'true' or 'false', never 0/1 by accident
+let mark  = 'A'             # char: one byte, single quotes
+echo ready, " ", mark       # type is inferred from the literal, no annotation
+
+# Conversions between numeric types are explicit, so nothing silently truncates:
+let whole = int(ratio)      # 0 — fractional part is discarded, not rounded
+echo whole
 </code></pre>
-</div>
-</div>
-</div>
 
-<p><b>Note:</b> Integer literals are simple including digits and sign like in example above. The most intresting is the division that can produce a float result, unlike other languages.</p>
+<h2 id="inference">Inference and Declarations</h2>
+<p>You rarely write a type twice. Use <code>let</code> for values fixed after initialization, <code>var</code> for values that change, and <code>const</code> for compile-time constants.</p>
 
-<h2 id="real-numbers">Real numbers</h2>
+<h3 id="declarations">let, var, const</h3>
+<pre><code class="language-nim line-numbers">let host = "localhost"      # immutable binding, type inferred as string
+var hits = 0                # mutable binding
+host = "example.org"        # compile error: cannot assign to 'let' — caught early
 
-<p>Real numbers can't be represented in Computer Science. A good aproximation of Real Numbers is implemented as Float Numbers. These are natively supported by computer procesors and standard for most programming languages.</p>
+const MaxRetries = 5        # compile-time constant; usable in array sizes
+var counters: array[MaxRetries, int]   # the constant sizes the array type
+counters[0] = hits
+echo counters.len, " ", counters[0]
 
-<!--two columns pattern-->
-<div class="row">
-<!-- first column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">example</div>
-<div class="panel-body">
-<pre class="code-panel line-numbers">
-<code class="language-nim"
->let
-  c = 6.75
-  d = 2.25
-
-echo "c + d = ", c + d
-echo "c - d = ", c - d
-echo "c * d = ", c * d
-echo "c / d = ", c / d
+# Declare first, assign later — the type must then be written explicitly.
+var buffer: string
+buffer = "allocated on demand"
+echo buffer
 </code></pre>
-</div>
-</div>
-<!-- second column -->
-<div class="column col-md-6 panel">
-<div class="panel-heading">console</div>
-<div class="panel-body">
-<pre class="code-panel">
-<code class="language-output"
->c + d = 9.0  
-c - d = 4.5
-c * d = 15.1875
-c / d = 3.0 
+
+<h3 id="literal-context">Literals Adapt to Context</h3>
+<p>An integer literal is not forced to <code>int</code>; it takes the type the surrounding expression expects. This removes most casts you would need in stricter languages.</p>
+<pre><code class="language-nim line-numbers">proc scale(value: float32): float32 = value * 2.0'f32
+
+echo scale(2.5)      # 5.0 — the literal is accepted as float32
+let small: int8 = 100   # fits; nothing else has to be written
+echo small, " ", small.int   # explicit conversion when you need a wider type
 </code></pre>
-</div>
-</div>
-</div>
 
-<p><b>Notes:</b> Integer literal 9 is not the same as literal 9.0 that is float. In Nim you can't use integers and float in the same expression. You must make explicit conversion before computing an expression.</p>
+<h2 id="constrained">Types That Encode Constraints</h2>
+<p>Two small type forms prevent entire classes of mistakes: ranges restrict a value to an interval, and distinct types make two identical representations incompatible on purpose.</p>
 
+<h3 id="ranges">Range Types</h3>
+<p>A <code>range</code> type is still an integer at runtime, but the compiler and the runtime checks reject values outside the interval. The classic use is an index or a percentage.</p>
+<pre><code class="language-nim line-numbers">type Percent = range[0 .. 100]
 
-<!-- work in progress-->
+let usage: Percent = 60        # accepted
+echo usage, "%"
+# let broken: Percent = 120    # compile error: 120 is outside the range
 
-<hr>
+proc apply(p: Percent): int = p * 2
+echo apply(50)
 
+# Ranges are checked at runtime as well, which matters for computed values.
+proc asPercent(n: int): Percent =
+  if n < 0: 0 else: min(n, 100).Percent   # clamp before converting, never crash
+echo asPercent(150), " ", asPercent(-5)
+</code></pre>
+
+<h3 id="distinct">Distinct Types</h3>
+<p><code>distinct</code> creates a new type with the same representation but no implicit compatibility. It is how libraries stop you from passing a meter where a second is expected.</p>
+<pre><code class="language-nim line-numbers">type
+  Meters  = distinct float
+  Seconds = distinct float
+
+proc speed(distance: Meters, time: Seconds): float =
+  float(distance) / float(time)   # explicit unwrapping inside the module
+
+let track = Meters(400.0)
+let lap   = Seconds(50.0)
+echo speed(track, lap), " m/s"    # 8.0
+# echo speed(lap, track)          # compile error: arguments are not interchangeable
+</code></pre>
+
+<h2 id="conversions">Conversions, Casts and Checks</h2>
+<p>Nim keeps a hard line between a conversion the compiler can verify and a cast that reinterprets bytes. Prefer conversions; reach for <code>cast</code> only when you are decoding a binary layout you already understand.</p>
+
+<h3 id="conversion">Checked Conversion</h3>
+<pre><code class="language-nim line-numbers">let text = "42"
+let n = parseInt(text)        # std/strutils: parses text into an int
+echo n + 1                    # 43
+
+let d = 3.99
+echo int(d)                   # 3 — conversion truncates toward zero, no rounding
+echo round(d), " ", ceil(d)   # 4.0 4.0 — std/math gives explicit rounding
+echo $d                       # "3.99" — '$' is the stringify operator
+</code></pre>
+
+<h3 id="cast-and-checks">Casts and Runtime Checks</h3>
+<pre><code class="language-nim line-numbers"># cast reinterprets the bits: fast, unchecked, and only safe on a known layout.
+let raw = cast[uint32](42'i32)     # the bit pattern of 42 seen as unsigned
+echo raw
+
+# Checks are compiler switches, not library calls:
+#   nim c            -> checks on (default)
+#   nim c -d:release -> checks on, optimized
+#   nim c -d:danger  -> checks removed: fastest, but a defect becomes UB
+# Keep checks on until a profile tells you which check costs time.
+</code></pre>
+
+<table class="table table-bordered table-dark">
+  <thead><tr><th>Switch</th><th>Range and overflow checks</th><th>Intended use</th></tr></thead>
+  <tbody>
+    <tr><td><code>nim c</code></td><td>Enabled</td><td>Everyday development</td></tr>
+    <tr><td><code>nim c -d:release</code></td><td>Enabled</td><td>Benchmarks and releases</td></tr>
+    <tr><td><code>nim c -d:danger</code></td><td>Disabled</td><td>Only after profiling proves it matters</td></tr>
+  </tbody>
+</table>
+
+<h3 id="practice">Practice</h3>
+<p>Define <code>type Age = range[0 .. 130]</code> and one procedure that accepts it. Then try to pass <code>200</code> from a variable to see the check fire, and finally create a distinct wrapper <code>type Years = distinct Age</code> to observe that identical representations are still separate types. Continue with <a href="/roadmap/nim/controlflow.html">Control Flow</a>.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'nim',
-    topicId: 'types',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "nim",
+    topicId: "types",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>
 <script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Calling C and C++ from Nim with importc, header and cdecl; linking object files and libraries; exporting Nim procedures with exportc and --app:lib; NimMain and ownership at the boundary.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, interop, ffi, importc, exportc, header, cdecl, dynlib, passL, passC, NimMain, lib">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>C Interop &amp; Foreign Function Interface</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-interop">C Interop &amp; the Foreign Function Interface</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Nim compiles to C, C++ or JavaScript, so the boundary with C is not bolted on — it is the same calling convention the compiler already uses. A pragma turns a Nim declaration into a C declaration, and <code>--app:lib</code> turns a Nim project into something other languages can link and call.
+</div>
+
+<h2 id="calls-into-c">Calling C from Nim</h2>
+<p>The backend integration manual describes the direction of the call as an architectural decision: "Usually the direction of which calls which depends on your software architecture (is Nim your main program or is Nim providing a component?)". This chapter is the first direction — Nim is the main program and the C library is a component.</p>
+
+<h3 id="importc-header">importc, header and cdecl</h3>
+<p>A foreign procedure is declared like a Nim procedure with an empty body and three pragmas: <code>importc</code> names the C symbol, <code>header</code> tells the compiler which C header to include, and the calling convention (usually <code>cdecl</code>) must match the C prototype. Nothing is generated for the body because the body exists in C.</p>
+<pre><code class="language-nim line-numbers"># Minimal binding to three functions of the C standard library. The body is
+# empty on purpose: 'importc' means "the implementation is already out there".
+proc cSqrt(x: cdouble): cdouble {.importc: "sqrt", header: "&lt;math.h&gt;".}
+proc cStrcmp(a, b: cstring): cint {.importc: "strcmp", header: "&lt;string.h&gt;".}
+proc cPutchar(ch: cint): cint {.importc: "putchar", header: "&lt;stdio.h&gt;".}
+
+# A variadic C function: the 'varargs' pragma says the C prototype ends in '...'.
+# Nim cannot check the extra arguments, so the format string is your contract.
+proc cPrintf(fmt: cstring): cint {.importc: "printf", header: "&lt;stdio.h&gt;", varargs.}
+
+# Type mapping is explicit: Nim 'float' is not C 'double' by default, 'cstring'
+# is a pointer to characters, and 'cint' matches C 'int' on every platform.
+let y = cSqrt(2.0)                       # call C's sqrt with a C double
+echo y &gt; 1.41 and y &lt; 1.42              # true — 1.41421... printed as float
+echo cStrcmp("abc", "abd")              # -1: C compares bytes, not characters
+discard cPutchar('N'.cint)              # prints N, returns the character written
+discard cPrintf("hello from C: %d\n".cstring, 42.cint)
+</code></pre>
+<p>Declare the header in angle brackets exactly as C would, escape the angle brackets in HTML (above) so the page renders them, and keep one binding module per C library so the pragmas live in a single place that can be reviewed.</p>
+
+<h3 id="opaque-types">Opaque Handles and C Structs</h3>
+<p>C libraries usually hand back pointers to structures whose layout is private. Nim models those as an incomplete object and only ever passes the pointer, which keeps the binding valid even when the struct changes size.</p>
+<pre><code class="language-nim line-numbers">type
+  CFile {.importc: "FILE", header: "&lt;stdio.h&gt;", incompleteStruct.} = object
+    ## 'incompleteStruct' means: do not guess the layout, only a pointer is legal.
+
+proc cFopen(name, mode: cstring): ptr CFile {.importc: "fopen", header: "&lt;stdio.h&gt;".}
+proc cFclose(f: ptr CFile): cint {.importc: "fclose", header: "&lt;stdio.h&gt;".}
+proc cFputs(s: cstring, f: ptr CFile): cint {.importc: "fputs", header: "&lt;stdio.h&gt;".}
+
+let handle = cFopen("/dev/null", "w")        # may return nil on failure
+if handle.isNil:                             # always test a foreign pointer
+  echo "could not open the file"
+else:
+  discard cFputs("data\n".cstring, handle)
+  discard cFclose(handle)                    # every borrow has a matching free call
+</code></pre>
+
+<h2 id="foreign-build">Compiling and Linking Foreign Code</h2>
+<p>Declaring a prototype is only half of a binding: the compiler still has to see the foreign source file, and the linker still has to find the library. Both requests can be made from inside the source, which keeps a binding module self-contained instead of relying on somebody remembering a command line.</p>
+
+<h3 id="compile-passc-passl">Sources, Include Paths and Linker Flags</h3>
+<pre><code class="language-nim line-numbers"># cbits/scale.c is compiled by Nim's C backend and linked into the program.
+# Paths in pragmas are resolved relative to the file containing them.
+{.compile: "cbits/scale.c".}
+{.passC: "-I cbits".}          # forwarded verbatim to the C compiler
+{.passL: "-lm".}               # forwarded verbatim to the linker
+
+proc scale(value, factor: cint): cint {.importc, header: "scale.h", cdecl.}
+# 'importc' with no name pragma: the Nim name must equal the C name.
+
+echo scale(21, 2)              # 42 — implemented in cbits/scale.c
+</code></pre>
+<p>The same switches exist on the command line, which is how you add a flag for one build without editing sources: <code>nim c --passC:"-I include" --passL:"-lSDL2" app.nim</code>. Write <code>{.compile.}</code> once per file, or list them (<code>{.compile: ["a.c", "b.c"].}</code>); the objects are cached, so repeated builds only recompile what changed.</p>
+
+<h3 id="dynlib">Dynamic Libraries</h3>
+<p>When the library must be found at run time — a plugin, an optional dependency, or a system library whose version varies — the <code>dynlib</code> pragma delays symbol resolution until the program starts. Its argument is a pattern, so one declaration can match the naming conventions of several platforms.</p>
+<pre><code class="language-nim line-numbers"># The pattern 'libtcl(|8.5|8.6).so' matches libtcl.so, libtcl8.5.so and
+# libtcl8.6.so, taking whichever the loader finds first.
+proc tclInit(interp: pointer): cint {.cdecl, importc: "Tcl_Init",
+                                      dynlib: "libtcl(|8.5|8.6).so".}
+
+# A missing library becomes a runtime error at the first call, not a link error
+# at build time — which is exactly what an optional integration wants.
+if tclInit(nil) == 0:
+  echo "Tcl refused the interpreter"
+</code></pre>
+<p>For fully dynamic loading — deciding on a library while the program runs — <code>std/dynlib</code> exposes the loader directly: <code>loadLib</code>, <code>symAddr</code> and <code>unloadLib</code>.</p>
+<pre><code class="language-nim line-numbers">import std/dynlib
+
+let handle = loadLib("libz.so.1")     # nil when the library is absent
+if handle.isNil:
+  echo "zlib is not installed"        # degrade gracefully instead of crashing
+else:
+  # Cast the raw symbol address to a typed Nim proc; the signature is the
+  # contract you must get right, because the loader cannot check it for you.
+  let version = cast[proc (): cstring {.cdecl.}](symAddr(handle, "zlibVersion"))()
+  echo "zlib ", version
+  unloadLib(handle)                   # release the handle before exiting
+</code></pre>
+
+<h2 id="export-nim">Exporting Nim to C and C++</h2>
+<p>The opposite direction is what makes Nim usable as a library: your Nim procedure is compiled as an ordinary C function the host program calls. The backend manual frames this as the architectural choice — Nim can be the component rather than the main program — and the mechanism is a pair of pragmas plus a library build mode.</p>
+
+<h3 id="exportc">exportc and the C ABI</h3>
+<pre><code class="language-nim line-numbers"># No 'importc' here: the body is Nim, and 'exportc' tells the C backend to give
+# it a stable, unmangled symbol name the host program can declare.
+proc fib(a: cint): cint {.exportc, cdecl.} =
+  ## 'cdecl' fixes the calling convention to the platform's C convention, so a
+  ## C header declaring 'int fib(int);' matches this definition exactly.
+  if a &lt;= 2: 1 else: fib(a - 1) + fib(a - 2)
+
+# Exporting an overloaded proc needs an explicit name, because C has no
+# concept of overloading:
+proc toString(n: cint): cstring {.exportc: "intToString", cdecl.} =
+  result = cstring($n)     # WARNING: see the ownership note further down
+</code></pre>
+<p>Types crossing the boundary must exist in both languages: use <code>cint</code>, <code>csize_t</code>, <code>cstring</code> and pointers, not Nim <code>int</code>, <code>string</code> or <code>seq</code>. Nim's <code>int</code> is 64-bit on most platforms while C's <code>int</code> is 32-bit, so a Nim <code>int</code> in an exported signature quietly changes the ABI.</p>
+
+<h3 id="app-lib">Building the Library and NimMain</h3>
+<p>An exported proc is only reachable if the artefact is a library, so the build switches change: <code>--app:lib</code> produces a shared library, <code>--app:staticLib</code> a static one, and <code>--header</code> writes out the matching C header.</p>
+<pre><code class="language-bash line-numbers">nim c --app:lib --header:fib.h -o:libfib.so fib.nim    # shared library + header
+nim c --app:staticLib -o:libfib.a fib.nim              # static archive
+# The backend manual shows the static variant being linked into a C program:
+#   gcc -o m -Inimcache -Ipath/to/nim/lib maths.c libfib.nim.a
+</code></pre>
+
+<h3 id="owning-memory">Ownership at the Boundary</h3>
+<p>A pointer that crosses into C is invisible to Nim's collector: if the host holds the only reference to a Nim-owned object, the collector may free it while the host still uses it. The usual pattern is one allocation the host owns, released through an exported destructor.</p>
+<pre><code class="language-nim line-numbers">type Handle = ref object
+  items: seq[string]
+
+proc newHandle(): Handle {.exportc: "handleNew", cdecl.} =
+  ## The host receives a raw pointer. Ownership now belongs to the host, so the
+  ## handle must survive until the matching 'handleFree' call.
+  GC_ref(result)                # keep the object alive regardless of Nim refs
+  result = Handle(items: @[])
+
+proc addItem(handle: Handle, text: cstring) {.exportc: "handleAdd", cdecl.} =
+  handle.items.add($text)       # 'cstring' is converted at the boundary
+
+proc size(handle: Handle): csize_t {.exportc: "handleSize", cdecl.} =
+  csize_t(handle.items.len)     # csize_t, not Nim's int: the C ABI decides
+
+proc freeHandle(handle: Handle) {.exportc: "handleFree", cdecl.} =
+  GC_unref(handle)              # hand ownership back before the last reference goes
+</code></pre>
+<p>Three details keep this correct. Freeing the Nim side of an object the host still holds is a use-after-free, so the free call must be the host's responsibility and documented as such. Returning a <code>cstring</code> built from a Nim <code>string</code> is a dangling pointer as soon as the temporary is collected — copy into host-provided memory instead. And the artefact must be built as a library: with <code>--app:lib</code> or <code>--app:staticLib</code>, the C code calls <code>NimMain()</code> once at startup to initialise the Nim runtime before touching any exported proc.</p>
+
+<h2 id="cpp">Generating C++</h2>
+<p>The C++ backend (<code>nim cpp</code>) emits C++ instead of C, which lets the generated code use C++ templates and <code>std::string</code>, and lets you link against C++ libraries directly. The interop pragmas are the same; <code>{.importcpp.}</code> and <code>{.exportcpp.}</code> replace their C counterparts, and a header is attached with the same <code>header</code> pragma.</p>
+
+<h3 id="cpp-backend">Building with the C++ Backend</h3>
+<p>The switch is the compilation command itself: <code>nim cpp</code> in place of <code>nim c</code>. Everything else — build modes, optimisation, cross-compilation — behaves as it does for C, because the backend is simply a different receiver of the same switches.</p>
+<pre><code class="language-bash line-numbers">nim cpp -d:release app.nim        # emit C++ and compile it
+nim cpp -r app.nim                # compile and run in one step
+nim cpp --compileOnly app.nim     # stop after the generated C++ is written
+</code></pre>
+<p><code>--compileOnly</code> is the inspection tool: it leaves the generated C++ on disk in the nimcache directory, which is the reliable way to answer "what did this construct actually compile to?". It is also how you spot the helper types the backend inserts around closures and exceptions.</p>
+
+<h3 id="importcpp">importcpp Patterns</h3>
+<pre><code class="language-nim line-numbers"># 'importcpp' takes a pattern; '#' is replaced by each argument in order.
+proc cppSqrt(x: cdouble): cdouble {.importcpp: "std::sqrt(@)", header: "&lt;cmath&gt;".}
+echo cppSqrt(9.0)               # 3.0
+
+# Constructors are just procedures returning a value:
+proc newVector(): cint {.importcpp: "std::vector&lt;int&gt;().size()",
+                         header: "&lt;vector&gt;".}
+</code></pre>
+<p>Roughly speaking, three pragma families cover the boundary: <code>importc</code>/<code>exportc</code> for C, <code>importcpp</code>/<code>exportcpp</code> for C++, and <code>importjs</code>/<code>exportjs</code> for JavaScript. Each has a pattern form, which is how operator names, templates and overloads — things C does not have — are expressed. Compile with <code>nim cpp</code> to generate C++; the same source often compiles under both backends, which is useful for comparing the emitted code.</p>
+<p>Before writing an <code>importc</code> by hand, check whether the binding already exists: <code>nimble search</code> covers most popular C libraries, and the <a href="https://nim-lang.org/docs/manual.html#foreign-function-interface" target="_blank" rel="noopener noreferrer nofollow">manual's foreign function interface chapter</a> documents every pragma referenced above.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "interop",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
