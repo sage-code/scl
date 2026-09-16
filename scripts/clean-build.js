@@ -7,6 +7,7 @@ const { spawnSync } = require("node:child_process");
 const ROOT = process.cwd();
 const PUBLIC_DIR = path.join(ROOT, "public");
 const BUILD_MANIFEST = path.join(ROOT, "manual", "build-manifest.json");
+const BUILD_CACHE = path.join(ROOT, "manual", "build-cache.json");
 
 function removePath(targetPath) {
   if (!fs.existsSync(targetPath)) {
@@ -52,6 +53,10 @@ function main() {
 
   const cleanedPublic = emptyDirectory(PUBLIC_DIR);
   const removedManifest = removePath(BUILD_MANIFEST);
+  // build-cache.json holds source hashes describing what is already published. It describes the
+  // output we just deleted, so it must go with it: otherwise the next `npm run build` sees every
+  // hash as unchanged, takes the differential path and republishes nothing into an empty public/.
+  const removedCache = removePath(BUILD_CACHE);
 
   if (!cleanedPublic.existed) {
     console.log("Created empty public/ output directory.");
@@ -63,6 +68,10 @@ function main() {
 
   if (removedManifest) {
     console.log("Removed manual/build-manifest.json.");
+  }
+
+  if (removedCache) {
+    console.log("Removed manual/build-cache.json (next build will be a full build).");
   }
 
   if (shouldRebuild) {

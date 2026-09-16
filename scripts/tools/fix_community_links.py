@@ -5,8 +5,8 @@ Why
 ---
 Community pages are published by Vercel with `cleanUrls: true` and
 `trailingSlash: true` (see `vercel.json`). A source file such as
-`community/vip/elucian.html` is therefore served from the virtual route
-`/community/vip/elucian/`, which is one directory level deeper than the file's
+`community/vcp/elucian.html` is therefore served from the virtual route
+`/community/vcp/elucian/`, which is one directory level deeper than the file's
 own folder in `public/`. Any page-relative link authored as `../...` resolves
 one folder too high and 404s in production (missing stylesheets, script
 errors, broken member photos and certificate links).
@@ -40,7 +40,7 @@ COMMUNITY_DIR = REPO_ROOT / "community"
 RULES = [
     # ../vip.css -> shared community stylesheet served from the site root.
     (re.compile(r"""(?P<attr>href=)(?P<q>["'])(?:\.\./)+vip\.css(?P=q)"""),
-     r"\g<attr>\g<q>/community/vip.css\g<q>"),
+     r"\g<attr>\g<q>/community/vcp.css\g<q>"),
     # ../certificate/<file>.jpg -> /community/certificate/<file>.jpg
     (re.compile(r"""(?P<attr>href=)(?P<q>["'])(?:\.\./)+certificate/"""),
      r"\g<attr>\g<q>/community/certificate/"),
@@ -54,8 +54,17 @@ RULES = [
     (re.compile(r"""(?P<attr>src=)(?P<q>["'])images/(?P<name>[^"']+)(?P=q)"""),
      r"\g<attr>\g<q>/community/images/\g<name>\g<q>"),
     # Legacy absolute CDN references to the old sagecode.org document root.
-    (re.compile(r"""https://sagecode\.org/vip\.css"""), "/community/vip.css"),
+    (re.compile(r"""https://sagecode\.org/vip\.css"""), "/community/vcp.css"),
     (re.compile(r"""https://sagecode\.org/sage\.js"""), "/assets/js/sage.js"),
+    # Renamed route: the Verified Contributor Program moved from /community/vip/
+    # to /community/vcp/ (scripts/tools/rename_vip_to_vcp.py). Old URLs keep
+    # working in production through the permanent redirects in vercel.json, but
+    # links authored inside the repo must point at the canonical route so the
+    # static output needs no redirect hop.
+    (re.compile(r"""(?P<attr>href=)(?P<q>["'])/community/vip/(?P<rest>[^"']*)(?P=q)"""),
+     r"\g<attr>\g<q>/community/vcp/\g<rest>\g<q>"),
+    (re.compile(r"""(?P<attr>href=)(?P<q>["'])/community/vip\.css(?P=q)"""),
+     r"\g<attr>\g<q>/community/vcp.css\g<q>"),
 ]
 
 

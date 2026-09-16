@@ -153,8 +153,8 @@ function generateBreadcrumbs() {
         if (isVIP) {
             // Community link points to .pro
             html += ` <span class="sep">/</span> <a href="${MAIN_HUB}/community/">COMMUNITY</a>`;
-            // VIP link points to the root of .vip (since /vip folder doesn't exist on .pro)
-            html += ` <span class="sep">/</span> <a href="${VIP_HUB}">VIP</a>`;
+            // Verified contributor hub link points to the root of .vip (since /vip folder doesn't exist on .pro)
+            html += ` <span class="sep">/</span> <a href="${VIP_HUB}">VERIFIED CONTRIBUTOR</a>`;
         }
 
         // 3. Process current site's segments
