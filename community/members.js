@@ -29,7 +29,7 @@
 
     for (var i = start; i < end; i += 1) {
       var m = members[i];
-      var profileUrl = '/community/vip/' + m.slug + '.html';
+      var profileUrl = '/community/vcp/' + m.slug + '.html';
       html += '<tr>';
       html += '<td><a href="' + profileUrl + '">' + escapeHtml(m.name) + '</a></td>';
       html += '<td>' + escapeHtml(m.role) + '</td>';

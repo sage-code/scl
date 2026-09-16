@@ -6,6 +6,7 @@ Excludes template files, drafts, and non-indexable pages
 """
 
 import os
+import re
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -28,6 +29,12 @@ EXCLUDE_PATTERNS = {
 
 # Remove None entries
 EXCLUDE_PATTERNS = {p for p in EXCLUDE_PATTERNS if p}
+
+# Used by has_noindex_meta(): a bare <meta ...> tag, then its attributes. Both
+# must be parsed rather than matched as one pattern because attribute order is
+# free in HTML: `content` may legally precede `name`.
+META_TAG_RE = re.compile(r"<meta\b[^>]*>", re.IGNORECASE)
+ATTRIBUTE_RE = re.compile(r"([a-zA-Z-]+)\s*=\s*[\"']([^\"']*)[\"']")
 
 # URL priority and change frequency rules based on path patterns
 # Organized by actual Sage-Code SCL structure: /roadmap/<track>/<topic>
@@ -93,7 +100,7 @@ URL_PATTERNS = {
     
     # Community section - medium priority
     "/community/": {"priority": 0.75, "changefreq": "monthly"},
-    "/community/vip/": {"priority": 0.7, "changefreq": "yearly"},
+    "/community/vcp/": {"priority": 0.7, "changefreq": "yearly"},
     
     # Utility pages - low priority
     "/legal": {"priority": 0.5, "changefreq": "yearly"},
@@ -107,7 +114,13 @@ def should_exclude(file_path, relative_path, url):
     # Exclude sitemap and robots files
     if file_path.endswith(("sitemap.xml", "robots.txt")):
         return True
-    
+
+    # Exclude pages that ask search engines to stay away. A sitemap entry for a
+    # `noindex` URL is a contradictory signal, so the community contributor
+    # profiles (/community/vcp/<member>.html) must never be advertised here.
+    if file_path.endswith(".html") and has_noindex_meta(file_path):
+        return True
+
     # Exclude template files
     for exclude_pattern in EXCLUDE_PATTERNS:
         if exclude_pattern in relative_path or exclude_pattern in url:
@@ -152,6 +165,28 @@ def get_priority_and_freq(url_path):
             return settings["priority"], settings["changefreq"]
     
     return default_priority, default_freq
+
+
+def has_noindex_meta(file_path):
+    """Return True when a page declares `noindex` in its robots meta tag.
+
+    The check reads only the document head (first 4 KB) because the robots tag
+    must appear there; a page that repeats the word "noindex" in its body does
+    not opt out of indexing. Files that cannot be read are treated as indexable
+    so a permission problem never silently drops a real page from the sitemap.
+    """
+    try:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            head = f.read(4096)
+    except OSError:
+        return False
+
+    for tag in META_TAG_RE.findall(head):
+        attributes = {name.lower(): value for name, value in ATTRIBUTE_RE.findall(tag)}
+        if attributes.get("name", "").lower() == "robots":
+            return "noindex" in attributes.get("content", "").lower()
+
+    return False
 
 
 def get_last_modified(file_path):

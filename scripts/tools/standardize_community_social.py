@@ -17,7 +17,7 @@ Rule A - icon library
 Rule B - social block markup
     Replace the legacy ``text-center > row > col-md-12 > flex-center``
     block with the flat Bootstrap 5 pattern used by ``community/index.html``
-    and ``community/vip/elucian.html``::
+    and ``community/vcp/elucian.html``::
 
         <div class="d-flex justify-content-center gap-3 mb-5">
           <a href="..." class="btn btn-outline-secondary social-btn"
@@ -52,7 +52,7 @@ import sys
 # --- Rule A: icon library -------------------------------------------------
 
 #: Bootstrap Icons CDN builds that predate the current standard.  The 1.10.5
-#: build is the one the VIP template was authored against and 1.11.3 is the
+#: build is the one the VCP template was authored against and 1.11.3 is the
 #: older repository-wide default; both lack brand glyphs added later
 #: (``bi-twitter-x`` needs >= 1.11.0, ``bi-bluesky`` needs >= 1.12.0).
 ICONS_LEGACY = (
@@ -99,11 +99,11 @@ NETWORK_NAME = {
 #: The name is the person the page is about (``h1`` of the page).
 SOCIAL_PAGES = {
     "community/template.html": "Elucian",
-    "community/vip/cmoise.html": "Claudiu",
-    "community/vip/george.html": "George",
-    "community/vip/gmoise.html": "Georgiana",
-    "community/vip/laura.html": "Marina",
-    "community/vip/liviu.html": "Liviu",
+    "community/vcp/cmoise.html": "Claudiu",
+    "community/vcp/george.html": "George",
+    "community/vcp/gmoise.html": "Georgiana",
+    "community/vcp/laura.html": "Marina",
+    "community/vcp/liviu.html": "Liviu",
 }
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -6,7 +6,7 @@ const { execSync } = require("node:child_process");
 const ROOT = process.cwd();
 const PUBLIC_DIR = path.join(ROOT, "public");
 const BUILD_CACHE_PATH = path.join(ROOT, "manual", "build-cache.json");
-const BUILD_CACHE_VERSION = 1;
+const BUILD_CACHE_VERSION = 2; // v2 adds publishedFileCount; v1 caches lack it and are discarded
 const ROOT_PAGES_DIR = ROOT;
 const ROADMAP_LABS_DIR = path.join(ROOT, "roadmap", "labs");
 const ROADMAP_DIR = path.join(ROOT, "roadmap");
@@ -225,11 +225,15 @@ function loadBuildCache() {
   }
 }
 
-function saveBuildCache(sourceHashes, mode) {
+function saveBuildCache(sourceHashes, mode, publishedFileCount) {
   const payload = {
     version: BUILD_CACHE_VERSION,
     generatedAtUtc: new Date().toISOString(),
     mode,
+    // How many files the build left in public/. The next build compares this with the real tree:
+    // a much smaller count means the output was wiped or truncated behind our back, and the
+    // cached source hashes can no longer be trusted as proof that everything is published.
+    publishedFileCount: typeof publishedFileCount === "number" ? publishedFileCount : 0,
     sourceHashes
   };
 
@@ -264,6 +268,32 @@ function cleanPublicDir() {
     fs.rmSync(PUBLIC_DIR, { recursive: true, force: true });
   }
   ensureDir(PUBLIC_DIR);
+}
+
+// The published output is the ground truth of the build cache. The cache stores source hashes,
+// so after public/ is wiped (npm run clean, rm -rf public, git clean) every hash still matches
+// and a differential build would publish nothing at all. Two cheap checks catch that:
+//   1. public/index.html exists  - buildContentPages() runs in both modes and always writes it;
+//   2. the published file count has not shrunk - a wipe can leave index.html behind (clean runs
+//      from the previous build's cache still describe thousands of files that are now gone).
+// Anything suspicious forces a full build instead of publishing into a half-empty tree.
+function isPublishedOutputPresent(cachedPublishedFileCount) {
+  if (!fs.existsSync(PUBLIC_DIR)) {
+    return false;
+  }
+
+  if (!fs.existsSync(path.join(PUBLIC_DIR, "index.html"))) {
+    return false;
+  }
+
+  if (typeof cachedPublishedFileCount === "number" && cachedPublishedFileCount > 0) {
+    const actualCount = collectFilesRecursive(PUBLIC_DIR).length;
+    if (actualCount < cachedPublishedFileCount) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function readTextOrEmpty(filePath) {
@@ -575,8 +605,8 @@ function shouldRelativizeRootLinks(sourcePath) {
     return false;
   }
 
-  // Community pages follow the same rule: /community/vip/<member>.html is
-  // published at the clean directory route /community/vip/<member>/, one
+  // Community pages follow the same rule: /community/vcp/<member>.html is
+  // published at the clean directory route /community/vcp/<member>/, one
   // level deeper than the file itself. Page-relative shared stylesheets,
   // runtime scripts, member photos and certificate links would resolve one
   // folder too high and 404, so keep root-absolute links for the whole
@@ -1826,7 +1856,7 @@ function main() {
   const buildScriptChanged = diff.changed.includes(__filename) || diff.deleted.includes(__filename);
   const forceFullBuild = (process.env.BUILD_MODE || "").toLowerCase() === "full";
   const hasCache = Boolean(previousCache);
-  const publicReady = fs.existsSync(PUBLIC_DIR);
+  const publicReady = isPublishedOutputPresent(previousCache ? previousCache.publishedFileCount : undefined);
   const baseTemplateChanged =
     diff.changed.includes(baseTemplatePath) || diff.deleted.includes(baseTemplatePath);
   const headerOrFooterChanged =
@@ -1837,6 +1867,23 @@ function main() {
 
   const requiresFullBuild = forceFullBuild || !hasCache || !publicReady || baseTemplateChanged || buildScriptChanged;
 
+  if (requiresFullBuild && !forceFullBuild) {
+    const reasons = [];
+    if (!hasCache) {
+      reasons.push("no build cache");
+    }
+    if (!publicReady) {
+      reasons.push("published output missing or incomplete");
+    }
+    if (baseTemplateChanged) {
+      reasons.push("layouts/base.html changed");
+    }
+    if (buildScriptChanged) {
+      reasons.push("build.js changed");
+    }
+    console.log(`[INFO] Full build required: ${reasons.join(", ")}.`);
+  }
+
   const contentResult = requiresFullBuild
     ? runFullBuild()
     : runIncrementalBuild(diff.changed, diff.deleted, {
@@ -1845,7 +1892,7 @@ function main() {
 
   const modeLabel = requiresFullBuild ? "full" : "differential";
   writeBuildManifest(contentResult);
-  saveBuildCache(currentHashes, modeLabel);
+  saveBuildCache(currentHashes, modeLabel, collectFilesRecursive(PUBLIC_DIR).length);
 
   console.log(
     `Build complete (${modeLabel}). Rendered ${contentResult.pageCount} page(s) from roadmap root.`
