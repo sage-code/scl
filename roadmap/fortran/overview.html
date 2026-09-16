@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Fortran overview: sixty-five years of history, why the oldest compiled language still dominates numerical supercomputing, where it is the right tool and where it is not, and the shape of this roadmap.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, fortran, overview, history, HPC, scientific computing, numerical, compiler, standards">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Fortran Overview</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="fortran-overview">Fortran Overview</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Fortran is the world's oldest still-active programming language and the undisputed workhorse of high performance computing. This first lesson explains where it came from, what it is used for today, and why the rest of this track — nearly thirty topics from types to MPI clusters — is worth your time even in an industry that loves new languages.
+        </div>
+
+        <h2 id="a-language-that-outlived-every-rival">A language that outlived every rival</h2>
+
+        <p>John Backus and his team at IBM started designing a "Formula Translating System" in 1953 as a bet: a compiler could translate mathematical notation into machine code almost as efficiently as a human assembly programmer. The first FORTRAN compiler shipped in 1957 for the IBM 704, and it shocked the industry by producing object code within 20% of hand-written assembly. Every modern language you know — from C to Rust — inherited ideas that first appeared here: typed variables, subroutines, arrays, and compiler optimization.</p>
+
+        <p>The standard, maintained by ISO/IEC JTC1/SC22/WG5, has been revised ten times. Each revision is fully backward compatible: a FORTRAN 66 program about to celebrate its sixtieth birthday still compiles with today's compilers. That stability is a feature — a climate model written in the 1990s can be ported to a new supercomputer by recompiling it.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/fortran/img/fortran-history.svg" alt="Fortran standard timeline from FORTRAN I in 1957 to Fortran 2023" class="img-fluid protect rounded shadow border" width="860">
+          <p><em>Fig. 1 — Ten revisions in sixty-five years; Fortran 2023 is the current standard.</em></p>
+        </div>
+
+        <h3 id="the-eighties-barrier">The 1980s barrier that kept it alive</h3>
+
+        <p>Procedural languages split into two families in the 1980s. C and its descendants solved systems problems: operating systems, device drivers, compilers. Fortran 77 solved one narrow but enormous problem — fast arithmetic over arrays — and solved it so completely that scientists built weather centers, aircraft simulators, and particle physics detectors on it. When the rewrite attempts came (Ada, then C++ templates, then "Fortran killed by C++" articles every few years), the numerical libraries — BLAS, LAPACK, netCDF, MPI-based solvers — turned out to be the real product, and they were written in Fortran.</p>
+        <h2 id="what-fortran-is-for-today">What Fortran is for today</h2>
+
+        <p>The domains that adopted Fortran early are still its strongholds, because the problems are immutable physics and the codebases are priceless. Numerical weather prediction (ECMWF, NCEP), ocean and climate modelling, computational fluid dynamics in wind-tunnel and aircraft design, particle physics Monte Carlo (the LHC analysis stack), seismology, and quantitative finance all run critical loops in Fortran. The big telling fact: the <strong>LINPACK benchmark</strong> that ranks the world's top 500 supercomputers is written in Fortran, and for three decades the fastest supercomputers have stayed Fortran-first, most recently with GPU offload via OpenACC.</p>
+
+        <p>This is not nostalgia. CERN and ECMWF have both commissioned modern rewrites of their modelling frameworks to explore managed languages; both retained Fortran kernels because the numerical libraries and 30 years of validated numerics cannot be economically re-derived anywhere else.</p>
+
+        <h3 id="why-fortran-still-wins">Why Fortran still wins</h3>
+
+        <p>Three design decisions made in 1957 still produce measurably faster scientific code than any general-purpose replacement:</p>
+
+        <ul>
+          <li><strong>Whole-array expressions.</strong> <code>A = B + C</code> is array add, element by element. The compiler knows the loop is a pure parallel reduction over contiguous memory and vectorizes it; in C or Rust you write the loop yourself and hope the optimizer recognizes it.</li>
+          <li><strong>Column-major layout.</strong> Memory order is standardized, so the optimizer's cache analysis is deterministic, and BLAS/LAPACK kernels assume it.</li>
+          <li><strong>No aliasing by default.</strong> Fortran assumes two arguments do not overlap memory unless you declare them <code>pointer</code>/<code>target</code> — the single biggest unlock for aggressive optimization, and something C had to wait decades for (<code>restrict</code>).</li>
+        </ul>
+
+        <p>The next example shows the language at its best. The entire program — declaration, allocation, one vectorized statement — needs no explicit loop because the array expression is the loop. Read it top to bottom, then reflect on how the same computation reads in the language you know best.</p>
+
+        <pre><code class="language-fortran line-numbers">program array_magic
+  ! Demonstrate whole-array math: no explicit loop appears anywhere.
+  use iso_fortran_env, only: real64
+  implicit none
+  real(real64), allocatable :: a(:), b(:), c(:)
+  integer :: n = 1000000
+
+  allocate (a(n), b(n), c(n))
+  call random_number(a)        ! fills the whole array in one call
+  b = 2.0_real64 * a           ! element-wise multiply by a scalar
+  c = sqrt(a) + b              ! element-wise math, stored contiguous
+
+  ! The compiler sees a pure element-wise kernel and vectorizes it,
+  ! issuing SIMD instructions across the whole 8 MB of memory.
+  print '(a,2f12.6)', 'c(1), c(n) =', c(1), c(n)
+end program array_magic</code></pre>
+
+        <p>Compile and run it with <code>gfortran -O3 array_magic.f90</code> (the <code>-O3</code> flag tells the optimizer to vectorize aggressively). On a multicore machine the same region can later be parallelized with one extra command, which you will study in the Parallel Computing lesson.</p>
+
+        <h2 id="where-fortran-is-not-the-best-tool">Where Fortran is not the best tool</h2>
+
+        <p>Intellectual honesty matters in a tutorial. Fortran is a numerical domain language, and in the surrounding territory it is weak:</p>
+
+        <ul>
+          <li><strong>Systems programming.</strong> Device drivers, kernels, browsers, and security infra are written in C, C++, Rust, or Zig — Fortran has no memory-safety guarantees and no ecosystem there. (The comparison lesson answers "is Fortran a system language?" head-on.)</li>
+          <li><strong>Web and tooling.</strong> No mainstream web framework, and the tooling (debuggers, IDEs, package managers) is decades behind the JavaScript/Rust world — improving fast with fpm and the VS Code extension, but honestly still catching up.</li>
+          <li><strong>Scripting and glue.</strong> Fortran is compiled and verbose; orchestrating data pipelines belongs to Python or shell. The Python integration lesson shows the best of both worlds: Python drives, Fortran computes.</li>
+        </ul>
+
+        <p>The remainder of this track is organized as six phases of increasing sophistication: foundations (overview, setup, syntax, types, expressions, control), programming (functions, arrays, strings, files, derived types, modules), reliability and data (pointers, errors, object orientation, C interop), HPC and parallel computing (performance, OpenMP and <code>do concurrent</code>, coarrays, MPI, GPUs), ecosystem and perspective (Python integration, fpm and stdlib, comparison with Rust and Zig), and finally practice: a lab of runnable demos, study projects, and a categorized references page.</p>
+
+        <div class="alert alert-info shadow-sm">
+          <strong>Before moving on:</strong> visit <a href="https://fortran-lang.org/learn/" target="_blank" rel="noopener noreferrer nofollow">fortran-lang.org/learn</a> and skim the Quickstart tutorial. You do not need to memorize it — the next lesson installs your toolchain, and lesson 3 starts the real grammar. Everything official that this track teaches is cross-linked there.
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'fortran',
+    topicId: 'overview',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,117 @@
+        <!DOCTYPE html>
+        <html lang="en" data-bs-theme="dark">
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="Fortran pointers: POINTER and TARGET attributes, pointer assignment, allocation, association status, and linked data structures.">
+          <meta name="author" content="Elucian Moise">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>Fortran Pointers</title>
+          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+          <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+          <link rel="stylesheet" href="/assets/prism.css">
+          <script src="/assets/prism.js"></script>
+          <link rel="stylesheet" href="/assets/css/sage-common.css">
+          <link rel="stylesheet" href="/assets/css/content-topic.css">
+          <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+          <link rel="stylesheet" href="/assets/css/content-code.css">
+          <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+        </head>
+        <body>
+        <div class="container">
+          <header id="dynamic-header" class="container-fluid pb-2"></header>
+          <div class="container-fluid px-0">
+            <div class="row g-0">
+              <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+              <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+                <h1 id="fortran-pointers">Fortran Pointers</h1>
+                <div class="alert alert-secondary shadow-sm">
+                  A Fortran pointer is a typed view of a variable rather than a raw address: it can point at an existing <code>target</code> or own allocated storage, and it remembers its association status. Used well, pointers build linked structures and alias data without copying; used carelessly they break the optimizer's assumptions. This lesson maps the model and the pitfalls.
+                </div>
+
+                <h2 id="pointer-vs-allocatable">Pointer vs allocatable</h2>
+                <p>The first decision is which tool fits the job. An <code>allocatable</code> variable <em>owns</em> its memory — assignment copies, leaving is automatic. A <code>pointer</code> <em>references</em> memory that someone else owns or that it allocates itself — assignment rebinds. Rule of thumb: if the variable only needs dynamic sizing, use allocatable; if it must alias an existing object or build a linked graph, use pointer. Allocatable is safer and the optimizer loves it; pointer is the occasionally necessary power tool.</p>
+
+                <pre><code class="language-fortran line-numbers">program pointer_basics
+  implicit none
+  real, target :: value = 3.5      ! target: addressable storage
+  real, pointer :: p               ! p is born "disassociated"
+  p =&gt; value                       ! pointer assignment: rebind, no copy
+  print *, p                       ! 3.5 through the pointer
+  p = 7.0                          ! writes THROUGH the pointer
+  print *, value                   ! 7.0 — original variable changed
+  nullify (p)                      ! p disassociated again; value alive
+end program pointer_basics</code></pre>
+              </main>
+                <h2 id="pointer-assignment-forms">Two forms of assignment</h2>
+                <p>Fortran carefully distinguishes the two things other languages blur: <strong>pointer assignment</strong> (<code>p =&gt; target</code>) rebinds what the pointer looks at; <strong>ordinary assignment</strong> (<code>p = value</code>) through a pointer writes the pointed-to data. Mixing them is the number-one pointer bug: <code>p = value</code> when you meant a rebind silently overwrites the target instead.</p>
+
+                <p>When a pointer allocates its own storage, ordinary <code>deallocate</code> frees it, and the intrinsic <code>associated(p)</code> queries whether a pointer points at anything at all:</p>
+
+                <pre><code class="language-fortran line-numbers">program pointer_allocate
+  implicit none
+  real, pointer :: p(:)
+  integer :: n = 100
+  allocate (p(n))                  ! the pointer owns this block
+  p = 1.0                          ! fills through the pointer
+  print *, associated(p), size(p)  ! T  100
+  deallocate (p)
+  print *, associated(p)           ! F — dangling references now averted
+end program pointer_allocate</code></pre>
+
+                <h2 id="dangling-and-targets">Targets, aliasing and the optimizer</h2>
+                <p>A pointer may only point at variables declared <code>target</code> (or at pointer-allocated storage); the attribute tells the compiler the variable's address may escape. That single fact changes optimization: a subroutine receiving <code>intent(inout)</code> plus a pointer into the same object forces the compiler to assume the worst. The performance lesson measures exactly this cost. For now two habits protect you: keep pointer use inside small, isolated procedures, and never pass both a pointer and its target to the same call.</p>
+
+                <h2 id="linked-structures">Linked structures</h2>
+                <p>The classic self-referential type builds a linked list — each node holds data plus a pointer to the next node. Derived-type pointer components are where this model shines (and where allocatable components would deadlock):</p>
+
+                <pre><code class="language-fortran line-numbers">program linked_list
+  implicit none
+  type :: node
+    integer :: value
+    type(node), pointer :: next            ! link to the next node
+  end type node
+  type(node), target :: first, second, third
+  type(node), pointer :: cur
+
+  first%value = 1; second%value = 2; third%value = 3
+  first%next =&gt; second                     ! wire the chain by rebinding
+  second%next =&gt; third
+  third%next =&gt; null()                     ! terminate the chain
+
+  cur =&gt; first
+  do while (associated(cur))              ! walk until the null link
+     print '(a,i0)', 'node value: ', cur%value
+     cur =&gt; cur%next                      ! advance: whole traversal idiom
+  end do
+end program linked_list</code></pre>
+
+                <p>Real HPC code uses this shape rarely — arrays and allocatable containers beat pointers for both speed and readability — but file systems, symbol tables and parser internals still need it, and when they do, pointer components plus <code>=&gt;</code> wiring are the whole technique.</p>
+
+                <div class="alert alert-warning shadow-sm">
+                  <strong>Pointer hygiene:</strong> always initialize pointers to <code>=&gt; null()</code>; test <code>associated(p)</code> before dereferencing; pair every <code>allocate</code> with a <code>deallocate</code> or <code>nullify</code>; and prefer allocatable to pointer wherever ownership (rather than aliasing) is what you actually want.
+                </div>
+
+            </div>
+          </div>
+          <hr>
+          <footer class="footer copyright">
+            <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+          </footer>
+        </div>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+          <span style="font-size: 24px;">&#9776;</span>
+        </button>
+        <script>
+          window.TOPIC_CONFIG = {
+            labId: 'fortran',
+            topicId: 'pointers',
+            homeLink: './index.html#topics',
+            labHomeLink: './index.html',
+            inlineContent: true
+          };
+        </script>
+        <script src="/assets/js/sage.js" defer></script>
+        <script src="/assets/js/topic-loader.js" defer></script>
+        </body>
+        </html>

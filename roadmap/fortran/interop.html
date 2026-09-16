@@ -1,0 +1,131 @@
+        <!DOCTYPE html>
+        <html lang="en" data-bs-theme="dark">
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="Fortran interoperability: iso_c_binding, bind(c), calling C from Fortran and Fortran from C, C_LOC and C_F_POINTER, and mixing languages in one build.">
+          <meta name="author" content="Elucian Moise">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>Fortran C Interoperability</title>
+          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+          <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+          <link rel="stylesheet" href="/assets/prism.css">
+          <script src="/assets/prism.js"></script>
+          <link rel="stylesheet" href="/assets/css/sage-common.css">
+          <link rel="stylesheet" href="/assets/css/content-topic.css">
+          <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+          <link rel="stylesheet" href="/assets/css/content-code.css">
+          <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+        </head>
+        <body>
+        <div class="container">
+          <header id="dynamic-header" class="container-fluid pb-2"></header>
+          <div class="container-fluid px-0">
+            <div class="row g-0">
+              <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+              <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+                <h1 id="fortran-interop">C Interoperability</h1>
+                <div class="alert alert-secondary shadow-sm">
+                  Since Fortran 2003, a standardized bridge to C has been part of the language: <code>iso_c_binding</code> maps types, <code>bind(c)</code> fixes calling conventions and names, and every serious scientific stack — LAPACK callers in Python, GPU runtimes, netCDF — relies on it. This lesson crosses the border in both directions.
+                </div>
+
+                <h2 id="the-abi-bridge">The ABI bridge model</h2>
+                <p>Calling another language well means agreeing on three things: how names appear to the linker, how arguments are passed, and which data formats are exchanged. <code>bind(c)</code> takes over all three — the routine gets an exact C symbol name, scalars and arrays follow the C ABI, and <code>iso_c_binding</code> provides the kind constants that match C types on your platform:</p>
+
+                <div class="text-center">
+                  <img src="/roadmap/fortran/img/fortran-c-binding.svg" alt="C and Fortran share one ABI through iso_c_binding" class="img-fluid protect rounded shadow border" width="860">
+                  <p><em>Fig. 1 — One interface, verified by both compilers, no glue code.</em></p>
+                </div>
+
+                <pre><code class="language-fortran line-numbers">module c_api
+  use, intrinsic :: iso_c_binding, only: c_int, c_double, c_char
+  implicit none
+  interface
+    ! Declare the C function so Fortran can call it.
+    integer(c_int) function c_add(a, b) bind(c, name="c_add")
+      import :: c_int
+      integer(c_int), value :: a, b    ! value = pass-by-value (C default)
+    end function c_add
+  end interface
+contains
+  ! Export a Fortran subroutine to C with a fixed, unmangled name.
+  subroutine scale_array(n, arr, factor) bind(c, name="scale_array")
+    integer(c_int), value :: n
+    real(c_double), intent(inout) :: arr(n)
+    real(c_double), value :: factor
+    arr = arr * factor
+  end subroutine scale_array
+end module c_api</code></pre>
+                <p>The <code>value</code> attribute is mandatory for C scalars (C passes by value; Fortran defaults to reference). The <code>bind(c)</code> symbols are ordinary link names — the C side declares matching headers and links the same object files:</p>
+
+                <pre><code class="language-c line-numbers">/* call_demo.c — the C side of the same contract */
+#include &lt;stdio.h&gt;
+int  c_add(int a, int b);
+void scale_array(int n, double *arr, double factor);
+
+int main(void) {
+    int sum = c_add(2, 3);            /* Fortran function, C name */
+    double v[3] = {1.0, 2.0, 3.0};
+    scale_array(3, v, 10.0);          /* Fortran subroutine */
+    printf("sum=%d  v[1]=%.1f\n", sum, v[1]);
+    return 0;
+}</code></pre>
+
+                <pre><code class="language-bash line-numbers">gfortran -c c_api.f90
+gcc     -c call_demo.c
+gfortran -o demo c_api.o call_demo.o     # one link, two languages
+./demo                                   # sum=5  v[1]=20.0</code></pre>
+
+                <h2 id="pointer-marshalling">Pointers and memory: C_LOC and C_F_POINTER</h2>
+                <p>Bridging allocations is where the model needs care. <code>c_loc(x)</code> produces a <code>type(c_ptr)</code> — a raw address Fortran can hand to C. <code>c_f_pointer(ptr, fptr, shape)</code> converts a C address back into a typed Fortran pointer with a shape. The pattern below asks a C allocator for memory, then views it as a Fortran array — the standard way to receive buffers from C libraries:</p>
+
+                <pre><code class="language-fortran line-numbers">program buffer_view
+  use, intrinsic :: iso_c_binding
+  implicit none
+  interface
+    function make_buffer(n) bind(c, name="make_buffer") result(p)
+      import :: c_int, c_ptr
+      integer(c_int), value :: n
+      type(c_ptr) :: p
+    end function make_buffer
+  end interface
+  type(c_ptr) :: raw
+  real(c_double), pointer :: view(:)
+  integer :: n = 3
+  raw = make_buffer(n)
+  call c_f_pointer(raw, view, [n])    ! interpret as a rank-1 array
+  view = 1.0
+  print *, view, associated(view)
+end program buffer_view</code></pre>
+
+                <h2 id="interop-strategies">When to use which strategy</h2>
+                <p>Three practical routes exist. <strong>Direct <code>bind(c)</code> in one executable</strong> — the fastest, what this lesson demonstrates — suits Fortran kernels called from C drivers and vice versa. <strong>A shared library exposing a C ABI</strong> (<code>gfortran -shared -fPIC</code>) lets Python, Rust, R and Java all load the same Fortran math with ctypes/FFI — the python-interop lesson builds exactly this. <strong>Compile-time <code>#include</code> or preprocessor</strong> is legacy and fragile; avoid it. In every route, the type mapping table (<code>integer(c_int)</code>, <code>real(c_double)</code>, <code>character(kind=c_char)</code>, <code>type(c_ptr)</code>) is the single source of truth both sides must respect.</p>
+
+                <div class="alert alert-warning shadow-sm">
+                  <strong>Classic failure:</strong> forgetting <code>value</code> on a C scalar turns an <code>int</code> argument into a pointer to int, and the C side reads memory garbage. Rule: <em>scalar C arguments always carry <code>value</code>; arrays are never <code>value</code> and are passed by reference as in Fortran.</em>
+                </div>
+
+              </main>
+            </div>
+          </div>
+          <hr>
+          <footer class="footer copyright">
+            <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+          </footer>
+        </div>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+          <span style="font-size: 24px;">&#9776;</span>
+        </button>
+        <script>
+          window.TOPIC_CONFIG = {
+            labId: 'fortran',
+            topicId: 'interop',
+            homeLink: './index.html#topics',
+            labHomeLink: './index.html',
+            inlineContent: true
+          };
+        </script>
+        <script src="/assets/js/sage.js" defer></script>
+        <script src="/assets/js/topic-loader.js" defer></script>
+        </body>
+        </html>

@@ -1,0 +1,123 @@
+        <h2 id="choosing-a-compiler">Choosing a Compiler</h2>
+
+        <p>All compilers below implement the current Fortran 2023 standard to a high degree and — critically for learning — ship excellent diagnostic messages. Pick the one your platform makes easiest; you can always add another later, since each installs side by side.</p>
+
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr><th>Compiler</th><th>Vendor</th><th>Best for</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>gfortran</code></td><td>GNU (GCC)</td><td>Everything, every OS</td><td>The default teaching compiler; <code>-fcoarray=lib</code>, <code>-fopenmp</code>, <code>-fopenacc</code> built in.</td></tr>
+            <tr><td><code>flang-new</code></td><td>LLVM</td><td>Optimization study</td><td>The LLVM front-end; compare <code>-O3</code> codegen against gfortran.</td></tr>
+            <tr><td><code>ifx</code> / <code>ifort</code></td><td>Intel</td><td>HPC clusters, Xeon</td><td>Free for students and open source; best tuned for Intel CPUs and MKL.</td></tr>
+            <tr><td><code>lfortran</code></td><td>LFortran community</td><td>Browser playground</td><td>Interactive notebook-style REPL; also powers the official online playground.</td></tr>
+          </tbody>
+        </table>
+
+        <p>The rest of this track uses gfortran in examples, because it is the install-everywhere compiler with the most complete free diagnostics. Everything shown compiles identically on the others.</p>
+
+        <h3 id="installing-the-toolchain">Installing the toolchain</h3>
+
+        <p>GNU Fortran ships with every major package manager; there is no install wizard to hunt down.</p>
+
+        <ul>
+          <li><strong>Windows:</strong> the two comfortable paths are <code>winget install GnuWin32.Gfortran</code> (single compiler) or, better for HPC learning, an MSYS2 terminal with <code>pacman -S mingw-w64-ucrt-x86_64-gcc-fortran</code> — the MSYS2 installs include <code>mpi</code> and <code>openmp</code> packages you will need in the HPC phase. Windows Subsystem for Linux works identically to Linux below.</li>
+          <li><strong>Linux:</strong> <code>sudo apt install gfortran</code> (Debian/Ubuntu), <code>sudo dnf install gcc-gfortran</code> (Fedora), or <code>sudo pacman -S gcc-fortran</code> (Arch).</li>
+          <li><strong>macOS:</strong> <code>brew install gcc</code> — Homebrew's gcc formula includes gfortran.</li>
+        </ul>
+
+        <p>Verify the installation — the version numbers below simply confirm the compiler talks to you; anything ≥ 12 is fine for this track:</p>
+
+        <pre><code class="language-bash line-numbers">$ gfortran --version
+GNU Fortran (GCC) 13.2.0
+$ which gfortran      # a real path, not "command not found"</code></pre>
+
+        <p>If the second command prints <code>command not found</code>, the terminal session was started before the install finished (Windows/MSYS2) or the package manager needs relogin — restart the shell before debugging further.</p>
+
+        <h2 id="your-first-program">Your first program</h2>
+
+        <p>Create a file named <code>hello.f90</code> with any editor, and type the program below exactly. The <code>.f90</code> extension tells every compiler to use free form (the modern layout); a plain <code>.f</code> means legacy fixed form, which the syntax lesson explains. Note the three lines every modern Fortran program should have: <code>program</code> naming the unit, <code>implicit none</code> banning silent typo-variables, and an <code>end program</code> that optionally repeats the name — gfortran will verify the name matches the opening statement.</p>
+
+        <pre><code class="language-fortran line-numbers">program hello
+  ! The first program in every language. Nothing clever, everything mandatory.
+  implicit none                  ! never let a typo invent a variable
+  character(len=12) :: name      ! a fixed-length string (learned in Strings)
+  write (*, '(a)', advance='no') 'What is your name? '
+  read (*, '(a)') name
+  print '(a,a,a)', 'Hello, ', trim(name), '!'
+end program hello</code></pre>
+
+        <h3 id="compile-and-run">Compile and run</h3>
+
+        <p>Compilation happens in two invisible stages — translation to object code, then linking — but one command does both. The <code>-o hello</code> flag names the output executable; without it gfortran writes a file called <code>a.exe</code> on Windows or <code>a.out</code> elsewhere.</p>
+
+        <pre><code class="language-bash line-numbers">$ gfortran -Wall -Wextra -std=f2018 -o hello hello.f90
+$ ./hello
+What is your name? Ada
+Hello, Ada!</code></pre>
+
+        <p>Two flags deserve early respect. <code>-Wall -Wextra</code> turns on warnings that catch real bugs — unused variables, suspicious integer conversions, deleted-feature usage — before a human does. <code>-std=f2018</code> (or <code>-std=f2023</code> on newer compilers) makes the compiler reject obsolete constructs so your code stays portable forward. During HPC work you add <code>-O3</code>; during debugging you add <code>-g -fcheck=bounds -fbacktrace</code>. The performance lesson details when each set buys you something real.</p>
+
+        <h3 id="reading-compiler-diagnostics">Reading compiler diagnostics</h3>
+
+        <p>Compilers are the best teachers when you let them talk. Deliberately break the program above — remove the <code>implicit none</code> line and rename <code>read</code> to <code>real</code> — and watch gfortran answer with a file name, a line, a column caret, and an explanation:</p>
+
+        <pre><code class="language-bash line-numbers">$ gfortran -std=f2018 hello.f90
+hello.f90:5:13:
+    5 |  real (*, '(a)') name
+      |             1
+Error: Symbol 'real' at (1) has no IMPLICIT type
+</code></pre>
+
+        <p>This is the loop of Fortran learning: write small, compile often, and let the diagnostic point at the exact character. The errors lesson later teaches how to read the nastier ones (linker errors, array-shape mismatches) defensively.</p>
+
+        <h2 id="editor-and-tools">Editor and tools</h2>
+
+        <p>Fortran is well served in VS Code: install the <strong>Modern Fortran</strong> extension, which bundles the language server <code>fortls</code> and provides hover documentation, go-to-definition across module boundaries, and live diagnostics. The base package also gives syntax highlighting (the same grammar this site's code viewer uses). Whatever you use, the workflow is the same: file &rarr; save &rarr; compile in the terminal.</p>
+
+        <h2 id="scaffold-a-project-with-fpm">Scaffold a project with fpm</h2>
+
+        <p><strong>fpm</strong> (Fortran Package Manager) is the community build tool — the part of the ecosystem that finally made dependency management normal. It fills the same role as <code>cargo</code> for Rust or <code>mix</code> for Elixir: one manifest declares sources, dependencies, and executables, and everything is compiled in the right order. Install it from <a href="https://fpm.fortran-lang.org/" target="_blank" rel="noopener noreferrer nofollow">fpm.fortran-lang.org</a> (Windows builds are provided as release ZIPs), then try the full cycle:</p>
+
+        <pre><code class="language-bash line-numbers">$ fpm new helloworld     # creates src/, test/, fpm.toml and a stub app
+$ cd helloworld
+$ fpm run                # builds and executes the default app target
+ Hello, world!
+$ fpm test               # builds and runs the unit-test target</code></pre>
+
+        <p>The ecosystem lesson returns to fpm in depth: adding dependencies, profiles, and publishing. For now it matters only that you can create a real multi-file project without a makefile.</p>
+
+        <div class="alert alert-success shadow-sm">
+          <strong>Done?</strong> Run <code>gfortran --version</code> one more time and compile <code>hello.f90</code> from this page. When both succeed, the environment is ready and the next lesson — Fortran Syntax — starts the language itself.
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'fortran',
+    topicId: 'setup',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

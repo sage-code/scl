@@ -1,0 +1,114 @@
+        <!DOCTYPE html>
+        <html lang="en" data-bs-theme="dark">
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="Fortran ecosystem: fpm packages and profiles, the Standard Library (stdlib), BLAS/LAPACK and MKL, netCDF and HDF5, testing with test-drive, and debugging and profiling tooling.">
+          <meta name="author" content="Elucian Moise">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>Fortran Ecosystem</title>
+          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+          <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+          <link rel="stylesheet" href="/assets/prism.css">
+          <script src="/assets/prism.js"></script>
+          <link rel="stylesheet" href="/assets/css/sage-common.css">
+          <link rel="stylesheet" href="/assets/css/content-topic.css">
+          <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+          <link rel="stylesheet" href="/assets/css/content-code.css">
+          <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+        </head>
+        <body>
+        <div class="container">
+          <header id="dynamic-header" class="container-fluid pb-2"></header>
+          <div class="container-fluid px-0">
+            <div class="row g-0">
+              <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+              <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+                <h1 id="fortran-ecosystem">The Fortran Ecosystem</h1>
+                <div class="alert alert-secondary shadow-sm">
+                  The "Fortran is dead, so its ecosystem is dead" story inverts the truth: 65 years of validation produced BLAS, LAPACK, netCDF and MPI — libraries science is built on — and the last five years added fpm, stdlib and a modern registry. This lesson surveys what is production-grade and what to use for building, testing and data I/O.
+                </div>
+
+                <h2 id="fpm">fpm: the package manager and build tool</h2>
+                <p>The setup lesson ran the hello-world cycle; here is the real workflow. An <code>fpm.toml</code> manifest names the package, its source layout and its dependencies (fetched from git or the <a href="https://fpm.fortran-lang.org/" target="_blank" rel="noopener noreferrer nofollow">fpm registry</a>). Recent releases added <strong>profiles</strong> — named build configurations, the standard way to switch compiler flags between debug and release:</p>
+
+                <pre><code class="language-toml line-numbers">name = "mysolver"
+version = "0.1.0"
+license = "MIT"
+
+[build]
+auto-executables = true
+auto-tests = true
+
+[dependencies]
+stdlib = { git = "https://github.com/fortran-lang/stdlib", tag = "v0.8.1" }
+hdf5  = { git = "https://github.com/fortran-lang/hdf5-fortran" }</code></pre>
+
+                <p>The commands are the loop of your day: <code>fpm build</code>, <code>fpm run</code>, <code>fpm test</code>, <code>fpm install</code>. Dependencies land in a local cache and their modules become importable automatically. For institutional builds, CMake's Fortran support remains the heavy-duty alternative, but new projects start with fpm.</p>
+
+                <h2 id="stdlib">stdlib: the community standard library</h2>
+                <p>The ISO standard ships no standard library by design; <a href="https://github.com/fortran-lang/stdlib" target="_blank" rel="noopener noreferrer nofollow">fortran-lang/stdlib</a> is the de-facto one. Current scope: string utilities (<code>strip</code>, <code>slice</code>, <code>ends_with</code>, <code>to_upper</code>), sorting and searching (<code>sort</code>, <code>arg_sort</code>), math (<code>linspace</code>, <code>is_close</code>, random distributions), statistics, IO helpers, and the full BLAS/LAPACK interfaces (<code>stdlib_linalg</code>). Reading stdlib is also how you learn canonical modern Fortran — add it with one <code>fpm.toml</code> line.</p>
+
+                <pre><code class="language-fortran line-numbers">program stdlib_quick
+  use stdlib_strings, only: strip, to_upper, ends_with
+  use stdlib_sorting, only: sort
+  implicit none
+  character(len=32) :: msg = "  run done  "
+  integer :: v(5) = [5, 2, 4, 1, 3]
+  print '(a)', strip(to_upper(msg))   ! "RUN DONE"
+  call sort(v)                        ! stdlib sorting, in place
+  print '(5i2)', v                    ! 1 2 3 4 5
+  print *, ends_with("report_v2.dat", ".dat")   ! T
+end program stdlib_quick</code></pre>
+                <h2 id="linear-algebra-ecosystem">Linear algebra: BLAS, LAPACK, MKL</h2>
+                <p>The dense linear algebra stack is Fortran's most famous export. <strong>BLAS</strong> — the Basic Linear Algebra Subroutines — is the kernel layer (<code>dgemm</code> for matrix multiply, <code>daxpy</code>, norms and dots); <strong>LAPACK</strong> builds solvers and decompositions on top (linear solves, eigenvalues, SVD, QR). Every vendor ships tuned builds: Intel MKL (on Xeon, often the fastest), OpenBLAS, and the reference netlib codes. Call them directly through <code>external dgemm</code> plus explicit interfaces — or through stdlib's typed wrappers, which handle kinds automatically. The performance story is physical, not architectural: a good BLAS <code>dgemm</code> uses cache-blocking and SIMD that your hand loops will not match — for any problem that is a matrix problem, call the library.</p>
+
+                <pre><code class="language-fortran line-numbers">program matmul_check
+  use, intrinsic :: iso_fortran_env, only: real64
+  implicit none
+  real(real64) :: a(2,2), b(2,2), c(2,2)
+  a = reshape([1.0_real64, 2.0_real64, 3.0_real64, 4.0_real64], [2,2])
+  b = reshape([5.0_real64, 6.0_real64, 7.0_real64, 8.0_real64], [2,2])
+  c = matmul(a, b)                ! intrinsic path — fine here
+  print *, c
+  ! For large sizes the BLAS call dgemm('n','n',n,n,n,1.0,a,n,b,n,0.0,c,n)
+  ! is the production choice; stdlib_linalg wraps it type-safely.
+end program matmul_check</code></pre>
+
+                <h2 id="data-libraries">Data formats: netCDF and HDF5</h2>
+                <p>Scientific data outlives the program that wrote it; <strong>netCDF</strong> and <strong>HDF5</strong> are the portable, self-describing container formats the Earth-science world standardized on — arrays with named dimensions, units attached to variables, and chunked compression. Both ship Fortran APIs used by every weather and climate codebase; gfortran users reach them through the <code>netcdf-fortran</code> and <code>hdf5-fortran</code> packages (both have fpm metapackages). The shapes lesson transfers directly: netCDF variables are just arrays with metadata, so a solver's output step is <code>nf90_put_var</code> over the same array the physics just advanced.</p>
+
+                <h2 id="testing-and-ci">Testing and continuous integration</h2>
+                <p>Three layers keep Fortran code honest. <strong>test-drive</strong> is the fpm-native test framework — <code>unittest</code> style blocks that compile with <code>fpm test</code>. <strong>Fruit</strong> and <strong>Funit</strong> add JUnit-style fixtures for large suites. On top, CI is the same GitHub Actions/Azure Pipelines you already know, with the twist that matrixes across gfortran versions cheaply enforce the portability that <code>-std=f2018</code> promised — a matrix of {gfortran-12, gfortran-13, ifx} catches 90% of platform bugs before users do. The errors lesson's <code>assert</code> pattern plus <code>-fcheck=bounds</code> in the debug profile is the smallest viable test harness.</p>
+
+                <h2 id="debugging-tools">Debugging and profiling tooling</h2>
+                <p>The professional toolchain, all free: <strong>gdb</strong> for interactive breakpoints and minimal Fortran awareness (set <code>language fortran</code> at the prompt); <strong>gfortran's <code>-fbacktrace -fcheck=bounds</code></strong> for instant crash location; <strong>valgrind memcheck</strong> for leaks and invalid access in release builds; <strong>gprof/perf</strong> (performance lesson) for hot spots; and <strong>OpenMPI's <code>mpiexec</code> plus TAU/Scalasca</strong> on clusters for parallel profiling. A modern IDE adds the same features with less typing — VS Code's Modern Fortran extension gives hover types, go-to-definition, and its debugger binds gdb beneath the hood.</p>
+
+                <div class="alert alert-success shadow-sm">
+                  <strong>Next:</strong> with the ecosystem surveyed, the comparison lesson answers the question every newcomer asks — how Fortran positions itself against Rust, Zig and C++ — and whether it deserves the "systems language" label.
+                </div>
+
+              </main>
+            </div>
+          </div>
+          <hr>
+          <footer class="footer copyright">
+            <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+          </footer>
+        </div>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+          <span style="font-size: 24px;">&#9776;</span>
+        </button>
+        <script>
+          window.TOPIC_CONFIG = {
+            labId: 'fortran',
+            topicId: 'ecosystem',
+            homeLink: './index.html#topics',
+            labHomeLink: './index.html',
+            inlineContent: true
+          };
+        </script>
+        <script src="/assets/js/sage.js" defer></script>
+        <script src="/assets/js/topic-loader.js" defer></script>
+        </body>
+        </html>

@@ -1,0 +1,130 @@
+        <!DOCTYPE html>
+        <html lang="en" data-bs-theme="dark">
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="Fortran and Python integration: subprocess and files, F2PY extension modules with zero-copy NumPy arrays, ctypes with the C ABI, when to interop, and the design that keeps the hot loop in Fortran.">
+          <meta name="author" content="Elucian Moise">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>Fortran &amp; Python Integration</title>
+          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+          <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+          <link rel="stylesheet" href="/assets/prism.css">
+          <script src="/assets/prism.js"></script>
+          <link rel="stylesheet" href="/assets/css/sage-common.css">
+          <link rel="stylesheet" href="/assets/css/content-topic.css">
+          <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+          <link rel="stylesheet" href="/assets/css/content-code.css">
+          <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+        </head>
+        <body>
+        <div class="container">
+          <header id="dynamic-header" class="container-fluid pb-2"></header>
+          <div class="container-fluid px-0">
+            <div class="row g-0">
+              <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+              <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+                <h1 id="python-interop">Fortran &amp; Python Integration</h1>
+                <div class="alert alert-secondary shadow-sm">
+                  Python is where scientific workflows live: loading data, plotting, driving experiments, fitting models. Fortran is where the arithmetic belongs. The two-language problem is solved by a ladder of integration levels, and the modern default is <strong>F2PY</strong> — Fortran compiled into a native Python module whose NumPy arrays cross the border with zero copies. This lesson climbs the ladder.
+                </div>
+
+                <h2 id="the-two-language-problem">The two-language problem</h2>
+                <p>The ecosystem lesson's history lesson repeated itself here: scientists prototype in Python (readable, dynamic, rich libraries), then hit a loop that takes hours, rewrite it in Fortran, and lose weeks gluing the two. The mature pattern flips the balance: <em>Python orchestrates, Fortran computes</em>. Python owns loops that orchestrate — file walking, experiment control, plotting — seconds-scale code where readability wins. Fortran owns the inner numerical kernels — the per-time-step physics — where a 50× speedup is routine. The integration layer is the only piece worth engineering.</p>
+
+                <h2 id="level-1-subprocess">Level 1: subprocess and files</h2>
+                <p>The simplest bridge: compile a standalone Fortran executable, launch it from Python with <code>subprocess.run</code>, exchange data through files. Zero libraries, zero compilation toolchain on the Python side, and trivially debuggable — each side is an ordinary program. The cost is serialization and process startup, so this is prototyping glue, not production HPC glue. Everything the files lesson taught about formats is exactly what this level consumes.</p>
+
+                <pre><code class="language-python line-numbers">import subprocess
+
+# run the Fortran solver once; it reads config from stdin, writes CSV out
+subprocess.run(["./solver", "case_07.nml"], check=True)
+
+# the Python side now parses the produced file like any data source
+with open("case_07.csv") as f:
+    for line in f:
+        ...</code></pre>
+
+                <div class="text-center">
+                  <img src="/roadmap/fortran/img/fortran-python-bridge.svg" alt="Three levels of Python-Fortran integration" class="img-fluid protect rounded shadow border" width="860">
+                  <p><em>Fig. 1 — Files first, then the zero-copy extension, then the raw C ABI — each level trades convenience for speed.</em></p>
+                </div>
+                <h2 id="level-2-f2py">Level 2: F2PY — the production bridge</h2>
+                <p><a href="https://numpy.org/doc/stable/f2py/" target="_blank" rel="noopener noreferrer nofollow">F2PY</a> — part of NumPy since its beginnings — reads your Fortran source, generates a C/CPython extension, and compiles it into a module Python imports directly. Fortran subroutines become Python functions; Fortran arrays become NumPy arrays pointing at the <em>same memory</em> — no copy, one of the few true zero-copy bridges in the scientific stack. The Fortran side needs nothing special except <code>intent</code> annotations, which F2PY uses to decide which arguments are outputs:</p>
+
+                <pre><code class="language-fortran line-numbers">! solver.f90 — the compute kernel, ordinary Fortran
+subroutine euler_step(n, dt, y, ynext)
+  ! One time step of a simple explicit integrator.
+  integer, intent(in) :: n
+  real(8), intent(in) :: dt, y(n)
+  real(8), intent(out) :: ynext(n)
+  ynext = y + dt * sin(y)          ! whole-array math, vectorizes
+end subroutine euler_step</code></pre>
+
+                <pre><code class="language-bash line-numbers"># build the extension module (Windows: replace gfortran with your mingw setup)
+python -m numpy.f2py -c solver.f90 -m solver</code></pre>
+
+                <pre><code class="language-python line-numbers">import numpy as np
+import solver                     # our Fortran, now a Python module
+
+y = np.zeros(10_000)
+dt = 0.01
+for step in range(1000):          # the ORCHESTRATION loop stays in Python
+    y = solver.euler_step(y, dt)  # the COMPUTE call lands in Fortran
+print(y.sum())</code></pre>
+
+                <p>Two details make it work smoothly. F2PY wraps <code>intent(out)</code> array arguments by creating the result array and returning it (as shown), and it accepts <code>intent(in, out)</code> for in-place updates. Shape information flows both ways: pass a <code>(n,)</code> NumPy array and <code>n</code> can be inferred from its shape if the dummy is declared with an assumed size or explicit shape using another dummy. The modern <code>f2py==2.x</code> uses meson builds and handles most <code>iso_c_binding</code> interfaces automatically.</p>
+
+                <h2 id="level-3-ctypes">Level 3: ctypes and the C ABI</h2>
+                <p>When the Fortran side exposes <code>bind(c)</code> symbols (interop lesson), any tool that calls C — ctypes, CFFI, ctypes from Rust, Java's JNA — can call Fortran directly. This is the "shared library as API" route: <code>gfortran -shared -fPIC libsolver.f90 -o libsolver.so</code>, then Python declares argument types explicitly and calls through the C function-pointer table. No build-time coupling to NumPy, at the price of manual type declarations and no automatic output-array creation:</p>
+
+                <pre><code class="language-python line-numbers">import ctypes
+import numpy as np
+
+lib = ctypes.CDLL("./libsolver.so")
+lib.scale_array.argtypes = [ctypes.c_int,
+                            np.ctypeslib.ndpointer(dtype=np.float64,
+                                                   ndim=1, flags="C_CONTIGUOUS"),
+                            ctypes.c_double]
+x = np.ones(5)
+lib.scale_array(x.size, x, 3.0)   # Fortran multiplies x in place
+print(x)                          # [3. 3. 3. 3. 3.]</code></pre>
+
+                <p>The array must be C-contiguous (the default for newly created NumPy arrays) because the Fortran side sees a raw address plus a length — this is the rawest level and therefore the one to use when many languages must share one library.</p>
+
+                <h2 id="design-guidelines">Design guidelines that survive contact</h2>
+                <ul>
+                  <li><strong>Keep the hot loop in Fortran.</strong> The Python loop in the F2PY example calls Fortran 1000 times per second — that is the correct shape. The wrong shape calls Python from a Fortran loop, or copies data in and out each call.</li>
+                  <li><strong>Batch, don't stream.</strong> If your Python counterpart needs every intermediate value, restructure: compute the whole trajectory in Fortran, return it once. Transfer time is amortized by the kernel's arithmetic.</li>
+                  <li><strong>Validate once.</strong> Check array shapes and finite-ness on the Python side before the first call; the Fortran side assumes the contract (its <code>intent</code> is checked at its own compile time, not at the boundary).</li>
+                  <li><strong>Debug the Fortran side with its own tools</strong> (gfortran <code>-fcheck=bounds</code>) before suspecting the bridge — the error lesson's backtraces print the Fortran call chain, not Python frames.</li>
+                </ul>
+
+                <div class="alert alert-success shadow-sm">
+                  <strong>Try it now:</strong> the demos folder ships a complete <code>euler_step</code> module with the F2PY build command and a Python driver — copy, build, and time <code>step 1000</code> against a pure-NumPy version. The win you measure is the two-language problem solved.
+                </div>
+
+              </main>
+            </div>
+          </div>
+          <hr>
+          <footer class="footer copyright">
+            <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+          </footer>
+        </div>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+          <span style="font-size: 24px;">&#9776;</span>
+        </button>
+        <script>
+          window.TOPIC_CONFIG = {
+            labId: 'fortran',
+            topicId: 'python_interop',
+            homeLink: './index.html#topics',
+            labHomeLink: './index.html',
+            inlineContent: true
+          };
+        </script>
+        <script src="/assets/js/sage.js" defer></script>
+        <script src="/assets/js/topic-loader.js" defer></script>
+        </body>
+        </html>

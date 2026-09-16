@@ -1,0 +1,202 @@
+        <!DOCTYPE html>
+        <html lang="en" data-bs-theme="dark">
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="Fortran study projects: a weather-station statistics engine, an object-oriented shapes app with polymorphism, and a one-dimensional heat diffusion solver compared in three parallel styles.">
+          <meta name="author" content="Elucian Moise">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+          <title>Fortran Study Projects</title>
+          <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+          <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+          <link rel="stylesheet" href="/assets/prism.css">
+          <script src="/assets/prism.js"></script>
+          <link rel="stylesheet" href="/assets/css/sage-common.css">
+          <link rel="stylesheet" href="/assets/css/content-topic.css">
+          <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+          <link rel="stylesheet" href="/assets/css/content-code.css">
+          <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+        </head>
+        <body>
+        <div class="container">
+          <header id="dynamic-header" class="container-fluid pb-2"></header>
+          <div class="container-fluid px-0">
+            <div class="row g-0">
+              <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+              <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+                <h1 id="fortran-samples">Study Projects</h1>
+                <div class="alert alert-secondary shadow-sm">
+                  Three programs that pull the whole track together, written with the standard library only (project 3 optionally with OpenMP/coarray flags). Type each one yourself — do not copy and paste — then break it deliberately and repair it. Each is complete as shown and takes about an hour to write and understand; the challenge at the end of each is the version you would meet in real work.
+                </div>
+
+                <h2 id="project-1-weather">Project 1 — Weather Station Statistics</h2>
+                <p>Every engineer writes this program once: read records from a CSV, keep them in derived types, compute statistics, write a report. It exercises files, derived types, array reductions and formatted I/O together. The twist that makes it interesting: the number of stations is unknown before reading, so the container must grow — the demo uses a fixed array for simplicity, and your challenge is to upgrade it to <code>allocatable</code>.</p>
+
+                <pre><code class="language-fortran line-numbers">program weather_stats
+  use iso_fortran_env, only: real64
+  implicit none
+  type :: station                       ! one record per line of the CSV
+    character(len=24) :: name
+    real(real64)      :: temp
+    integer           :: altitude
+  end type station
+  type(station) :: st(4)                ! the fixed-size version
+  integer :: unit, ios, n, i, imax
+  character(len=128) :: msg
+
+  open (newunit=unit, file="stations.csv", status="old", action="read", &
+        iostat=ios, iomsg=msg)
+  if (ios /= 0) then
+     print '(a)', trim(msg)
+     error stop 1
+  end if
+  n = 0
+  do
+     read (unit, '(a24,1x,f8.2,1x,i6)', iostat=ios) &
+          st(n+1)%name, st(n+1)%temp, st(n+1)%altitude
+     if (ios < 0) exit                  ! end of file
+     if (ios > 0) cycle                 ! skip malformed lines
+     n = n + 1
+  end do
+  close (unit)
+
+  print '(a,i0,a)', 'stations read: ', n
+  print '(a,f8.2)',  'mean temperature: ', sum(st(1:n)%temp) / n
+  print '(a,f8.2)',  'max temperature:  ', maxval(st(1:n)%temp)
+  imax = maxloc(st(1:n)%temp, dim=1)
+  print '(a,a,a)',   'hottest: ', trim(st(imax)%name), ' (report line below)'
+  do i = 1, n
+     write (*, '(a24,1x,f8.2,1x,i6)') st(i)%name, st(i)%temp, st(i)%altitude
+  end do
+  ! Challenge: replace the fixed st(4) with st(:) allocatable —
+  ! read once to count, allocate, reposition, read again.
+end program weather_stats</code></pre>
+                <h2 id="project-2-shapes">Project 2 — Object-Oriented Shapes</h2>
+                <p>A polymorphic calculator: an abstract <code>shape</code> type, two concrete extensions, and one <code>area</code> call that dispatches correctly no matter which concrete type is passed. This is the oop lesson compressed into a single standalone module-and-program, and the natural next step is adding a third shape (triangle, …) and a <code>list</code> container of <code>class(shape)</code> entries.</p>
+
+                <pre><code class="language-fortran line-numbers">module shapes
+  implicit none
+  private
+  public :: shape, circle, rectangle, describe
+
+  type, abstract :: shape
+  contains
+    procedure(area_iface), deferred :: area
+  end type shape
+
+  abstract interface
+    real function area_iface(self)
+      import :: shape
+      class(shape), intent(in) :: self
+    end function area_iface
+  end interface
+
+  type, extends(shape) :: circle
+    real :: r = 1.0
+  contains
+    procedure :: area => circle_area
+  end type circle
+
+  type, extends(shape) :: rectangle
+    real :: w = 1.0, h = 1.0
+  contains
+    procedure :: area => rect_area
+  end type rectangle
+
+contains
+  real function circle_area(self)
+    class(circle), intent(in) :: self
+    circle_area = 3.1415926535 * self%r**2
+  end function circle_area
+
+  real function rect_area(self)
+    class(rectangle), intent(in) :: self
+    rect_area = self%w * self%h
+  end function rect_area
+
+  subroutine describe(s)
+    class(shape), intent(in) :: s
+    select type (s)                    ! pattern-match on the concrete type
+    type is (circle)
+       print '(a,f8.3)', 'circle,  area = ', s%area()
+    type is (rectangle)
+       print '(a,f8.3)', 'rectangle, area = ', s%area()
+    class default
+       print '(a)', 'unknown shape'
+    end select
+  end subroutine describe
+end module shapes
+
+program shape_app
+  use shapes
+  implicit none
+  type(circle) :: c
+  type(rectangle) :: r
+  c = circle(r=2.0)
+  r = rectangle(w=3.0, h=4.0)
+  call describe(c)                     ! dispatches to circle_area
+  call describe(r)                     ! dispatches to rect_area
+end program shape_app</code></pre>
+                <h2 id="project-3-heat">Project 3 — Heat Diffusion in Three Parallel Styles</h2>
+                <p>A 1-D heat diffusion step — <code>u_new(i) = u(i) + dt*(u(i-1) - 2*u(i) + u(i+1))</code> — is the smallest realistic stencil. This project shows the same loop written three ways so you can compare them side by side: a plain serial loop, a <code>do concurrent</code> version, and an OpenMP directive version. Both parallel versions must produce the same answer, which is your correctness test. The study-project challenge extends it: replace the fixed 1000-cell line with a 2-D grid and decompose it with MPI halos, exactly as the mpi lesson described.</p>
+
+                <pre><code class="language-fortran line-numbers">program heat_diffusion
+  use iso_fortran_env, only: real64
+  implicit none
+  integer, parameter :: n = 1000, steps = 200
+  real(real64) :: u(0:n+1), unew(0:n+1)
+  integer :: it, i
+
+  u = 0.0_real64
+  u(1) = 1.0_real64               ! a point heat source in the middle
+  do it = 1, steps
+     ! serial version — the one every other version is checked against
+     do i = 1, n
+        unew(i) = u(i) + 0.2_real64 * (u(i-1) - 2.0_real64*u(i) + u(i+1))
+     end do
+
+     ! parallel version 1: standard do concurrent
+     do concurrent (i = 1:n)
+        unew(i) = u(i) + 0.2_real64 * (u(i-1) - 2.0_real64*u(i) + u(i+1))
+     end do
+
+     ! parallel version 2: OpenMP (compile with -fopenmp)
+     !$omp parallel do
+     do i = 1, n
+        unew(i) = u(i) + 0.2_real64 * (u(i-1) - 2.0_real64*u(i) + u(i+1))
+     end do
+     !$omp end parallel do
+
+     ! advance the state once for all three flavours: same input, same output
+     unew(0) = unew(1); unew(n+1) = unew(n)   ! insulated ends
+     u = unew
+  end do
+  print '(a,f10.6)', 'center after 200 steps: ', u(n/2)
+end program heat_diffusion</code></pre>
+
+                <p>Three answers must agree to machine precision — if they do not, one of the versions lost the no-alias guarantee or the reduction contract, and hunting the difference is the exercise. When they agree, add timing (the concurrent_sum demo's <code>system_clock</code> pattern) and compare serial vs OpenMP on your machine. That measured comparison is the entire HPC phase in miniature.</p>
+
+
+            </div>
+          </div>
+          <hr>
+          <footer class="footer copyright">
+            <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+          </footer>
+        </div>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+          <span style="font-size: 24px;">&#9776;</span>
+        </button>
+        <script>
+          window.TOPIC_CONFIG = {
+            labId: 'fortran',
+            topicId: 'samples',
+            homeLink: './index.html#topics',
+            labHomeLink: './index.html',
+            inlineContent: true
+          };
+        </script>
+        <script src="/assets/js/sage.js" defer></script>
+        <script src="/assets/js/topic-loader.js" defer></script>
+        </body>
+        </html>
