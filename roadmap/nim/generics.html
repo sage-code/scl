@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Writing code once for many types: generic procedures and types, generic constraints, type classes, and how concepts express structural interfaces.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, generics, type classes, concepts, constraints, templates, reusable code">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Generics &amp; Type Classes</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-generics">Generics &amp; Type Classes</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Generics let one implementation serve many types without boxing or runtime checks, because the compiler instantiates a specialized version for each type you use. This lesson shows the syntax, the constraints that keep generic code readable, and the type classes that describe what a type must support.
+</div>
+
+<h2 id="generic-procs">Generic Procedures and Types</h2>
+<p>Bracket the type parameter after the name: <code>proc f[T](...)</code>. The compiler infers <code>T</code> from the arguments in almost every case, so generic code rarely needs explicit instantiation.</p>
+<div class="text-center">
+  <img src="/roadmap/nim/img/nim-generics.svg" width="620" class="img-fluid protect rounded shadow border" alt="A generic procedure instantiated once per concrete type argument">
+  <p class="text-secondary small">Figure 1 — the definition is written once; the compiler produces a separate, fully typed copy for every type argument used.</p>
+</div>
+
+<h3 id="first-generic">One Implementation, Many Types</h3>
+<pre><code class="language-nim line-numbers">proc first[T](items: openArray[T]): T =
+  ## openArray accepts both arrays and sequences without copying.
+  items[0]
+
+echo first([10, 20, 30])          # 10 — T inferred as int
+echo first(@["a", "b"])           # a  — T inferred as string
+# echo first([])                  # an empty literal gives the compiler nothing to infer
+
+proc swap[T](a, b: var T) =
+  let temp = a
+  a = b
+  b = temp
+
+var x = 1
+var y = 2
+swap(x, y)                        # works for any type, not just int
+echo x, " ", y                    # 2 1
+</code></pre>
+
+<h3 id="generic-types">Generic Types</h3>
+<pre><code class="language-nim line-numbers">type
+  Stack[T] = object               # a container specialized on demand
+    items: seq[T]
+
+proc push[T](s: var Stack[T], value: T) =
+  s.items.add(value)
+
+proc pop[T](s: var Stack[T]): T =
+  ## Caller must check 'isEmpty' first; popping an empty stack is a defect.
+  result = s.items[^1]
+  s.items.setLen(s.items.len - 1)
+
+proc isEmpty[T](s: Stack[T]): bool = s.items.len == 0
+
+var numbers: Stack[int]           # T = int for this variable, fixed at compile time
+numbers.push(7)
+numbers.push(9)
+echo numbers.pop()                # 9 — last in, first out
+echo isEmpty(numbers)             # false
+
+var words: Stack[string]          # the same code, a different element type
+words.push("go")
+echo words.pop()                  # go
+</code></pre>
+
+<h2 id="constraints">Type Constraints and Concepts</h2>
+<p>An unconstrained <code>T</code> accepts everything, which is rarely what you want. Nim's constraint syntax after the colon names either a concrete type, a <em>type class</em> from the standard library, or a <code>concept</code> you define yourself.</p>
+
+<h3 id="constraint-syntax">Constraining the Type Parameter</h3>
+<pre><code class="language-nim line-numbers">proc total[T: SomeNumber](items: openArray[T]): T =
+  ## 'SomeNumber' is a type class covering int, float and their sized variants.
+  ## Without the constraint, 'result += item' would not compile for every T.
+  for item in items:
+    result += item
+
+echo total([1, 2, 3])             # 6    — T is int
+echo total([1.5, 2.5])            # 4.0  — T is float
+# echo total([true, false])       # compile error: bool is not a SomeNumber
+
+proc factorial(n: Natural): int =
+  ## 'Natural' is a range type (int >= 0), so no runtime check is needed here.
+  result = 1
+  for i in 2 .. n:
+    result *= i
+
+echo factorial(5)                 # 120
+# let bad: Natural = -1           # RangeDefect at runtime if the value is dynamic
+</code></pre>
+
+<h3 id="concepts">Concepts: Structural Contracts</h3>
+<p>A <code>concept</code> states the operations a type must support. Nothing is registered or inherited: if the type can do what the concept lists, it matches.</p>
+<pre><code class="language-nim line-numbers">type
+  Printable = concept x            # 'concept x' names the parameters it describes
+    $x is string                   # any type whose '$' yields a string matches
+
+proc describe[T: Printable](value: T): string =
+  "value = " & $value              # the concept guarantees '$' exists
+
+echo describe(42)                  # value = 42
+echo describe(1.5)                 # value = 1.5
+# A type without a '$' operator is rejected at compile time, with the reason.
+</code></pre>
+
+<h3 id="when-typed">Compile-Time Branching with 'when'</h3>
+<p>Inside a generic body, <code>when</code> runs at compile time and only the surviving branch is compiled for each instantiation. That is how library code specializes behaviour without paying for runtime dispatch.</p>
+<pre><code class="language-nim line-numbers">proc double[T](value: T): T =
+  when T is SomeInteger:           # exact integer arithmetic
+    value * 2
+  elif T is SomeFloat:             # floating point path
+    value * 2.0
+  else:
+    {.error: "double supports numbers only".}   # rejected while compiling
+
+echo double(21)                    # 42
+echo double(1.5)                   # 3.0
+# echo double("x")                 # compile-time error from the {.error.} branch
+</code></pre>
+
+
+<h2 id="generic-patterns">Generics in Practice</h2>
+<p>Most generic code you will write comes from three places: standard-library type classes in parameter lists, containers you define once and reuse, and the deliberate choice between generics and templates for compile-time abstraction.</p>
+
+<h3 id="stdlib-generics">Type Classes from the Standard Library</h3>
+<pre><code class="language-nim line-numbers">import std/algorithm
+
+var data = @[3, 1, 2]
+data.sort                         # generic over any comparable element type
+echo data                         # @[1, 2, 3]
+
+proc total(values: varargs[int]): int =
+  ## 'varargs' accepts any number of arguments of one type.
+  for value in values:
+    result += value
+
+echo total(1, 2, 3)               # 6
+echo total()                      # 0 — zero arguments is valid
+# echo total(1, "2")              # compile error: the elements must all be int
+</code></pre>
+
+<h3 id="generic-vs-template">Generic or Template?</h3>
+<ul>
+  <li><strong>Generic</strong> (<code>proc f[T]</code>): a real procedure with a type parameter. It is type-checked at the definition, debuggers see it, and recursion works. Prefer this by default.</li>
+  <li><strong>Template</strong> (<code>template t(x: untyped)</code>): textual expansion with hygiene — the argument is substituted, not evaluated first. Use it for control-flow helpers, logging wrappers and zero-cost sugar, never as a substitute for a procedure.</li>
+  <li><strong>Rule of thumb</strong>: if you need the argument's <em>value</em>, use a generic; if you need its <em>syntax</em> (an expression that must not be evaluated, like the body of a logger), use a template or a macro.</li>
+</ul>
+
+<h3 id="generics-checklist">Review Checklist</h3>
+<ol>
+  <li>Add the narrowest constraint that still fits your callers — <code>SomeNumber</code> before <code>SomeInteger</code>, <code>SomeInteger</code> before <code>int</code>.</li>
+  <li>Prefer <code>openArray[T]</code> over <code>seq[T]</code> for read-only parameters: it accepts arrays, sequences and slices without copying.</li>
+  <li>Keep generic bodies short. A generic function that is hard to read is hard to debug, because errors are reported at the instantiation site.</li>
+  <li>Write one concrete test per instantiation you actually ship — the compiler proves the types fit, not that the results are right.</li>
+</ol>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "generics",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

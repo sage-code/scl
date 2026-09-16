@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Compile-time metaprogramming in Nim: templates as hygienic substitutions, macros over the AST with std/macros, quote do, static parameters, and how to debug expanded code.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, macros, templates, metaprogramming, ast, quote do, NimNode, hygiene">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Templates &amp; Macros</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-metaprogramming">Templates &amp; Macros</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Nim has no preprocessor and no runtime reflection: metaprogramming happens in the compiler, on syntax trees. <strong>Templates</strong> substitute source fragments hygienically; <strong>macros</strong> receive the parsed tree, inspect it and return a new one. Both run while the program is being compiled, so they cost nothing at runtime.
+</div>
+
+<h2 id="templates">Templates</h2>
+<p>A template is the lighter tool: it expands to code at each call site, with fresh names for anything it declares. Reach for a template when you need the caller's <em>syntax</em> — a statement block, a lazily evaluated expression — rather than its value.</p>
+
+<h3 id="first-template">A Template as Compile-Time Substitution</h3>
+<pre><code class="language-nim line-numbers">template twice(body: untyped) =
+  ## 'untyped' = accept the raw syntax; the argument is not evaluated first.
+  body
+  body
+
+twice:
+  echo "tick"                     # expands to two echo statements
+
+# Templates can also produce expressions (inlined at the call site):
+template maxOf(a, b: untyped): untyped =
+  if a > b:
+    a
+  else:
+    b
+
+
+echo maxOf(3, 7)                  # 7
+</code></pre>
+
+<h3 id="hygiene">Hygiene and Operator Precedence</h3>
+<p>Template substitution is textual, which is exactly why two rules matter: variables declared inside are hygienic (they cannot collide with the caller's names), but arguments are pasted as tokens (they can be re-parsed against surrounding operators).</p>
+<pre><code class="language-nim line-numbers">template square(x: untyped): untyped =
+  x * x                           # the tokens of x are pasted twice
+
+echo square(4)                    # 16
+echo square(3 + 1)                # 7 — expansion is 3 + 1 * 3 + 1, not (3 + 1) * (3 + 1)!
+
+template safeSquare(x: untyped): untyped =
+  (x) * (x)                       # parentheses pin the argument into one group
+
+echo safeSquare(3 + 1)            # 16
+</code></pre>
+<pre><code class="language-nim line-numbers">template withCounter() =
+  var count = 0                   # hygienic: this 'count' cannot collide with
+  inc count                       # any 'count' that exists at the call site
+  echo count
+
+withCounter()                     # 1
+var count = 100                   # the caller's own variable is untouched
+withCounter()                     # 1
+echo count                        # 100
+</code></pre>
+
+<h3 id="template-or-proc">When a Template Beats a Proc</h3>
+<ul>
+  <li><strong>Control-flow helpers</strong> — logging wrappers, retry guards, benchmarks: the body must run in the caller's scope, not in a new one.</li>
+  <li><strong>Zero-cost sugar</strong> — a short alias for a long fluent call, expanded and optimized like the code you would have written by hand.</li>
+  <li><strong>Not</strong> for anything that needs its own type checking, recursion, or a debugger breakpoint: that is a procedure's job. When in doubt, write a proc; convert to a template only when you must accept syntax.</li>
+</ul>
+
+<h2 id="macros">Macros</h2>
+<p>A macro receives the arguments as a syntax tree, inspects it, and returns the tree that should replace the call. Nothing is textual any more: you manipulate nodes, so you can rename symbols, count expressions, read types, or refuse to compile.</p>
+<div class="text-center">
+  <img src="/roadmap/nim/img/nim-metaprogramming.svg" width="620" class="img-fluid protect rounded shadow border" alt="Compile-time pipeline: parse, expand templates and macros, then generate code">
+  <p class="text-secondary small">Figure 1 — templates and macros act between parsing and code generation, so their cost is paid once, at compile time.</p>
+</div>
+
+<h3 id="ast">Macros Work on the Syntax Tree</h3>
+<pre><code class="language-nim line-numbers">import std/macros
+
+macro debug(args: varargs[untyped]): untyped =
+  ## Print the source text of each argument next to its evaluated value.
+  result = newStmtList()                # we BUILD the replacement code
+  for arg in args:
+    result.add newCall(
+      bindSym"echo",                    # resolve 'echo' in the current scope
+      newLit(arg.repr),                 # the argument exactly as the caller wrote it
+      newLit(" = "),                    # a literal string node
+      arg)                              # the argument itself, evaluated once
+
+let a = 3
+let b = 4
+debug(a, a + b)                         # a = 3
+                                        # a + b = 7
+</code></pre>
+<p>Three ideas make the example readable: <code>arg.repr</code> turns a tree back into source text, <code>newLit</code> wraps a value as a literal node, and <code>bindSym"echo"</code> resolves a name at macro-definition time so the expansion cannot be hijacked by a caller symbol with the same name.</p>
+
+<h3 id="quote-do">quote do and Static Parameters</h3>
+<pre><code class="language-nim line-numbers">import std/macros
+
+macro assertPositive(x: untyped): untyped =
+  ## 'quote do' builds a tree from ordinary Nim source; backticks splice nodes in.
+  result = quote do:
+    if `x` &lt;= 0:
+      raise newException(ValueError, "expected a positive value")
+    `x`
+
+let value = assertPositive(5)             # expands to a check plus the value
+echo value                                # 5
+# assertPositive(-1)                      # the generated check raises ValueError
+</code></pre>
+<pre><code class="language-nim line-numbers">import std/macros
+
+macro greeting(name: static string): untyped =
+  ## 'static' parameters must be known while compiling.
+  newLit("hello " & name)                 # the concatenation happens in the compiler
+
+echo greeting("nim")                      # hello nim
+
+const who = "world"
+echo greeting(who)                        # a const counts as compile-time known
+# var runtimeName = "world"
+# echo greeting(runtimeName)              # compile error: not a static value
+</code></pre>
+<p><code>quote do</code> is the readable way to produce code; hand-built nodes are for cases the quote cannot express — renaming, counting, generating many declarations from data.</p>
+
+<h3 id="stmt-list-macro">A Statement-List Macro</h3>
+<pre><code class="language-nim line-numbers">import std/macros
+
+macro repeat(times: static int, body: untyped): untyped =
+  ## Expand the body 'times' times: no counter, no loop, no runtime cost.
+  result = newStmtList()
+  for i in 0 ..&lt; times:
+    result.add body.copyNimTree           # each copy needs its own AST nodes
+
+repeat(3):
+  echo "tick"                             # prints tick three times
+</code></pre>
+<p><code>copyNimTree</code> is not optional: reusing the same node in several places would make the compiler treat the copies as one shared tree. Forgetting it is the most common macro bug.</p>
+
+<h2 id="meta-practice">Metaprogramming in Practice</h2>
+<p>Compile-time code is invisible at runtime, which is both its strength and its debugging difficulty. Two habits keep it manageable: verify the expansion instead of guessing, and keep generated code small enough to review by hand.</p>
+
+<h3 id="debug-macros">Inspecting the Expansion</h3>
+<pre><code class="language-nim line-numbers">import std/macros
+
+macro triple(value: untyped): untyped =
+  ## Suspect a macro? Print the tree it receives, at compile time.
+  static:
+    echo "received: ", value.treeRepr      # printed while compiling
+  result = quote do:
+    3 * `value`
+
+echo triple(2 + 5)                         # 21
+</code></pre>
+<pre><code class="language-bash line-numbers"># Print every expansion of a macro or template by name:
+nim c --expandMacro:triple main.nim
+
+# Inspect the ARC/ORC lowering of one procedure (memory, not macros):
+nim c --expandArc:someProc main.nim
+</code></pre>
+<ul>
+  <li><code>static: echo node.treeRepr</code> inside the macro shows the tree it received.</li>
+  <li><code>{.expandMacros.}</code> on a procedure asks the compiler to report the expanded body.</li>
+  <li><code>error("message", node)</code> is the correct way to reject bad input: the message points at the caller's code, not at the macro.</li>
+</ul>
+
+<h3 id="meta-checklist">Review Checklist</h3>
+<ol>
+  <li>Solve it with a proc or a generic first; keep the macro for what the type system cannot express.</li>
+  <li>Parenthesize every untyped argument you substitute more than once.</li>
+  <li>Copy nodes with <code>copyNimTree</code> whenever one node is emitted twice.</li>
+  <li>Prefer <code>quote do</code> over hand-built node lists — the code stays readable and re-checkable.</li>
+  <li>Use <code>static</code> parameters and <code>error(...)</code> to fail during compilation, with a message a beginner can act on.</li>
+  <li>Test what the expansion does, not just what the macro returns; <code>--expandMacro</code> is your debugger.</li>
+</ol>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "metaprogramming",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

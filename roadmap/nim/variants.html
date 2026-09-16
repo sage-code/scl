@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Tuples for lightweight grouping, enumerations with explicit values, object variants for tagged unions, and the pattern matching that case expressions provide.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, tuples, enum, object variant, tagged union, case, pattern matching">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Tuples, Variants &amp; Enums</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-variants">Tuples, Variants &amp; Enums</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Not every group of values deserves a type declaration. Tuples group values by position, enumerations give names to a small set of states, and object variants express a choice between alternatives that the compiler can check for exhaustiveness. Together they cover most modelling needs without inheritance.
+</div>
+
+<h2 id="tuples">Tuples</h2>
+<p>A tuple is a fixed group of values that may have different types. Unlike an object it needs no <code>type</code> declaration, which makes it ideal for returning several results at once.</p>
+
+<h3 id="named-and-unnamed">Named and Unnamed Tuples</h3>
+<pre><code class="language-nim line-numbers">let pair = ("ada", 36)              # unnamed tuple: fields accessed as [0], [1]
+echo pair[0], " is ", pair[1]
+
+let person = (name: "linus", age: 54)   # named tuple: fields by name
+echo person.name, " is ", person.age
+
+# A tuple type is structural: same field names and types means same type.
+proc birthYear(p: tuple[name: string, age: int]): int = 2026 - p.age
+echo birthYear(person)              # 1972
+
+# Tuples destructure directly in the declaration.
+let (name, age) = person
+echo name, "/", age
+
+# Procedures that must report success return a tuple instead of a magic value.
+proc safeDivide(a, b: int): tuple[ok: bool, value: int] =
+  if b == 0: (false, 0)
+  else: (true, a div b)
+echo safeDivide(10, 2)              # (ok: true, value: 5)
+echo safeDivide(1, 0)[0]            # false — check the flag, never the value alone
+</code></pre>
+
+<h3 id="sequencing">Tuples in Collections</h3>
+<pre><code class="language-nim line-numbers">import std/algorithm
+
+var people = @[(name: "ada", age: 36), (name: "linus", age: 54)]
+# Tuple comparison is lexicographic and built in, so sorting needs no comparator.
+people.sort()
+echo people                         # sorted by name, then age
+
+for (n, a) in people:               # destructuring works inside a for loop
+  echo n, " -> ", a
+</code></pre>
+
+<h2 id="enums">Enumerations</h2>
+<p>An <code>enum</code> names a closed set of states. The compiler knows every member, which is what makes <code>case</code> exhaustive and turns a forgotten state into a compile error rather than a silent branch.</p>
+
+<h3 id="enum-values">Members, Values and Conversion</h3>
+<pre><code class="language-nim line-numbers">type
+  Level = enum lLow, lMid, lHigh          # ordinals 0, 1, 2
+  Status = enum stOk = 200, stFound = 302, stError = 500   # explicit values
+
+echo ord(lHigh)              # 2 — the underlying ordinal
+echo $stFound                # "stFound" — '$' yields the member name
+echo lLow < lMid             # true — enums compare by ordinal
+
+# parseEnum converts text back to a member; it raises on unknown input.
+import std/strutils
+let parsed = parseEnum[Level]("lMid")
+echo parsed, " at ", ord(parsed)          # lMid at 1
+
+# A set of an enum is a natural permission or option bundle.
+var seen: set[Level] = {}
+seen.incl(lMid)
+echo seen.len, " ", lLow in seen          # 1 false
+</code></pre>
+
+<h3 id="enum-case">Driving Logic with case</h3>
+<pre><code class="language-nim line-numbers">proc cost(level: Level): int =
+  case level                     # no 'else': all three values are handled
+  of lLow: 10
+  of lMid: 50
+  of lHigh: 200
+
+echo cost(lMid)                  # 50
+
+proc httpText(s: Status): string =
+  case s
+  of stOk: "success"
+  of stFound: "redirect"
+  of stError: "failure"          # the compiler verifies nothing is missing
+
+echo httpText(stFound)
+</code></pre>
+
+<h2 id="object-variants">Object Variants (Tagged Unions)</h2>
+<p>An object variant stores a tag field plus the fields that only exist for one tag. It is the memory-efficient way to express "one of these shapes", and <code>case</code> is how you open it safely.</p>
+
+<h3 id="defining-variants">Declaring the Tagged Union</h3>
+<pre><code class="language-nim line-numbers">import std/strformat
+
+type
+  NodeKind = enum nkNumber, nkText       # the tag: which alternative is active
+  Node = object
+    case kind: NodeKind                  # 'case' inside an object = the tag
+    of nkNumber:
+      number: float
+    of nkText:
+      text: string
+
+let a = Node(kind: nkNumber, number: 3.5)   # only the matching fields may be set
+let b = Node(kind: nkText, text: "hello")
+# let bad = Node(kind: nkNumber, text: "x")  # compile error: field not in this branch
+echo a.number, " ", b.text                    # 3.5 hello
+</code></pre>
+
+<h3 id="matching-variants">Matching the Variant</h3>
+<pre><code class="language-nim line-numbers">proc render(n: Node): string =
+  case n.kind                       # read the tag first, then the branch fields
+  of nkNumber: &"number({n.number})"
+  of nkText: &"text({n.text})"
+
+let nodes = @[Node(kind: nkNumber, number: 2.0), Node(kind: nkText, text: "x")]
+for n in nodes:
+  echo render(n)                    # number(2.0)  text(x)
+
+# A recursive variant models a tree: each branch refers back to the same type.
+type Expr = ref object
+  case isLeaf: bool
+  of true:
+    value: int
+  of false:
+    left, right: Expr
+proc eval(e: Expr): int =
+  if e.isLeaf: e.value                # the leaf payload is only valid here
+  else: eval(e.left) + eval(e.right)
+echo eval(Expr(isLeaf: false, left: Expr(isLeaf: true, value: 2),
+               right: Expr(isLeaf: true, value: 5)))     # 7
+</code></pre>
+
+<h3 id="practice">Practice</h3>
+<p>Define a tagged union for a JSON-like value (number, text, list) and write one procedure that renders any of them to a string. The exercise shows why the tag must be read before the payload, and why an exhaustive <code>case</code> is safer than a chain of <code>if</code>s. Next: <a href="/roadmap/nim/generics.html">Generics &amp; Type Classes</a>.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "variants",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

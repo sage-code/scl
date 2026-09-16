@@ -1,32 +1,36 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Nim fundamentals: Define modules. A tutorial for absolute beginners.">
+  <meta name="description" content="Splitting Nim code into modules: export markers, import forms, module initialization, when isMainModule, nimble packages, project layout and compiler configuration.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="nim, lang, language, syntax, tutorial, module, import">
+  <meta name="keywords" content="sage, code, nim, modules, import, export, nimble, packages, project layout, nim.cfg">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Website title -->
-  <title>Nim Modules</title>
-
-  <!-- Bootstrap CSS -->
+  <title>Modules &amp; Packages</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<!-- Icon -->
-  <link rel="icon" type="image/png"  href="/images/favicon.ico">
-  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  </head>
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
 <body>
-
 <div class="container">
-
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -35,102 +39,187 @@
             <h5 class="mb-0">Lab Topics</h5>
           </div>
           <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
-
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="nim-modules">Nim Modules</h2>
-
+<h1 id="nim-modules">Modules &amp; Packages</h1>
 
 <div class="alert alert-secondary shadow-sm">
-A module in Nim programming language is a file that contains a collection of functions and variables that can be used by other parts of the program. Modules are a way of organizing code into smaller, more manageable units.
+  A Nim program is a graph of modules. Each file is a module, each module has its own private namespace, and nothing is visible to another module unless you mark it with <code>*</code>. This lesson covers the export rule, the four import forms, initialization order, and how <code>nimble</code> turns a folder of modules into a package.
 </div>
 
-<p>Modules are a powerful way to organize and manage code in Nim. They can help you to make your programs more modular and easier to maintain.</p>
+<h2 id="modules">Modules and Import</h2>
+<p>One file is one module. To build real programs you split responsibilities across files and let the compiler join them; the export marker is the only thing standing between your internals and the rest of the program.</p>
 
-<p>To create a module, you create a file with the .nim extension. The file can contain any number of functions and variables. When you use a function or variable from a module, you need to import the module into your program.</p>
+<h3 id="defining">Defining and Using a Module</h3>
+<p>Two files, one library and one program. The library exports three symbols and keeps one helper private.</p>
+<pre><code class="language-nim line-numbers"># mathx.nim — a library module
+const Pi* = 3.14159                 # '*' exports the constant
 
-<p>To import a module, you use the import keyword followed by the name of the module. For example, if you have a module called "math" that contains a function called "add", you would import it into your program like this:</p>
+proc square*(x: float): float =     # '*' exports the procedure
+  x * x
 
-<pre><code class="language-nim">
-import math
-</pre></code>
+proc secret(): int =                # no '*': invisible to importers
+  42
 
+proc describe*(): string =
+  "secret is " & $secret()          # private helpers stay usable inside the module
+</code></pre>
+<pre><code class="language-nim line-numbers"># main.nim — the program that consumes the module
+import mathx                        # module name = file name, same folder
 
-<p>Once you have imported a module, you can use its functions and variables in your program.</p>
+echo Pi                             # 3.14159
+echo square(3.0)                    # 9.0
+# echo secret()                     # compile error: 'secret' is not exported
+echo describe()                     # secret is 42
+</code></pre>
+<p>The compiler reports an unexported symbol exactly like a misspelling: the name simply does not exist outside the module. That is the point — the module boundary is enforced at compile time, not by convention.</p>
 
-<h2 id="example">Example</h2>
+<h3 id="import-forms">Import Forms</h3>
+<pre><code class="language-nim line-numbers">import std/strutils                      # everything the module exports
+from std/strutils import parseInt        # only the names you list
+import std/[algorithm, sequtils]         # the bracket form: several modules at once
+import std/tables as tbl                 # keep a handle for qualified access
 
-<p>Here's an example of how to call a function and procedure defined in a module using Nim:</p>
+var data = @[3, 1, 2]
+data.sort                                # from algorithm, imported unqualified
+echo data.sorted                         # 'sorted' returns a NEW sequence
+echo tbl.newTable[string, int]()         # qualified through the alias, collision-free
+</code></pre>
+<p>Prefer <code>from ... import</code> when a symbol name is short and generic; it documents at the top of the file where that name comes from. Prefer an alias or a qualified import when two modules export the same name.</p>
 
-<p>Suppose we have a module called "utilities.nim" that defines a "multiply" function and a "printMessage" procedure. Here's what the contents of "utilities.nim" might look like:</p>
+<h3 id="visibility">Visibility Beyond Procedures</h3>
+<pre><code class="language-nim line-numbers">type
+  Counter* = object                  # exported type …
+    value: int                       # … with a PRIVATE field: no direct poking
 
-<pre><code class="language-nim line-numbers">
-# utilities.nim module
+proc newCounter*(): Counter = Counter(value: 0)
+proc increment*(c: var Counter) = inc c.value     # controlled mutation
+proc value*(c: Counter): int = c.value            # read-only accessor
 
-proc printMessage(message: string) =
-  echo message
+var count = newCounter()
+count.increment()
+count.increment()
+echo count.value                     # 2
+# count.value = 99                   # compile error: the field is private
+</code></pre>
+<p>Exporting the type but not the field is the standard Nim encapsulation idiom: callers can store and pass a <code>Counter</code>, but only the module can change its representation. You may later change <code>value</code> to a different layout without breaking a single caller.</p>
 
-proc multiply(x: int, y: int): int =
-  return x * y
+<h2 id="initialization">Module Initialization</h2>
+<p>Importing a module also runs its top-level code — once per program, before your <code>main</code> body continues. Understanding that order prevents the classic "why did this print before anything else?" confusion.</p>
+
+<h3 id="top-level">Top-Level Statements</h3>
+<pre><code class="language-nim line-numbers"># lib.nim
+echo "initializing lib"             # runs the first time 'lib' is imported
+let limit* = 10
+</code></pre>
+<pre><code class="language-nim line-numbers"># main.nim
+import lib                          # prints: initializing lib
+import lib                          # second import is a no-op: init runs once
+echo limit                          # 10
+</code></pre>
+<p>Keep top-level code in a library minimal: constants, type definitions, and cheap setup. Anything expensive belongs in an explicit <code>init</code> procedure so the caller decides when to pay for it.</p>
+
+<h3 id="is-main-module">when isMainModule</h3>
+<p>The same file can be a library and a program. <code>isMainModule</code> is true only when the file is the one passed to the compiler, so the demo code never runs for importers.</p>
+<pre><code class="language-nim line-numbers"># cli.nim — usable as a library and runnable as a program
+import std/os
+
+proc greet*(name: string): string = "hello " & name
+
+when isMainModule:                  # true only for 'nim r cli.nim'
+  let name = if paramCount() > 0: paramStr(1) else: "world"
+  echo greet(name)
 </code></pre>
 
-<p>To call these functions/procedures in another file, we can import the "utilities" module and then call the functions/procedures using the dot notation. Here's an example of how to do that in another file called "main.nim":</p>
+<h3 id="include">include versus import</h3>
+<pre><code class="language-nim line-numbers"># include pastes the file's text into THIS module: same scope, no new namespace,
+# no export markers, no boundary. Use it to split one module across files.
+include "shared_defs.nim"
 
-<pre><code class="language-nim line-numbers">
-# main.nim file
+# import creates a real module boundary: private by default, explicit exports.
+import shared_helpers
+echo shared_helpers.publicName()
+</code></pre>
+<p>Rule of thumb: <code>include</code> for generated or platform-specific fragments of one module, <code>import</code> for everything that deserves a boundary.</p>
 
-import utilities
+<h2 id="packages">Packages and Nimble</h2>
+<p>A package is a folder with a <code>.nimble</code> manifest at its root. The manifest declares metadata, dependencies and build targets; the <code>nimble</code> tool reads it to build, test, install and publish.</p>
 
-var x = 5
-var y = 10
+<h3 id="nimble-file">The Nimble Manifest</h3>
+<pre><code class="language-nim line-numbers"># myapp.nimble — package manifest read by the nimble tool
+version     = "0.1.0"
+author      = "Elucian Moise"
+description = "Small Nim CLI example"
+license     = "MIT"
 
-let result = utilities.multiply(x, y)
-echo result # Output: 50
+srcDir      = "src"                 # modules live under src/
+bin         = @["myapp"]            # compile src/myapp.nim into an executable
 
-utilities.printMessage("Hello, world!") # Output: Hello, world!
+requires "nim >= 2.0.0"             # dependencies, resolved from the nimble store
+</code></pre>
+<pre><code class="language-bash line-numbers">nimble build      # compile every 'bin' target
+nimble run        # build, then run the first binary
+nimble test       # run the modules under tests/
+nimble install    # install this package (or a dependency) locally
 </code></pre>
 
-<p>In this example, we import the "utilities" module using the "import" statement, and then call the "multiply" function and "printMessage" procedure using the dot notation. We pass arguments to the functions/procedures as needed.</p>
+<h3 id="layout">Project Layout</h3>
+<pre><code class="language-text line-numbers">myapp/
+  myapp.nimble            # manifest: metadata, deps, targets
+  src/
+    myapp.nim             # entry point named after the package (convention)
+    mylib.nim             # library modules
+  tests/
+    test_mylib.nim        # files starting with 'test' are picked up by nimble test
+  docs/
+</code></pre>
+<p>Name the entry module after the package: for a package <code>mylib</code>, the importable root module is <code>src/mylib.nim</code>. Consumers then write <code>import mylib</code> and never see the folder layout.</p>
 
-<!-- work in progress-->
+<h3 id="config">Compiler Configuration</h3>
+<pre><code class="language-text line-numbers"># nim.cfg — plain configuration; the same folder as the .nimble file
+--path:"src"                 # additional module search path
+--define:release             # compile with optimizations
+--warningAsError:"UnusedImport"
+</code></pre>
+<pre><code class="language-nim line-numbers"># config.nims — the same settings as a script, for logic the plain file cannot express
+switch("path", "src")
+if hostOS == "windows":
+  switch("define", "windowsBuild")
+</code></pre>
+<p>Reach for <code>config.nims</code> only when a setting must be computed; <code>nim.cfg</code> is easier to read and review.</p>
 
-<hr>
+<h3 id="modules-checklist">Review Checklist</h3>
+<ol>
+  <li>Export the smallest surface that callers need; keep fields private and expose accessors.</li>
+  <li>Prefer <code>from x import y</code> so the origin of every name is obvious.</li>
+  <li>Guard demo code with <code>when isMainModule</code> instead of deleting it.</li>
+  <li>Keep top-level code cheap; move real setup into an explicit <code>init</code>.</li>
+  <li>One responsibility per module, named after the responsibility — not after the type count.</li>
+</ol>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
-
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'nim',
-    topicId: 'modules',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "nim",
+    topicId: "modules",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>
 <script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-
 </body>
 </html>

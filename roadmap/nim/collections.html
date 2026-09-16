@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Fixed arrays, dynamic sequences and strings, sets and tables, the iteration operators, and the standard algorithms for sorting and transforming collections.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, collections, array, seq, set, table, hashset, algorithm, sequtils">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Collections</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-collections">Collections</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Nim's standard library offers a small, well-chosen set of containers: fixed arrays, dynamic sequences, sets of ordinals, hash sets and hash tables. Choosing the right one is mostly a question of whether the size is known at compile time and whether you need lookup by key.
+</div>
+
+<h2 id="sequences-and-arrays">Arrays and Sequences</h2>
+<p>An <code>array</code> has a size fixed at compile time and no heap allocation. A <code>seq</code> grows at runtime and is the default choice for lists of things.</p>
+
+<h3 id="arrays">Fixed-Size Arrays</h3>
+<pre><code class="language-nim line-numbers">import std/strutils
+
+var week: array[7, string] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+echo week.len, " days"        # array length is part of the type, known at compile time
+echo week[0], " -> ", week[^1]  # '^1' means the last element, counting from the end
+
+# Iterating with an index is unnecessary when you only need the values.
+for day in week:
+  if day.len == 6 and day.endsWith("day"):
+    echo "practice day: ", day
+
+# Arrays can be nested: a grid stored inline, with no dynamic allocation.
+var grid: array[3, array[3, int]]
+grid[1][2] = 7               # rows first, columns second
+echo grid[1][2]
+</code></pre>
+
+<h3 id="seqs">Dynamic Sequences</h3>
+<pre><code class="language-nim line-numbers">var nums = @[3, 1, 2]        # '@[...]' builds a seq; the type is seq[int]
+nums.add(4)                  # append to the end — amortized constant time
+nums.insert(0)               # insert at index 0 (the default): shifts the rest
+echo nums.len, " ", nums     # 5 @[0, 3, 1, 2, 4]
+
+nums.delete(0)               # remove by index; order of the rest is preserved
+echo nums                    # @[3, 1, 2, 4]
+
+# Slicing copies a sub-range; '^1' addresses the final element.
+let tail = nums[1 .. ^1]
+echo tail                    # @[1, 2, 4]
+
+# newSeq allocates a known size up front, avoiding repeated reallocation.
+var zeros = newSeq[int](4)
+zeros[2] = 9
+echo zeros                   # @[0, 0, 9, 0]
+
+# add can move a whole seq at once, which is how small collections compose.
+zeros.add(nums[0 .. 1])
+echo zeros                   # @[0, 0, 9, 0, 3, 1]
+</code></pre>
+
+<h2 id="sets-and-tables">Sets, Hash Sets and Tables</h2>
+<p>A <code>set</code> is a bitset over a small ordinal type — compact, fast and allocation-free. When the domain is not a small ordinal, use <code>HashSet</code>; when values must be looked up by key, use <code>Table</code>.</p>
+
+<h3 id="sets">Sets of Ordinals</h3>
+<pre><code class="language-nim line-numbers">type Flag = enum flRead, flWrite, flExec
+
+var permissions: set[Flag] = {flRead}    # a set literal uses braces
+permissions.incl(flWrite)                 # add a member
+permissions.excl(flRead)                  # remove a member
+echo permissions.contains(flWrite)        # true
+echo flExec in permissions                # false — 'in' is the membership test
+
+# Set algebra works the way mathematics does.
+let cpu = {flRead, flExec}
+let both = permissions + cpu              # union
+let shared = permissions * cpu            # intersection
+echo both.len, " ", shared.len            # 2 1
+
+# char sets are the classic use: validating input without a chain of comparisons.
+const vowels = {'a', 'e', 'i', 'o', 'u'}
+echo 'i' in vowels, " ", 'z' in vowels    # true false
+</code></pre>
+
+<h3 id="hash-tables">Hash Tables and Hash Sets</h3>
+<pre><code class="language-nim line-numbers">import std/tables
+
+var stock = initTable[string, int]()      # key: string, value: int
+stock["apples"] = 3                       # '[]=' inserts or overwrites
+stock["pears"] = 5
+echo stock.len, " kinds"                  # 2
+echo stock.getOrDefault("plums", 0)       # 0 — a missing key returns the default
+
+if stock.hasKey("apples"):                # test before reading when absence matters
+  stock["apples"] = stock["apples"] - 1   # no KeyError: the key is known to exist
+
+for name, count in stock.pairs:           # pairs walks keys and values together
+  echo name, " = ", count
+
+# Table keys use '==' and 'hash'; define hash() in std/hashes for custom keys.
+stock.clear()
+echo stock.len                            # 0
+</code></pre>
+
+<h2 id="algorithms">Iteration Helpers and Algorithms</h2>
+<p>Two modules remove most manual loops: <code>std/algorithm</code> for ordering and searching, and <code>std/sequtils</code> for transforming sequences into new sequences.</p>
+
+<h3 id="sorting">Sorting and Searching</h3>
+<pre><code class="language-nim line-numbers">import std/algorithm
+
+var scores = @[42, 7, 19, 42, 3]
+scores.sort()                             # ascending, in place
+echo scores                               # @[3, 7, 19, 42, 42]
+
+scores.reverse()                          # also in place
+echo scores                               # @[42, 42, 19, 7, 3]
+
+echo scores.binarySearch(19)              # index of 19 in the sorted sequence
+
+# A custom comparator sorts by any rule you can express as a bool.
+var names = @["Grace", "Ada", "Linus"]
+names.sort(proc (a, b: string): int = cmp(a.len, b.len))  # cmp: -1, 0, 1
+echo names                                # @["Ada", "Linus", "Grace"]
+</code></pre>
+
+<h3 id="transforming">Transforming with sequtils</h3>
+<pre><code class="language-nim line-numbers">import std/sequtils
+
+let values = @[1, 2, 3, 4, 5]
+echo values.mapIt(it * it)                # @[1, 4, 9, 16, 25]
+echo values.filterIt(it mod 2 == 1)       # @[1, 3, 5] — keep odd numbers
+echo values.foldl(a + b)                  # 15 — reduce with '+'
+
+# Mutating in place: 'mitems' yields mutable references into the sequence.
+var buffer = @[1, 2, 3]
+for item in buffer.mitems:
+  item *= 10                              # writes back into the sequence
+echo buffer                               # @[10, 20, 30]
+
+# zip pairs two sequences; walking both with one loop keeps indices in sync.
+echo zip(@["a", "b"], @[1, 2])            # @[("a", 1), ("b", 2)]
+</code></pre>
+
+<h3 id="practice">Practice</h3>
+<p>Read a list of words into a <code>seq[string]</code>, build a <code>Table[string, int]</code> that counts how often each appears, then print the five most frequent by sorting the pairs with a custom comparator. That single exercise touches sequences, tables, iteration and algorithms — continue with <a href="/roadmap/nim/strings.html">Strings &amp; Text</a>.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "collections",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

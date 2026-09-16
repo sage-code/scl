@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Text handling in Nim: string semantics, indexing and iteration, strutils operations, formatting, parsing numbers and dates, and Unicode-aware helpers.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, strings, strutils, strformat, unicode, parse, text">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Strings &amp; Text</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-strings">Strings &amp; Text</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Nim strings are mutable, length-prefixed byte sequences with value semantics on assignment. That single sentence explains most of the differences you will notice coming from other languages: no pointer arithmetic, no terminator to check, and a byte index that is not always the same thing as a character.
+</div>
+
+<h2 id="basics">String Basics</h2>
+<p>A string stores bytes and knows its own length. Indices run from <code>0</code> to <code>len - 1</code>, and the <code>^</code> prefix counts from the end so you rarely need to compute that arithmetic yourself.</p>
+
+<h3 id="indexing">Indexing and Iteration</h3>
+<pre><code class="language-nim line-numbers">let word = "nim"
+
+echo word.len            # 3 — a stored length, not a scan for a terminator
+echo word[0]             # n — indexing yields a char
+echo word[^1]            # m — '^1' is the last byte, no off-by-one arithmetic
+
+for ch in word:          # iterate bytes directly
+  echo ch, "=", ord(ch)  # n=110  i=105  m=109
+
+# Slices copy, so the original is untouched and immutable when declared 'let'.
+echo word[0 .. 1]        # ni
+var mutable = "abc"
+mutable[0] = 'A'         # strings are mutable when the binding allows it
+echo mutable             # Abc
+</code></pre>
+
+<h3 id="unicode">Bytes Versus Characters</h3>
+<p>Non-ASCII text occupies several bytes per character. When a length must count characters rather than bytes, use the Unicode helpers instead of <code>len</code>.</p>
+<pre><code class="language-nim line-numbers">import std/unicode
+
+let greek = "αβγ"
+echo greek.len                 # 6 — bytes, because each Greek letter is 2 bytes
+echo greek.runeLen             # 3 — characters
+
+for rune in greek.runes:       # iterate characters, not bytes
+  echo rune                    # α β γ, one per line
+
+echo greek.toUpperAscii()      # ASCII-only case rules: non-ASCII stays as is
+</code></pre>
+
+<h2 id="manipulation">Manipulation with strutils</h2>
+<p><code>std/strutils</code> holds the everyday text operations. Most of them return a new string; a few mutate in place, and the names make the difference explicit.</p>
+
+<h3 id="split-join">Split, Join and Trim</h3>
+<pre><code class="language-nim line-numbers">import std/strutils
+
+let csv = " ada , grace , linus "
+let fields = csv.split(',')            # seq[string]; whitespace is NOT removed
+echo fields.len, " fields"             # 3
+
+var cleaned: seq[string]
+for field in fields:
+  cleaned.add(field.strip())           # strip removes surrounding whitespace
+echo cleaned.join("|")                 # ada|grace|linus
+
+echo "Hello".toUpperAscii(), " ", "Hello".toLowerAscii()   # HELLO hello
+echo "report.txt".startsWith("report"), " ", "report.txt".endsWith(".txt")
+echo "a,b,,c".count(',')               # 3 — count occurrences of a substring
+</code></pre>
+
+<h2 id="formatting">Building and Formatting Text</h2>
+<p>Text is assembled with concatenation when there are two or three parts, and with interpolation or joins when there are more. Casting any value to text goes through the <code>$</code> operator.</p>
+
+<h3 id="building">Concatenation, Repetition, Padding</h3>
+<pre><code class="language-nim line-numbers">import std/strutils
+
+echo "log" & "-" & "file"       # log-file — '&' joins two strings
+echo "ab".repeat(3)             # ababab
+
+var line = "item"
+line.add(": 3")                 # 'add' appends in place, avoiding a new string
+line.add('!')                   # chars append too
+echo line                       # item: 3!
+
+# Padding and alignment matter when printing columns.
+echo "id".alignLeft(6, '.') & "name"          # id....name
+echo align("42", 5, '0')                      # 00042 — right-aligned, zero filled
+
+echo 3.14159.formatFloat(ffDecimal, 2)        # 3.14 — fixed decimals
+echo $12 & " as text"                         # '$' converts any value to text
+</code></pre>
+
+<h3 id="format-modern">Interpolation with strformat</h3>
+<p><code>std/strformat</code> turns a string literal into a template with typed placeholders. It is checked at compile time, so a misspelled name is an error, not an empty field at runtime.</p>
+<pre><code class="language-nim line-numbers">import std/strformat
+
+let user = "ada"
+let attempts = 3
+let ratio = 0.875
+
+echo &"user={user} attempts={attempts}"        # user=ada attempts=3
+echo &"success {ratio * 100:.1f}%"            # 87.5% — float with one decimal
+echo &"{attempts:>4}|"                        # '   3|' — width 4, right aligned
+echo &"{user:^9}|"                            # '   ada   |' — centered in width 9
+
+# A format string can be stored and reused; the fields are resolved when used.
+const template = "attempt {attempts} for {user}"
+echo &template
+</code></pre>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "strings",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

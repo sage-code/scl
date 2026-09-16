@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Testing Nim code with std/unittest suites and checks, running tests through Nimble, fixtures and isolation, plus compiler diagnostics, stack traces, assertions and logging.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, testing, unittest, suite, check, require, nimble test, debugging, stacktrace, assert, logging">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Testing &amp; Debugging</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-testing">Testing &amp; Debugging</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  A test suite is the executable specification of your module, and in Nim it is also just code: <code>std/unittest</code> gives you suites, tests and operators that print both operands when they fail. Debugging then starts from the same place the compiler already documents — stack traces, line information and assertions — rather than from a debugger you attach blindly.
+</div>
+
+<h2 id="writing-tests">Writing Tests</h2>
+<p>Tests live in their own files next to the code they exercise (<code>tests/tfoo.nim</code> is the community convention). You import the module under test and <code>std/unittest</code>, then describe behaviour in nested <code>suite</code> and <code>test</code> blocks.</p>
+
+<h3 id="suite-test">Suites, Tests and Checks</h3>
+<p>Inside a <code>test</code> block, <code>check</code> verifies a condition and prints the operands when it is false, which removes most of the guesswork from a failure message. <code>require</code> does the same but aborts the whole test on the first failure, which is what you want when later assertions depend on earlier ones.</p>
+<pre><code class="language-nim line-numbers">import std/unittest
+
+proc add(a, b: int): int = a + b
+proc divides(a, b: int): bool =
+  ## A guard is part of the contract: dividing by zero is a programming error,
+  ## so it must raise rather than return a meaningless 'false'.
+  if b == 0: raise newException(ValueError, "division by zero")
+  a mod b == 0
+
+suite "add":
+  test "adds two positive numbers":
+    check add(2, 3) == 5           # failure prints: add(2, 3) == 5 -> false
+
+  test "is commutative":
+    let
+      a = 20
+      b = 12
+    # Several checks in one test: the first failure still reports every operand.
+    check add(a, b) == add(b, a)
+    check add(a, -a) == 0
+
+suite "divides":
+  test "rejects a zero divisor with an exception":
+    # 'expect' asserts that the body raises the named exception. Testing the
+    # failure path is as important as testing the happy path.
+    expect ValueError:
+      discard divides(10, 0)
+
+  test "handles the happy path":
+    require divides(10, 5)         # 'require': stop this test if it is false
+    check divides(9, 3)
+    check not divides(9, 2)
+</code></pre>
+
+<h3 id="custom-messages">Mesages, Setup and Teardown</h3>
+<p>When an expression is not self-explanatory, pass a message to <code>check</code>; when several tests need the same expensive object, build it in <code>setup</code> and release it in <code>teardown</code>. Both run around <em>every</em> test in the enclosing scope, which is what keeps tests independent.</p>
+<pre><code class="language-nim line-numbers">import std/[unittest, tables, strutils]
+
+suite "word counter":
+  var words: Table[string, int]      # shared per-suite state
+
+  setup:
+    # Runs before each test: every test starts from the same, known state.
+    words = initTable[string, int]()
+
+  teardown:
+    # Runs after each test, even when the test failed, so nothing leaks.
+    words.clear()
+
+  test "counts repetitions":
+    for word in "the quick the lazy the".splitWhitespace():
+      words.mgetOrPut(word, 0) += 1
+    check words["the"] == 3
+    check words.len == 3
+    check words.hasKey("quick"), "the token 'quick' must have been counted"
+
+  test "starts empty again":
+    # If 'teardown' did not clear the table, this check would see 3 entries.
+    check words.len == 0
+</code></pre>
+
+<h2 id="running">Running and Organizing Tests</h2>
+<p>A test suite is an ordinary Nim program, so running it needs no framework-specific runner: compile it and execute it. Nimble adds the convention that makes this repeatable across a project.</p>
+
+<h3 id="nimble-test">From Compilation to Report</h3>
+<pre><code class="language-bash line-numbers">nim c -r tests/tall.nim              # build the suite and run it at once
+nim c -r -d:release tests/tall.nim   # run the same suite optimized
+nim c -r --threads:on tests/tthreads.nim
+nimble test                          # runs the package's 'test' task
+</code></pre>
+<p>The runner groups output by suite, marks each test <code>[OK]</code> or <code>[FAILED]</code>, and prints a summary at the end. A failing <code>check</code> shows the expression, both operands and the source location:</p>
+<pre><code class="language-text line-numbers">[Suite] word counter
+  [OK] counts repetitions
+  [FAILED] starts empty again
+    Error: unhandled exception: tests/tcounter.nim(24, 11): words.len == 0  [AssertionDefect]
+</code></pre>
+<p>Testing a release build matters more in Nim than in languages whose optimizations are cosmetic: <code>-d:release</code> turns stack traces off and <code>-d:danger</code> turns runtime checks off, so a suite that only ever runs in debug mode never exercises the code you ship. In a Nimble package the <code>test</code> task usually runs the debug build plus a release pass.</p>
+
+<h3 id="hermetic">Hermetic Tests with Temporary State</h3>
+<p>A test that depends on a file left behind by another test is a test that fails only on somebody else's machine. Build a fresh sandbox per test and delete it in <code>teardown</code>, using <code>std/tempfiles</code>.</p>
+<pre><code class="language-nim line-numbers">import std/[unittest, os, tempfiles, strutils]
+
+proc writeReport(dir: string): string =
+  ## The routine under test does real file I/O, so its tests need a real
+  ## directory — but a private one, created and destroyed by the suite.
+  let path = dir / "report.txt"
+  writeFile(path, "rows=3\n")
+  readFile(path)
+
+suite "report writing":
+  var sandbox: string
+
+  setup:
+    sandbox = createTempDir("nimtest_", "")   # unique directory per test
+
+  teardown:
+    removeDir(sandbox)                        # even a failed test cleans up
+
+  test "writes and reads back a report":
+    let text = writeReport(sandbox)
+    check text.contains("rows=3")
+    check fileExists(sandbox / "report.txt")
+
+  test "starts from an empty directory":
+    # A new sandbox was created for this test, so nothing leaked from the first.
+    check not fileExists(sandbox / "report.txt")
+</code></pre>
+<p>Two rules keep a suite trustworthy. Tests must not depend on execution order: <code>setup</code> builds whatever a test needs and <code>teardown</code> removes it. And a test must be deterministic — no sleeps used to "wait for" something, no reliance on the current time or on network access. When a dependency is genuinely external, inject it as a parameter so the test can pass a stub instead.</p>
+
+<h2 id="debugging">Debugging</h2>
+<p>Debugging in Nim starts with what the compiler already emits. In the default debug build every frame carries a stack trace with file and line, and the runtime checks that turn undefined behaviour into a message are all enabled — the two reasons <code>-d:danger</code> must not be your development build.</p>
+
+<h3 id="traces-assertions">Stack Traces and Assertions</h3>
+<pre><code class="language-nim line-numbers">proc divider(a, b: int): int =
+  ## 'doAssert' is never removed by switching build modes: it documents an
+  ## invariant that must hold for the program to make sense at all. Use it for
+  ## preconditions with no sensible recovery path.
+  doAssert b != 0, "divider called with a zero divisor"
+  a div b
+
+proc safeDivide(a, b: int): int =
+  ## Ordinary 'assert' is compiled out in release and danger builds; use it for
+  ## internal consistency checks that are too costly to keep in production.
+  assert a &lt; 1_000_000
+  if b == 0:
+    # A recoverable condition is an exception, and it carries its own message.
+    raise newException(ValueError, "cannot divide " &amp; $a &amp; " by zero")
+  a div b
+
+echo divider(9, 3)                 # 3
+echo safeDivide(9, 0)              # ValueError: cannot divide 9 by zero
+</code></pre>
+<p>The distinction between the two kinds of failure is worth internalising: a <em>defect</em> (index out of bounds, nil dereference, failed assertion) means the program itself is wrong and, in a debug build, terminates with a stack trace; an <em>exception</em> means the operation cannot be completed and is caught with <code>try</code>/<code>except</code>. Raising the wrong kind — catching a defect, or letting a recoverable error crash the process — is a design bug, not a style preference.</p>
+<pre><code class="language-nim line-numbers"># Capture the trace of a live exception to log it, instead of only printing it.
+proc inspect(): string =
+  try:
+    raise newException(IOError, "disk is full")
+  except IOError as error:
+    # 'getStackTrace' returns the captured frames as text; the default handler
+    # prints the same information, but a log file wants it explicitly.
+    result = error.msg &amp; "\n" &amp; getStackTrace(error)
+
+echo inspect().splitLines()[0]     # disk is full
+</code></pre>
+
+<h2 id="ci">Tests as a Release Gate</h2>
+<p>A suite that only runs on a developer's machine is documentation, not a gate. What makes it a gate is an exit status the pipeline can read, and a set of configurations that match what you ship.</p>
+
+<h3 id="exit-status">Exit Status and Output</h3>
+<pre><code class="language-bash line-numbers"># Non-zero exit status stops a CI step: no test, no deploy.
+nim c -r tests/tall.nim &amp;&amp; nim c -r -d:release tests/tall.nim
+</code></pre>
+<p>The <code>unittest</code> runner exits with a non-zero status as soon as any test fails, which is all a CI step needs. Two habits make the report readable in a pipeline log: keep one suite per file so a failure names the area, and give every <code>test</code> a sentence that reads as a claim ("rejects an empty name") rather than a label ("test 3").</p>
+
+<h3 id="test-matrix">The Configurations Worth Testing</h3>
+<table class="table table-bordered table-dark">
+  <thead><tr><th>Configuration</th><th>Why it is tested</th></tr></thead>
+  <tbody>
+    <tr><td><code>nim c -r tests/tall.nim</code></td><td>Debug build: traces and all runtime checks on</td></tr>
+    <tr><td><code>nim c -r -d:release</code></td><td>The build you ship; catches assertions and trace assumptions</td></tr>
+    <tr><td><code>nim c -r --threads:on</code></td><td>Channel and thread code is compiled in only with threads enabled</td></tr>
+    <tr><td><code>nim c -r --mm:arc</code></td><td>Confirms no reliance on the tracing collector in a release binary</td></tr>
+  </tbody>
+</table>
+<p>Debug builds catch more, release builds catch what users will see: run both, and add a threads pass whenever the program spawns one. A test suite is also the cheapest place to try a change of memory management strategy, because it is the one program in the repository that exercises every routine.</p>
+<p>The <a href="https://nim-lang.org/docs/unittest.html" target="_blank" rel="noopener noreferrer nofollow">unittest documentation</a> lists the remaining forms — <code>expect</code> for testing exceptions, <code>require</code> for aborting a test early, and per-suite <code>setup</code>/<code>teardown</code> — and the <a href="https://nim-lang.org/docs/tut3.html" target="_blank" rel="noopener noreferrer nofollow">metaprogramming tutorial</a> explains why <code>check</code> can print your expression as text.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "testing",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

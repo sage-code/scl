@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Nim study projects: a ref-object linked list, a generic stack with unit tests, and a command-line journal that ties the whole track together.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, projects, linked list, generics, unittest, cli tool, json">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Nim Study Projects</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="nim-samples">Nim Study Projects</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Three small programs assemble the whole track: a linked list built from <code>ref object</code> nodes, a generic container verified by real unit tests, and a command-line journal that reads its options, writes JSON and handles the failure paths. Type them yourself, run them, then break them on purpose.
+        </div>
+        <p>Each project compiles with a single command and imports only the standard library. Keep the compiler at hand: <code>nim c -r project.nim</code> compiles, links and runs, and every diagnostic it prints is worth reading before you edit a line.</p>
+        <h2 id="linked-list">Linked List with Ref Objects</h2>
+        <p>A linked list is the classic exercise for heap allocation and nil-terminated traversal. In Nim the node type is a <code>ref object</code>: the value lives on the heap, the variable holds a reference, and an unassigned reference is <code>nil</code> — the null case is explicit and checked by the compiler in strict modes.</p>
+        <h3 id="list-basics">Node, Prepend and Sum</h3>
+        <pre><code class="language-nim line-numbers">type
+  Node = ref object          ## one heap-allocated cell
+    value: int
+    next: Node               ## nil by default: the terminator
+
+proc prepend(head: var Node; value: int) =
+  ## `head` is a var parameter: the assignment below must be visible to the
+  ## caller, so the proc receives the reference, not a copy of it.
+  head = Node(value: value, next: head)
+
+proc sum(head: Node): int =
+  ## Traversal is a plain while loop over references. No index, no bounds
+  ## check: the loop condition is what keeps us inside the list.
+  var cur = head
+  while cur != nil:
+    result += cur.value
+    cur = cur.next
+
+when isMainModule:
+  var head: Node
+  for n in [3, 2, 1]:
+    head.prepend n          # method-call syntax on a `var Node` parameter
+  echo "sum  = ", sum(head)  # 6
+</code></pre>
+        <h3 id="list-sorted">Sorted Insert</h3>
+        <p>Insertion is where the pointer dance matters: find the first node whose successor is larger, then splice. Writing it with a <code>var</code> parameter keeps the empty-list and head-insert cases in a single expression, and the loop invariant (<em>everything before <code>cur</code> is smaller</em>) is what makes the code obvious.</p>
+        <pre><code class="language-nim line-numbers">proc insertSorted(head: var Node; value: int) =
+  ## Keep the list ascending. Three cases collapse into two branches:
+  ## empty list, insert at head, insert after some node.
+  if head == nil or value &lt; head.value:
+    head = Node(value: value, next: head)
+    return
+  var cur = head
+  while cur.next != nil and cur.next.value &lt; value:
+    cur = cur.next              # advance while the successor is still smaller
+  cur.next = Node(value: value, next: cur.next)
+
+when isMainModule:
+  var sorted: Node
+  for n in [5, 1, 3, 4, 2]:
+    sorted.insertSorted n
+  # walk it and print: 1 2 3 4 5
+  var cur = sorted
+  while cur != nil:
+    stdout.write cur.value, " "
+    cur = cur.next
+  echo ""
+</code></pre>
+        <div class="alert alert-secondary shadow-sm">
+          Memory note: a <code>ref object</code> is reclaimed by the automatic memory management (ARC/ORC in Nim 2.x) as soon as the last reference disappears, so there is no <code>free</code> call and no leak. Cycles are the one exception — ORC's cycle collector handles them, plain ARC does not. See the <a href="/roadmap/nim/memory.html">Memory Management</a> lesson.
+        </div>
+        <h2 id="generic-stack">Generic Stack with Tests</h2>
+        <p>A stack that works for <em>any</em> element type is the canonical first generic container. The type parameter <code>T</code> flows into the internal sequence, and each instantiation (<code>Stack[int]</code>, <code>Stack[string]</code>) is compiled and type-checked separately — no casts, no <code>void*</code>.</p>
+        <h3 id="stack-impl">A Generic Object</h3>
+        <pre><code class="language-nim line-numbers">type
+  Stack[T] = object          ## generic container: T is the element type
+    items: seq[T]            ## the backing store grows and shrinks as needed
+
+proc push[T](s: var Stack[T]; value: T) =
+  s.items.add value
+
+proc pop[T](s: var Stack[T]): T =
+  ## Return by popping the last element. The failure path raises a catchable
+  ## exception instead of returning a sentinel value the caller might ignore.
+  if s.items.len == 0:
+    raise newException(ValueError, "pop from an empty stack")
+  result = s.items[^1]       # ^1 is the last index: len - 1
+  s.items.setLen(s.items.len - 1)
+
+proc peek[T](s: Stack[T]): T =
+  if s.items.len == 0:
+    raise newException(ValueError, "peek on an empty stack")
+  s.items[^1]
+
+proc isEmpty[T](s: Stack[T]): bool = s.items.len == 0
+proc depth[T](s: Stack[T]): int = s.items.len
+</code></pre>
+        <h3 id="stack-tests">Tests with std/unittest</h3>
+        <p>A container without tests is a guess. <code>std/unittest</code> is part of the standard library: wrap the checks in <code>suite</code> and <code>test</code>, use <code>check</code> for boolean facts, and <code>expect</code> to assert that a statement raises. The block below runs with <code>nim c -r stack.nim</code> — no test runner to install.</p>
+        <pre><code class="language-nim line-numbers">when isMainModule:
+  import std/unittest
+
+  suite "Stack[int]":
+    test "push then pop returns the last value first (LIFO)":
+      var s: Stack[int]
+      s.push 1
+      s.push 2
+      s.push 3
+      check s.depth == 3
+      check s.pop() == 3
+      check s.pop() == 2
+      check s.depth == 1
+
+    test "peek does not remove the element":
+      var s: Stack[int]
+      s.push 42
+      check s.peek() == 42
+      check s.depth == 1
+
+    test "popping an empty stack raises ValueError":
+      var s: Stack[int]
+      expect ValueError:
+        discard s.pop()          # the exception is the expected outcome
+
+    test "works for strings too, without any change":
+      var names: Stack[string]
+      names.push "ada"
+      names.push "grace"
+      check names.pop() == "grace"
+      check names.isEmpty == false
+</code></pre>
+        <h2 id="journal">Command-Line Journal</h2>
+        <p>The third project is the one you will actually keep using: a notebook that stores entries in a JSON file. It is split in two modules on purpose — <code>journal.nim</code> owns the data and knows nothing about the terminal, <code>main.nim</code> parses arguments and prints. That split is what makes the library unit-testable and the CLI replaceable.</p>
+        <h3 id="journal-schema">The Data Module</h3>
+        <pre><code class="language-nim line-numbers"># journal.nim — data in, data out. No echo, no quit, no assumptions
+# about how the caller obtained the text.
+import std/[json, os, times]
+
+type
+  Entry* = object            ## `*` exports the type to importing modules
+    date*: string            ## ISO-like timestamp: yyyy-MM-dd HH:mm
+    text*: string
+
+proc newEntry*(text: string): Entry =
+  Entry(date: now().format("yyyy-MM-dd HH:mm"), text: text)
+
+proc toJson*(e: Entry): JsonNode =
+  ## `%*{...}` builds a JsonNode from literals but type-checks the values,
+  ## so a typo in a field name is a compile error, not a runtime surprise.
+  %*{"date": e.date, "text": e.text}
+
+proc fromJson*(node: JsonNode): Entry =
+  ## `getStr` raises on a missing key or a wrong type. For a corrupt file that
+  ## is the behaviour we want: fail loudly where the damage is visible.
+  Entry(date: node["date"].getStr, text: node["text"].getStr)
+
+proc load*(path: string): seq[Entry] =
+  ## A missing file is not an error — it means "no entries yet".
+  if not fileExists(path):
+    return
+  let data = parseFile(path)
+  if data.kind != JArray:
+    raise newException(ValueError, path &amp; " does not contain a JSON array")
+  for node in data:
+    result.add fromJson(node)
+
+proc save*(path: string; entries: seq[Entry]) =
+  var data = newJArray()
+  for e in entries:
+    data.add e.toJson        # method syntax on a proc whose first
+  writeFile(path, data.pretty)  # parameter is an Entry
+</code></pre>
+        <h3 id="journal-cli">The Command-Line Front End</h3>
+        <p><code>parseopt</code> hands you one token at a time: <code>cmdArgument</code> for an ordinary word, <code>cmdShortOption</code> and <code>cmdLongOption</code> for <code>-f</code> and <code>--file</code>. Every error path ends in <code>quit</code> with a message and a non-zero status, because a tool that lies about failure is worse than one that fails.</p>
+        <pre><code class="language-nim line-numbers"># main.nim — the only place that talks to the user.
+import std/[parseopt, os]
+import journal               # the module above; no prefix needed
+
+const Usage = """
+journal — a tiny command-line notebook
+
+  journal [--file:path] add "some text"
+  journal [--file:path] list
+"""
+
+when isMainModule:
+  var
+    file = "journal.json"    # default location, relative to the working dir
+    command = ""
+    text = ""
+
+  for kind, key, value in getopt():
+    case kind
+    of cmdArgument:
+      if command.len == 0: command = key      # first word: the verb
+      elif text.len == 0: text = key          # second word: the payload
+    of cmdLongOption, cmdShortOption:
+      case key
+      of "file", "f": file = value
+      of "help", "h":
+        stdout.writeLine(Usage)
+        quit(0)
+      else:
+        quit("unknown option: " &amp; key, QuitFailure)
+    of cmdEnd: discard
+
+  case command
+  of "add":
+    if text.len == 0:
+      quit("usage: journal add \"some text\"", QuitFailure)
+    var entries = load(file)
+    entries.add newEntry(text)
+    save(file, entries)
+    echo "saved ", entries.len, " entries to ", file
+  of "list":
+    let entries = load(file)
+    if entries.len == 0:
+      echo "no entries yet in ", file
+    else:
+      for i, e in entries:
+        echo align($(i + 1), 3), ". ", e.date, "  ", e.text
+  of "":
+    quit(Usage, QuitFailure)   # no command at all: show usage, fail
+  else:
+    quit("unknown command: " &amp; command, QuitFailure)
+</code></pre>
+        <p>Build the project and use it. The commands below are the whole workflow — including the failure cases you should trigger on purpose:</p>
+        <pre><code class="language-bash line-numbers">nim c -r main.nim add "read the Nim manual chapter on generics"
+nim c -r main.nim add "try --mm:arc and compare binary sizes"
+nim c -r main.nim list                       # prints two numbered entries
+nim c -r main.nim --file:work.json add "another notebook"
+nim c -r main.nim nonsense; echo "exit=$?"   # unknown command, exit=1
+</code></pre>
+        <h2 id="next">Where to Go Next</h2>
+        <p>These three projects cover allocation, generics, testing, JSON, files and option parsing — the daily work of a Nim program.</p>
+        <h3 id="next-ideas">Taking the Projects Further</h3>
+        <p>Extend them in the direction that interests you: give the journal an <code>edit</code> and <code>delete</code> command, make the stack persistent, or turn the linked list into a doubly linked list with a <code>prev</code> reference and see what the cycle collector does with it. When you want more material, the <a href="/roadmap/nim/references.html">references page</a> collects the official documentation, exercise sets and open-source code worth reading.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "samples",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

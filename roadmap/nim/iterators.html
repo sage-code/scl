@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Nim iterators: inline versus closure iterators, yield, the items protocol for custom types, mitems for mutation, lazy generators and when to prefer sequtils templates.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, iterators, yield, inline, closure, items, pairs, mitems, sequtils">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Iterators &amp; Closures</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-iterators">Iterators &amp; Closures</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  <code>for</code> in Nim is not a language primitive over indexes: it is a call to an <em>iterator</em>. Once you can write iterators yourself, every custom container becomes loop-ready, and lazy generation becomes a technique you reach for instead of building temporary sequences.
+</div>
+
+<h2 id="custom-iterators">Writing Iterators</h2>
+<p>An iterator looks like a procedure with <code>yield</code> instead of <code>return</code>. Each <code>yield</code> hands one value to the loop body, then execution resumes on the next loop iteration — the iterator's local variables keep their state between yields.</p>
+
+<h3 id="inline-iterator">The Inline Iterator</h3>
+<pre><code class="language-nim line-numbers">iterator countdown(n: int): int =
+  var i = n                     # state survives across yields
+  while i > 0:
+    yield i                     # hand 'i' to the loop, then continue here later
+    dec i
+
+for value in countdown(3):
+  echo value                    # 3, then 2, then 1
+
+# Restricting the consumer: 'break' stops the loop and abandons the iterator.
+for value in countdown(10):
+  if value < 8: break           # the remaining yields simply never happen
+  echo value                    # 10, 9, 8
+</code></pre>
+<p>This is an <em>inline</em> iterator: the compiler expands its body at each call site, so there is no call overhead and no allocation for the state. The price is that an inline iterator is not a value — you cannot store it in a variable or return it from a procedure.</p>
+
+<h3 id="items-protocol">The items Protocol</h3>
+<p>Any type becomes loopable by defining <code>items</code> for it. This is Nim's answer to <code>__iter__</code> or <code>Iterable</code>, and it costs one small iterator.</p>
+<pre><code class="language-nim line-numbers">type
+  Playlist = object
+    tracks: seq[string]
+
+iterator items(playlist: Playlist): string =
+  ## Defining 'items' is what makes 'for track in playlist' compile.
+  for track in playlist.tracks:
+    yield track
+
+let party = Playlist(tracks: @["intro", "main", "outro"])
+for track in party:
+  echo track                    # intro, main, outro
+
+# 'pairs' is the companion for index + value over arrays and sequences:
+for index, name in ["ada", "grace"].pairs:
+  echo index, " -> ", name      # 0 -> ada, 1 -> grace
+</code></pre>
+
+<h3 id="mitems-pairs">Yielding Mutable Values</h3>
+<p>The standard library pairs <code>items</code> with <code>mitems</code>: the mutable variant yields a <code>var</code> slot, so the loop body can write through it.</p>
+<pre><code class="language-nim line-numbers">var values = @[1, 2, 3]
+
+for item in values.mitems:        # 'mitems' yields var int
+  item *= 10                      # writes straight into the sequence
+echo values                       # @[10, 20, 30]
+
+# mpairs gives (index, var value) when you need both:
+for index, item in values.mpairs:
+  item += index                   # add the position to each element
+echo values                       # @[10, 21, 32]
+</code></pre>
+
+
+<h2 id="closure-iterators">Closure Iterators</h2>
+<p>A closure iterator is a compiled state machine you can store, pass around and resume later. It answers the opposite need: flexibility where the inline iterator offers speed.</p>
+
+<h3 id="iterator-values">Iterators as Values</h3>
+<pre><code class="language-nim line-numbers">proc countTo(n: int): iterator (): int =
+  ## Returns a closure iterator capturing 'n' and its own counter.
+  return iterator (): int =
+    var i = 0
+    while i <= n:
+      yield i
+      inc i
+
+let countTo3 = countTo(3)          # the iterator is now an ordinary value
+echo countTo3()                    # 0 — the counter starts at zero
+echo countTo3()                    # 1
+echo countTo3()                    # 2
+
+for value in countTo3():           # resumes the same state machine where it paused
+  echo value                       # 3, then the iterator runs out of values
+</code></pre>
+<p>Each call to a closure iterator resumes where the previous <code>yield</code> stopped, exactly like the inline version — but the state lives on the heap, so the value can outlive the procedure that created it.</p>
+
+<h3 id="lazy">Lazy and Unbounded Sequences</h3>
+<pre><code class="language-nim line-numbers">iterator fibonacci(): int =
+  ## Nothing is computed until the loop asks for the next value.
+  var a = 0
+  var b = 1
+  while true:                      # unbounded: the consumer decides where to stop
+    yield a
+    let next = a + b
+    a = b
+    b = next
+
+for value in fibonacci():
+  if value > 50: break             # the loop owns the termination condition
+  echo value                       # 0 1 1 2 3 5 8 13 21 34
+</code></pre>
+<p>An unbounded iterator plus a loop condition replaces "build a big sequence, then walk it". Memory stays constant, and the first result arrives immediately — the pattern that later makes streaming and pipeline code natural.</p>
+
+<h3 id="iterators-vs-sequtils">Iterators or sequtils?</h3>
+<pre><code class="language-nim line-numbers">import std/sequtils
+
+let squares = (1 .. 5).toSeq.mapIt(it * it)      # node-style: eager, builds a seq
+echo squares                                     # @[1, 4, 9, 16, 25]
+echo squares.filterIt(it mod 2 == 1)             # @[1, 9, 25]
+
+# mapIt/filterIt are TEMPLATES, not iterators: the expression is inlined per
+# element and the loop structure is yours. Use them for short pipelines on
+# sequences; write a real iterator when the data is large, streamed or generated.
+</code></pre>
+
+<h2 id="iterators-practice">Iterators in Practice</h2>
+<p>Choose the shape first, then write the code. Most iterator problems are really design problems about who owns the termination condition.</p>
+
+<h3 id="choosing">Choosing an Approach</h3>
+<ul>
+  <li><strong>Inline iterator</strong> — the default. Fast, no allocation, works in <code>for</code>, cannot be stored. Use it for containers and computed sequences.</li>
+  <li><strong>Closure iterator</strong> — when the traversal must be passed to another procedure, stored in an object, or resumed step by step. Expect heap state and a little overhead.</li>
+  <li><strong><code>sequtils</code> template</strong> — a one-line transformation over an existing sequence. Eager: it materializes the result.</li>
+  <li><strong>Plain loop</strong> — when there is no traversal to name. Not every loop deserves an iterator; adding one can hide the very logic the reader needs to see.</li>
+</ul>
+
+<h3 id="iterators-checklist">Review Checklist</h3>
+<ol>
+  <li>Define <code>items</code> (and <code>mitems</code> when mutation is legitimate) so your type behaves like a built-in.</li>
+  <li>Keep state in locals, never in globals, so two loops over the same iterator cannot interfere.</li>
+  <li>Document whether an iterator is finite; an unbounded one must state what ends the loop.</li>
+  <li>Prefer <code>break</code> over an internal limit parameter — let the caller decide when enough is enough.</li>
+  <li>Do not hide side effects inside an iterator; a loop body that surprises the reader is a bug in the design.</li>
+</ol>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "iterators",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

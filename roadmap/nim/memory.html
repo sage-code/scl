@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="How Nim manages memory: value versus reference semantics, sink and move, ARC and ORC, destructor hooks, cycle collection, manual allocation and copy avoidance.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, nim, memory, arc, orc, ref object, destructor, sink, move, alloc, cursor">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Memory Management &amp; ARC/ORC</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="nim-memory">Memory Management &amp; ARC/ORC</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Nim 2.x is garbage-collected without a tracing collector: memory is released by reference counting with <em>deterministic</em> destruction, and ORC adds a cycle collector for the structures reference counting alone cannot free. Value types are copied, heap objects are shared, and the compiler removes most copies automatically — this lesson shows where each rule applies.
+</div>
+
+<h2 id="semantics">Values, References and Copies</h2>
+<p>The first question about any value in Nim is whether you hold the data or a handle to it. Objects, tuples, arrays, sequences and strings are values; <code>ref</code> and <code>ptr</code> are handles.</p>
+<div class="text-center">
+  <img src="/roadmap/nim/img/nim-value-vs-ref.svg" width="620" class="img-fluid protect rounded shadow border" alt="Value semantics copy the data; reference semantics share one heap cell through handles">
+  <p class="text-secondary small">Figure 1 — copying a value duplicates storage; copying a reference duplicates only the handle, so both names see the same heap cell.</p>
+</div>
+
+<h3 id="value-semantics">Value Semantics by Default</h3>
+<pre><code class="language-nim line-numbers">type
+  Point = object
+    x, y: int
+
+var a = Point(x: 1, y: 2)
+var b = a                     # a full value copy: 'b' owns its own ints
+
+b.x = 99                      # mutate the copy only
+echo a.x                      # 1  — the original is untouched
+echo b.x                      # 99
+
+var names = @["ada", "grace"]
+var alias = names             # sequences are values too: this copies
+alias.add("linus")
+echo names.len                # 2 — the copy grew, not the original
+</code></pre>
+
+<h3 id="ref-objects">Reference Objects and Identity</h3>
+<pre><code class="language-nim line-numbers">type
+  Counter = ref object        # 'ref object' lives on the heap
+    value: int
+
+var shared = Counter(value: 0)
+var handle = shared           # copies the HANDLE: both names see one object
+
+handle.value += 1
+echo shared.value             # 1 — one object, two names
+
+if shared.isNil:              # references can be nil; check before use
+  echo "no counter"
+echo handle.value             # 1
+</code></pre>
+<p>Use <code>ref</code> when several parts of the program must observe the same object — a graph node, a cache entry, a mutable model. Use a plain object when the value is a fact: coordinates, a result, a configuration.</p>
+
+<h3 id="sink-move">Transfers with sink and move</h3>
+<pre><code class="language-nim line-numbers">proc consume(data: sink seq[int]): int =
+  ## 'sink' declares that this procedure takes ownership of the sequence
+  ## instead of borrowing it, so the caller may hand over the buffer.
+  data.len                    # the callee may keep or free it
+
+var numbers = @[1, 2, 3, 4]
+echo consume(move(numbers))   # 4 — no copy: the buffer changes owner
+echo numbers.len              # 0 — 'move' resets the source; reuse it only after
+                              #     you assign a new value
+
+# Without 'move', passing a named variable may still copy, because the variable
+# is used later. A temporary is transferred with no syntax at all:
+echo consume(@[5, 6])         # 2 — the temporary was already owned by nobody
+</code></pre>
+<p><code>move</code> is not a cast and not unsafe: it tells the compiler the source will not be used again, which converts a copy into a pointer hand-off. Use it when a large buffer is finished with, and expect a cleared source afterwards.</p>
+
+<h2 id="management">Management Strategies</h2>
+<p>The strategy is chosen when you compile, not when you write. Your code keeps the same types; only who frees what changes.</p>
+
+<h3 id="arc-orc">ARC and ORC</h3>
+<pre><code class="language-bash line-numbers">nim c --mm:orc  main.nim     # default in Nim 2.x: reference counting + cycle collector
+nim c --mm:arc  main.nim     # counting only: no cycle collector, lowest overhead
+nim c --mm:refc main.nim     # the legacy tracing GC of Nim 1.x
+nim c --mm:none main.nim     # no automatic management: manual alloc/dealloc only
+</code></pre>
+<ul>
+  <li><code>arc</code> counts references and destroys a value the moment its last owner disappears — usually at the end of the block that created it.</li>
+  <li><code>orc</code> adds a cycle collector on top: it finds reference cycles (a node pointing back to its parent) that pure counting would leak.</li>
+  <li><code>refc</code> exists for legacy code and for measured cases; new code should not start there.</li>
+</ul>
+
+<h3 id="destructors">Destructor Hooks</h3>
+<pre><code class="language-nim line-numbers">type
+  Handle = object
+    id: int                   # only trivially copyable fields, so the hook is the
+    isOpen: bool              # the only thing that needs any special care
+
+proc openHandle(id: int): Handle =
+  echo "acquire resource ", id
+  Handle(id: id, isOpen: true)
+
+proc `=destroy`(h: var Handle) =
+  ## Called automatically when a Handle goes out of scope, and also for
+  ## moved-from values — hence the guard.
+  if h.isOpen:
+    echo "release resource ", h.id
+    h.isOpen = false
+
+proc work() =
+  let h = openHandle(7)       # acquire
+  echo "working with ", h.id
+                              # release happens here, at the end of 'work'
+
+work()                        # acquire resource 7
+                              # working with 7
+                              # release resource 7
+</code></pre>
+<p>Deterministic destruction is the payoff: file handles, sockets, locks and buffers are released at a predictable point, even when an exception unwinds the stack. The related hooks are <code>=copy</code> (custom duplication), <code>=sink</code> (custom transfer) and <code>=trace</code> (which fields ORC's cycle collector must follow); <code>wasMoved</code> marks a value as consumed inside a hook that takes a <code>var</code> parameter.</p>
+
+<h3 id="manual">Manual Allocation</h3>
+<pre><code class="language-nim line-numbers">proc histogram(count: int): ptr UncheckedArray[byte] =
+  ## alloc0 returns a zero-filled block; nothing frees it for you.
+  result = cast[ptr UncheckedArray[byte]](alloc0(count))
+
+let cells = histogram(4)
+cells[0] = 9                  # no bounds check: 'Unchecked' is a promise, not a guard
+echo cells[0]                 # 9
+dealloc(cells)                # exactly one dealloc per alloc
+
+# Typed heap allocation with automatic cleanup of the value's own fields:
+proc counted(): int =
+  let p = create(int)         # create(T): allocate and initialize a T
+  defer: destroy(p)           # the value's destructor runs, then memory is freed
+  p[] = 42
+  p[] + 1
+
+echo counted()                # 43
+</code></pre>
+<p><code>alloc</code>, <code>alloc0</code>, <code>allocShared</code>, <code>create</code> and <code>createShared</code> bypass the reference-counting machinery: the block is yours until <code>dealloc</code>, <code>deallocShared</code> or <code>destroy</code>. Prefer <code>ref</code> objects; reach for raw pointers at C boundaries and in allocators, and pair every allocation with a <code>defer</code> in the same procedure.</p>
+
+<h2 id="memory-practice">Memory in Practice</h2>
+<p>Nim moves or elides most copies by itself. The remaining work is to give it the information it needs: views instead of values, ownership markers instead of guesses, and a look at the generated C when the numbers matter.</p>
+
+<h3 id="avoid-copies">Borrowing Instead of Copying</h3>
+<pre><code class="language-nim line-numbers">type
+  Person = object
+    name: string
+    age: int
+
+proc total(items: openArray[int]): int =
+  ## 'openArray' is a view: no copy, and it accepts arrays, seqs and slices.
+  for item in items:
+    result += item
+
+proc nameOf(p: Person): lent string =
+  ## 'lent' returns a borrowed view of a field: no string copy, no ownership.
+  p.name
+
+let people = [Person(name: "Ada", age: 36)]
+echo total([1, 2, 3])         # 6 — an array, borrowed with no allocation
+echo total(@[4, 5])           # 9 — the sequence's buffer is borrowed too
+echo nameOf(people[0])        # Ada — a read-only view into 'people'
+</code></pre>
+<p>The <code>cursor</code> pragma completes the toolbox: attach it where a read-only routine would otherwise pay reference-count traffic for a parameter, and the compiler stops emitting those calls.</p>
+
+<h3 id="memory-checklist">Review Checklist</h3>
+<ol>
+  <li>Choose the semantics first: a plain object for a fact, a <code>ref</code> object for shared mutable identity.</li>
+  <li>Assume a copy on assignment; add <code>move</code> or a <code>sink</code> parameter only where the copy is measured or obvious.</li>
+  <li>Give every resource-holding type a <code>=destroy</code> that tolerates being called twice and on moved-from values.</li>
+  <li>Keep <code>--mm:orc</code> unless a benchmark says otherwise; never mix strategies inside one program.</li>
+  <li>Reach for <code>alloc</code>/<code>create</code> at C boundaries only, and always with a matching <code>defer</code>.</li>
+  <li>When a hot path surprises you, read the C: <code>nim c --expandArc:procName --compileOnly</code> shows exactly what ARC/ORC inserts.</li>
+</ol>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "nim",
+    topicId: "memory",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

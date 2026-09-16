@@ -125,6 +125,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         'h': 'c',
         'rs': 'rust',   // Rust — grammar bundled in assets/prism.js
         'zig': 'zig',
+        // Nim — grammar bundled in assets/prism.js (see its download header)
+        'nim': 'nim',
+        'nims': 'nim',   // config.nims and .nims task scripts share the grammar
         // Odin — grammar bundled in assets/prism.js (see its download header)
         'odin': 'odin',
         'cpp': 'cpp',
