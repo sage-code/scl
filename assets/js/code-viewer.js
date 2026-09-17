@@ -131,6 +131,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Nim — grammar bundled in assets/prism.js (see its download header)
         'nim': 'nim',
         'nims': 'nim',   // config.nims and .nims task scripts share the grammar
+        // Elixir and Erlang — grammars are bundled in assets/prism.js (see its download header)
+        'ex': 'elixir',
+        'exs': 'elixir',
+        'eex': 'elixir',   // HEEx/EEx templates render as elixir (tags stay plain)
+        'heex': 'elixir',
+        'erl': 'erlang',
+        'hrl': 'erlang',
         // Odin — grammar bundled in assets/prism.js (see its download header)
         'odin': 'odin',
         'cpp': 'cpp',

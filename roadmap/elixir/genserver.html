@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="The GenServer behaviour in Elixir: client/server split, handle_call, handle_cast, handle_info, timeouts, naming, and state design.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="elixir genserver, handle_call, handle_cast, state, otp server">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elixir: GenServer</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/elixir/genserver.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-genserver">Elixir: GenServer</h1>
+<div class="alert alert-secondary shadow-sm">
+  GenServer ("generic server") extracts the receive-loop pattern you hand-rolled in
+  <a href="/roadmap/elixir/processes.html">The Process Model</a> into a battle-tested behaviour with
+  timeouts, error propagation, and debugging built in. Most stateful processes in real systems are
+  GenServers.
+</div>
+
+<h2 id="client-server-split">The Client/Server Split</h2>
+<p>
+  A GenServer module has two halves. The <em>client API</em> is the functions other code calls; the
+  <em>server callbacks</em> run inside the process. Keeping them visually separated is the single most
+  important style rule for readable servers.
+</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-genserver-lifecycle.svg" class="figure-img img-fluid rounded" alt="GenServer lifecycle: start_link calls init, then handle_call and handle_cast process messages, handle_info receives out-of-band messages, and handle_continue chains work" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Calls block the caller; casts do not. Every callback returns the next state, and crashes are handled by the supervisor, not the server.</figcaption>
+</figure>
+<pre><code class="language-elixir line-numbers">defmodule KV do
+  # ── Client API ────────────────────────────────────────────
+  def start_link(opts \\\\ []) do
+    # `name:` registers the server so calls don't need the pid.
+    GenServer.start_link(__MODULE__, %{}, name: Keyword.get(opts, :name, __MODULE__))
+  end
+
+  # call = synchronous: caller BLOCKS until the reply (with timeout).
+  def put(key, value), do: GenServer.call(__MODULE__, {:put, key, value})
+  def get(key), do: GenServer.call(__MODULE__, {:get, key})
+
+  # cast = asynchronous: returns :ok immediately, no delivery guarantee.
+  def clear_async, do: GenServer.cast(__MODULE__, :clear)
+
+  # ── Server callbacks (@impl documents they're behaviour callbacks) ──
+  @impl true
+  def init(state) do
+    # handle_continue defers heavy work until AFTER start_link returns,
+    # so a slow boot does not block the supervision tree.
+    {:ok, state, {:continue, :warmup}}
+  end
+
+  @impl true
+  def handle_continue(:warmup, state) do
+    {:ok, state}   # ... load caches here in real code
+  end
+
+  @impl true
+  def handle_call({:put, key, value}, _from, state) do
+    {:reply, :ok, Map.put(state, key, value)}   # {reply, new_state}
+  end
+
+  @impl true
+  def handle_call({:get, key}, _from, state) do
+    {:reply, Map.fetch(state, key), state}      # state unchanged
+  end
+
+  @impl true
+  def handle_cast(:clear, _state), do: {:noreply, %{}}
+
+  @impl true
+  # handle_info receives EVERYTHING else: monitors, timers, raw sends.
+  def handle_info(:expire, state) do
+    {:noreply, Map.drop(state, expired_keys(state))}
+  end
+end</code></pre>
+<h2 id="call-cast-or-info">call, cast, or info?</h2>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Mechanism</th><th>Blocking</th><th>Back-pressure</th><th>Use for</th></tr></thead>
+  <tbody>
+    <tr><td><code>handle_call</code></td><td>caller waits</td><td>natural (mailbox + timeout)</td><td>reads, writes that must be confirmed</td></tr>
+    <tr><td><code>handle_cast</code></td><td>no</td><td><strong>none</strong> — floods the mailbox</td><td>fire-and-forget the caller must not wait on</td></tr>
+    <tr><td><code>handle_info</code></td><td>n/a</td><td>mailbox</td><td>timers (<code>Process.send_after</code>), monitors, raw messages</td></tr>
+  </tbody>
+</table>
+<p>
+  Default advice: reach for <code>call</code>. It gives the caller a timeout (default 5s) and makes
+  overload visible; a <code>cast</code> storm is invisible until the mailbox grows.
+</p>
+
+<h2 id="timeouts-and-process-recovery">Timeouts and Process Recovery</h2>
+<pre><code class="language-elixir line-numbers"># Every call has a timeout — make it explicit at the boundaries.
+GenServer.call(__MODULE__, {:get, :hot_key}, 1_000)
+
+# A callback can also set a timer for the server itself:
+@impl true
+def handle_call(:start_batch, _from, state) do
+  # Re-deliver :expire to ourselves in 60s — no polling loops.
+  Process.send_after(self(), :expire, :timer.seconds(60))
+  {:reply, :started, state}
+end</code></pre>
+<p>
+  If a callback crashes, the standard reaction is the supervisor's: the server restarts with
+  <code>init/1</code> and its <code>state</code> is <em>gone</em>. That loss is the design constraint
+  that shapes real systems — persist state you cannot afford to lose (ETS, Ecto, disk) and keep the
+  process state rebuildable.
+</p>
+
+<h2 id="state-design-guidelines">State Design Guidelines</h2>
+<ul>
+  <li><strong>Model state as a struct</strong> with a version field if it can be migrated on upgrade.</li>
+  <li><strong>Keep invariants inside the server:</strong> the state is only mutated by its own callbacks, so each invariant is checked in exactly one place.</li>
+  <li><strong>Never call your own client API from inside the server</strong> — <code>call</code> to itself deadlocks; use <code>handle_continue</code> or <code>send</code>.</li>
+  <li><strong>Name registration:</strong> <code>:global</code> for one-per-cluster, <code>Registry</code> for one-per-entity (see <a href="/roadmap/elixir/distribution.html">Distributed Elixir</a>).</li>
+</ul>
+
+<h2 id="practice-genserver">Practice</h2>
+<ol>
+  <li>Run the KV server above in <code>iex</code>: <code>put</code> three keys, <code>get</code> one, then <code>clear_async</code> and read again.</li>
+  <li>Add a <code>handle_call(:size)</code> callback and a 1-second <code>send_after</code> expiry in <code>handle_info</code>.</li>
+  <li>Crash the server with a bad message and prove the state is lost after restart — then persist the map to ETS so a restart can rebuild it.</li>
+</ol>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/supervision.html">Supervision Trees</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'genserver',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

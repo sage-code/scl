@@ -1,40 +1,164 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="Elixir macros lab for quoted code, unquote, and metaprogramming basics.">
+  <meta name="description" content="Elixir macros and metaprogramming: the AST, quote and unquote, defmacro, hygiene, use and import, and when not to reach for a macro.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="elixir macros, quote, unquote, metaprogramming">
+  <meta name="keywords" content="elixir macros, quote, unquote, ast, metaprogramming, use import">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Elixir Macros</title>
+  <title>Elixir: Macros &amp; Metaprogramming</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/elixir/macros.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="elixir-macros">Elixir Macros</h2>
-<div class="alert alert-secondary shadow-sm">Macros are a core Elixir differentiator. Use them carefully to generate code only when ordinary functions are not enough.</div>
-<h2 id="quoted-code">Quoted code</h2>
-<pre><code class="language-elixir">quote do: 1 + 2</code></pre>
-<h2 id="unquote">Unquote</h2>
-<p>Unquote injects values into quoted expressions and is the bridge between data and generated code.</p>
-<h2 id="metaprogramming-basics">Metaprogramming basics</h2>
-<p>Macros run at compile time, so they can add domain-specific syntax, validation, or boilerplate reduction.</p>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-macros-metaprogramming">Elixir: Macros &amp; Metaprogramming</h1>
+<div class="alert alert-secondary shadow-sm">
+  Elixir code is <em>data</em>: every expression is a three-element tuple called a quoted form, and a
+  macro is a function that receives quoted code and returns quoted code, executed at compile time.
+  This is how <code>defmodule</code>, <code>PIPE</code>-style DSLs, and Phoenix routes work — and it
+  is also the sharpest tool in the language, to be used deliberately.
+</div>
+
+<h2 id="the-ast-quote">The AST: quote</h2>
+<pre><code class="language-elixir line-numbers"># quote returns the AST of the expression instead of evaluating it.
+quote do: 1 + 2
+#=&gt; {:+, [context: Elixir, imports: [{2, Kernel}]], [1, 2]}
+#    ^call       ^metadata (line, context)       ^arguments
+
+# Every AST node is {form, metadata, args}. Values quote to themselves:
+quote do: :ok          #=&gt; :ok
+quote do: [1, 2]       #=&gt; [1, 2]  (literal lists stay literal)
+
+# Inspect an AST as CODE again — great for learning:
+Macro.to_string(quote do: 1 + 2)   #=&gt; "1 + 2"</code></pre>
+
+<h2 id="unquote-and-defmacro">unquote and defmacro</h2>
+<p>
+  <code>unquote/1</code> splices a runtime value into a quoted form. A macro's <em>inputs</em> are
+  quoted expressions and its <em>output</em> is spliced into the caller's code — at compile time.
+</p>
+<pre><code class="language-elixir line-numbers">defmodule Assert do
+  # Macros must be explicitly required before use.
+  @doc "Fails compilation-time test with a descriptive message."
+  defmacro assert!(expr) do
+    # unquote injects the caller's expression into our generated code.
+    quote do
+      case unquote(expr) do
+        true -&gt; :ok
+        false -&gt; raise "assertion failed: #{unquote(Macro.to_string(expr))}"
+      end
+    end
+  end
+end
+
+defmodule Demo do
+  require Assert        # bring the macro into this module
+  Assert.assert!(1 + 1 == 2)   # expanded at COMPILE time
+end</code></pre>
+<h2 id="use-import-and-require">use, import and require</h2>
+<p>
+  Three keywords control code reuse, and they do different things — mixing them up is a common
+  beginner error.
+</p>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Keyword</th><th>What it does</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><code>import</code></td><td>brings functions/macros into the current scope</td><td><code>import Enum, only: [map: 2]</code></td></tr>
+    <tr><td><code>require</code></td><td>guarantees macros are available (no functions)</td><td><code>require Logger</code></td></tr>
+    <tr><td><code>use</code></td><td>calls the module's <code>__using__/1</code> macro — injects arbitrary code</td><td><code>use GenServer</code></td></tr>
+  </tbody>
+</table>
+<pre><code class="language-elixir line-numbers">defmodule Traced do
+  # __using__ runs when someone writes `use Traced` — the module can
+  # then inject imports, attributes, or whole functions.
+  defmacro __using__(_opts) do
+    quote do
+      import Traced, only: [trace: 1]
+
+      # Injects a start-time attribute into the consuming module.
+      @traced true
+    end
+  end
+
+  defmacro trace(expr) do
+    quote do
+      result = unquote(expr)
+      IO.puts("#{unquote(Macro.to_string(expr))} =&gt; #{inspect(result)}")
+      result
+    end
+  end
+end
+
+defmodule Worker do
+  use Traced            # gains trace/1 and @traced
+
+  def compute, do: trace(40 + 2)   # prints "40 + 2 => 42", returns 42
+end</code></pre>
+
+<h2 id="macro-hygiene">Macro Hygiene</h2>
+<p>
+  Macros are hygienic by default: variables created inside <code>quote</code> do not leak into the
+  caller's scope. Use <code>var!(name)</code> when you deliberately want to touch the caller's
+  binding — and treat that as a code smell. Keep the generated code small, document it, and prefer
+  <code>defdelegate</code> or plain functions when a macro adds nothing.
+</p>
+
+<h2 id="when-not-to-macro">When NOT to Write a Macro</h2>
+<ul>
+  <li>A function would work — macros lose stack traces, stepping, and editor support.</li>
+  <li>You need runtime values — macros see code, not data; they run before any value exists.</li>
+  <li>The AST is complicated — use <code>Macro.escape/1</code> carefully when injecting <em>values</em> into quoted code.</li>
+</ul>
+<p>
+  The professional pattern: reach for macros only to remove <em>repeated structural</em> boilerplate
+  (declarative routes, validations, tracing), and keep the heavy lifting in functions.
+</p>
+
 <h2 id="practice-macros">Practice</h2>
 <ol>
-  <li>Write one quoted expression.</li>
-  <li>Explain the difference between a macro and a function.</li>
-  <li>Write one note about why macros should stay small and targeted.</li>
+  <li>Print the AST of <code>1 + 2 * 3</code> with <code>quote</code> and identify the three tuple elements.</li>
+  <li>Extend <code>Assert.assert!/1</code> into <code>assert_eq!/2</code> that reports both sides on failure.</li>
+  <li>Build a <code>Traced</code> consumer module and confirm <code>@traced</code> exists in <code>iex</code> via <code>Worker.@traced</code> — then explain why <code>require</code> was needed.</li>
 </ol>
-</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
-<script>window.TOPIC_CONFIG={labId:'elixir',topicId:'macros',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
-<script src="/sage.js" defer></script>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/projects.html">Mix, Dependencies &amp; Releases</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'macros',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-</body></html>
+</body>
+</html>

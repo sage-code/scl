@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Elixir strings and binaries: UTF-8 strings, bitstring syntax, binary pattern matching for protocol parsing, charlists, and IO data.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="elixir binaries, bitstring, utf-8, sigils, io data, binary pattern matching">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elixir: Strings, Binaries &amp; Sigils</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/elixir/binaries.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-strings-binaries-sigils">Elixir: Strings, Binaries &amp; Sigils</h1>
+<div class="alert alert-secondary shadow-sm">
+  In Elixir, a string is a UTF-8 <em>binary</em>, and a binary is a bitstring whose bit count is
+  divisible by eight. That single sentence unlocks binary pattern matching — one of the language's
+  superpowers for protocol and file parsing.
+</div>
+
+<h2 id="strings-are-utf-8-binaries">Strings Are UTF-8 Binaries</h2>
+<pre><code class="language-elixir line-numbers">s = "héllo"            # a binary: UTF-8 encoded bytes
+byte_size(s)           #=&gt; 6   — "é" is 2 bytes in UTF-8
+String.length(s)       #=&gt; 5   — counts CHARACTERS (code points)
+String.upcase(s)       #=&gt; "HÉLLO" — Unicode-aware
+
+# Graphemes: user-perceived characters can span several code points.
+String.length("a\u0301")        #=&gt; 2 code points...
+String.length(String.graphemes("a\u0301") |&gt; hd())  # ...one grapheme</code></pre>
+<p>
+  Rule of thumb: <code>String</code> functions are Unicode-aware and binary-based; the
+  <code>:binary</code> module (from Erlang) works on raw bytes; <code>Bitwise</code> handles bit
+  operations. Mixing them up is a classic source of off-by-one bugs on non-ASCII input.
+</p>
+
+<h2 id="bitstring-syntax">Bitstring Syntax</h2>
+<p>
+  <code>&lt;&lt;&gt;&gt;</code> builds and matches raw bits. Each segment declares its size and type —
+  <code>size:</code> bits, <code>unit:</code> steps, <code>type</code> integer/binary/float, and
+  <code>utf8</code> for direct string embedding.
+</p>
+<pre><code class="language-elixir line-numbers">&lt;&lt;1, 2, 3&gt;&gt;                       # three bytes
+&lt;&lt;1024::16&gt;&gt;                      # 16 bits holding 1024  =&gt; &lt;&lt;4, 0&gt;&gt;
+&lt;&lt;3.14::float&gt;&gt;                   # a float packed into bytes
+&lt;&lt;"é"::utf8&gt;&gt;                     # encode é explicitly
+&lt;&lt;flag::1, payload::7&gt;&gt; = &lt;&lt;0b1000_0001&gt;&gt;   # flag=1, payload=1</code></pre>
+<h2 id="binary-pattern-matching-in-practice">Binary Pattern Matching in Practice</h2>
+<p>
+  Parsing a wire protocol shows why binaries matter: the pattern <em>is</em> the grammar. This
+  function decodes a length-prefixed frame and recurses — no manual byte counters, no off-by-one
+  bugs.
+</p>
+<pre><code class="language-elixir line-numbers"># Frame format: [2-byte big-endian length][payload bytes]
+defmodule Frame do
+  def decode(&lt;&lt;length::16, payload::bytes-size(length), rest::binary&gt;&gt;) do
+    # One clause matches a complete frame AND binds `rest` for the next one.
+    [{:ok, payload} | decode(rest)]
+  end
+
+  def decode(&lt;&lt;&gt;&gt;), do: []                       # clean end of stream
+  def decode(truncated), do: [{:error, {:truncated, byte_size(truncated)}}]
+end
+
+Frame.decode(&lt;&lt;5, "hello", 3, "abc", 2, "hi"&gt;&gt;)
+#=&gt; [ok: "hello", ok: "abc", ok: "hi"]</code></pre>
+<p>
+  The same technique parses timestamps, IP headers, PNG chunks — anything with a byte layout. When a
+  format is bit-oriented rather than byte-oriented, only the sizes change.
+</p>
+
+<h2 id="charlists-and-io-data">Charlists and IO Data</h2>
+<pre><code class="language-elixir line-numbers">'hello'          # charlist: a LIST of integer code points (Erlang heritage)
+:io.format("~s~n", [~c"from charlist"])   # ~c sigil builds charlists
+
+# IO data defers concatenation: build huge outputs without copies.
+iodata = ["status=", "ok", "\n", ["rows=", "42"]]
+IO.iodata_to_binary(iodata)   #=&gt; "status=ok\nrows=42"</code></pre>
+<p>
+  IO data matters at scale: logging frameworks and Phoenix responses accept it so that thousand-part
+  responses are assembled with zero intermediate strings.
+</p>
+
+<h2 id="sigils-in-depth">Sigils in Depth</h2>
+<p>
+  Sigils from the <a href="/roadmap/elixir/syntax.html">syntax lesson</a> generalize: any lowercase
+  letter can become a custom sigil by defining <code>sigil_x/2</code> in a module. The built-ins
+  worth memorizing: <code>~s</code> strings, <code>~w</code> word lists, <code>~r</code> regexes,
+  <code>~D/~T/~N/~U</code> date-time structs.
+</p>
+
+<h2 id="practice-binaries">Practice</h2>
+<ol>
+  <li>Write a decoder for a header of <code>[1-byte version][4-byte timestamp][payload]</code> and return <code>{:error, :bad_version}</code> for unsupported versions via guards.</li>
+  <li>Measure <code>Enum.join</code> versus IO data for 10,000 parts (use <code>:timer.tc/1</code>); note the difference.</li>
+  <li>Explain the difference between <code>byte_size/1</code> and <code>String.length/1</code> using the string <code>"café"</code>.</li>
+</ol>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/macros.html">Macros &amp; Metaprogramming</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'binaries',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
