@@ -1,40 +1,133 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="Elixir architecture lab for service boundaries, umbrella apps, and deployment layout.">
+  <meta name="description" content="Designing Elixir systems: process boundaries, contexts, umbrella vs monolith, state placement, failure domains, and anti-patterns to avoid.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="elixir architecture, umbrella apps, service boundaries, deployment">
+  <meta name="keywords" content="elixir architecture, contexts, process boundaries, umbrella, failure domains">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Elixir Architecture</title>
+  <title>Elixir: Designing Elixir Systems</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/elixir/architecture.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="elixir-architecture">Elixir Architecture</h2>
-<div class="alert alert-secondary shadow-sm">Good Elixir architecture separates business contexts, process boundaries, and delivery concerns so OTP can do its job cleanly.</div>
-<h2 id="service-boundaries">Service boundaries</h2>
-<p>Keep business logic in clear contexts and use processes for state that must live at runtime.</p>
-<h2 id="umbrella-apps">Umbrella apps</h2>
-<p>Umbrella projects help organize large systems into reusable apps with smaller dependency surfaces.</p>
-<h2 id="deployment-layout">Deployment layout</h2>
-<p>Make release and environment decisions explicit so production behavior is predictable.</p>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-designing-elixir-systems">Elixir: Designing Elixir Systems</h1>
+<div class="alert alert-secondary shadow-sm">
+  Elixir architecture answers three questions: where does <em>state</em> live, where are the
+  <em>boundaries</em>, and what happens when each piece <em>fails</em>. This lesson turns the OTP
+  mechanics you learned into a design method.
+</div>
+
+<h2 id="where-does-state-live">Where Does State Live?</h2>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-architecture-layers.svg" class="figure-img img-fluid rounded" alt="Layers of an Elixir system: web layer calling contexts, contexts using processes and Ecto, all supervised in a tree" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Dependencies point downward only: web code calls contexts, contexts own data and processes, nothing calls upward.</figcaption>
+</figure>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>State kind</th><th>Home</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>Request-scoped</td><td>the <code>conn</code> / function arguments</td><td>form data, auth token</td></tr>
+    <tr><td>Session-ish, per connection</td><td>the connection's process (LiveView assigns, channel state)</td><td>wizard progress, cursor position</td></tr>
+    <tr><td>Shared, mutable, small</td><td>named GenServer or Agent</td><td>rate-limit counters, cached config</td></tr>
+    <tr><td>Shared, read-mostly, hot</td><td>ETS / <code>:persistent_term</code></td><td>route tables, feature flags</td></tr>
+    <tr><td>Durable, authoritative</td><td>Ecto / external store</td><td>orders, users, balances</td></tr>
+  </tbody>
+</table>
+<p>
+  The classic mistake is putting durable state in a process. A process is a <em>cache of the
+  truth</em>, not the truth: if the data must survive a crash, it belongs in Ecto or an ETS table
+  backed by a guardian process.
+</p>
+
+<h2 id="contexts-and-boundaries">Contexts and Boundaries</h2>
+<p>
+  A context module is a named slice of the domain (<code>Billing</code>, <code>Identity</code>,
+  <code>Catalog</code>) exposing a public API and hiding its internals. Boundaries are enforced
+  socially at first and mechanically with the <code>mix arch</code>/boundary libraries or
+  <code>Elixir 1.20</code>'s clearer warnings about cross-module references.
+</p>
+<pre><code class="language-elixir line-numbers">defmodule MyApp.Billing do
+  @moduledoc """
+  All money movement. Nothing outside this module may touch
+  Invoice/charge schemas or call payment providers directly.
+  """
+  alias MyApp.Billing.{Charge, Invoice}
+  alias MyApp.Repo
+
+  defdelegate total(invoice), to: Invoice   # narrow surface, cheap to keep
+  def capture(%{} = params), do: %Charge{} |&gt; Charge.changeset(params) |&gt; Repo.insert()
+end</code></pre>
+<h2 id="monolith-or-umbrella">Monolith or Umbrella?</h2>
+<p>
+  Start with a single app and let contexts define the seams. Umbrellas pay off when apps have
+  genuinely different dependency sets or when a component needs independent deployment (an escript,
+  a separate worker release). Reach for microservices only when organizational or scaling pressure
+  demands it — the BEAM gives you distribution <em>inside</em> one deploy artifact, which removes the
+  most common reason for splitting services (see <a href="/roadmap/elixir/distribution.html">Distributed Elixir</a>).
+</p>
+
+<h2 id="designing-for-failure">Designing for Failure</h2>
+<ul>
+  <li><strong>Draw the supervision tree before the code.</strong> Every box is a restart domain; if you cannot explain what a restart means for users, the design is not done.</li>
+  <li><strong>Timeouts at every boundary.</strong> <code>GenServer.call</code> timeouts, HTTP timeouts, pool checkout timeouts — a system without timeouts is a deadlock waiting for load.</li>
+  <li><strong>Circuit-break at process boundaries:</strong> when a downstream dependency fails, keep failing fast (a small GenServer tracking breaker state) instead of queuing requests.</li>
+  <li><strong>Test failure, not just success:</strong> kill processes in test (the <code>:sys</code> and <code>Process.exit</code> route) and assert the recovery behaviour.</li>
+</ul>
+
+<h2 id="anti-patterns">Anti-Patterns</h2>
+<ul>
+  <li><strong>The God GenServer</strong> — one process owning everything serializes the whole system; split by ownership (one process per entity).</li>
+  <li><strong>The Application junk drawer</strong> — dumping helpers into <code>MyApp.Utils</code> instead of naming domain concepts.</li>
+  <li><strong>Hidden state flow</strong> — the process dictionary, global singletons, or <code>:persistent_term</code> as a mutable store.</li>
+  <li><strong>Web code in contexts</strong> — <code>Plug.Conn</code> below the web layer makes domain code untestable and un-reusable.</li>
+  <li><strong>Optional dependencies everywhere</strong> — five service-discovery layers for a three-node cluster is résumé architecture.</li>
+</ul>
+
 <h2 id="practice-architecture">Practice</h2>
 <ol>
-  <li>Sketch one context boundary for an Elixir service.</li>
-  <li>Decide whether an umbrella app fits a sample system.</li>
-  <li>Write one note about why process boundaries matter in production.</li>
+  <li>Draw the supervision tree for a chat service: connections, presence, message fan-out, and what restarts when each crashes.</li>
+  <li>Take an existing project and extract two contexts; list the public API of each in ten lines.</li>
+  <li>Pick one anti-pattern above and find it in an open-source project's issue tracker — real-world archaeology beats theory.</li>
 </ol>
-</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
-<script>window.TOPIC_CONFIG={labId:'elixir',topicId:'architecture',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
-<script src="/sage.js" defer></script>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/performance.html">Performance &amp; Observability</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'architecture',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-</body></html>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Elixir syntax: expressions, modules, the pipe operator, sigils, and documentation as code — everything returns a value and flows through pipelines.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="elixir syntax, defmodule, pipe operator, sigils, moduledoc">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elixir: Syntax &amp; Expressions</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/elixir/syntax.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-syntax-expressions">Elixir: Syntax &amp; Expressions</h1>
+<div class="alert alert-secondary shadow-sm">
+  Elixir's syntax is small on purpose: almost everything is an <em>expression</em> that returns a value,
+  code lives in <em>modules</em>, and data flows through <em>pipelines</em>. This lesson covers the
+  vocabulary you need before the deep dives on data and pattern matching.
+</div>
+
+<h2 id="files-scripts-and-modules">Files, Scripts and Modules</h2>
+<p>
+  Elixir source comes in two flavours. <code>.ex</code> files are compiled by <code>mix</code> into
+  bytecode; <code>.exs</code> files are scripts, executed on the fly — the extension is a promise about
+  how the file is used, not a different language. Module definitions can live in either.
+</p>
+<pre><code class="language-elixir line-numbers"># greet.exs — run with: elixir greet.exs
+defmodule Greet do
+  # @moduledoc and @doc are read by `h` in iex and by ExDoc.
+  @moduledoc "Tiny greeting module used in the syntax lesson."
+
+  @doc """
+  Builds a greeting for `name`.
+
+  ## Examples
+
+      iex&gt; Greet.hello("Ada")
+      "Hello, Ada!"
+
+  """
+  def hello(name), do: "Hello, #{name}!"   # one-line body form
+end
+
+IO.puts(Greet.hello("Ada"))</code></pre>
+<p>
+  Note the <code>#{...}</code> interpolation inside strings and the <code>do:</code> shorthand —
+  <code>def hello(name), do: "Hello, #{name}!"</code> is exactly equivalent to a
+  <code>do ... end</code> block. The doctest inside <code>@doc</code> is not decoration:
+  <a href="/roadmap/elixir/testing.html">ExUnit</a> can execute it as a test.
+</p>
+
+<h2 id="everything-is-an-expression">Everything Is an Expression</h2>
+<p>
+  There are no "statements" in Elixir. Conditions return values, blocks return values, and even
+  <code>case</code> returns the value of the branch it took. This removes the split that imperative
+  languages have between <em>computing</em> a value and <em>storing</em> it.
+</p>
+<pre><code class="language-elixir line-numbers"># The if itself produces a value — no temp variable needed.
+label =
+  if score &gt;= 90, do: "excellent", else: "ok"
+
+# case branches produce values too, so you can bind the whole thing.
+size =
+  case {width, height} do
+    {w, h} when w == h -&gt; :square   # guard refines the match
+    {w, _} when w &gt; h -&gt; :wide
+    _ -&gt; :tall                      # _ is the catch-all pattern
+  end</code></pre>
+<h2 id="the-pipe-operator">The Pipe Operator</h2>
+<p>
+  The pipe <code>|&gt;</code> takes the result of the previous expression and passes it as the
+  <em>first argument</em> of the next call. Nested calls read inside-out; pipes read top-to-bottom like
+  a recipe — which is why idiomatic Elixir pipelines dominate data-transformation code.
+</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-pipeline-transform.svg" class="figure-img img-fluid rounded" alt="A value flows through downcase, replace, split and frequencies, each step producing a new immutable value" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Each pipe step consumes one value and produces a new one; nothing is mutated in place.</figcaption>
+</figure>
+<pre><code class="language-elixir line-numbers"># Without pipes — read it inside-out, and count parentheses.
+IO.inspect(Enum.frequencies(String.split(String.replace(String.downcase(s), ","))))
+
+# With pipes — the same computation, in evaluation order.
+s
+|&gt; String.downcase()
+|&gt; String.replace(",", "")
+|&gt; String.split()
+|&gt; Enum.frequencies()
+|&gt; IO.inspect()</code></pre>
+<p>
+  One rule keeps pipes readable: the piped function should make sense with the data as its first
+  argument — which is the Elixir standard-library convention. When a function needs the data last,
+  use a capture: <code>|&gt; Enum.reduce(&amp;sum/2)</code> or an anonymous function.
+</p>
+
+<h2 id="operators-you-will-use-daily">Operators You Will Use Daily</h2>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Operator</th><th>Meaning</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td><code>=</code></td><td>match (not assign!)</td><td>See <a href="/roadmap/elixir/pattern-matching.html">Pattern Matching</a></td></tr>
+    <tr><td><code>|&gt;</code></td><td>pipe result as first arg</td><td>the workhorse</td></tr>
+    <tr><td><code>++</code> / <code>--</code></td><td>list concat / difference</td><td>O(n) on the left side — prepend with <code>[h | t]</code> instead</td></tr>
+    <tr><td><code>&lt;&gt;</code></td><td>binary/string concat</td><td>prefer IO data for many joins</td></tr>
+    <tr><td><code>and/or</code></td><td>boolean (require <code>true</code>/<code>false</code>)</td><td><code>&amp;&amp;/||</code> accept any truthy value</td></tr>
+    <tr><td><code>in</code></td><td>membership</td><td><code>:ok in [:ok, :error]</code></td></tr>
+    <tr><td><code>^</code></td><td>pin — reuse an existing binding</td><td>crucial in matches</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sigils-an-introduction">Sigils, an Introduction</h2>
+<p>
+  Sigils are prefixed literals that build common values without ceremony. The letter picks the
+  transformation, and the delimiters are your choice; a lowercase sigil allows interpolation
+  (<code>#{...}</code>), uppercase does not.
+</p>
+<pre><code class="language-elixir line-numbers">~s(a "quoted" string)   # ~s: string with double quotes inside, no escaping
+~w(red green blue)      # ~w: word list  =&gt; ["red", "green", "blue"]
+~w(1 2 3)a              # trailing letter picks the type: `a` for atoms
+~D 2026-09-17           # ~D: Date struct
+~U 2026-09-17T08:30:00Z # ~U: UTC DateTime struct
+~r/\d+/                 # ~r: regular expression</code></pre>
+
+<h2 id="documentation-as-code">Documentation as Code</h2>
+<p>
+  Elixir treats docs as a first-class artifact: <code>@moduledoc</code> and <code>@doc</code> strings
+  are compiled into the module and surfaced by <code>h</code> in <code>iex</code>, by editors, and by
+  <a href="https://hexdocs.pm/ex_doc/" target="_blank" rel="noopener noreferrer nofollow">ExDoc</a> when
+  you publish to <a href="https://hex.pm/" target="_blank" rel="noopener noreferrer nofollow">Hex</a>.
+  The <code>## Examples</code> section doubles as executable doctests.
+</p>
+
+<h2 id="style-and-the-formatter">Style and the Formatter</h2>
+<p>
+  The community style is mechanical, not argued about: two-space indent, <code>snake_case</code>
+  functions, <code>Module</code> names in <code>PascalCase</code>, atoms and module attributes for
+  constants, and <em>no unused variables</em> (prefix with <code>_</code> to mark intent).
+  <code>mix format</code> enforces the layout — run it in CI so reviews stay about logic.
+</p>
+
+<h2 id="practice-syntax">Practice</h2>
+<ol>
+  <li>Save the <code>greet.exs</code> example, run it, then add a <code>bye/1</code> function with a doctest and run it through <code>iex</code> with <code>h Greet.bye</code>.</li>
+  <li>Rewrite one nested expression from an earlier lesson as a pipeline; note which version is easier to modify.</li>
+  <li>Use three different sigils (<code>~w</code>, <code>~D</code>, <code>~r</code>) and print each result with <code>IO.inspect/1</code>.</li>
+</ol>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/data.html">Data &amp; Immutability</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'syntax',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

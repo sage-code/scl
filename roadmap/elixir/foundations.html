@@ -1,44 +1,153 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Elixir foundations lab for BEAM runtime basics, use cases, and language identity.">
+  <meta name="description" content="Elixir foundations: why the language exists, how the BEAM works, where it runs in production, and how this beginner-to-expert track is organized.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="elixir foundations, beam, functional programming, use cases">
+  <meta name="keywords" content="elixir foundations, beam, erlang otp, functional programming, fault tolerance">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Elixir Foundations</title>
+  <title>Elixir: Foundations</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/elixir/foundations.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
   <div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="elixir-foundations">Elixir Foundations</h2>
-<div class="alert alert-secondary shadow-sm">Elixir is a functional language that runs on the BEAM virtual machine and is built for concurrency, distribution, and fault tolerance.</div>
-<h2 id="what-elixir-is">What Elixir is</h2>
-<p>Elixir combines functional programming with practical tooling and excellent interoperability with Erlang libraries.</p>
-<h2 id="beam-runtime">BEAM runtime</h2>
-<p>BEAM is the runtime that makes lightweight processes, message passing, and supervision practical at scale.</p>
-<h2 id="common-use-cases">Common use cases</h2>
+<h1 id="elixir-foundations">Elixir: Foundations</h1>
+<div class="alert alert-secondary shadow-sm">
+  Elixir is a dynamic, functional language that runs on the Erlang virtual machine (BEAM). This opening
+  lesson explains why the language exists, what the BEAM gives you that other runtimes do not, where
+  Elixir runs in production today, and how the rest of this track is organized.
+</div>
+
+<h2 id="why-elixir-exists">Why Elixir Exists</h2>
+<p>
+  Elixir was created by José Valim in 2011–2012 with a specific observation behind it: the Erlang platform
+  had solved the hardest problems in server software — concurrency, distribution, and fault tolerance —
+  decades before anyone else, but its syntax and tooling felt alien to programmers raised on mainstream
+  languages. Elixir keeps the runtime and swaps the surface: a Ruby-inspired syntax, a modern standard
+  library, a build tool (<code>mix</code>), a package registry (<code>hex</code>), and first-class
+  documentation tooling (<code>ExDoc</code>).
+</p>
+<p>
+  Three design commitments follow from that history, and every chapter of this track builds on them:
+</p>
 <ul>
-  <li>Real-time systems and chat services.</li>
-  <li>Distributed backends and telemetry-heavy services.</li>
-  <li>Web applications with Phoenix and LiveView.</li>
+  <li><strong>Immutability by default.</strong> Data never changes under you; every transformation returns a new value. Whole categories of race conditions and defensive copies disappear.</li>
+  <li><strong>Processes, not threads.</strong> Concurrency is expressed as thousands of isolated lightweight processes that share nothing and talk only through messages.</li>
+  <li><strong>Let it crash.</strong> Instead of defensive error handling everywhere, code that hits an unexpected state dies immediately and a supervisor restarts it in a clean state.</li>
 </ul>
+
+<h3 id="what-you-give-up">What you give up</h3>
+<p>
+  Honesty about trade-offs is part of learning a language well. Elixir is not the fastest language for
+  raw numeric loops (Rust, C, and even Julia beat it), it is garbage-collected (you do not control
+  memory the way Rust's ownership model does), and its dynamic typing means fewer compile-time
+  guarantees than statically typed languages — although the gradual set-theoretic type system
+  introduced in Elixir 1.18 and expanded since now catches many errors at compile time. The
+  <a href="/roadmap/elixir/comparison.html">comparison lesson</a> examines these trade-offs in detail.
+</p>
+
+<h2 id="the-beam-runtime">The BEAM Runtime</h2>
+<p>
+  The Erlang virtual machine — the <em>Bogdan/Björn's Erlang Abstract Machine</em>, or BEAM — is the
+  real foundation of every Elixir program. It was designed at Ericsson in the 1980s to run telephone
+  switches that could never go down, and that goal shaped every layer:
+</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-beam-runtime.svg" class="figure-img img-fluid rounded" alt="Layers of the BEAM runtime: Elixir code compiled to BEAM bytecode, on a preemptive scheduler with per-process heaps" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Elixir compiles to BEAM bytecode like Erlang does; OTP supplies the process and supervision machinery both languages share.</figcaption>
+</figure>
+<ul>
+  <li><strong>Preemptive scheduling.</strong> Each process gets a small budget of <em>reductions</em> (roughly function calls). A tight loop cannot starve other processes — the scheduler preempts it. There is no async/await split: every function is written synchronously.</li>
+  <li><strong>Isolated heaps.</strong> Every process owns its memory and is garbage-collected individually, so a GC pause in one process never freezes another. Heaps are tiny (a few KB) and collected in microseconds.</li>
+  <li><strong>Message passing.</strong> Processes share no state. Data sent between processes is copied (except large binaries, which are reference-counted on a shared heap).</li>
+  <li><strong>Distribution.</strong> Two BEAM nodes that share a cookie form a cluster and can message each other transparently — distribution is a language-level feature, not a library you bolt on.</li>
+</ul>
+
+<h3 id="a-first-process">A first process</h3>
+<p>
+  This is a complete, runnable Elixir script. It spawns a process, sends it a message, and prints the
+  reply. Do not worry about every keyword yet — the point is that <em>concurrency fits in twelve
+  readable lines</em> with no locks, no thread pool, and no callback pyramid.
+</p>
+<pre><code class="language-elixir line-numbers"># counter.exs — run with: elixir counter.exs
+defmodule Counter do
+  # A process loops forever, waiting for one message at a time.
+  def loop(count) do
+    receive do
+      # A synchronous request: the caller includes its own pid (`self()`).
+      {:increment, caller} -&gt;
+        send(caller, {:ok, count + 1})
+        loop(count + 1)              # tail-call: keeps the process alive
+    end
+  end
+end
+
+pid = spawn(Counter, :loop, [0])   # start with count = 0
+send(pid, {:increment, self()})    # self() is this process's pid
+
+receive do                         # wait for the reply
+  {:ok, new_count} -&gt; IO.puts("Count is now #{new_count}")
+end</code></pre>
+
+<h2 id="where-elixir-runs-today">Where Elixir Runs Today</h2>
+<p>
+  Elixir is a production language with public, documented deployments at serious scale. These case
+  studies (from the official <a href="https://elixir-lang.org/cases/" target="_blank" rel="noopener noreferrer nofollow">case-study page</a>) are worth reading once you finish phase 4:
+</p>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Product</th><th>What Elixir does there</th><th>Why the BEAM fits</th></tr></thead>
+  <tbody>
+    <tr><td>Discord</td><td>Real-time messaging fan-out across millions of concurrent users</td><td>Millions of lightweight processes map naturally onto millions of connections</td></tr>
+    <tr><td>Supabase Realtime</td><td>WebSocket broadcast, presence, and Postgres change streams</td><td>Long-lived connections plus fan-out are the BEAM's home turf</td></tr>
+    <tr><td>Plausible Analytics</td><td>The entire analytics stack, cookie-free and self-hostable</td><td>Small team, high throughput, boring operations</td></tr>
+    <tr><td>Remote</td><td>Global employment platform, one Elixir monolith, ~300 engineers</td><td>Contexts and process boundaries scale with the org chart</td></tr>
+    <tr><td>BBC</td><td>Web infrastructure serving most of its traffic</td><td>Traffic spikes handled with graceful degradation</td></tr>
+    <tr><td>Firezone</td><td>Open-source remote-access platform (Elixir + WireGuard)</td><td>Connection management and policy checks per client</td></tr>
+  </tbody>
+</table>
+
+<h2 id="how-the-track-is-organized">How the Track Is Organized</h2>
+<p>
+  The track moves through seven phases. Each phase assumes the previous one; each lesson ends with
+  practice tasks and links to runnable demos in the <a href="/roadmap/elixir/demo_examples.html">Lab Examples</a> page.
+</p>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Phase</th><th>Contents</th><th>After it you can…</th></tr></thead>
+  <tbody>
+    <tr><td>1. Foundations</td><td>Overview, comparison with Python/Rust, toolchain, syntax</td><td>Run Elixir programs and explain when to choose it</td></tr>
+    <tr><td>2. Language Core</td><td>Data, pattern matching, functions, collections, polymorphism, errors, binaries</td><td>Write idiomatic Elixir for everyday logic</td></tr>
+    <tr><td>3. Metaprogramming &amp; Tooling</td><td>Macros, Mix projects, testing, IEx and static analysis</td><td>Ship and maintain a real codebase</td></tr>
+    <tr><td>4. Concurrency &amp; OTP</td><td>Processes, tasks, GenServer, supervision, applications, distribution</td><td>Design fault-tolerant concurrent systems</td></tr>
+    <tr><td>5. Production &amp; Ecosystem</td><td>Ecto, Phoenix, LiveView, architecture, performance, numerical work</td><td>Build and operate production services</td></tr>
+    <tr><td>6. Practice &amp; Demos</td><td>36 single-file demos, study projects, open-source reading list</td><td>Consolidate everything by reading and modifying real code</td></tr>
+    <tr><td>7. Reference</td><td>Verified docs, tutorials, and community links</td><td>Keep learning after the track ends</td></tr>
+  </tbody>
+</table>
+
 <h2 id="practice-foundations">Practice</h2>
 <ol>
-  <li>Explain why Elixir favors concurrency over shared mutable state.</li>
-  <li>List one production use case for BEAM-based systems.</li>
-  <li>Write one note about where Elixir fits better than a traditional thread-based service.</li>
+  <li>Run the counter script above (it only needs Elixir installed — see <a href="/roadmap/elixir/environment.html">Install &amp; Toolchain</a>), then change it so the process also answers <code>:get</code> messages with the current count.</li>
+  <li>Explain in two sentences why a GC pause in one BEAM process cannot freeze another.</li>
+  <li>Pick one case study from the table and name the property of the BEAM it depends on most.</li>
+  <li>Skim the <a href="/roadmap/elixir/comparison.html">comparison lesson</a> and write down one thing Elixir does that Python cannot do without extra machinery.</li>
 </ol>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/comparison.html">Elixir vs Python vs Rust</a></p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'elixir',topicId:'foundations',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
-<script src="/sage.js" defer></script>
+<script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
 </body></html>

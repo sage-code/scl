@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Elixir study projects: larger guided programs — a supervised KV store, a job queue, a metrics pipeline, and a distributed chat — combining chapters into whole applications.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elixir Study Projects</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="elixir-study-projects">Elixir Study Projects</h1>
+        <div class="alert alert-secondary shadow-sm">
+          Where single-file demos end, study projects begin. Each project below combines several
+          chapters into one working program, with a guided reading order and an experiment to try.
+          Build them in a scratch Mix project — each fits in a handful of modules.
+        </div>
+
+        <h2 id="project-inventory">Project Inventory</h2>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Project</th><th>Concepts combined</th><th>Start from</th></tr></thead>
+          <tbody>
+            <tr><td>Supervised KV store</td><td>GenServer, ETS backup, supervision tree</td><td><a href="/roadmap/elixir/demo/concurrency/25_genserver.exs">GenServer demo</a></td></tr>
+            <tr><td>Job queue</td><td>Oban, Ecto, telemetry, retry semantics</td><td><a href="/roadmap/elixir/demo/ecosystem/35_oban_worker.exs">Oban demo</a></td></tr>
+            <tr><td>Metrics pipeline</td><td>Broadway, back-pressure, batching, telemetry</td><td><a href="/roadmap/elixir/demo/ecosystem/32_broadway_pipeline.exs">Broadway demo</a></td></tr>
+            <tr><td>Distributed chat</td><td>PubSub, Registry, LiveView, clustering</td><td><a href="/roadmap/elixir/demo/concurrency/28_registry.exs">Registry demo</a></td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="supervised-kv-store">Project 1: Supervised KV Store</h2>
+        <p>
+          A key/value store that survives crashes: a GenServer owns the map, an ETS table (owned by a
+          separate "guardian" process) holds the last snapshot, and on restart the server rebuilds
+          from ETS. Reading order: <code>Guardian</code> (ETS owner) → <code>Store</code> (GenServer)
+          → <code>StoreSupervisor</code> (tree).
+        </p>
+        <pre><code class="language-elixir line-numbers">defmodule Guardian do
+  # A process whose ONLY job is owning the ETS table. If the store
+  # crashes, this process still holds the data.
+  use GenServer
+
+  @table :kv_backup
+
+  def start_link(_), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+
+  @impl true
+  def init(_) do
+    # :public + named_table lets the Store process read/write directly.
+    :ets.new(@table, [:set, :named_table, :public, read_concurrency: true])
+    {:ok, nil}
+  end
+
+  def snapshot(map), do: :ets.insert(@table, {:data, map})
+
+  def restore do
+    case :ets.lookup(@table, :data) do
+      [{:data, map}] -&gt; map
+      [] -&gt; %{}
+    end
+  end
+end</code></pre>
+<pre><code class="language-elixir line-numbers">defmodule Store do
+  use GenServer
+
+  def start_link(_), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+
+  @impl true
+  def init(_) do
+    # REBUILD state from the guardian after every restart — the crash
+    # loses nothing but the writes since the last snapshot.
+    {:ok, Guardian.restore(), {:continue, :snapshot_loop}}
+  end
+
+  @impl true
+  def handle_continue(:snapshot_loop, state) do
+    Process.send_after(self(), :snapshot, 5_000)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:snapshot, state) do
+    Guardian.snapshot(state)
+    Process.send_after(self(), :snapshot, 5_000)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_call({:put, k, v}, _from, state), do: {:reply, :ok, Map.put(state, k, v)}
+  def handle_call({:get, k}, _from, state), do: {:reply, Map.get(state, k), state}
+end
+
+# The tree — rest_for_one guarantees the Guardian boots FIRST, so
+# Store.restore/0 always finds the table it depends on.
+defmodule StoreSupervisor do
+  use Supervisor
+
+  def start_link(_), do: Supervisor.start_link(__MODULE__, nil, name: __MODULE__)
+
+  @impl true
+  def init(_) do
+    Supervisor.init([Guardian, Store], strategy: :rest_for_one)
+  end
+end
+
+# Boot and try it:
+{:ok, _} = Supervisor.start_link(StoreSupervisor, [])
+:ok = GenServer.call(Store, {:put, :lang, "elixir"})
+GenServer.call(Store, {:get, :lang})      #=&gt; "elixir"
+# Kill the store — it restarts and RESTORES from ETS:
+[{_, store, _, _}] = Supervisor.which_children(StoreSupervisor)
+Process.exit(store, :kill)
+Process.sleep(100)
+GenServer.call(Store, {:get, :lang})      #=&gt; "elixir" (rebuilt!)</code></pre>
+<p><strong>Experiments:</strong> move the snapshot interval to 100ms and measure the cost; add <code>del/1</code>; make <code>Guardian</code> snapshot to disk on shutdown.</p>
+<h2 id="job-queue">Project 2: Job Queue</h2>
+<p>
+  Background jobs with retries and observability, using Oban on PostgreSQL. Reading order:
+  <code>Worker</code> → config → insert a job. The point to study is how much of the OTP
+  machinery (polling, retries, supervision) a production library gives you — and that its pieces are
+  the same behaviours you wrote by hand.
+</p>
+<pre><code class="language-elixir line-numbers"># application.ex — mount Oban in the tree (needs a Postgres repo).
+children = [
+  MyApp.Repo,
+  {Oban, queues: [default: 10], repo: MyApp.Repo}
+]
+
+defmodule MyApp.Jobs.EmailWorker do
+  use Oban.Worker,
+    queue: :default,
+    max_attempts: 5,
+    unique: [period: 60]      # dedupe identical jobs for 60s
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"email" =&gt; to}}) do
+    case Mailer.deliver(to) do
+      :ok -&gt; :ok
+      # Returning {:error, _} schedules a retry with backoff —
+      # transient failures recover without human help.
+      {:error, reason} -&gt; {:error, reason}
+    end
+  end
+end
+
+# Enqueue from anywhere — a plain struct, persisted in Postgres:
+%{email: "ada@example.com"}
+|&gt; MyApp.Jobs.EmailWorker.new()
+|&gt; Oban.insert()</code></pre>
+<p><strong>Experiments:</strong> force a failure and watch retry timing grow; add a second queue with lower concurrency; emit telemetry on job completion.</p>
+
+<h2 id="metrics-pipeline">Project 3: Metrics Pipeline</h2>
+<p>
+  Ingest events faster than you can write them: Broadway reads from a source, batches, and writes to
+  a sink, with back-pressure so the queue drains on its own terms. Reading order: the producer →
+  processors → batcher.
+</p>
+<pre><code class="language-elixir line-numbers">defmodule MyApp.MetricsPipeline do
+  use Broadway
+
+  def start_link(_opts) do
+    Broadway.start_link(__MODULE__,
+      name: __MODULE__,
+      producer: [
+        module: {MyApp.EventProducer, []},   # your own GenStage producer
+        concurrency: 1
+      ],
+      processors: [
+        stages: 20,                    # parse/validate concurrently
+        max_demand: 100                # back-pressure: never take 1000 at once
+      ],
+      batchers: [
+        sink: [batch_size: 500, batch_timeout: 2_000]
+      ]
+    )
+  end
+
+  @impl true
+  def handle_message(_processor, %Message{data: raw} = msg, _ctx) do
+    msg
+    |&gt; Message.update_data(&amp;parse_event/1)
+    |&gt; Message.put_batcher(:sink)
+  end
+
+  @impl true
+  # handle_batch writes 500 events in ONE database round-trip.
+  def handle_batch(:sink, messages, _batch_info, _ctx) do
+    events = Enum.map(messages, &amp; &amp;1.data)
+    MyApp.Repo.insert_all(MyApp.Event, events)
+    messages
+  end
+
+  defp parse_event(raw), do: raw |&gt; JSON.decode!() |&gt; normalize()
+end</code></pre>
+<p><strong>Experiments:</strong> log batch sizes while varying <code>batch_size</code>; kill a processor mid-run (Broadway re-drives the failed messages); swap the producer for an SQS source.</p>
+
+<h2 id="distributed-chat">Project 4: Distributed Chat</h2>
+<p>
+  The LiveView chat: one LiveView process per browser session, a <code>Phoenix.PubSub</code> topic
+  per room, and messages fanning out cluster-wide. Reading order: <code>RoomLive</code> →
+  <code>Chat</code> context → PubSub wiring.
+</p>
+<pre><code class="language-elixir line-numbers">defmodule MyAppWeb.RoomLive do
+  use MyAppWeb, :live_view
+  @topic "room:general"
+
+  def mount(_params, _session, socket) do
+    # Only subscribe once the socket is live — otherwise the client
+    # would miss nothing anyway, but tests would double-subscribe.
+    if connected?(socket), do: Phoenix.PubSub.subscribe(MyApp.PubSub, @topic)
+    {:ok, assign(socket, messages: [], name: nil)}
+  end
+
+  # Two distinct event sources, two handlers — the LiveView pattern:
+  def handle_event("join", %{"name" =&gt; name}, socket) do
+    Phoenix.PubSub.broadcast(MyApp.PubSub, @topic, {:joined, name})
+    {:noreply, assign(socket, name: name)}
+  end
+
+  def handle_event("say", %{"text" =&gt; text}, socket) do
+    Phoenix.PubSub.broadcast(MyApp.PubSub, @topic, {:said, socket.assigns.name, text})
+    {:noreply, socket}
+  end
+
+  def handle_info({:said, who, text}, socket) do
+    {:noreply, update(socket, :messages, &amp;([&amp;1 | ["#{who}: #{text}"]]))}
+  end
+
+  def handle_info({:joined, name}, socket) do
+    {:noreply, update(socket, :messages, &amp;(["* #{name} joined*" | &amp;1]))}
+  end
+end</code></pre>
+<p><strong>Experiments:</strong> run two nodes and send from one — the other receives (PubSub is cluster-aware); add presence to show connected users; cap message history in assigns to prevent memory growth.</p>
+
+<div class="alert alert-info shadow-sm">
+  <strong>Reading further:</strong> each of these exists at production scale in open source — see
+  <a href="/roadmap/elixir/open-source-projects.html">Open Source Projects</a> for the codebases to
+  study next (Oban, Broadway, Plausible).
+</div>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'samples',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

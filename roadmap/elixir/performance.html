@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Elixir performance and observability: the scheduler, per-process GC, ETS, persistent_term, profiling with Benchee and eprof, telemetry, and NIFs.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="elixir performance, ets, persistent_term, benchee, telemetry, nif, profiler">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elixir: Performance &amp; Observability</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/elixir/performance.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-performance-observability">Elixir: Performance &amp; Observability</h1>
+<div class="alert alert-secondary shadow-sm">
+  BEAM performance is unusual: single-process numeric work is slow, but <em>system</em> throughput
+  under thousands of concurrent tasks is excellent — if you know where the bottlenecks are. This
+  lesson covers the runtime costs, the escape hatches, and the tools that tell you which one you
+  need.
+</div>
+
+<h2 id="what-costs-what">What Costs What</h2>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Operation</th><th>Cost</th><th>Practical note</th></tr></thead>
+  <tbody>
+    <tr><td>Spawn a process</td><td>~1–3 µs, ~2.6 KB</td><td>spawning per request is normal design</td></tr>
+    <tr><td>Message to another node</td><td>TCP hop, copied</td><td>design for locality first</td></tr>
+    <tr><td>Append to a list</td><td>O(n)</td><td>prepend + <code>Enum.reverse</code> instead</td></tr>
+    <tr><td>Map update</td><td>O(log n) + structural sharing</td><td>fine for millions of keys</td></tr>
+    <tr><td>Pure numeric loop</td><td>10–100× slower than Rust/C</td><td>push to Nx/NIFs — see <a href="/roadmap/elixir/numerical.html">Numerical Elixir</a></td></tr>
+    <tr><td>Large binary handling</td><td>refc heap, ref-counted, shared</td><td>slicing binaries is cheap; accreting with <code>&lt;&gt;</code> is not — use IO data</td></tr>
+  </tbody>
+</table>
+
+<h2 id="shared-state-that-scales">Shared State That Scales</h2>
+<p>
+  A GenServer serializes access — at 10k reads/second it becomes the bottleneck. Two escape hatches,
+  both still immutable-data-friendly:
+</p>
+<pre><code class="language-elixir line-numbers"># ETS: an in-memory table outside any process. Readers never block.
+table = :ets.new(:cache, [:set, :public, read_concurrency: true, write_concurrency: true])
+:ets.insert(table, {:user_42, %{name: "Ada"}})
+:ets.lookup(table, :user_42)          # microsecond reads, from any process
+
+# :persistent_term — global constants updated rarely, read at memory speed.
+:persistent_term.put(:config, %{ttl: 300})
+:persistent_term.get(:config)
+# Caution: an update triggers a global GC scan — config, not counters.</code></pre>
+<h2 id="profiling">Profiling</h2>
+<pre><code class="language-elixir line-numbers"># Benchee — benchmark with warm-up, statistics, and comparisons.
+Benchee.run(%{
+  "map+reverse" =&gt; fn list -&gt; Enum.reverse(Enum.map(list, &amp;(&amp;1 * 2))) end,
+  "comprehension" =&gt; fn list -&gt; for i &lt;- list, do: i * 2 end
+  # Benchee reports ips, avg/dev time, and memory per run.
+}, input: %{"10k" =&gt; Enum.to_list(1..10_000)})
+
+# :eprof — who calls whom, and how much time each function takes.
+:eprof.start()
+:eprof.profile(fn -&gt; MyApp.HeavyJob.run() end)
+
+# :erlang.trace / recon — production-safe tracing of specific processes.
+:recon_trace.calls({MyApp.HeavyJob, :run, 0}, 10)</code></pre>
+<p>
+  Measure in this order: <strong>throughput under realistic concurrency</strong> (a load script),
+  then <strong>queue times</strong> (where requests wait), then <strong>CPU inside a step</strong>.
+  Optimizing a function that is 1% of wall time is the classic waste.
+</p>
+
+<h2 id="telemetry-and-observability">Telemetry and Observability</h2>
+<pre><code class="language-elixir line-numbers">:telemetry.execute([:my_app, :job, :stop], %{duration: duration}, %{job: "ingest"})
+
+# Attach handlers anywhere (libraries like Phoenix, Ecto, Oban already
+# emit standard events — attach, don't reinstrument):
+:telemetry.attach("job-metrics", [:my_app, :job, :stop], fn _event, measurements, metadata, _ &gt;
+  Logger.info("job=#{metadata.job} took=#{measurements.duration}µs")
+end, nil)</code></pre>
+<p>
+  The ecosystem standard: <code>telemetry</code> events → <code>telemetry_metrics</code> aggregates →
+  Prometheus/LiveDashboard. Phoenix LiveView apps also ship <code>LiveDashboard</code> out of the
+  box — live process queues, ETS tables, and metrics with no extra infrastructure.
+</p>
+
+<h2 id="nifs-and-when-to-escape">NIFs and When to Escape</h2>
+<p>
+  When a hot path stays slow — parsing gigabytes, cryptography, ML inference — native code enters as
+  a <strong>NIF</strong> (native function call, linked into the VM) or a <strong>port</strong>
+  (separate OS process). Rules: NIFs must be fast (they block a scheduler thread; dirty schedulers
+  help but are not a license to stall), and <strong>Rustler</strong> is the standard way to write
+  them safely. The rest of the system never knows — the NIF looks like a normal Elixir function.
+</p>
+
+<h2 id="practice-performance">Practice</h2>
+<ol>
+  <li>Benchmark the same transformation with Benchee twice — once on a list, once on a stream — and read the memory column.</li>
+  <li>Replace one GenServer-backed cache with an ETS table and measure p99 latency under load.</li>
+  <li>Attach a telemetry handler to Ecto's <code>[:my_app, :repo, :query]</code> events and log queries slower than 100ms.</li>
+</ol>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/numerical.html">Numerical &amp; Embedded Elixir</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'performance',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

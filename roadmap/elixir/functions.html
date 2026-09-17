@@ -1,40 +1,172 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="Elixir functions lab for recursion, anonymous functions, captures, and composition.">
+  <meta name="description" content="Elixir functions: named functions, arity, default arguments, anonymous functions, captures, closures, and tail recursion with accumulators.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="elixir functions, recursion, anonymous functions, pipe operator">
+  <meta name="keywords" content="elixir functions, anonymous functions, captures, closures, tail recursion">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Elixir Functions</title>
+  <title>Elixir: Functions &amp; Recursion</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/elixir/functions.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="elixir-functions">Elixir Functions</h2>
-<div class="alert alert-secondary shadow-sm">Functions in Elixir are recursive by default and often written as small pure transformations with explicit data flow.</div>
-<h2 id="definitions">Definitions</h2>
-<pre><code class="language-elixir">def greet(name), do: "Hello, #{name}!"</code></pre>
-<h2 id="anonymous-functions">Anonymous functions</h2>
-<p>Anonymous functions are useful for callbacks, short transformations, and passing behavior around.</p>
-<h2 id="pipe-operator">Pipe operator</h2>
-<p>The pipe operator keeps transformation chains readable by threading a value through a sequence of calls.</p>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-functions-recursion">Elixir: Functions &amp; Recursion</h1>
+<div class="alert alert-secondary shadow-sm">
+  Elixir has two kinds of functions — named and anonymous — and one loop construct: recursion. This
+  lesson covers both kinds, the capture syntax you will meet in every pipeline, and why tail recursion
+  makes functional loops as cheap as <code>while</code>.
+</div>
+
+<h2 id="named-functions">Named Functions</h2>
+<p>
+  Named functions live in modules and are identified by <em>name and arity</em>:
+  <code>summarize/1</code> and <code>summarize/2</code> are different functions. Guards and multiple
+  clauses (see <a href="/roadmap/elixir/pattern-matching.html">Pattern Matching</a>) attach to the head.
+</p>
+<pre><code class="language-elixir line-numbers">defmodule Stats do
+  # Private helper — callable only from inside this module.
+  defp square(n), do: n * n
+
+  # Default arguments come from `\\` — the default fallback operator.
+  def summarize(numbers, label \\ "data", precision \\ 2) do
+    total = Enum.sum(numbers)
+    avg = total / length(numbers)
+    "#{label}: total=#{total}, avg=#{Float.round(avg, precision)}"
+  end
+
+  def rms(numbers), do: numbers |&gt; Enum.map(&amp;square/1) |&gt; mean()
+
+  defp mean([]), do: 0.0
+  defp mean(list), do: Enum.sum(list) / length(list)
+end
+
+Stats.summarize([1, 2, 3])          # uses both defaults
+Stats.summarize([1, 2, 3], "temps") # uses one default</code></pre>
+<h3 id="default-argument-caveat">Default-argument caveat</h3>
+<p>
+  With defaults, define clauses so that a <em>head-only</em> clause (no body) declares the defaults
+  before the clause bodies — otherwise the compiler warns about a required parameter after an optional
+  one.
+</p>
+<pre><code class="language-elixir line-numbers">def join(list, sep \\ ", ")
+def join([], _sep), do: ""               # _sep marks it unused on purpose
+def join(list, sep), do: Enum.join(list, sep)</code></pre>
+
+<h2 id="anonymous-functions-and-captures">Anonymous Functions and Captures</h2>
+<p>
+  Anonymous functions — <code>fn ... end</code>, or the <code>&amp;</code> capture shorthand — are
+  values you pass around. They are closures: they remember the bindings from the scope where they
+  were created.
+</p>
+<pre><code class="language-elixir line-numbers"># Long form: arguments, body, and a `.` call syntax (deliberate).
+add = fn a, b -&gt; a + b end
+add.(2, 3)                     #=&gt; 5
+
+# Capture shorthand: &amp; builds a function from an expression.
+double = &amp;(&amp;1 * 2)             # &amp;1..&amp;n are positional parameters
+Enum.map([1, 2, 3], double)    #=&gt; [2, 4, 6]
+
+# Capturing an existing named function:
+Enum.map([1, 2, 3], &amp;Integer.to_string/1)   #=&gt; ["1", "2", "3"]
+
+# Closures: the function remembers `prefix` even after the scope ends.
+prefix = "pid-"
+tag = &amp;(prefix &lt;&gt; Integer.to_string(&amp;1))
+tag.(7)                        #=&gt; "pid-7"</code></pre>
+<p>
+  Why the <code>.</code>? Named and anonymous functions live in different namespaces, and the explicit
+  call makes it obvious which one you are invoking — <code>run()</code> means the module function,
+  <code>run.()</code> means the value in the variable.
+</p>
+
+<h2 id="recursion-and-tail-calls">Recursion and Tail Calls</h2>
+<p>
+  With immutable data there is no loop counter to mutate, so iteration is recursion: each call
+  consumes the head of the data and recurses on the tail. The BEAM optimizes <em>tail calls</em> — a
+  recursive call as the very last action — into a jump that reuses the stack frame, so the loop runs
+  in constant stack space.
+</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-recursion-tail.svg" class="figure-img img-fluid rounded" alt="Comparison of body recursion growing the stack versus a tail call with an accumulator reusing the frame" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Body recursion keeps every frame until the end; a tail call with an accumulator reuses one frame.</figcaption>
+</figure>
+<pre><code class="language-elixir line-numbers">defmodule Rec do
+  # BODY recursion: the addition happens AFTER the recursive call returns.
+  # Elegant but keeps one stack frame per element.
+  def sum_body([]), do: 0
+  def sum_body([h | t]), do: h + sum_body(t)
+
+  # TAIL recursion: the accumulator carries the result and the recursive
+  # call is the last thing — constant stack, any list length.
+  def sum_tail(list), do: do_sum(list, 0)
+
+  defp do_sum([], acc), do: acc
+  defp do_sum([h | t], acc), do: do_sum(t, acc + h)
+end
+
+Rec.sum_body([1, 2, 3])   #=&gt; 6
+Rec.sum_tail(Enum.to_list(1..1_000_000))  #=&gt; fine — no stack overflow</code></pre>
+
+<h2 id="higher-order-thinking">Higher-Order Thinking</h2>
+<p>
+  Once functions are values, patterns like map, filter, and reduce replace most hand-written
+  recursion. Write <code>reduce</code> by hand once — usually as a tail-recursive function with an
+  accumulator — and afterwards prefer <code>Enum.reduce/3</code> and friends for clarity.
+</p>
+<pre><code class="language-elixir line-numbers"># Word frequencies the reduce way — the accumulator is the result so far.
+"fun to learn fun to ship"
+|&gt; String.split()
+|&gt; Enum.reduce(%{}, fn word, acc -&gt;
+      Map.update(acc, word, 1, &amp;(&amp;1 + 1))
+    end)
+#=&gt; %{"fun" =&gt; 2, "to" =&gt; 2, "learn" =&gt; 1, "ship" =&gt; 1}</code></pre>
+
 <h2 id="practice-functions">Practice</h2>
 <ol>
-  <li>Write one recursive function.</li>
-  <li>Use one anonymous function with Enum.</li>
-  <li>Rewrite one nested expression with the pipe operator.</li>
+  <li>Write both <code>sum_body/1</code> and <code>sum_tail/1</code>; try them on a one-million-element list and observe which one survives.</li>
+  <li>Rewrite <code>Stats.rms/1</code> without the private helper, using only captures and pipes.</li>
+  <li>Implement <code>my_map/2</code> over a list using tail recursion, then compare it with <code>Enum.map/2</code>.</li>
 </ol>
-</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
-<script>window.TOPIC_CONFIG={labId:'elixir',topicId:'functions',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
-<script src="/sage.js" defer></script>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/collections.html">Collections &amp; Enumeration</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'functions',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-</body></html>
+</body>
+</html>

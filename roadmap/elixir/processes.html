@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="The BEAM process model in Elixir: spawn, send, receive, mailboxes, links, monitors, process registration, and why processes are the unit of concurrency.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="elixir processes, spawn, send, receive, links, monitors, mailbox, actor model">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elixir: The Process Model</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/elixir/processes.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-the-process-model">Elixir: The Process Model</h1>
+<div class="alert alert-secondary shadow-sm">
+  Everything from here on builds on one primitive: the BEAM process. Not an OS thread — a runtime
+  construct with its own heap, its own mailbox, and a spawn cost measured in microseconds. This lesson
+  works with raw <code>spawn</code>/<code>send</code>/<code>receive</code>; later lessons build
+  Task, Agent, and GenServer on top.
+</div>
+
+<h2 id="the-actor-model-on-the-beam">The Actor Model on the BEAM</h2>
+<p>
+  Each process owns its state completely. Other processes cannot read it — they can only send
+  messages to its mailbox, which the process consumes one message at a time in <code>receive</code>.
+  State therefore never needs locking: the mailbox <em>is</em> the serialization point.
+</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-process-mailbox.svg" class="figure-img img-fluid rounded" alt="A process with a mailbox receives messages one at a time, updating its private state, and replies to senders" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — The mailbox serializes access to state: messages queue up and the process handles one at a time.</figcaption>
+</figure>
+<pre><code class="language-elixir line-numbers"># A minimal echo server with raw primitives.
+defmodule Echo do
+  def loop do
+    receive do
+      {:ping, caller} -&gt;
+        send(caller, :pong)       # reply straight to the sender's mailbox
+        loop()                    # tail-call: keep waiting forever
+      :stop -&gt; :ok                # any other clause ends the process
+    end
+  end
+end
+
+pid = spawn(Echo, :loop, [])     # starts running immediately
+send(pid, {:ping, self()})
+
+receive do                       # blocks THIS process until a reply arrives
+  :pong -&gt; IO.puts("got pong")
+after
+  1_000 -&gt; IO.puts("timeout")    # `after` gives receive a deadline
+end</code></pre>
+
+<h2 id="processes-are-cheap">Processes Are Cheap</h2>
+<pre><code class="language-elixir line-numbers"># Spawn 100k processes and measure — try this in iex.
+:timer.tc(fn -&gt;
+  Enum.each(1..100_000, fn _ -&gt; spawn(fn -&gt; :ok end) end)
+end)
+# Typically well under a second; each process starts with ~2.6 KB heap.
+Process.info(self(), :memory)    # inspect any process's footprint</code></pre>
+<p>
+  The mapping to architecture is direct: one process per connection, per upload, per game room, per
+  job. Isolation means one overloaded connection cannot corrupt another — and if one crashes, only
+  that one is affected.
+</p>
+<h2 id="links-and-monitors">Links and Monitors</h2>
+<p>
+  Two mechanisms connect process lifecycles. A <em>link</em> is bidirectional: when one dies, the
+  other dies too (unless trapping exits). A <em>monitor</em> is one-directional and non-fatal: you get
+  a message when the target dies. Links build supervision; monitors build request/response patterns.
+</p>
+<pre><code class="language-elixir line-numbers"># Links: the child's crash kills the parent too — by design.
+child = spawn_link(fn -&gt; raise "boom" end)   # parent dies right after
+
+# Monitors: observe without dying.
+ref = Process.monitor(child)
+send(child, :crash_please)
+receive do
+  {:DOWN, ^ref, :process, ^child, reason} -&gt;   # ^ref pins the monitor
+    IO.puts("child down: #{inspect(reason)}")
+end
+
+# spawn_link inside a start pattern is so common it has a wrapper:
+Task.start_link(fn -&gt; work() end)   # see the Tasks & Agents lesson</code></pre>
+<pre><code class="language-elixir line-numbers"># Trapping exits turns death into a MESSAGE — the basis of supervisors.
+defmodule Guardian do
+  def loop do
+    process_flag(:trap_exit, true)     # exit signals become messages
+    receive do
+      {:EXIT, from, reason} -&gt;
+        IO.puts("#{inspect(from)} exited: #{reason}")
+        loop()
+    end
+  end
+end</code></pre>
+
+<h2 id="naming-processes">Naming Processes</h2>
+<p>
+  Pids are opaque and change on restart — code that stores them everywhere breaks. Names give stable
+  handles: a local name (<code>:explorer_cache</code>) or a <code>Registry</code> for names that must
+  scale to many instances of the same kind of process.
+</p>
+<pre><code class="language-elixir line-numbers">pid = spawn(Echo, :loop, [])
+Process.register(pid, :echo)     # local, one process per name
+send(:echo, {:ping, self()})     # messages go to the name
+
+# Registry: dynamic names (one process per user, session, game...).
+{:ok, _} = Registry.start_link(keys: :unique, name: MyApp.Registry)
+Registry.register(MyApp.Registry, "session-42", :ok)
+Registry.lookup(MyApp.Registry, "session-42")   #=&gt; [{pid, :ok}]</code></pre>
+
+<h2 id="the-process-dictionary">The Process Dictionary (and Why to Avoid It)</h2>
+<p>
+  Each process has a key/value store that dies with it. It works, it is fast, and it is a trap:
+  values in it are invisible to pattern matching, break <code>:observer</code> introspection, and
+  hide state flow. The one accepted use is storing process-scoped metadata (telemetry contexts,
+  logger metadata). For real state, use the process's own recursion arguments — the next lessons
+  show how.
+</p>
+
+<h2 id="practice-processes">Practice</h2>
+<ol>
+  <li>Extend <code>Echo</code> to keep a count of pings and answer <code>{:count, caller}</code> messages.</li>
+  <li>Link two processes, crash one, and observe the other's death in <code>iex</code>; then trap exits and observe again.</li>
+  <li>Monitor a process and prove your receiving process stays alive after the target dies.</li>
+</ol>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/concurrency.html">Tasks &amp; Agents</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'processes',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

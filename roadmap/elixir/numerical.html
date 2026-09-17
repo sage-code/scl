@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Numerical and embedded Elixir: Nx tensors and defn, EXLA backends, Explorer data frames, Bumblebee ML models, Membrane pipelines, and Nerves firmware.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="elixir nx, numerical elixir, bumblebee, explorer, nerves, membrane">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elixir: Numerical &amp; Embedded Elixir</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/elixir/numerical.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-numerical-embedded">Elixir: Numerical &amp; Embedded Elixir</h1>
+<div class="alert alert-secondary shadow-sm">
+  BEAM languages were never fast at raw numeric loops — so the ecosystem did not try to make Elixir
+  fast. It made Elixir the <em>orchestrator</em>: numerical kernels run in native code behind
+  ordinary functions. The same philosophy puts Elixir inside microcontrollers with Nerves.
+</div>
+
+<h2 id="nx-tensors-and-defn">Nx: Tensors and defn</h2>
+<p>
+  <code>Nx</code> brings NumPy-style tensors to Elixir. Write numerical code inside <code>defn</code>
+  — a purely numerical function — and the same code can be JIT-compiled to CPU, GPU, or TPU through
+  the EXLA backend.
+</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-nx-pipeline.svg" class="figure-img img-fluid rounded" alt="Elixir defn code compiled through EXLA to a native backend, orchestrated by normal Elixir processes" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — The orchestration stays in Elixir processes; the numeric kernel is JIT-compiled to native code.</figcaption>
+</figure>
+<pre><code class="language-elixir line-numbers"># In a script: Mix.install([{:nx, "~&gt; 0.9"}, {:exla, "~&gt; 0.10"}])
+defmodule ML do
+  import Nx.Defn
+
+  # defn restricts code to tensor operations — that is what lets the
+  # compiler lower it to native/GPU code.
+  defn softmax(t) do
+    Nx.exp(t) / Nx.sum(Nx.exp(t))
+  end
+end
+
+t = Nx.tensor([1.0, 2.0, 3.0])
+ML.softmax(t)
+#=&gt; #Nx.Tensor&lt;f32[3] [0.0900, 0.2447, 0.6652]&gt;</code></pre>
+
+<h2 id="explorer-and-bumblebee">Explorer and Bumblebee</h2>
+<ul>
+  <li><strong><code>Explorer</code></strong> — data frames (the pandas equivalent) built on Rust's Polars; chains with <code> Explorer.DataFrame.filter/2 </code> style verbs.</li>
+  <li><strong><code>Bumblebee</code></strong> — load pretrained Hugging Face models (speech, vision, text) in three lines and serve them behind <code>Nx.Serving</code> — a supervised, batched, multi-node inference service.</li>
+  <li><strong><code>Membrane</code></strong> — multimedia pipeline framework: composable elements for RTP, WebRTC, HLS; the same supervision model applied to media streams.</li>
+</ul>
+<pre><code class="language-elixir line-numbers"># Serving a pretrained model — the orchestration is plain OTP.
+{:ok, model_info} = Bumblebee.load_model({:hf, " bert-base-uncased"})
+serving = Bumblebee.Text.text_embedding(model_info, compile: [batch_size: 8])
+
+Nx.Serving.run(serving, "Elixir makes ML serving boring")   #=&gt; tensor</code></pre>
+<h2 id="nerves-embedded-elixir">Nerves: Embedded Elixir</h2>
+<p>
+  <code>Nerves</code> compiles an OTP application into firmware for Raspberry Pi-class devices:
+  your supervision tree boots on the device, wired to hardware through the <code>Circuits</code>
+  libraries. <code>AtomVM</code> shrinks the same idea to microcontrollers. The result: a sensor
+  reading loop is a <em>supervised process with a timer</em> — the exact patterns from phase 4.
+</p>
+<pre><code class="language-elixir line-numbers"># A supervised hardware loop — no init scripts, no watchdog hacks:
+defmodule Sensor do
+  use GenServer
+
+  def start_link(opts), do: GenServer.start_link(__MODULE__, opts[:pin], name: __MODULE__)
+
+  @impl true
+  def init(pin) do
+    # Re-deliver :read to ourselves every second, forever.
+    Process.send_after(self(), :read, 1_000)
+    {:ok, pin}
+  end
+
+  @impl true
+  def handle_info(:read, pin) do
+    # Circuits.GPIO — hardware I/O as ordinary functions.
+    value = Circuits.GPIO.read(pin)
+    # Standard telemetry event (see the Performance lesson).
+    :telemetry.execute([:sensor, :reading], %{value: value})
+    Process.send_after(self(), :read, 1_000)
+    {:noreply, pin}
+  end
+end</code></pre>
+
+<h2 id="when-elixir-is-the-wrong-host">When Elixir Is the Wrong Host</h2>
+<ul>
+  <li><strong>Model training</strong> — the Python ecosystem (PyTorch, JAX) is orders of magnitude deeper; train there, <em>serve</em> with Bumblebee.</li>
+  <li><strong>Dense linear algebra on CPU without a backend</strong> — EXLA helps, but a Rust NIF may beat it.</li>
+  <li><strong>Hard real-time</strong> (microsecond determinism) — no garbage-collected runtime belongs there; BEAM soft-real-time (bounded, predictable latency) is a different, valuable property.</li>
+</ul>
+<p>
+  The sweet spot: <em>serving</em> and <em>orchestration</em> — where many concurrent requests meet
+  heavy kernels, and fault tolerance matters more than single-core speed.
+</p>
+
+<h2 id="practice-numerical">Practice</h2>
+<ol>
+  <li>Run the softmax <code>defn</code> in a script with EXLA; compare the result with a hand-rolled version using <code>Enum</code>.</li>
+  <li>Load one Bumblebee model and serve two concurrent requests through <code>Nx.Serving</code>.</li>
+  <li>Explain to a colleague why serving (not training) is where Elixir fits.</li>
+</ol>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/demo_examples.html">Lab Examples</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'numerical',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

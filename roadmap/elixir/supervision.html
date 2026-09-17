@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Elixir supervision trees: Supervisor, restart strategies, child specs, DynamicSupervisor, and designing fault domains.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="elixir supervisor, supervision tree, restart strategies, dynamic supervisor, one_for_one">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elixir: Supervision Trees</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/elixir/supervision.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-supervision-trees">Elixir: Supervision Trees</h1>
+<div class="alert alert-secondary shadow-sm">
+  A supervisor is a process whose only job is watching other processes and restarting them when they
+  die. Supervisors supervising supervisors form a <em>tree</em> — and that tree is the fault-tolerance
+  architecture of the whole system, visible in one place: the application module.
+</div>
+
+<h2 id="the-first-supervisor">The First Supervisor</h2>
+<pre><code class="language-elixir line-numbers">defmodule MyApp.Supervisor do
+  use Supervisor    # the behaviour for static trees
+
+  def start_link(init_arg), do:
+    Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
+
+  @impl true
+  def init(_init_arg) do
+    # children: a list of child specs. ORDER = boot order, reversed = shutdown.
+    children = [
+      # Start order: registry first, then cache, then workers.
+      {Registry, keys: :unique, name: MyApp.Registry},
+      {MyApp.Cache, name: MyApp.Cache},
+      {Task.Supervisor, name: MyApp.TaskSup}
+    ]
+
+    # one_for_one: a crashed child restarts ALONE, the rest keep running.
+    Supervisor.init(children, strategy: :one_for_one)
+  end
+end
+
+# Manual boot for scripts and experiments (real apps start it via the
+# application callback — see the next lesson):
+Supervisor.start_link(MyApp.Supervisor, [])</code></pre>
+
+<h2 id="restart-strategies">Restart Strategies</h2>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-supervision-tree.svg" class="figure-img img-fluid rounded" alt="A supervision tree: the application supervisor watches a Registry, a Cache and a worker supervisor, which watches three workers with one_for_one" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Restart cascades stop at supervisor boundaries: each supervisor restarts only what its strategy dictates.</figcaption>
+</figure>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Strategy</th><th>On a child crash</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><code>:one_for_one</code></td><td>only that child restarts</td><td>independent children (the default choice)</td></tr>
+    <tr><td><code>:one_for_all</code></td><td>all children restart</td><td>children are useless without each other</td></tr>
+    <tr><td><code>:rest_for_one</code></td><td>the crashed child and everything started after it</td><td>later children depend on earlier ones</td></tr>
+  </tbody>
+</table>
+<p>
+  Restart intensity protects the system from crash loops: <code>max_restarts</code> failures within
+  <code>max_seconds</code> (defaults: 3 in 5) take the <em>supervisor itself</em> down — escalating
+  the failure one level up the tree. That "give up and let the parent decide" rule is what makes
+  transient bugs self-healing instead of wedge-shaped.
+</p>
+<h2 id="dynamic-supervisor">DynamicSupervisor</h2>
+<p>
+  Static trees know their children at compile time. When children appear at runtime — one process per
+  user connection, per game, per upload — <code>DynamicSupervisor</code> starts and supervises them
+  on demand, and pairs with a <code>Registry</code> for name-based lookup.
+</p>
+<pre><code class="language-elixir line-numbers"># In the tree: {DynamicSupervisor, name: MyApp.SessionSup}
+
+# Later, at runtime — "supervise a session for user 42":
+{:ok, pid} =
+  DynamicSupervisor.start_child(MyApp.SessionSup, %{
+    id: {MyApp.Session, 42},
+    start: {MyApp.Session, :start_link, [[user_id: 42]]},
+    restart: :transient          # restart on abnormal exit only
+  })
+
+DynamicSupervisor.count_children(MyApp.SessionSup)
+DynamicSupervisor.terminate_child(MyApp.SessionSup, pid)</code></pre>
+<p>
+  <code>restart: :temporary</code> and <code>:transient</code> matter here: a crashed session should
+  restart, but a finished session should not resurrect itself.
+</p>
+
+<h2 id="designing-fault-domains">Designing Fault Domains</h2>
+<p>
+  The tree is your failure architecture. Rules that hold up in production:
+</p>
+<ul>
+  <li><strong>One concern per supervisor.</strong> A crashed HTTP pool should not restart your DNS resolver.</li>
+  <li><strong>Restart cheap things, rebuild expensive things.</strong> A cache server can be <code>:permanent</code>; a connection pool with a slow warm-up wants a strategy that avoids flapping.</li>
+  <li><strong>State that must survive a crash lives outside the process</strong> — ETS table owned by a separate "guardian" process, or persisted with <a href="/roadmap/elixir/ecto.html">Ecto</a>.</li>
+  <li><strong>Watch your own intensity limits:</strong> defaults are sensible; tune <code>max_restarts</code>/<code>max_seconds</code> only with a reason.</li>
+</ul>
+
+<h2 id="practice-supervision">Practice</h2>
+<ol>
+  <li>Start the supervisor above in <code>iex</code>, find a child pid with <code>Supervisor.which_children/1</code>, and kill it — watch the restart.</li>
+  <li>Change the strategy to <code>:one_for_all</code> and repeat; explain the difference in what restarted.</li>
+  <li>Build a DynamicSupervisor that hosts one <code>MyApp.Session</code> GenServer per user id, then terminate one session by name.</li>
+</ol>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/otp.html">OTP Applications &amp; Releases</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'supervision',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

@@ -1,40 +1,141 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="Elixir concurrency lab for processes, message passing, tasks, and monitoring.">
+  <meta name="description" content="Elixir concurrency with Task and Agent: async/await, async_stream with back-pressure, supervised tasks, and simple state holders.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="elixir concurrency, processes, message passing, tasks, monitoring">
+  <meta name="keywords" content="elixir task, task async, agent, concurrency, back-pressure, async_stream">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Elixir Concurrency</title>
+  <title>Elixir: Tasks &amp; Agents</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/elixir/concurrency.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="elixir-concurrency">Elixir Concurrency</h2>
-<div class="alert alert-secondary shadow-sm">Concurrency in Elixir is centered on isolated lightweight processes and message passing rather than shared mutable state.</div>
-<h2 id="processes">Processes</h2>
-<p>Processes are cheap and isolated. They are the basic unit for concurrent work on the BEAM.</p>
-<h2 id="message-passing">Message passing</h2>
-<p>Processes communicate through explicit messages, which keeps ownership and flow visible.</p>
-<h2 id="tasks-and-monitoring">Tasks and monitoring</h2>
-<p>Use tasks for short-lived async work and monitoring when you need to observe process health.</p>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-tasks-agents">Elixir: Tasks &amp; Agents</h1>
+<div class="alert alert-secondary shadow-sm">
+  Most concurrent work in Elixir does not need a hand-rolled <code>spawn/receive</code> loop.
+  <code>Task</code> wraps one-off and pooled computation with timeouts and error propagation;
+  <code>Agent</code> wraps a simple state holder. Both are thin, well-tested abstractions over the
+  process model.
+</div>
+
+<h2 id="task-async-await">Task.async / await</h2>
+<pre><code class="language-elixir line-numbers"># Fire concurrent HTTP fetches; await returns results in order.
+results =
+  ["https://elixir-lang.org", "https://hex.pm"]
+  |&gt; Enum.map(&amp;Task.async(fn -&gt; fetch(&amp;1) end))   # starts immediately
+  |&gt; Enum.map(&amp;Task.await(&amp;1, 5_000))             # 5s timeout each
+
+# async/await errors are LINKED: if the task crashes, the caller dies
+# too. For "do not take me down with you", use Task.Supervised:
+task = Task.Supervisor.async(MyApp.TaskSup, fn -&gt; risky() end)
+case Task.yield(task, 5_000) || Task.shutdown(task) do
+  {:ok, result} -&gt; {:ok, result}
+  {:exit, reason} -&gt; {:error, reason}
+  nil -&gt; {:error, :timeout}        # shutdown() returns nil after a timeout
+end</code></pre>
+
+<h2 id="task-async-stream-back-pressure">Task.async_stream: Concurrency with a Limit</h2>
+<p>
+  Processing 10,000 jobs needs <em>bounded</em> concurrency — spawning all of them at once would
+  overwhelm the CPU or the remote service. <code>Task.async_stream</code> runs a pool of N tasks
+  with timeouts, lazily, with back-pressure.
+</p>
+<pre><code class="language-elixir line-numbers">urls
+|&gt; Task.async_stream(&amp;fetch/1,
+      max_concurrency: 20,          # at most 20 in flight
+      timeout: 10_000,              # per-task timeout
+      on_timeout: :kill_task,       # the slow one dies, the run continues
+      order: false)                 # results arrive AS COMPLETED (faster)
+|&gt; Enum.reduce({[], []}, fn
+      {:ok, result}, {ok, err} -&gt; {[result | ok], err}
+      {:exit, reason}, {ok, err} -&gt; {ok, [reason | err]}
+    end)</code></pre>
+<h2 id="agents-simple-state">Agents: Simple State</h2>
+<p>
+  When the whole job is "hold a value, update it atomically", an Agent is a GenServer with a
+  friendlier API. The functions run <em>inside</em> the agent process, so reads and writes serialize
+  naturally.
+</p>
+<pre><code class="language-elixir line-numbers">{:ok, counter} = Agent.start_link(fn -&gt; 0 end)
+
+Agent.get(counter, &amp; &amp;1)                        #=&gt; 0
+Agent.update(counter, &amp;(&amp;1 + 1))
+Agent.get_and_update(counter, fn n -&gt; {n, n * 2} end)  # get &amp; set in one
+Agent.get(counter, &amp; &amp;1)                        #=&gt; 2</code></pre>
+
+<h2 id="choosing-the-tool">Choosing the Tool</h2>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Need</th><th>Use</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>One computation, concurrent with others</td><td><code>Task.async/await</code></td><td>results as values, timeouts included</td></tr>
+    <tr><td>Map a job list over N workers</td><td><code>Task.async_stream</code></td><td>bounded concurrency + back-pressure built in</td></tr>
+    <tr><td>Hold and update a small value</td><td><code>Agent</code></td><td>atomic get/update without writing a server</td></tr>
+    <tr><td>State with several operations, invariants, or timers</td><td><code>GenServer</code></td><td>full control of the message protocol</td></tr>
+    <tr><td>Shared read-mostly data</td><td>ETS / <code>:persistent_term</code></td><td>no process bottleneck — see <a href="/roadmap/elixir/performance.html">Performance</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="supervising-background-work">Supervising Background Work</h2>
+<p>
+  Raw <code>Task.async</code> tasks are linked to the caller — right for "answer me", wrong for
+  "fire and forget". Background work belongs under a <code>Task.Supervisor</code> so a crash is
+  observed and restartable rather than propagated into a request.
+</p>
+<pre><code class="language-elixir line-numbers"># In the application supervision tree (next lessons):
+# {Task.Supervisor, name: MyApp.TaskSup}
+
+# Fire-and-forget with a supervisor watching:
+Task.Supervisor.start_child(MyApp.TaskSup, fn -&gt;
+  Logger.info("expensive cleanup starting")
+  cleanup()
+end)</code></pre>
+
 <h2 id="practice-concurrency">Practice</h2>
 <ol>
-  <li>Describe one process boundary in a concurrent system.</li>
-  <li>Explain why message passing is safer than shared mutation.</li>
-  <li>Write one note about when to prefer a task over a long-lived process.</li>
+  <li>Fetch three URLs concurrently with <code>Task.async</code>, then again with <code>Task.async_stream(max_concurrency: 2)</code>; compare the timing.</li>
+  <li>Build an <code>Agent</code>-backed key/value counter and add a <code>reset/0</code> using <code>Agent.get_and_update/2</code>.</li>
+  <li>Prove that a crash inside an unsupervised <code>Task.async</code> kills the caller, then repeat it under <code>Task.Supervisor</code> and observe the difference.</li>
 </ol>
-</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
-<script>window.TOPIC_CONFIG={labId:'elixir',topicId:'concurrency',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
-<script src="/sage.js" defer></script>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/genserver.html">GenServer</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'concurrency',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-</body></html>
+</body>
+</html>

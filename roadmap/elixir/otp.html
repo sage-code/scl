@@ -1,40 +1,155 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="Elixir OTP lab for GenServer, supervision trees, and application structure.">
+  <meta name="description" content="Elixir OTP applications: application callbacks, mix new --sup, application environment, runtime configuration, and releases for deployment.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="elixir otp, genserver, supervision, application structure">
+  <meta name="keywords" content="elixir otp application, application module, app env, runtime.exs, releases">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Elixir OTP</title>
+  <title>Elixir: OTP Applications &amp; Releases</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/elixir/otp.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="elixir-otp">Elixir OTP</h2>
-<div class="alert alert-secondary shadow-sm">OTP is the operational model for building resilient Elixir systems with supervision, restart strategies, and reusable server processes.</div>
-<h2 id="genserver">GenServer</h2>
-<p>GenServer wraps common server behavior and provides a clear protocol for stateful process logic.</p>
-<h2 id="supervision">Supervision trees</h2>
-<p>Supervisors restart failed children and define the fault tolerance strategy for the system.</p>
-<h2 id="application-structure">Application structure</h2>
-<p>Learn how OTP applications organize startup, lifecycle, and service composition.</p>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-otp-applications-releases">Elixir: OTP Applications &amp; Releases</h1>
+<div class="alert alert-secondary shadow-sm">
+  An OTP application is the unit of deployment and boot: a name, a supervision tree, and
+  configuration. Everything you have built so far — processes, GenServers, supervisors — starts and
+  stops together inside one.
+</div>
+
+<h2 id="the-application-module">The Application Module</h2>
+<pre><code class="language-elixir line-numbers"># mix new my_app --sup generates exactly this shape.
+defmodule MyApp.Application do
+  # The application callback: the BEAM calls start/2 when the app boots.
+  use Application
+
+  @impl true
+  def start(_type, _args) do
+    children = [
+      # A supervisor module from the previous lesson...
+      MyApp.Supervisor,
+      # ...or an inline child spec for simple cases.
+      {MyApp.Cache, ttl: :timer.minutes(5)}
+    ]
+
+    # :rest_for_one — if MyApp.Supervisor dies, the Cache restarts too,
+    # because it was started after it and may depend on it.
+    Supervisor.start_link(children, strategy: :rest_for_one, name: MyApp.Sup)
+  end
+end</code></pre>
+<p>
+  In <code>mix.exs</code>, the <code>application/0</code> function wires it up:
+  <code>[mod: {MyApp.Application, []}, extra_applications: [:logger]]</code>. From then on
+  <code>mix run --no-halt</code> (dev) or the release script (prod) boots the whole tree.
+</p>
+
+<h2 id="application-environment">Application Environment</h2>
+<p>
+  The app env is a per-application keyword store — the idiomatic place for settings that change per
+  environment. Read it with <code>Application.get_env/3</code> (or the compile-time
+  <code>Application.compile_env/3</code>).
+</p>
+<pre><code class="language-elixir line-numbers"># config/config.exs — compile-time defaults
+import Config
+config :my_app, :cache, ttl_minutes: 5
+
+# config/runtime.exs — evaluated at RELEASE boot, so secrets and
+# environment-specific values belong here, not in config.exs.
+config :my_app, :cache,
+  ttl_minutes: String.to_integer(System.get_env("CACHE_TTL_MIN") || "5")
+
+# Anywhere in code:
+Application.get_env(:my_app, :cache)[:ttl_minutes]</code></pre>
+<p>
+  Distinguish the two <em>moments</em> carefully: config.exs is baked into the release artifact;
+  runtime.exs is read when the node starts. A value used at compile time (a macro, a module
+  attribute) cannot be overridden by a release-time variable — a classic deploy surprise.
+</p>
+<h2 id="releases-for-deployment">Releases for Deployment</h2>
+<p>
+  <code>mix release</code> assembles the application plus runtime into a directory whose
+  <code>bin/</code> script is the ops interface. The pieces that matter operationally:
+</p>
+<pre><code class="language-bash line-numbers"># config/runtime.exs already holds the env-driven settings.
+MIX_ENV=prod mix release
+
+# Release environment variables (the important ones):
+#   RELEASE_NODE=name@host      distribution name (next lesson)
+#   RELEASE_COOKIE=secret       cluster secret — treat as a credential
+#   RELEASE_DISTRIBUTION=none|name|full
+_build/prod/rel/my_app/bin/my_app daemon
+_build/prod/rel/my_app/bin/my_app remote     # shell into the RUNNING node</code></pre>
+<p>
+  <code>bin/my_app remote</code> deserves emphasis: it connects an <code>iex</code> session to a live
+  production node, where you can call functions, inspect processes, or hotfix — the same
+  <a href="/roadmap/elixir/tooling.html">IEx tools</a>, pointed at production. Combine with
+  <code>:observer</code> remotely for a full GUI.
+</p>
+
+<h2 id="library-applications">Library Applications</h2>
+<p>
+  Libraries are applications too, usually without a tree: they ship <code>mod: false</code> (no boot
+  callback) and provide <code>child_specs</code> that the host app mounts in its own supervision
+  tree. That is why adding <code>{Finch, name: MyFinch}</code> to a children list is the standard way
+  to configure a library.
+</p>
+<pre><code class="language-elixir line-numbers"># A library exposing a child spec for hosts to mount:
+defmodule MyLibrary do
+  def child_spec(opts) do
+    %{
+      id: {__MODULE__, opts[:name]},
+      start: {MyLibrary.Server, :start_link, [opts]},
+      type: :worker
+    }
+  end
+end</code></pre>
+
 <h2 id="practice-otp">Practice</h2>
 <ol>
-  <li>Explain the role of a GenServer in one service.</li>
-  <li>Sketch a simple supervisor with two children.</li>
-  <li>Write one note about restart strategy trade-offs.</li>
+  <li>Create <code>mix new boots --sup</code> and trace the boot order of the generated tree with <code>Logger</code> lines.</li>
+  <li>Move one setting from <code>config.exs</code> to <code>runtime.exs</code>, build a release, and verify the value at runtime.</li>
+  <li>Attach <code>bin/boots remote</code> to a running release and call a function in it.</li>
 </ol>
-</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
-<script>window.TOPIC_CONFIG={labId:'elixir',topicId:'otp',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
-<script src="/sage.js" defer></script>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/distribution.html">Distributed Elixir</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'otp',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-</body></html>
+</body>
+</html>

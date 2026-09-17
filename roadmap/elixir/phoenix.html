@@ -1,40 +1,162 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head>
+<html lang="en" data-bs-theme="dark">
+<head>
   <meta charset="utf-8">
-  <meta name="description" content="Elixir Phoenix lab for controllers, LiveView, and web app delivery structure.">
+  <meta name="description" content="Phoenix framework: request lifecycle, endpoint, router, plugs, contexts, HEEx templates, channels, and deployment with releases.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="elixir phoenix, liveview, controllers, web apps">
+  <meta name="keywords" content="phoenix framework, plug, contexts, heex, elixir web">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Elixir Phoenix</title>
+  <title>Elixir: Phoenix Web Framework</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/elixir/phoenix.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="elixir-phoenix">Elixir Phoenix</h2>
-<div class="alert alert-secondary shadow-sm">Phoenix is the main web framework for Elixir, with strong support for real-time features through LiveView.</div>
-<h2 id="controllers">Controllers</h2>
-<p>Controllers map requests to responses and keep transport concerns separate from business logic.</p>
-<h2 id="liveview">LiveView</h2>
-<p>LiveView is useful when you want interactive web experiences with server-driven state updates.</p>
-<h2 id="delivery-structure">Delivery structure</h2>
-<p>Plan your web app with contexts, UI layers, and clear boundaries between domain and presentation.</p>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="elixir-phoenix-web-framework">Elixir: Phoenix Web Framework</h1>
+<div class="alert alert-secondary shadow-sm">
+  Phoenix is the reason most people meet Elixir: a productive web framework whose every layer is a
+  plain Elixir module. This lesson follows one request through the framework and shows where your
+  code hooks in — plus the context pattern that keeps Phoenix apps maintainable.
+</div>
+
+<h2 id="the-request-lifecycle">The Request Lifecycle</h2>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/elixir/img/elixir-phoenix-request.svg" class="figure-img img-fluid rounded" alt="Request flow: endpoint plugs, router pipelines, controller action, context, Ecto, then the response" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Every stage is a module you can read, replace, or reorder; nothing is hidden in the framework.</figcaption>
+</figure>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Stage</th><th>Module</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td>Endpoint</td><td><code>MyAppWeb.Endpoint</code></td><td>static files, body parsing, session, telemetry</td></tr>
+    <tr><td>Router pipelines</td><td><code>MyAppWeb.Router</code></td><td><code>:browser</code> vs <code>:api</code> stacks of plugs</td></tr>
+    <tr><td>Controller</td><td><code>MyAppWeb.PageController</code></td><td>read params, call a context, render/redirect</td></tr>
+    <tr><td>Context</td><td><code>MyApp.Blog</code></td><td>domain logic — the boundary for Ecto calls</td></tr>
+    <tr><td>View/HEEx</td><td><code>MyAppWeb.PageHTML</code></td><td>render data to HTML</td></tr>
+  </tbody>
+</table>
+<p>
+  The <code>%Plug.Conn{}</code> struct threads through it all — one immutable value carrying request
+  and response, transformed by every plug. That is the pattern from
+  <a href="/roadmap/elixir/data.html">Data &amp; Immutability</a> applied to a web framework.
+</p>
+<h2 id="router-and-controllers">Router and Controllers</h2>
+<pre><code class="language-elixir line-numbers">defmodule MyAppWeb.Router do
+  use MyAppWeb, :router
+
+  pipeline :api do
+    plug :accepts, ["json"]
+  end
+
+  scope "/api", MyAppWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :show
+    resources "/orders", OrderController, only: [:index, :show, :create]
+  end
+end
+
+defmodule MyAppWeb.OrderController do
+  use MyAppWeb, :controller
+
+  # `conn` flows through every plug; actions return a transformed conn.
+  def index(conn, params) do
+    # The controller CALLS A CONTEXT — no Ecto queries here, ever.
+    orders = Blog.list_orders(params["status"] || "any")
+    json(conn, %{data: orders})
+  end
+
+  def create(conn, %{"order" =&gt; params}) do
+    case Blog.create_order(params) do
+      {:ok, order} -&gt;
+        conn |&gt; put_status(:created) |&gt; json(%{data: order})
+      # Failed changesets render errors with proper status codes.
+      {:error, %Ecto.Changeset{} = cs} -&gt;
+        conn |&gt; put_status(:unprocessable_entity) |&gt; json(%{errors: errors(cs)})
+    end
+  end
+end</code></pre>
+
+<h2 id="contexts-the-domain-boundary">Contexts: the Domain Boundary</h2>
+<p>
+  A context is a plain module (<code>MyApp.Blog</code>, <code>MyApp.Billing</code>) that exposes the
+  domain vocabulary and hides whether data comes from Ecto, an ETS cache, or an HTTP call. Web code
+  depends on contexts; contexts depend on nothing web. This is the pattern that lets a Phoenix
+  monolith scale to hundreds of engineers — the subject of
+  <a href="/roadmap/elixir/architecture.html">Designing Elixir Systems</a>.
+</p>
+<pre><code class="language-elixir line-numbers">defmodule MyApp.Blog do
+  import Ecto.Query
+  alias MyApp.Repo
+  alias MyApp.Blog.Post
+
+  def list_orders(status) do
+    Post |&gt; where(status: ^status) |&gt; Repo.all()
+  end
+
+  def create_order(attrs) do
+    %Post{} |&gt; Post.changeset(attrs) |&gt; Repo.insert()
+  end
+end</code></pre>
+
+<h2 id="when-to-use-what">When to Use What</h2>
+<ul>
+  <li><strong>Plain controller + JSON</strong> — API endpoints consumed by other systems.</li>
+  <li><strong>LiveView</strong> — UI with state that lives on the server (see the next lesson).</li>
+  <li><strong>Channels</strong> — raw real-time messaging to non-HTML clients (mobile apps, services).</li>
+  <li><strong>Plug-only app</strong> — small APIs don't need Phoenix at all; a Plug router on Bandit is a few files.</li>
+</ul>
+
+<h2 id="deploying-phoenix">Deploying Phoenix</h2>
+<p>
+  A Phoenix app is an OTP application: <code>mix release</code> (lesson 13) plus a database URL and
+  clustering config. Deploy targets: a VM/container with the release, or a BEAM platform. Compile
+  assets (<code>mix assets.deploy</code>) in CI; the release contains only compiled artifacts.
+</p>
+
 <h2 id="practice-phoenix">Practice</h2>
 <ol>
-  <li>Describe one controller action flow.</li>
-  <li>Explain one use case for LiveView.</li>
-  <li>Write one note about separating web concerns from business rules.</li>
+  <li>Generate an app (<code>mix phx.new demo</code>), walk the endpoint file stage by stage, and name what each plug does.</li>
+  <li>Move one query out of a controller into a context and confirm the controller still compiles.</li>
+  <li>Add a JSON endpoint that returns a changeset's errors with status 422.</li>
 </ol>
-</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
-<script>window.TOPIC_CONFIG={labId:'elixir',topicId:'phoenix',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
-<script src="/sage.js" defer></script>
+
+<p><b>Next:</b> <a href="/roadmap/elixir/liveview.html">Phoenix LiveView</a></p>
+      </main>
+    </div>
+  </div>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'elixir',
+    topicId: 'phoenix',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
-</body></html>
+</body>
+</html>
