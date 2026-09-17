@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="HTML validation and debugging: the W3C validator, DevTools DOM vs source, quirks mode, and the Lighthouse/aXe audit workflow.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="html validation, html debugging, w3c validator, devtools, lighthouse, html tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>HTML Validation, Debugging and Audits</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/html/debugging.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="html-validation-debugging-and-audits">HTML Validation, Debugging and Audits</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Browsers never show HTML errors — they repair them silently. This chapter builds the workflow that finds those mistakes anyway: the W3C validator, DevTools' source-vs-DOM comparison, rendering modes, and automated audits.
+</div>
+
+<p>
+Every other engineering discipline ships with a compiler that rejects mistakes; HTML ships with a parser that fixes them. Quality is therefore a choice and a habit: validate, inspect, audit — the loop in this chapter is what separates pages that work by luck from pages that work by construction.
+</p>
+
+<h2 id="the-validator">The validator</h2>
+
+<h3 id="what-it-catches">What it catches</h3>
+<p>
+The W3C/Nu validator reports unclosed tags, invalid nesting, bad attribute values, duplicate ids, and misplaced elements — the mistakes the browser would otherwise silently repair. Most mysterious layout bugs are on this list:
+</p>
+<pre><code class="language-html">&lt;!-- three errors a validator finds in seconds --&gt;
+&lt;div&gt;&lt;p&gt;text&lt;/div&gt;&lt;/p&gt;               &lt;!-- misnested --&gt;
+&lt;div id="a"&gt;&lt;/div&gt;&lt;div id="a"&gt;&lt;/div&gt; &lt;!-- duplicate id --&gt;
+&lt;p&gt;&lt;div&gt;block in paragraph&lt;/div&gt;&lt;/p&gt; &lt;!-- content model violation --&gt;</code></pre>
+
+<h3 id="how-to-run-it">How to run it</h3>
+<p>
+validator.w3.org accepts a URL, an upload, or pasted source. Better: install a browser extension or wire the Nu validator's API into your build — validation that happens only when someone remembers is validation that does not happen.
+</p>
+
+<h3 id="errors-versus-warnings">Errors versus warnings</h3>
+<p>
+Errors are spec violations — fix all of them. Warnings are advisory (obsolete attributes, missing section headings) — read and decide. Neither appears in the browser console, which is why the validator must be a separate step.
+</p>
+
+<h2 id="rendering-modes">Rendering modes</h2>
+
+<h3 id="quirks-versus-standards">Quirks versus standards mode</h3>
+<p>
+The doctype chooses the engine's rulebook. Missing or legacy doctypes trigger quirks mode — different box sizing, table alignment, and image baselines that no modern CSS anticipates. The doctype from chapter 2 is what keeps you in standards mode:
+</p>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-quirks-vs-standards.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram contrasting quirks mode behavior with standards mode behavior"/>
+  <p>Figure 1 — One line of markup decides which rulebook renders your page.</p>
+</div>
+
+<h3 id="detecting-the-mode">Detecting the mode</h3>
+<p>
+DevTools' Elements panel shows the document mode; in the console, <code>document.compatMode</code> returns <code>"CSS1Compat"</code> (standards) or <code>"BackCompat"</code> (quirks). If a page renders differently from your expectations and compatMode says BackCompat — stop debugging CSS.
+</p>
+<pre><code class="language-javascript">console.log(document.compatMode);   // "CSS1Compat" is the only good answer</code></pre>
+
+<h3 id="almost-standards">The almost-standards footnote</h3>
+<p>
+Legacy doctypes (transitional, frameset) trigger "almost standards" mode, differing only in image baseline handling. There is no reason to be there; the plain HTML5 doctype is correct for every new document.
+</p>
+
+<h2 id="devtools-workflow">The DevTools workflow</h2>
+
+<h3 id="source-versus-live-dom">Source versus live DOM</h3>
+<p>
+<code>view-source:</code> shows what you wrote; the Elements panel shows what the parser kept after repairs. The <em>difference between the two is your bug list</em> — relocated tables, invented tbody elements, closed stray tags:
+</p>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-debugging-loop.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram of the DevTools panels: Elements, Console, Lighthouse, and the source-vs-inspector diff"/>
+  <p>Figure 2 — Source vs inspector: the diff is the diagnosis.</p>
+</div>
+
+<h3 id="the-elements-panel">The Elements panel</h3>
+<p>
+Live-edit the tree (double-click nodes), inspect computed styles, and read the Accessibility pane — name, role, and state for the selected node. Changes apply immediately and vanish on reload, making it the ideal scratchpad.
+</p>
+
+<h3 id="the-console">The Console</h3>
+<p>
+The parser reports some repairs as console warnings ("table opened but not closed"). Treat console output as part of the definition of done — a clean console is a reasonable bar for shipped pages.
+</p>
+
+<h2 id="audits">Automated audits</h2>
+
+<h3 id="lighthouse">Lighthouse</h3>
+<p>
+Built into Chrome DevTools, Lighthouse scores performance, accessibility, SEO, and best practices, and links every finding to its explanation. Run it on every page; treat a11y and SEO scores as regression alarms, not vanity numbers.
+</p>
+
+<h3 id="axe">aXe: the a11y rule engine</h3>
+<p>
+The aXe browser extension reports concrete accessibility violations with the failing element and the fix — a faster loop than Lighthouse's page-level score, and it integrates into test suites.
+</p>
+
+<h3 id="the-workflow-loop">The full loop</h3>
+<p>
+Author → validate → inspect → audit → fix → repeat. Run it per page, not per project; the loop is cheap enough to run on every pull request and cheap enough to keep forever:
+</p>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-validation-workflow.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram of the author, validate, fix, audit loop"/>
+  <p>Figure 3 — The quality loop: validation is a step, not an event.</p>
+</div>
+
+<h2 id="common-mistakes">Common mistakes</h2>
+
+<h3 id="eyeballing-it">"It looks fine" as a quality bar</h3>
+<p>
+Browsers repair every error, so looking fine proves nothing. The validator plus the a11y pane are the objective bar; "looks fine" is a coincidence until they agree.
+</p>
+
+<h3 id="console-neglect">Ignoring console warnings</h3>
+<p>
+Parser warnings are free diagnosis. Teams that clear console noise ship faster, because the signal survives instead of drowning in a wall of old errors.
+</p>
+
+<h3 id="auditing-only-the-homepage">Auditing only the homepage</h3>
+<p>
+Audits catch per-page defects — a form on page three can fail everything while the homepage scores 100. Automate per-page checks or accept that most of your site never gets audited.
+</p>
+
+<h2 id="practice">Practice</h2>
+
+<h3 id="exercises">Exercises</h3>
+<ol>
+  <li>Validate three of your pages at validator.w3.org; fix every error and re-run until clean.</li>
+  <li>Create a quirks-mode page deliberately (remove the doctype) and list three rendering differences you can observe.</li>
+  <li>Misnest a table inside a paragraph; compare <code>view-source:</code> with the Elements panel and document the repair.</li>
+  <li>Run Lighthouse and aXe on the same page; reconcile their findings into one fix list.</li>
+</ol>
+
+<h3 id="demo-lab">Demo lab</h3>
+<p>
+<code>15_embed_iframe.html</code> and <code>16_loading_hints.html</code> in the <a href="/roadmap/html/demo_examples.html">Lab Examples</a> page give you pages to run through the whole loop — view, preview, validate, audit.
+</p>
+
+<div class="alert alert-info mt-3">
+Next: <a href="/roadmap/html/performance.html">Performance and Loading</a> — making the page fast before any tooling is involved.
+</div>
+
+</main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'html',
+    topicId: 'debugging',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

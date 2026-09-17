@@ -238,6 +238,13 @@ Every roadmap track MUST include a **practice & demo** section.
 - Exactly one `h1`; one `h2` per phase/category (demos may be centralized per phase); each category lists its demos in a table: `# | Description | Link`.
 - The Link column opens the unified code viewer:
   `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<filename>`
+- Tracks whose demos render standalone in a browser (e.g. HTML) add a second
+  column, **Preview**, linking the demo file directly —
+  `/roadmap/<track>/demo/<filename>` with `target="_blank"`
+  `rel="noopener noreferrer"` — next to the code-viewer link. Table header:
+  `# | Description | View code | Preview`. Previewable demos must be
+  self-contained (no site shell, no unresolvable relative links); the build
+  copies `demo/**` as-is, so the direct link works in production unchanged.
 - The code viewer highlights by file extension (`assets/js/code-viewer.js` `langMap`). It uses the
   same single Prism bundle as topic pages (`/assets/prism.css` + `/assets/prism.js`), so when a new
   language is introduced only two things are needed: extend the `langMap` and ensure the grammar is

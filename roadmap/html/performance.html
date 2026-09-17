@@ -1,13 +1,13 @@
 ﻿<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Beginner-friendly HTML performance guide for static websites.">
+  <meta name="description" content="HTML performance: the critical rendering path, defer and async, resource hints, image budgets, and Core Web Vitals for markup authors.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="html performance, static site optimization, caching, core web vitals">
+  <meta name="keywords" content="html performance, defer, async, preload, core web vitals, html tutorial">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
   <!-- Website title -->
-  <title>HTML Site Performance</title>
+  <title>HTML Performance and Loading</title>
   <!-- Canonical URL -->
   <link rel="canonical" href="https://sagecode.org/roadmap/html/performance.html">
   <meta name="robots" content="index, follow">
@@ -18,9 +18,13 @@
   <link rel="icon" type="image/png"  href="/images/favicon.ico">
   <!-- Prism Highlighter -->
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <!-- custom css -->
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
   </head>
 <body>
 
@@ -42,73 +46,141 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="site-performance">Site Performance for Beginners</h2>
+<h1 id="html-performance-and-loading">HTML Performance and Loading</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Fast pages feel better, rank better, and convert better. The good news: basic HTML performance wins are simple and repeatable.
+Most of a page's speed is decided in its markup: which resources the head requests, in what order, and with which hints. This chapter turns the parsing pipeline from chapter 2 into concrete loading decisions.
 </div>
+
+<p>
+Fast pages feel better, rank better, and convert better — and people on low-end devices and poor networks benefit most, which makes performance an accessibility concern too. The HTML author controls the critical rendering path; frameworks and servers only reshape what markup already decided.
+</p>
 
 <h2 id="why-performance-matters">Why performance matters</h2>
 
+<h3 id="the-user-experience-budget">The user experience budget</h3>
 <p>
-When a page loads quickly, users stay focused. Slow pages create friction and cause visitors to leave early.
-Performance also affects accessibility: people on low-end devices or poor networks benefit the most from fast pages.
+Users perceive sub-second loads as instant and abandon multi-second loads in large numbers. The budget is unforgiving: at typical mobile bandwidth, every 100 KB costs a tenth of a second — a few unoptimized images can spend the whole budget before rendering starts.
 </p>
 
-<h2 id="image-optimization">Optimize images first</h2>
-
-<ul>
-  <li>Use modern formats when possible (for example WebP).</li>
-  <li>Resize images to the display size; avoid huge source images.</li>
-  <li>Set descriptive <code>alt</code> text and width/height when practical.</li>
-  <li>Use lazy loading for non-critical images.</li>
-</ul>
-
-<pre><code class="language-html">&lt;img
-  src="/assets/images/example.webp"
-  alt="Code editor preview"
-  width="960"
-  height="540"
-  loading="lazy"
-&gt;</code></pre>
-
-<h2 id="css-js-loading">Load CSS and JavaScript wisely</h2>
-
+<h3 id="core-web-vitals">Core Web Vitals</h3>
 <p>
-Render-critical CSS should be available early. JavaScript that is not needed immediately should be deferred.
+Google's Core Web Vitals quantify the experience: <strong>LCP</strong> (when the main content appears), <strong>CLS</strong> (how much the layout jumps), and <strong>INP</strong> (how fast interactions respond). Each has markup-level causes and markup-level fixes — this chapter covers the first two directly.
 </p>
 
-<pre><code class="language-html">&lt;link rel="stylesheet" href="/assets/css/sage-common.css"&gt;
-&lt;script src="/assets/js/sage.js" defer&gt;&lt;/script&gt;</code></pre>
-
-<h2 id="caching-basics">Use caching headers</h2>
-
+<h3 id="performance-is-structural">Performance is structural, not cosmetic</h3>
 <p>
-Caching lets the browser reuse files between visits. Static assets can usually have longer cache lifetimes than HTML pages.
+Minifiers trim the last 10%; markup decisions shape the first 90%. Which resources load, whether they block, and whether slots are reserved — those are the levers, and they are all in the HTML.
 </p>
 
-<div class="alert alert-info shadow-sm">
-Practical rule: long cache for versioned assets (CSS/JS/images), shorter cache for HTML documents that change often.
+<h2 id="the-critical-rendering-path">The critical rendering path</h2>
+
+<h3 id="what-blocks-paint">What blocks the first paint</h3>
+<p>
+The browser cannot paint without the HTML and its stylesheets; everything else — most JavaScript, below-the-fold images — can wait. Resources that must arrive before painting are <em>critical</em>; the goal of loading strategy is to keep that set small:
+</p>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-critical-path.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram of the critical rendering path from HTML and CSS to render tree, layout and paint"/>
+  <p>Figure 1 — HTML and CSS are critical; deferred JavaScript waits.</p>
 </div>
 
-<h2 id="measure-and-iterate">Measure, then improve</h2>
+<h3 id="defer-and-async">defer and async on scripts</h3>
+<p>
+Both attributes download without blocking the parser. <code>defer</code> runs the script after parsing, in document order — the right choice for almost every app script; <code>async</code> runs as soon as it arrives, in no guaranteed order — right for independent analytics:
+</p>
+<pre><code class="language-html">&lt;script src="/assets/js/app.js" defer&gt;&lt;/script&gt;    &lt;!-- ordered, after parse --&gt;
+&lt;script src="https://cdn.example.com/analytics.js" async&gt;&lt;/script&gt;</code></pre>
 
+<h3 id="css-is-critical-too">CSS is critical too</h3>
+<p>
+A blocking stylesheet in the head delays first paint — necessary, because unstyled rendering flashes. The strategy: small critical CSS (inline the few rules above the fold if needed), async-load the rest, and never ship framework resets the page does not use.
+</p>
+
+<h2 id="resource-hints">Resource hints</h2>
+
+<h3 id="the-hint-vocabulary">The hint vocabulary</h3>
+<p>
+Hints live in the head and tell the browser what to start early: <code>preload</code> for something this page definitely needs soon, <code>prefetch</code> for the next navigation, <code>preconnect</code> to warm DNS+TLS to a third-party origin:
+</p>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-resource-hints.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram mapping defer, async, preload, prefetch, preconnect and lazy loading to their use cases"/>
+  <p>Figure 2 — Each hint answers a different "when?" about a resource.</p>
+</div>
+
+<h3 id="hints-in-practice">Hints in practice</h3>
+<pre><code class="language-html">&lt;head&gt;
+  &lt;!-- fonts are discovered late (after CSS) — preload them --&gt;
+  &lt;link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin&gt;
+  &lt;!-- the user will likely navigate to the next lesson: --&gt;
+  &lt;link rel="prefetch" href="/roadmap/html/apis.html"&gt;
+  &lt;!-- third-party origins pay DNS+TLS on first use: --&gt;
+  &lt;link rel="preconnect" href="https://fonts.gstatic.com" crossorigin&gt;
+&lt;/head&gt;</code></pre>
+
+<h3 id="lazy-loading">Lazy loading images and frames</h3>
+<p>
+<code>loading="lazy"</code> defers offscreen media until it nears the viewport — the single highest-value attribute for image-heavy pages. Keep it off above-the-fold content:
+</p>
+<pre><code class="language-html">&lt;img src="photo-13.jpg" alt="Thirteenth garden bed"
+     width="320" height="240" loading="lazy"&gt;</code></pre>
+
+<h2 id="the-image-budget">The image budget</h2>
+
+<h3 id="right-size-right-format">Right size, right format</h3>
+<p>
+Resize to the largest rendered width, serve WebP/AVIF with fallbacks, and let <code>srcset</code> pick per device (chapter 5). A page's total image weight under 1 MB is a sane default target; Lighthouse's "properly size images" audit names the offenders.
+</p>
+<pre><code class="language-html">&lt;img src="photo-800.jpg"
+     srcset="photo-400.jpg 400w, photo-800.jpg 800w"
+     sizes="(max-width: 600px) 100vw, 50vw"
+     alt="A ladybug on a leaf" width="800" height="600" loading="lazy"&gt;</code></pre>
+
+<h3 id="reserve-the-slots">Reserve the slots</h3>
+<p>
+<code>width</code> and <code>height</code> on every image prevent layout shift when loading completes — the CLS half of the vitals pair. This is a two-attribute fix with no downside.
+</p>
+
+<h3 id="measure-then-improve">Measure, then improve</h3>
+<p>
+Lighthouse under throttled mobile conditions, then the Network tab sorted by transfer size. Fix one bottleneck at a time and re-measure — the loop from chapter 13 applies per page and per release.
+</p>
+
+<h2 id="common-mistakes">Common mistakes</h2>
+
+<h3 id="render-blocking-everything">Render-blocking everything</h3>
+<p>
+Five stylesheets, three framework scripts in the head without defer — the page waits for all of them. Move non-critical scripts to <code>defer</code>, merge or trim CSS, and let the Network tab's waterfall show what the page waits for.
+</p>
+
+<h3 id="preloading-the-wrong-things">Preloading the wrong things</h3>
+<p>
+Preload competes for the same bandwidth as critical CSS; preloading six images delays the paint they were meant to accelerate. Preload the discovered-late essentials (fonts), nothing more.
+</p>
+
+<h3 id="lazy-everything">Lazy-loading above the fold</h3>
+<p>
+The hero image <em>is</em> the LCP element — lazily loading it makes the page measurably slower by its own scorecard. Lazy-load below the fold; prioritize above it.
+</p>
+
+<h2 id="practice">Practice</h2>
+
+<h3 id="exercises">Exercises</h3>
 <ol>
-  <li>Open browser DevTools and run Lighthouse.</li>
-  <li>Review Core Web Vitals and largest resource files.</li>
-  <li>Fix one bottleneck at a time (usually images first).</li>
-  <li>Re-test after each change.</li>
+  <li>Run Lighthouse on one of your pages with mobile throttling; write down the top three opportunities.</li>
+  <li>Add <code>defer</code> to every script that does not need to run early and compare the waterfalls.</li>
+  <li>Preload the page's web font; re-measure LCP before and after.</li>
+  <li>Set width/height and <code>loading="lazy"</code> on all below-fold images; watch CLS drop to ~0.</li>
+  <li>Convert one image to AVIF and WebP, serve with <code>&lt;picture&gt;</code>, and compare transfer sizes.</li>
 </ol>
 
-<h2 id="quick-checklist">Quick performance checklist</h2>
+<h3 id="demo-lab">Demo lab</h3>
+<p>
+<code>16_loading_hints.html</code> in the <a href="/roadmap/html/demo_examples.html">Lab Examples</a> page shows every hint in context — view the source, then preview it with the Network tab open.
+</p>
 
-<ul>
-  <li>Images are compressed and correctly sized.</li>
-  <li>Non-critical scripts use <code>defer</code>.</li>
-  <li>Only necessary CSS and JS are loaded.</li>
-  <li>Cache strategy is configured for static files.</li>
-  <li>Page is tested on mobile network conditions.</li>
-</ul>
+<div class="alert alert-info mt-3">
+Next: <a href="/roadmap/html/security-embedding.html">Security and Embedding</a> — the risks your markup inherits and their attribute-level fixes.
+</div>
 
 </main>
     </div>
