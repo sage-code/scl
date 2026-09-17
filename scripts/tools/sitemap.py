@@ -14,6 +14,7 @@ from urllib.parse import urljoin
 BASE_URL = "https://sagecode.org"
 OUTPUT_FILE = "sitemap.xml"
 SOURCE_DIR = "./"
+EXCLUDE_LIST_FILE = "sitemap_exclude.txt"
 
 # Files and patterns to exclude from sitemap
 EXCLUDE_PATTERNS = {
@@ -129,6 +130,14 @@ def should_exclude(file_path, relative_path, url):
     # Exclude files in excluded directories
     if "/node_modules/" in relative_path or "/__pycache__/" in relative_path:
         return True
+    
+    # Exclude via custom file
+    if os.path.exists(EXCLUDE_LIST_FILE):
+        with open(EXCLUDE_LIST_FILE, "r") as f:
+            for line in f:
+                pattern = line.strip()
+                if pattern and pattern in url:
+                    return True
     
     # Exclude hidden files/directories
     if "/.git" in relative_path or "/." in relative_path:

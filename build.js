@@ -3,6 +3,16 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { execSync } = require("node:child_process");
 
+// --- Pre-build: Generate fresh sitemap ---
+try {
+  console.log("[*] Generating fresh sitemap...");
+  execSync("python scripts/tools/sitemap.py", { stdio: 'inherit' });
+} catch (e) {
+  console.error("[!] Error generating sitemap:", e);
+  process.exit(1);
+}
+
+
 const ROOT = process.cwd();
 const PUBLIC_DIR = path.join(ROOT, "public");
 const BUILD_CACHE_PATH = path.join(ROOT, "manual", "build-cache.json");
