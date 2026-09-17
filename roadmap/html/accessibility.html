@@ -7,7 +7,7 @@
   <meta name="keywords" content="html accessibility, a11y, semantic html, alt text, labels">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-  <title>HTML Accessibility Basics</title>
+  <title>HTML Accessibility and ARIA</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/html/accessibility.html">
   <meta name="robots" content="index, follow">
 
@@ -15,8 +15,12 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 
@@ -37,76 +41,144 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h2 id="what-is-accessibility">What is accessibility?</h2>
+<h1 id="html-accessibility-and-aria">HTML Accessibility and ARIA</h1>
 
-        <div class="alert alert-secondary shadow-sm">
-          Accessibility means your page can be used by everyone, including people using screen readers, keyboard navigation, zoom, or high-contrast settings.
-        </div>
+<div class="alert alert-secondary shadow-sm">
+Accessibility means the page works for everyone — screen-reader users, keyboard-only users, people who zoom, and people on slow devices. Most of it is simply correct HTML; ARIA is the smaller remainder, used with care.
+</div>
 
-        <p>
-          Accessible HTML is not an advanced extra step. It is part of correct HTML. If your structure is clean, accessibility becomes much easier.
-        </p>
+<p>
+Roughly one person in six lives with a disability, and everyone benefits from accessible markup: captions serve loud environments, semantics serves slow connections, labels serve everyone who has ever forgotten which field a cursor landed in. Accessibility is not a module to add later — it is the quality of your markup measured by a different standard, WCAG.
+</p>
 
-        <h2 id="semantic-landmarks">Use semantic landmarks first</h2>
+<h2 id="the-accessibility-tree">The accessibility tree</h2>
 
-        <p>
-          Landmarks help users and assistive tools jump quickly through the page.
-        </p>
+<h3 id="what-screen-readers-see">What screen readers actually read</h3>
+<p>
+The browser derives an <strong>accessibility tree</strong> from your DOM: each element contributes a role, a name, and a state. Assistive technology reads <em>that</em> tree — never your tags directly. Two elements can render identically while exposing completely different trees:
+</p>
+<pre><code class="language-html">&lt;!-- announced as: nothing useful (a plain div) --&gt;
+&lt;div onclick="add()"&gt;Add to cart&lt;/div&gt;
 
-        <pre><code class="language-html">&lt;header&gt;...&lt;/header&gt;
-&lt;nav&gt;...&lt;/nav&gt;
-&lt;main&gt;...&lt;/main&gt;
-&lt;footer&gt;...&lt;/footer&gt;</code></pre>
+&lt;!-- announced as: button, Add to cart, focusable, Enter/Space work --&gt;
+&lt;button type="button"&gt;Add to cart&lt;/button&gt;</code></pre>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-a11y-tree.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram of DOM transforming into the accessibility tree and reaching assistive technology"/>
+  <p>Figure 1 — Assistive technology reads derived semantics, not your source.</p>
+</div>
 
-        <h2 id="labels-and-forms">Labels and forms</h2>
+<h3 id="name-role-value">Name, role, value</h3>
+<p>
+Every interactive element must expose its role (button, link, checkbox), its name (what to call it), and where relevant its value or state (checked, expanded). Native HTML elements provide all three automatically; a div pretending to be a button provides none without ARIA and JavaScript.
+</p>
 
-        <p>
-          Every input should have a visible label. The label text explains what the field expects.
-        </p>
+<h3 id="lang-and-document-level">Document-level basics: lang and title</h3>
+<p>
+The cheapest wins live in the <code>&lt;html&gt;</code> tag: <code>lang</code> chooses the screen reader's pronunciation voice, and the <code>&lt;title&gt;</code> identifies the page in every navigation list. Both are set once per page and influence every screen of the experience.
+</p>
 
-        <pre><code class="language-html">&lt;label for="email"&gt;Email address&lt;/label&gt;
-&lt;input id="email" type="email" name="email" required&gt;</code></pre>
+<h2 id="keyboard-and-focus">Keyboard and focus</h2>
 
-        <h2 id="images-and-alt-text">Images and alt text</h2>
+<h3 id="tab-is-the-natural-order">Tab follows the source order</h3>
+<p>
+Keyboard users traverse the page with Tab in <em>DOM order</em> — not visual order. CSS can position anything anywhere, but the tab ring still walks the source. Keep the DOM order logical and most "tabindex management" becomes unnecessary:
+</p>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-focus-order.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram of tab order following the DOM and the three tabindex values"/>
+  <p>Figure 2 — The tab ring walks the DOM; tabindex 0 joins it, positive values break it.</p>
+</div>
 
-        <ul>
-          <li>Informative images need useful <code>alt</code> text.</li>
-          <li>Decorative images can use <code>alt=""</code>.</li>
-          <li>Avoid text inside images when possible.</li>
-        </ul>
+<h3 id="tabindex-rules">The tabindex rules</h3>
+<p>
+Three values cover everything: <code>tabindex="0"</code> joins the natural order (for custom widgets); <code>tabindex="-1"</code> makes an element programmatically focusable but not tabbable (modals); <strong>positive values are always wrong</strong> — they break the natural order for everyone.
+</p>
 
-        <h2 id="keyboard-focus">Keyboard and focus</h2>
+<h3 id="visible-focus">Visible focus is not optional</h3>
+<p>
+<code>outline: none</code> without a replacement removes the only indicator keyboard users have. Style <code>:focus-visible</code> instead — a visible ring that matches your design is all WCAG 2.4.7 asks:
+</p>
+<pre><code class="language-css">/* replace the ring, never just remove it */
+:focus-visible { outline: 3px solid #58a6ff; outline-offset: 2px; }</code></pre>
 
-        <p>
-          Many users navigate only with keyboard. Your page should work with Tab, Enter, and Space keys.
-        </p>
+<h2 id="labels-alt-text-and-color">Labels, alt text, and color</h2>
 
-        <ul>
-          <li>Use real buttons for actions.</li>
-          <li>Use links for navigation.</li>
-          <li>Do not remove visible focus outlines.</li>
-        </ul>
+<h3 id="form-labels">Every input has a label</h3>
+<p>
+Chapter 7 covered the mechanics; here is why they matter: an unlabeled field is announced as "edit text" with no hint of purpose. Visible <code>&lt;label&gt;</code> elements are the default; placeholders are hints, never labels.
+</p>
 
-        <h2 id="aria-practical">ARIA: use only when needed</h2>
+<h3 id="alt-text-quality">Alt text quality</h3>
+<p>
+Describe the image's <em>role in the page</em>, not its pixels. "Chart of sales doubling" beats "bar chart". Decorative images take <code>alt=""</code> so they vanish from the reading flow — an absent attribute is the worst option because the file name gets read aloud.
+</p>
 
-        <p>
-          ARIA can help, but native HTML is usually better. Start with semantic tags first. Add ARIA only when native elements cannot express behavior clearly.
-        </p>
+<h3 id="color-independence">Never color alone</h3>
+<p>
+Error states marked only by a red border fail users with color vision deficiency (~8% of men). Pair color with an icon, text, or underline. WCAG's contrast minimums (4.5:1 for body text) are checkable with any contrast tool — and zooming to 200% must not break the layout.
+</p>
 
-        <div class="alert alert-info shadow-sm">
-          Rule of thumb: "No ARIA is better than bad ARIA." Choose native elements whenever possible.
-        </div>
+<h2 id="aria-used-wisely">ARIA, used wisely</h2>
 
-        <h2 id="quick-audit">Quick beginner audit</h2>
+<h3 id="the-first-rule">The first rule of ARIA</h3>
+<p>
+"Don't use ARIA" — the specification's own joke, with a serious core: native elements beat ARIA replicas because they ship keyboard behavior, roles, and states for free. Reach for ARIA only when no native element exists for the widget:
+</p>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-aria-decision.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Decision flow: native element first, native plus ARIA attribute second, full ARIA pattern last"/>
+  <p>Figure 3 — The ARIA decision flow: native first, patterns last.</p>
+</div>
 
-        <ol>
-          <li>Can I navigate the page with keyboard only?</li>
-          <li>Do all form fields have labels?</li>
-          <li>Do all meaningful images have alt text?</li>
-          <li>Are headings in logical order?</li>
-          <li>Can I understand the page without color alone?</li>
-        </ol>
-      </main>
+<h3 id="aria-attributes-that-help">The ARIA attributes worth knowing</h3>
+<p>
+Three families cover most real use: <em>states</em> (<code>aria-expanded</code>, <code>aria-checked</code>), <em>relationships</em> (<code>aria-labelledby</code>, <code>aria-describedby</code>, <code>aria-controls</code>), and <em>live regions</em> (<code>aria-live</code> announces dynamic updates). They attach semantics; they do not create behavior — the JavaScript to move focus and respond to keys remains yours.
+</p>
+<pre><code class="language-html">&lt;!-- a disclosure built on a real button: behavior stays native --&gt;
+&lt;button aria-expanded="false" aria-controls="panel"&gt;Details&lt;/button&gt;
+&lt;div id="panel" hidden&gt;...&lt;/div&gt;</code></pre>
+
+<h3 id="testing-with-assistive-tech">Testing with assistive technology</h3>
+<p>
+Turn on VoiceOver (macOS: Cmd+F5) or NVDA (Windows, free) and navigate your own page once a month. The a11y pane in DevTools shows names and roles without audio. Both take minutes and catch what automated tools miss.
+</p>
+
+<h2 id="common-mistakes">Common mistakes</h2>
+
+<h3 id="div-buttons">Div buttons</h3>
+<p>
+The most damaging single pattern: an unclickable-by-keyboard, unnamed, role-less "button". Use <code>&lt;button&gt;</code>. If the constraint is real (a full ARIA pattern with <code>role</code>, <code>tabindex="0"</code>, and keydown handlers), that is the price — not a choice.
+</p>
+
+<h3 id="removing-focus-styles">Removing focus styles</h3>
+<p>
+Global <code>outline: none</code> removes the page from keyboard reachability while looking clean to mouse users. Style the ring; never delete it.
+</p>
+
+<h3 id="aria-overload">ARIA overload</h3>
+<p>
+Sprinkling <code>role="button"</code> on links and <code>aria-label</code> on everything often <em>lowers</em> accessibility by overriding correct native semantics with worse ones. Audit first, add ARIA last.
+</p>
+
+<h2 id="practice">Practice</h2>
+
+<h3 id="exercises">Exercises</h3>
+<ol>
+  <li>Unplug the mouse and complete one full task on your own page — note every place you got stuck.</li>
+  <li>Run the page through aXe (browser extension) and fix every reported violation.</li>
+  <li>Use the DevTools accessibility pane to verify every interactive element has a name and role.</li>
+  <li>Navigate with VoiceOver or NVDA for ten minutes; notice how landmarks and headings become the navigation.</li>
+  <li>Check your colors against 4.5:1 contrast, and verify error states do not rely on color alone.</li>
+</ol>
+
+<h3 id="demo-lab">Demo lab</h3>
+<p>
+<code>10_accessible_widgets.html</code> in the <a href="/roadmap/html/demo_examples.html">Lab Examples</a> page contrasts native and ARIA-repaired widgets — view the source, then preview it with keyboard and screen reader.
+</p>
+
+<div class="alert alert-info mt-3">
+Next: <a href="/roadmap/html/metadata-seo.html">Metadata, SEO and Social</a> — how machines read your page and how to brief them well.
+</div>
+
+</main>
     </div>
   </div>
 
@@ -121,6 +193,15 @@
   <span style="font-size: 24px;">&#9776;</span>
 </button>
 
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'html',
+    topicId: 'accessibility',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
 <script src="/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
 

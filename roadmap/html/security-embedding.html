@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="HTML security and embedding: iframe sandbox, rel=noopener, mixed content, referrer policy, CSP, SRI, and HTML email constraints.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="html security, iframe sandbox, noopener, csp, sri, html email, html tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>HTML Security and Embedding</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/html/security-embedding.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="html-security-and-embedding">HTML Security and Embedding</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Links, embeds, and external resources are the three doors your markup opens to the outside world. This chapter walks each risk and its attribute-level fix — decisions that belong in the HTML, not the backend.
+</div>
+
+<p>
+Static pages feel risk-free and are not: every external script, iframe, and even every <code>target="_blank"</code> link is a trust decision. The fixes here are one-liners once known and invisible liabilities otherwise.
+</p>
+
+<h2 id="the-security-surface">The security surface</h2>
+
+<h3 id="four-inherited-risks">Four risks every page inherits</h3>
+<p>
+Tab-nabbing, mixed content, malicious embeds, and referrer leakage need no backend to matter — they are property of the markup. Each has a one-attribute fix:
+</p>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-security-vectors.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram of four security risks and their attribute-level fixes"/>
+  <p>Figure 1 — Four doors, four one-line fixes.</p>
+</div>
+
+<h3 id="the-origin-model">The origin model</h3>
+<p>
+The browser's sandbox walls are drawn between <em>origins</em> (scheme + host + port). Content from another origin renders inside your page but cannot read its DOM — unless something in your markup opens a door. Understanding "same-origin" is the foundation for everything else in this chapter.
+</p>
+
+<h3 id="trust-escalation">How static pages get owned</h3>
+<p>
+The common static-site attack is not breaking in — it's being trusted too much: a compromised CDN script, an iframe that navigates you away, a link handing out your users' URLs. All three close with markup hygiene.
+</p>
+
+<h2 id="links-and-tabnabbing">Links and tab-nabbing</h2>
+
+<h3 id="the-opener-leak">The opener leak</h3>
+<p>
+A page opened with <code>target="_blank"</code> can access <code>window.opener</code> and redirect your tab — "tab-nabbing". The fix travels with every external link:
+</p>
+<pre><code class="language-html">&lt;!-- the safe external link pattern --&gt;
+&lt;a href="https://example.com" target="_blank" rel="noopener noreferrer nofollow"&gt;
+  Example site (opens in a new tab)
+&lt;/a&gt;</code></pre>
+<p>
+<code>noopener</code> severs the opener reference; <code>noreferrer</code> also hides the referring URL; <code>nofollow</code> tells crawlers the link is not an endorsement. Modern browsers imply noopener for <code>target="_blank"</code>, but older ones do not — the attribute costs nothing and closes the gap everywhere.
+</p>
+
+<h3 id="referrerpolicy">Controlling the referrer</h3>
+<p>
+Browsers send your full URL as the <code>Referer</code> header — leaking internal paths to linked sites. Set a page-wide policy in the head, or per-link where it matters:
+</p>
+<pre><code class="language-html">&lt;meta name="referrer" content="strict-origin-when-cross-origin"&gt;
+&lt;a href="https://partner.example" referrerpolicy="no-referrer"&gt;Partner&lt;/a&gt;</code></pre>
+
+<h3 id="linking-you-should-not-do">Links you should not write</h3>
+<p>
+<code>javascript:</code> URLs execute code from markup — never use them; use a button. Autoplaying third-party iframes, popups, and interstitials are user-hostile and increasingly blocked; build for opt-in engagement.
+</p>
+
+<h2 id="embedding-safely">Embedding safely: iframes</h2>
+
+<h3 id="sandbox-tokens">The sandbox attribute</h3>
+<p>
+<code>sandbox</code> strips an iframe's powers by default — no scripts, no forms, no popups — and re-grants them token by token. Start strict and add only what the embed needs:
+</p>
+<pre><code class="language-html">&lt;!-- a widget that needs scripts but not same-origin access --&gt;
+&lt;iframe src="https://widget.example.com" sandbox="allow-scripts"&gt;&lt;/iframe&gt;</code></pre>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-iframe-sandbox.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram of iframe attributes: sandbox tokens, title, loading and dimensions"/>
+  <p>Figure 2 — sandbox, title, and lazy loading govern an embed.</p>
+</div>
+
+<h3 id="sandbox-pitfalls">The allow-scripts + allow-same-origin trap</h3>
+<p>
+Granting both tokens to <em>your own origin</em> lets the frame remove its own sandbox — the restriction evaporates. Third-party embeds keep their own origin, so the pair is survivable there; never point a sandboxed iframe at your own site with both.
+</p>
+
+<h3 id="iframe-hygiene">iframe hygiene</h3>
+<p>
+Three habits: a <code>title</code> for the accessibility tree, <code>width</code>/<code>height</code> to prevent layout shift, and <code>loading="lazy"</code> for offscreen frames. Prefer static embed URLs over uncontrolled redirects, and audit third-party embeds periodically — they are code you do not control running in your users' browsers.
+</p>
+
+<h2 id="external-resources-csp-and-sri">External resources, CSP and SRI</h2>
+
+<h3 id="content-security-policy">Content Security Policy</h3>
+<p>
+CSP is an allowlist for where scripts, styles, and frames may come from. Meta-tag CSP covers a single page; the header form is stronger. For static sites it is a meaningful safety net against injected scripts:
+</p>
+<pre><code class="language-html">&lt;meta http-equiv="Content-Security-Policy"
+      content="script-src 'self' https://cdn.jsdelivr.net; object-src 'none'"&gt;</code></pre>
+
+<h3 id="subresource-integrity">Subresource integrity: SRI</h3>
+<p>
+When loading a library from a CDN, the <code>integrity</code> attribute pins its cryptographic hash — the browser refuses a tampered file. <code>crossorigin</code> enables the check:
+</p>
+<pre><code class="language-html">&lt;script src="https://cdn.jsdelivr.net/npm/library@1.2.3/lib.min.js"
+        integrity="sha384-oqVuAfXRKap7fdgcCY5uykM6+R9GqQ8K/uxy9rx7HNQlGYl1kPzQho1wx4JwY8wC"
+        crossorigin="anonymous"&gt;&lt;/script&gt;</code></pre>
+
+<h3 id="mixed-content">Mixed content</h3>
+<p>
+An <code>http://</code> resource inside an <code>https://</code> page is blocked or compromising — browsers escalate passive content and hard-block active scripts. Audit with the console ("mixed content" warnings) and pin every resource to <code>https:</code>.
+</p>
+
+<h2 id="html-email">The special case: HTML email</h2>
+
+<h3 id="the-2005-dialect">The 2005 dialect</h3>
+<p>
+Email clients sanitize aggressively — Gmail strips scripts and most CSS; Outlook renders with Word's engine. Email HTML is a dialect: table layout, inline styles, no scripts, no forms:
+</p>
+<pre><code class="language-html">&lt;!-- the accepted email skeleton --&gt;
+&lt;table role="presentation" width="600" cellpadding="0" cellspacing="0"&gt;
+  &lt;tr&gt;&lt;td style="font-family: Arial, sans-serif; padding: 16px;"&gt;
+    Hello from an email that renders everywhere.
+  &lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;</code></pre>
+<div class="text-center">
+  <img src="/roadmap/html/img/html-email-html.svg" width="720" class="image img-fluid protect rounded shadow border" alt="Diagram of what works and what breaks in HTML email clients"/>
+  <p>Figure 3 — Email HTML: same language, stricter client, older rules.</p>
+</div>
+
+<h3 id="why-it-matters">Why it matters</h3>
+<p>
+Millions of developers meet "HTML must work everywhere" first through email. The dialect teaches humility about sanitizers, and <code>role="presentation"</code> teaches the difference between table data and table layout — both lessons transfer back to the web.
+</p>
+
+<h3 id="email-testing">Testing email rendering</h3>
+<p>
+Preview tools (Litmus, Email on Acid) screenshot one message across dozens of clients. Or ship plain-text-first designs that degrade gracefully — a defensible engineering trade-off.
+</p>
+
+<h2 id="common-mistakes">Common mistakes</h2>
+
+<h3 id="bare-target-blank">Bare target="_blank"</h3>
+<p>
+Every external link needs <code>rel="noopener noreferrer"</code>; the new-tab pattern is incomplete without it. Fix globally once, then copy the pattern forever.
+</p>
+
+<h3 id="unsandboxed-embeds">Unsandboxed embeds</h3>
+<p>
+A third-party iframe without sandbox is a script injection waiting for the vendor to have a bad day. Sandbox it, title it, size it, lazy-load it — four attributes between you and someone else's incident.
+</p>
+
+<h3 id="trusting-cdn-scripts">Trusting CDN scripts blindly</h3>
+<p>
+A CDN account compromise becomes your site's compromise. Pin with SRI, allowlist with CSP, self-host critical scripts — the layered defenses are each one line.
+</p>
+
+<h2 id="practice">Practice</h2>
+
+<h3 id="exercises">Exercises</h3>
+<ol>
+  <li>Audit a past page: every <code>target="_blank"</code> gets its <code>rel</code>; every iframe gets sandbox, title, size, and lazy loading.</li>
+  <li>Add a CSP meta that allows only self and your CDN; reload and read every violation the console reports.</li>
+  <li>Add SRI to a CDN script, then tamper the hash and observe the browser's refusal.</li>
+  <li>Build a one-table HTML email and preview it in Gmail, Outlook, and Apple Mail — list what breaks.</li>
+</ol>
+
+<h3 id="demo-lab">Demo lab</h3>
+<p>
+<code>15_embed_iframe.html</code> in the <a href="/roadmap/html/demo_examples.html">Lab Examples</a> page shows a fully-armed sandboxed embed — view the source, then preview it.
+</p>
+
+<div class="alert alert-info mt-3">
+Next: <a href="/roadmap/html/modern-html.html">HTML in the Modern Web</a> — how SSR, hydration, and frameworks change (and do not change) your markup.
+</div>
+
+</main>
+    </div>
+  </div>
+
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'html',
+    topicId: 'security-embedding',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

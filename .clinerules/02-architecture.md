@@ -60,6 +60,8 @@ SCL is a sophisticated static website for learning software engineering and prog
 - Demos may be spread around the tutorial (embedded in lesson pages) and/or centralized per phase.
 - Centralized page `demo_examples.html`: one `h1`, one `h2` per phase/category; each category lists its demos in a table `# | Description | Link`; the Link column opens the local code viewer:
   `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<group>/<filename>` (subfolder paths included).
+  Tracks whose demos render standalone in a browser add a second **Preview** column linking the
+  demo file directly (`target="_blank" rel="noopener noreferrer"`).
 - Sidebar `data/demo_examples.json`: template shape with leaf chapters; build with `migrate_sidebars.py --track <track>` or `gen_topic_sidebars.py --mixed`.
 - The track `index.html` lists a `demo_examples` row under a Practice & Demo phase. Full details: `manual/ARCHITECTURE.md` §Demo Example Pages.
 

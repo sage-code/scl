@@ -39,6 +39,7 @@ Follow the canonical templates: `assets/topic_template.html` (topic pages) and `
 ## Practice & Demo (required for every track)
 - Single-file demos live in `roadmap/<track>/demo/NN_name.<ext>`, numbered and grouped by category.
 - Create `demo_examples.html` + `data/demo_examples.json` (template shape: the page title is the root folder and each category is a leaf chapter) listing demos by category, each linked to `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<file>`.
+- Demos that render standalone in a browser get a second **Preview** link straight to the demo file (`target="_blank" rel="noopener noreferrer"`) next to the code-viewer link.
 - Add a `demo_examples` row to the track `index.html` under a "Practice & Demo" phase.
 - New languages: extend `assets/js/code-viewer.js` `langMap`; the code viewer and topic pages share the single bundle `assets/prism.js` (register the grammar there) — no per-page component files are loaded.
 
