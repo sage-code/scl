@@ -7,11 +7,21 @@
 <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
 <link href="/images/favicon.ico" rel="icon" type="image/png"/>
-<link href="/prism.css" rel="stylesheet"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
 <link rel="stylesheet" href="/assets/css/sage-common.css">
 <link rel="stylesheet" href="/assets/css/content-topic.css">
 <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-<script src="/assets/prism.js">></script>
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
 </head>
 <body>
 <div class="container">
@@ -28,16 +38,83 @@
 </div>
 </aside>
 <main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
-<h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight text-balance text-foreground">Ada: Arrays</h1><p class="text-lg sm:text-xl leading-normal font-normal text-muted-foreground text-balance">Understand basic Ada concepts of Arrays.</p><p class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">On this page</p><p>Arrays are a fundamental data structure in Ada, used to store a collection of elements of the same type. They are versatile and widely used in various programming scenarios.</p><p>In Ada, you cannot declare an array without declaring the data type of its elements first. This is because the data type determines the size of each element and the valid range of values that the element can hold. Without specifying the data type, the compiler would not be able to allocate the appropriate amount of memory for the array elements or determine the valid range of values for the elements.</p><p>To declare an array in Ada, you follow this syntax:</p><p><strong>Code snippet</strong></p><pre><code>array_name : array(index_range) <span class="hljs-keyword">of</span> data_type;
-</code></pre><p>Where:</p><ul>
-<li><p><code>array_name</code> is the name of the array</p>
-</li>
-<li><p><code>index_range</code> specifies the range of indices for the array elements</p>
-</li>
-<li><p><code>data_type</code> is the type of the array elements</p>
-</li>
-</ul><p><code>array_name</code> is the name of the array</p><p><code>index_range</code> specifies the range of indices for the array elements</p><p><code>data_type</code> is the type of the array elements</p><p>For example, the following declaration creates an array named <code>numbers</code> that can store 10 integers:</p><p>Code snippet</p><pre><code>numbers : array(<span class="hljs-number">1.</span><span class="hljs-number">.10</span>) <span class="hljs-keyword">of</span> Integer;
-</code></pre><p>In this example, the data type of the array elements is <code>Integer</code>, and the index range is 1..10, which means that the array has 10 elements, indexed from 1 to 10.</p><p>Requiring the declaration of the data type before declaring the array helps to enforce type safety and prevents errors. It ensures that the compiler can allocate the correct amount of memory for the array elements and that the elements can only hold values of the specified type. This helps to prevent runtime errors and makes Ada code more reliable.</p>
+<h1 id="ada-arrays">Ada: Arrays</h1>
+<p>An Ada array is a collection of elements of one type, indexed by any discrete type — not just integers starting at zero. Arrays are bounds-checked, can be indexed by enumerations, and know their own dimensions through attributes. Indexing errors simply cannot hide.</p>
+
+<h2 id="constrained-arrays">Constrained Arrays</h2>
+<p>A constrained array fixes its index range at declaration. Index ranges are <strong>yours to choose</strong>: <code>0 .. 9</code>, <code>1 .. 10</code>, even <code>-5 .. 5</code>:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+
+procedure Array_Demo is
+   type Temperatures is array (1 .. 7) of Float;      -- days of a week
+   type Bit_Row is array (0 .. 7) of Boolean;         -- byte-like indexing
+
+   Week : Temperatures := (21.5, 22.0, 19.8, 20.1, 23.4, 24.0, 18.9);
+begin
+   Week (3) := 20.5;                     -- index, not pointer arithmetic
+   --  Week (8) := 0.0;                  -- compile error: 8 not in 1 .. 7
+   Put_Line (Float'Image (Week (3)));    -- 20.5
+   Put_Line (Integer'Image (Week'Length));  -- 7 — the array knows its size
+end Array_Demo;
+</code></pre>
+<p>Aggregates initialize several elements at once — with named or ranged choices for clarity:</p>
+<pre><code class="language-ada">   type Grid is array (1 .. 3, 1 .. 3) of Integer;    -- 2-D, rectangular
+   Board : constant Grid := (others =&gt; (others =&gt; 0));  -- every element 0
+   Row3  : constant Bit_Row := (0 .. 5 =&gt; False, 6 | 7 =&gt; True);
+</code></pre>
+
+<h2 id="unconstrained-arrays">Unconstrained Arrays</h2>
+<p>Declare the <em>type</em> of indices without fixing them, then fix them per object. <code>String</code> is exactly this — an unconstrained array of <code>Character</code>:</p>
+<pre><code class="language-ada">procedure Vector_Demo is
+   type Int_Vector is array (Positive range &lt;&gt;) of Integer;  -- bounds open
+
+   A : Int_Vector (1 .. 4) := (1, 2, 3, 4);      -- bounds chosen here
+   B : Int_Vector (10 .. 13) := (10, 11, 12, 13);  -- non-zero base is normal
+begin
+   --  A := B;     -- legal! same element type and length; bounds are copied
+   null;
+end Vector_Demo;
+</code></pre>
+<p>Whole-array assignment copies all elements — no <code>memcpy</code>, and a length mismatch is a run-time check that raises <code>Constraint_Error</code> instead of corrupting memory.</p>
+
+<h2 id="slices">Slices</h2>
+<p>A slice names a contiguous run of elements and behaves like an array of that length. Slices read and write:</p>
+<pre><code class="language-ada">procedure Slice_Demo is
+   type Int_Vector is array (Positive range &lt;&gt;) of Integer;
+   V : Int_Vector (1 .. 8) := (1, 2, 3, 4, 5, 6, 7, 8);
+begin
+   V (6 .. 8) := V (1 .. 3);       -- copy elements 1..3 onto 6..8: 1,2,3,4,5,1,2,3
+   V (1 .. 2) := (0, 0);           -- overwrite a range with an aggregate
+   null;
+end Slice_Demo;
+</code></pre>
+
+<h2 id="enumerated-index-types">Enumerated Index Types</h2>
+<p>Because any discrete type can index, arrays keyed by domain values need no hashing and no lookup tables:</p>
+<pre><code class="language-ada">procedure Sensor_Demo is
+   type Sensor is (Left, Center, Right);
+   type Readings is array (Sensor) of Float;      -- indexed BY the enum
+
+   R : Readings := (Left =&gt; 0.5, Center =&gt; 0.7, Right =&gt; 0.2);
+begin
+   for S in Sensor'Range loop
+      null;   -- iterate the three sensors — all of them, by name
+   end loop;
+end Sensor_Demo;
+</code></pre>
+<p>The compiler checks that every <code>Sensor</code> value has a slot. Missing one in an aggregate is an error — the array cannot go out of sync with its index type.</p>
+
+<h2 id="attributes-you-will-use-daily">Attributes You Will Use Daily</h2>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Attribute</th><th>Meaning</th><th>Replaces (C habits)</th></tr></thead>
+  <tbody>
+    <tr><td><code>A'First</code> / <code>A'Last</code></td><td>lowest / highest valid index</td><td><code>sizeof</code> arithmetic</td></tr>
+    <tr><td><code>A'Length</code></td><td>number of elements</td><td><code>sizeof(a)/sizeof(a[0])</code></td></tr>
+    <tr><td><code>A'Range</code></td><td>the whole index range for loops</td><td>hand-copied loop bounds</td></tr>
+  </tbody>
+</table>
+<p>Out-of-range indexing raises <code>Constraint_Error</code> at the exact line — never a silent overrun. Next: <a href="/roadmap/ada/records.html">Records</a>.</p>
+
 </main>
 </div>
 </div>
@@ -45,6 +122,9 @@
 <p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
 </footer>
 </div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
 <script>
   window.TOPIC_CONFIG = {
     labId: 'ada',

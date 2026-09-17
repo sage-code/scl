@@ -3,10 +3,17 @@
 Advanced XML Sitemap Generator for Sage-Code SCL
 Generates SEO-optimized sitemaps with proper priority and changefreq values
 Excludes template files, drafts, and non-indexable pages
+
+Modes:
+  full (default) : scan the whole source tree and rewrite sitemap.xml
+  --update       : apply a diff (changed/deleted HTML files) to the existing
+                   sitemap.xml, touching only the affected entries
 """
 
+import argparse
 import os
 import re
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -277,10 +284,132 @@ def generate_sitemap(base_url, source_dir, output_file):
         print(f"[ERROR] Error writing sitemap: {e}")
 
 
+SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+
+
+def render_sitemap(urls_dict):
+    """Render the url mapping to sitemap XML (sorted for stable diffs)."""
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        '',
+    ]
+    for url in sorted(urls_dict.keys()):
+        data = urls_dict[url]
+        lines.append("  <url>")
+        lines.append(f"    <loc>{url}</loc>")
+        lines.append(f"    <lastmod>{data['lastmod']}</lastmod>")
+        lines.append(f"    <changefreq>{data['changefreq']}</changefreq>")
+        lines.append(f"    <priority>{data['priority']}</priority>")
+        lines.append("  </url>")
+        lines.append("")
+    lines.append("</urlset>")
+    return "\n".join(lines) + "\n"
+
+
+def parse_existing_sitemap(output_file):
+    """Parse an existing sitemap.xml into the urls_dict shape. Missing/broken
+    files yield an empty dict so the caller can fall back to a full scan."""
+    urls = {}
+    if not os.path.exists(output_file):
+        return urls
+    try:
+        tree = ET.parse(output_file)
+    except ET.ParseError:
+        return urls
+    for url_el in tree.getroot().findall(f"{{{SITEMAP_NS}}}url"):
+        loc = url_el.findtext(f"{{{SITEMAP_NS}}}loc")
+        if not loc:
+            continue
+        urls[loc] = {
+            "lastmod": url_el.findtext(f"{{{SITEMAP_NS}}}lastmod") or datetime.now().strftime("%Y-%m-%d"),
+            "changefreq": url_el.findtext(f"{{{SITEMAP_NS}}}changefreq") or "quarterly",
+            "priority": url_el.findtext(f"{{{SITEMAP_NS}}}priority") or "0.6",
+        }
+    return urls
+
+
+def update_sitemap(base_url, source_dir, output_file, changed, deleted):
+    """Apply a source diff to the existing sitemap instead of rescanning the tree.
+
+    changed/deleted are repo-relative HTML paths (forward slashes). Entries for
+    deleted files are removed; changed files are re-evaluated against the
+    exclusion rules and either refreshed or dropped. Anything else in the
+    sitemap is left untouched.
+    """
+    urls_dict = parse_existing_sitemap(output_file)
+    if not urls_dict and os.path.exists(output_file) is False:
+        print("[!] No existing sitemap found; run a full build first.")
+        return
+
+    touched = 0
+
+    for rel_path in deleted:
+        url = urljoin(base_url + "/", rel_path)
+        if urls_dict.pop(url, None) is not None:
+            touched += 1
+            print(f"  [DEL]  {rel_path}")
+
+    for rel_path in changed:
+        file_path = os.path.join(source_dir, rel_path)
+        url = urljoin(base_url + "/", rel_path)
+        if not os.path.exists(file_path):
+            # Changed on disk but gone now (e.g. renamed) - treat as deletion.
+            if urls_dict.pop(url, None) is not None:
+                touched += 1
+                print(f"  [DEL]  {rel_path}")
+            continue
+        if should_exclude(file_path, rel_path, url):
+            if urls_dict.pop(url, None) is not None:
+                touched += 1
+                print(f"  [DROP] {rel_path} (now excluded)")
+            continue
+        priority, changefreq = get_priority_and_freq(url)
+        entry = {
+            "priority": priority,
+            "changefreq": changefreq,
+            "lastmod": get_last_modified(file_path),
+        }
+        if urls_dict.get(url) != entry:
+            urls_dict[url] = entry
+            touched += 1
+            print(f"  [UPD]  {rel_path} (priority: {priority}, freq: {changefreq})")
+
+    if touched == 0:
+        print("[OK] Sitemap already up to date; no changes needed.")
+        return
+
+    try:
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(render_sitemap(urls_dict))
+        print(f"[OK] Sitemap updated in place: {output_file} ({touched} entr(ies) touched, {len(urls_dict)} total)")
+    except IOError as e:
+        print(f"[ERROR] Error writing sitemap: {e}")
+
+
+def parse_csv_arg(value):
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="SEO XML Sitemap Generator - Sage-Code SCL")
+    parser.add_argument("--update", action="store_true",
+                        help="Incremental mode: apply --changed/--deleted diffs to the existing sitemap")
+    parser.add_argument("--changed", default="",
+                        help="Comma-separated repo-relative HTML paths that changed")
+    parser.add_argument("--deleted", default="",
+                        help="Comma-separated repo-relative HTML paths that were deleted")
+    args = parser.parse_args()
+
     print("=" * 70)
     print("SEO XML Sitemap Generator - Sage-Code SCL")
     print("=" * 70)
-    generate_sitemap(BASE_URL, SOURCE_DIR, OUTPUT_FILE)
+    if args.update:
+        update_sitemap(BASE_URL, SOURCE_DIR, OUTPUT_FILE,
+                       parse_csv_arg(args.changed), parse_csv_arg(args.deleted))
+    else:
+        generate_sitemap(BASE_URL, SOURCE_DIR, OUTPUT_FILE)
     print("=" * 70)
 

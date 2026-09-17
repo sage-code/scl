@@ -7,11 +7,21 @@
 <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
 <link href="/images/favicon.ico" rel="icon" type="image/png"/>
-<link href="/prism.css" rel="stylesheet"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
 <link rel="stylesheet" href="/assets/css/sage-common.css">
 <link rel="stylesheet" href="/assets/css/content-topic.css">
 <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-<script src="/assets/prism.js">></script>
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
 </head>
 <body>
 <div class="container">
@@ -28,27 +38,90 @@
 </div>
 </aside>
 <main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
-<h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight text-balance text-foreground">Ada: Syntax</h1><p class="text-lg sm:text-xl leading-normal font-normal text-muted-foreground text-balance">Ada syntax conventions and strategy.</p><p class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">On this page</p><p>3333Ada is a very verbose language, meaning it uses a lot of explicit, declarative syntax. This includes:</p><ul>
-<li><p>Long identifiers: variable and function names can be very long and descriptive. This improves readability but makes the code wordy.</p>
-</li>
-<li><p>Explicit typing: Ada requires you to specify the type of all variables, parameters, functions, etc. There are no type inferences.</p>
-</li>
-<li><p>Abundant keywords: Ada has many keywords for control structures, packages, exceptions, etc. This makes the syntax explicit and self-documenting.</p>
-</li>
-<li><p>Ada is an original language created in the early 1980s, quite different from languages like Fortran, C, Java or Python.</p>
-</li>
-</ul><p>Long identifiers: variable and function names can be very long and descriptive. This improves readability but makes the code wordy.</p><p>Explicit typing: Ada requires you to specify the type of all variables, parameters, functions, etc. There are no type inferences.</p><p>Abundant keywords: Ada has many keywords for control structures, packages, exceptions, etc. This makes the syntax explicit and self-documenting.</p><p>Ada is an original language created in the early 1980s, quite different from languages like Fortran, C, Java or Python.</p><p>Ada does not belong to any particular language family but it has been influenced by languages like Pascal and ALGOL.</p><p>Ada is a free-form language, meaning code is not restricted to fixed column positions and indentation is not syntactically significant.</p><p>Ada is a case-insensitive language, so variable names like Count and COUNT refer to the same variable.</p><p>Some other language conventions:</p><ul>
-<li><p>Use camelCase for variable names, UPPER_CASE for constants.</p>
-</li>
-<li><p>Begin blocks with the keywords begin and end.</p>
-</li>
-<li><p>Use double quotes for string literals.</p>
-</li>
-<li><p>Use pragma to specify compiler options.</p>
-</li>
-<li><p>Compile Ada programs using GNAT or other Ada compilers.</p>
-</li>
-</ul><p>Use camelCase for variable names, UPPER_CASE for constants.</p><p>Begin blocks with the keywords begin and end.</p><p>Use double quotes for string literals.</p><p>Use pragma to specify compiler options.</p><p>Compile Ada programs using GNAT or other Ada compilers.</p><p>So in summary, Ada's syntax is very explicit and wordy, making Ada code self-documenting but somewhat verbose. The language has its own unique conventions that differ from more modern languages.</p>
+<h1 id="ada-syntax">Ada: Syntax</h1>
+<p>Ada's syntax is explicit and regular: every unit follows the same skeleton, every block has a keyword-bounded end, and the compiler checks structure that other languages leave to convention. This page covers the lexical rules and the unit skeleton that all later lessons build on.</p>
+
+<h2 id="lexical-rules">Lexical Rules</h2>
+<h3 id="identifiers">Identifiers</h3>
+<p>An identifier starts with a letter, continues with letters, digits, and underscores. Identifiers are <strong>case-insensitive</strong> — <code>Count</code>, <code>COUNT</code>, and <code>count</code> are the same name. The community style (and GNAT's default checkers) is <code>Mixed_Case_With_Underscores</code> for identifiers, because the casing still aids human readers while the compiler ignores it.</p>
+<h3 id="comments">Comments</h3>
+<p>A comment starts with two hyphens <code>--</code> and runs to the end of the line. There are no block comments; that restriction keeps every line visibly owned:</p>
+<pre><code class="language-ada">Elapsed : Natural := 0;   -- seconds since start, never negative
+--  Comments above the code they explain are the dominant Ada style.
+--  The two extra dashes after -- are a formatting convention of many teams.
+</code></pre>
+<h3 id="literals">Literals</h3>
+<p>Numeric literals allow underscores as digit separators, which matters when you first meet hardware registers and bit patterns:</p>
+<pre><code class="language-ada">Million  : constant Integer := 1_000_000;       -- separators, no digit-count limit
+Byte_255 : constant Integer := 16#FF#;          -- 16#digits# selects a base
+Half     : constant Float   := 3.14159_26;      -- works for reals too
+</code></pre>
+<p>String literals use double quotes (a quote inside is doubled: <code>""""</code> is a one-character string); character literals use single quotes: <code>'A'</code>.</p>
+
+<h2 id="the-unit-skeleton">The Unit Skeleton</h2>
+<p>Every Ada unit — a main procedure, a package body, a task body, or a nested block — has the same three regions. The diagram below is the map for the whole language:</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/ada/img/ada-program-structure.svg" class="figure-img img-fluid rounded" alt="Anatomy of an Ada main procedure: context clause, declarative part, statement part" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Context clauses name dependencies; declarations come before <code>begin</code>; statements run in order.</figcaption>
+</figure>
+<pre><code class="language-ada">with Ada.Text_IO;          -- 1. context clause: what this unit needs
+
+procedure Syntax_Tour is   -- 2. declarative part starts at "is"
+   Done  : Boolean := False;      -- every name has a type, always
+   Count : Natural := 0;          -- Natural: the subtype 0 .. Integer'Last
+begin                      -- 3. statement part
+   Count := Count + 1;
+   Done  := Count &gt; 0;
+   Ada.Text_IO.Put_Line ("done: " &amp; Boolean'Image (Done));
+end Syntax_Tour;           -- the end name must match — the compiler checks it
+</code></pre>
+<p>Run it with <code>alr run</code> (or <code>gnatmake syntax_tour.adb</code>) and the output is <code>done: TRUE</code>. The <code>&amp;</code> operator concatenates strings; <code>Boolean'Image</code> converts a value to its printable form — an <em>attribute</em>, always written with a tick.</p>
+
+<h2 id="declarations-before-use">Declarations Before Use</h2>
+<p>Ada reads top to bottom and requires a name to be declared before it is used. There is no implicit hoisting. This sounds like a restriction; in practice it means the declaration order <em>is</em> the documentation order — the reader knows exactly where every name comes from:</p>
+<pre><code class="language-ada">procedure Order_Matters is
+   Width  : constant Float := 4.0;
+   Height : constant Float := 3.0;
+   Area   : constant Float := Width * Height;  -- OK: Width, Height above
+begin
+   null;  -- "null;" is the empty statement where a statement is required
+end Order_Matters;
+</code></pre>
+<p>Two details in this example recur constantly:</p>
+<ul>
+  <li><code>constant</code> declares a name that can never be assigned again — used far more often than variables in idiomatic Ada.</li>
+  <li><code>null;</code> exists because Ada has no empty statement; every syntactic slot is explicit.</li>
+</ul>
+
+<h2 id="statements-and-terminators">Statements and Terminators</h2>
+<p>Statements end with semicolons, and Ada has no expression-statements: a computation nobody uses is a compile error. Blocks nest and every level closes with a keyword pair:</p>
+<pre><code class="language-ada">procedure Nesting is
+begin
+   if True then
+      declare            -- an inline block with its own declarations
+         Msg : constant String := "inner";
+      begin
+         Ada.Text_IO.Put_Line (Msg);
+      end;               -- ends the declare block
+   end if;               -- ends the if
+end Nesting;
+</code></pre>
+<p>The <code>end X;</code> discipline means a missing end is caught at the exact nesting level that broke, not pages later. Editors and pretty-printers lean on this structure too.</p>
+
+<h2 id="free-formatting-and-style">Free Formatting and Style</h2>
+<p>Ada is free-form: indentation and line breaks carry no meaning. The community style guides (GNAT Style Guide, AdaCore coding standards) exist because uniformity matters more than any single choice. The conventions used throughout this track:</p>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Element</th><th>Convention</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>Identifiers</td><td>Mixed case with underscores</td><td><code>Packet_Size</code></td></tr>
+    <tr><td>Constants</td><td>Same as identifiers — the type system replaces naming tricks</td><td><code>Max_Retries</code></td></tr>
+    <tr><td>Keywords</td><td>Lowercase</td><td><code>if</code>, <code>loop</code>, <code>begin</code></td></tr>
+    <tr><td>Indentation</td><td>3 spaces per level (GNAT default)</td><td>—</td></tr>
+    <tr><td>Comments</td><td><code>--</code>, aligned with the code they explain</td><td><code>--  why, not what</code></td></tr>
+  </tbody>
+</table>
+<p>Next: <a href="/roadmap/ada/data-types.html">Data Types</a> — where Ada's strongest idea begins.</p>
+
 </main>
 </div>
 </div>
@@ -56,6 +129,9 @@
 <p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
 </footer>
 </div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
 <script>
   window.TOPIC_CONFIG = {
     labId: 'ada',

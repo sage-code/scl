@@ -7,11 +7,21 @@
 <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
 <link href="/images/favicon.ico" rel="icon" type="image/png"/>
-<link href="/prism.css" rel="stylesheet"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
 <link rel="stylesheet" href="/assets/css/sage-common.css">
 <link rel="stylesheet" href="/assets/css/content-topic.css">
 <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-<script src="/assets/prism.js">></script>
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
 </head>
 <body>
 <div class="container">
@@ -28,43 +38,76 @@
 </div>
 </aside>
 <main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
-<h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight text-balance text-foreground">Ada:  Generics</h1><p class="text-lg sm:text-xl leading-normal font-normal text-muted-foreground text-balance">Understand Ada generic packages.</p><p class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">On this page</p><p>A generic package in Ada is a template for a package that can be customized for specific types. It allows code reuse by parameterizing the package on one or more types.</p><p>Some key points about generic packages:</p><ol>
-<li>They are declared using the generic keyword:</li>
-</ol><pre><code class="lang-plaintext">generic
-   -- Formal parameters here
-package Package_Name is
-   -- Declarations here   
-end Package_Name;
-</code></pre><ol>
-<li>The formal parameters specify the types that the generic package can work with. For example:</li>
-</ol><pre><code class="lang-plaintext">generic
-   type Element_Type is private;
-</code></pre><ol>
-<li><p>The body of the generic package contains algorithms that work on the formal parameters. It is independent of any concrete type.</p>
-</li>
-<li><p>The generic package is instantiated for specific types using:</p>
-</li>
-</ol><p>The body of the generic package contains algorithms that work on the formal parameters. It is independent of any concrete type.</p><p>The generic package is instantiated for specific types using:</p><pre><code class="lang-plaintext">package Integer_Package is new Package_Name (Element_Type =&gt; Integer);
-package String_Package is new Package_Name (Element_Type =&gt; String);
-</code></pre><ol>
-<li><p>This instantiates two concrete packages - one working on Integers and one working on Strings.</p>
-</li>
-<li><p>The initialization section allows initializing objects when a specific instantiation is made.</p>
-</li>
-<li><p>Generic packages are useful for code reuse by parameterizing on types. They separate the algorithm from the specific types used.</p>
-</li>
-</ol><p>This instantiates two concrete packages - one working on Integers and one working on Strings.</p><p>The initialization section allows initializing objects when a specific instantiation is made.</p><p>Generic packages are useful for code reuse by parameterizing on types. They separate the algorithm from the specific types used.</p><p>In summary, a generic package is a template that:</p><ul>
-<li><p>Is parameterized by one or more types (formal parameters)</p>
-</li>
-<li><p>Contains declarations and bodies that are independent of any concrete type</p>
-</li>
-<li><p>Is instantiated for specific types to create concrete packages</p>
-</li>
-<li><p>Allows initialization when instantiated</p>
-</li>
-<li><p>Enables code reuse by working with any type that meets the formal requirements.</p>
-</li>
-</ul><p>Is parameterized by one or more types (formal parameters)</p><p>Contains declarations and bodies that are independent of any concrete type</p><p>Is instantiated for specific types to create concrete packages</p><p>Allows initialization when instantiated</p><p>Enables code reuse by working with any type that meets the formal requirements.</p>
+<h1 id="ada-generics">Ada: Generics</h1>
+<p>A generic unit is a compile-time template parameterized by types, operations, and values. Instantiation produces a specialized, fully checked copy. This is how Ada's containers work — and how you write one sorting routine that the compiler specializes for every type you use.</p>
+
+<h2 id="the-generic-unit">The Generic Unit</h2>
+<p>The <code>generic</code> part declares what callers must supply. Each formal declares a <em>requirement</em>, not a value:</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/ada/img/ada-generic-instantiation.svg" class="figure-img img-fluid rounded" alt="A generic package with formal parameters and two instantiations" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Formal parameters declare requirements; each instantiation supplies actuals and yields a checked copy.</figcaption>
+</figure>
+<pre><code class="language-ada">-- sorting.ads — a generic package: note the "generic" keyword
+generic
+   type Item_T is private;                       -- any type
+   with function "&lt;" (A, B : Item_T) return Boolean;  -- plus an ordering
+package Sorting is
+
+   procedure Sort (Data : in out array);
+   --  (a real version takes the array type as a formal too — shown next)
+
+end Sorting;
+</code></pre>
+
+<h2 id="instantiation">Instantiation</h2>
+<p><code>is new</code> creates a concrete package. The actuals must satisfy every formal — the compiler checks that <code>Integer</code> is a type and <code>"&lt;"</code> exists for it:</p>
+<pre><code class="language-ada">with Sorting;
+
+procedure Generic_Demo is
+   package Int_Sorting is new Sorting (Item_T =&gt; Integer, "&lt;" =&gt; "&lt;");
+   package Str_Sorting is new Sorting (Item_T =&gt; String, "&lt;" =&gt; "&lt;");
+begin
+   null;   -- Int_Sorting and Str_Sorting are now separate, typed packages
+end Generic_Demo;
+</code></pre>
+<p>Each instantiation is a distinct unit with its own state (if any) and its own compiled code. Two instantiations of the same generic do not share globals — an important property for parallel systems.</p>
+
+<h2 id="formal-kinds">Formal Kinds</h2>
+<p>The formal part is where Ada generics get precise. Each declaration names what the caller may pass:</p>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Formal</th><th>Caller must supply</th></tr></thead>
+  <tbody>
+    <tr><td><code>type T is private;</code></td><td>any type; body may assign/compare</td></tr>
+    <tr><td><code>type T is range &lt;&gt;;</code></td><td>any integer type (operations checked)</td></tr>
+    <tr><td><code>type T is (abstract tagged);</code></td><td>a tagged type (for OOP generics)</td></tr>
+    <tr><td><code>type T is array (Index) of Element;</code></td><td>an array type with those components</td></tr>
+    <tr><td><code>with function F (...) return ...;</code></td><td>an actual subprogram with that profile</td></tr>
+    <tr><td><code>N : Integer;</code></td><td>a value (e.g. a buffer size)</td></tr>
+  </tbody>
+</table>
+<p>Contrast with C++ templates: generics are <em>checked at declaration time</em> — the generic body must compile against its formals alone. A template body, by contrast, is only checked when instantiated. Ada's rule finds errors in the template itself, before anyone instantiates it.</p>
+
+<h2 id="a-complete-generic">A Complete Generic</h2>
+<p>A generic function swapping the element type, with the array type as a formal — the shape the standard containers follow:</p>
+<pre><code class="language-ada">generic
+   type Index_T is (&lt;&gt;);                       -- any discrete type
+   type Item_T is private;                      -- any element type
+   type Array_T is array (Index_T range &lt;&gt;) of Item_T;
+function Max_Of (Data : Array_T) return Item_T;
+</code></pre>
+<pre><code class="language-ada">function Max_Of (Data : Array_T) return Item_T is
+   Best : Item_T := Data (Data'First);
+begin
+   for I in Data'Range loop
+      if Data (I) &gt; Best then
+         Best := Data (I);
+      end if;
+   end loop;
+   return Best;
+end Max_Of;
+</code></pre>
+<p>Instantiated for <code>(1 .. 5) of Float</code> or for an enum-indexed record array, the same body works — bounds come from the array itself. Next: <a href="/roadmap/ada/visibility.html">Visibility</a>.</p>
+
 </main>
 </div>
 </div>
@@ -72,6 +115,9 @@ package String_Package is new Package_Name (Element_Type =&gt; String);
 <p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
 </footer>
 </div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
 <script>
   window.TOPIC_CONFIG = {
     labId: 'ada',
