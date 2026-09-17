@@ -3,16 +3,6 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { execSync } = require("node:child_process");
 
-// --- Pre-build: Generate fresh sitemap ---
-try {
-  console.log("[*] Generating fresh sitemap...");
-  execSync("python scripts/tools/sitemap.py", { stdio: 'inherit' });
-} catch (e) {
-  console.error("[!] Error generating sitemap:", e);
-  process.exit(1);
-}
-
-
 const ROOT = process.cwd();
 const PUBLIC_DIR = path.join(ROOT, "public");
 const BUILD_CACHE_PATH = path.join(ROOT, "manual", "build-cache.json");
@@ -1340,6 +1330,65 @@ function copySystemRuntimeFiles() {
   }
 }
 
+// Full builds wipe public/, so the sitemap must be rebuilt from a complete tree scan.
+// Differential builds already know exactly which source files changed, so the sitemap
+// only needs those entries added, refreshed, or removed instead of a full regeneration.
+function regenerateSitemap() {
+  try {
+    console.log("[*] Generating fresh sitemap...");
+    execSync("python scripts/tools/sitemap.py", { stdio: "inherit" });
+  } catch (e) {
+    console.error("[!] Error generating sitemap:", e);
+    process.exit(1);
+  }
+}
+
+function updateSitemapIncremental(changedFiles, deletedFiles) {
+  const toRepoRelative = (filePath) => path.relative(ROOT, filePath).split(path.sep).join("/");
+
+  const isSitemapCandidate = (filePath) => {
+    const rel = toRepoRelative(filePath);
+    if (!rel.endsWith(".html")) {
+      return false;
+    }
+    // sitemap.py scans the same source roots; files outside them never appear in the sitemap.
+    return (
+      !rel.startsWith("public/") &&
+      !rel.startsWith("layouts/") &&
+      !rel.startsWith("assets/") &&
+      !rel.startsWith("scripts/") &&
+      !rel.startsWith("manual/")
+    );
+  };
+
+  const changed = changedFiles.filter(isSitemapCandidate).map(toRepoRelative);
+  const deleted = deletedFiles.filter(isSitemapCandidate).map(toRepoRelative);
+
+  if (changed.length === 0 && deleted.length === 0) {
+    console.log("[*] Sitemap: no HTML route changes, skipping update.");
+    return;
+  }
+
+  const args = ["scripts/tools/sitemap.py", "--update"];
+  if (changed.length > 0) {
+    args.push("--changed", changed.join(","));
+  }
+  if (deleted.length > 0) {
+    args.push("--deleted", deleted.join(","));
+  }
+
+  try {
+    console.log(`[*] Updating sitemap (${changed.length} changed, ${deleted.length} deleted)...`);
+    execSync(`python ${args.map((a) => `"${a}"`).join(" ")}`, { stdio: "inherit" });
+  } catch (e) {
+    console.error("[!] Error updating sitemap:", e);
+    process.exit(1);
+  }
+
+  // Republish the refreshed sitemap into public/ (applies the legacy-route rewrites).
+  publishSystemRuntimeFile("sitemap.xml");
+}
+
 function publishSystemRuntimeFile(fileName) {
   const source = path.join(ROOT, fileName);
   const destination = path.join(PUBLIC_DIR, fileName);
@@ -1892,6 +1941,12 @@ function main() {
       reasons.push("build.js changed");
     }
     console.log(`[INFO] Full build required: ${reasons.join(", ")}.`);
+  }
+
+  if (requiresFullBuild) {
+    regenerateSitemap();
+  } else {
+    updateSitemapIncremental(diff.changed, diff.deleted);
   }
 
   const contentResult = requiresFullBuild

@@ -8,9 +8,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const actions = document.getElementById("hero-actions");
     const fromRoadmapShortcut = window.location.hash === "#sage-code-roadmap";
     const heroMessage = `Write Code That Moves Iron. 
-* Low commitment: Zero tracking, zero obligation.
-* Deep Dives: Pure signal, direct execution.
-* Open Source: Build, break, and iterate.
+* Zero tracking, zero obligation.
+* Pure signal, direct execution.
+* Build, break, and iterate.
 `;
 
     function toHtmlWithBreaks(text) {

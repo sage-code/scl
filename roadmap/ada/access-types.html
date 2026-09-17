@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>Ada: Access Types</title>
+<link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
+<link href="/images/favicon.ico" rel="icon" type="image/png"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
+<link rel="stylesheet" href="/assets/css/sage-common.css">
+<link rel="stylesheet" href="/assets/css/content-topic.css">
+<link rel="stylesheet" href="/assets/css/content-sidebar.css">
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<header class="container-fluid pb-2" id="dynamic-header"></header>
+<div class="container-fluid px-0">
+<div class="row g-0">
+<aside class="side-bar col-lg-3 col-12">
+<div class="sidebar-content shadow-sm p-3 sticky-top" id="study-sidebar">
+<div class="d-flex justify-content-between align-items-center mb-2">
+<h5 class="mb-0">Lab Topics</h5>
+</div>
+<hr/>
+<ul class="list-unstyled" id="bookmark-list"></ul>
+</div>
+</aside>
+<main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
+<h1 id="ada-access-types">Ada: Access Types</h1>
+<p>An access type is a reference to a value — Ada's version of a pointer, but typed, tracked, and freed automatically at scope finalization. Ada has no <code>void*</code>, no pointer arithmetic, and no dangling-pointer bugs that survive compilation. This page covers access-to-object types, dereferencing, and the accessibility rules that make Ada's model safe.</p>
+
+<h2 id="access-to-object">Access to Object</h2>
+<p><code>new</code> allocates a value on the heap and yields an access value pointing to it. The type of the pointer is written <code>access T</code>, and dereferencing uses <code>.all</code>:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+
+procedure Access_Demo is
+   type Int_Ptr is access Integer;    -- a pointer-to-Integer TYPE
+
+   P : Int_Ptr := new Integer'(42);   -- allocate + initialize
+   Q : Int_Ptr;                       -- null by default
+begin
+   Put_Line (Integer'Image (P.all));  -- dereference: read 42
+   P.all := P.all + 1;                -- dereference: write 43
+   if Q = null then                   -- null is a legitimate value
+      Put_Line ("Q points nowhere yet");
+   end if;
+end Access_Demo;
+</code></pre>
+<p>Since <code>P.all</code> is so common, Ada lets you omit <code>.all</code> for field and component access: <code>P.Field</code> means <code>P.all.Field</code>. The explicit form is always available when the meaning needs emphasis.</p>
+
+<h2 id="two-lifetimes">Two Lifetimes</h2>
+<p>The memory model is the heart of the matter. Stack objects die at scope exit; heap objects live until the <em>access type's</em> storage pool is finalized. The rules that prevent the classic bugs:</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/ada/img/ada-memory-model.svg" class="figure-img img-fluid rounded" alt="Stack and heap lifetimes connected by an access value" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — The access value on the stack points into the heap; accessibility rules forbid returning it.</figcaption>
+</figure>
+<ul>
+  <li><strong>No dangling pointers:</strong> returning an access to a local object is rejected at compile time (<em>accessibility check</em>). The pointer cannot outlive its pool.</li>
+  <li><strong>No manual free:</strong> heap storage is reclaimed when the access type's pool is finalized. You never call <code>free</code>, so use-after-free cannot be written.</li>
+  <li><strong>No pointer arithmetic:</strong> <code>P + 1</code> does not compile. If you need a walkable structure, build it as an array or a proper container.</li>
+  <li><strong>No silent aliasing surprises:</strong> access types are visibly written in every signature — <code>procedure Draw (S : not null access Shape)</code> announces its aliasing.</li>
+</ul>
+
+<h2 id="null-exclusion">null Exclusion</h2>
+<p>Most access parameters and return types should never be null — say so, and the check is automatic:</p>
+<pre><code class="language-ada">procedure Print (P : not null Int_Ptr) is
+begin
+   --  P cannot be null: the compiler (and run time, if in doubt)
+   --  enforces the promise at the call site.
+   null;
+end Print;
+</code></pre>
+<p><code>not null</code> is the default for access parameters in SPARK and is the recommended style in Ada too — it documents intent and removes a whole class of checks from the body.</p>
+</main>
+</div>
+</div>
+<footer class="footer copyright">
+<p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'ada',
+    topicId: 'ada-access-types',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<h2 id="access-to-constant-and-subprograms">Access to Constant and Subprograms</h2>
+<p>Two refined forms complete the picture:</p>
+<pre><code class="language-ada">procedure Refined_Demo is
+   type Int_Ptr      is access all Integer;     -- 'all': may point at aliased variables
+   type Const_Ptr    is access constant Integer;-- read-only view of the target
+
+   type Callback is access procedure (X : in out Integer);  -- function pointer
+begin
+   null;
+end Refined_Demo;
+</code></pre>
+<ul>
+  <li><code>access all T</code> can point at ordinary variables (marked <code>aliased</code>), not just heap objects.</li>
+  <li><code>access constant T</code> promises the target will not be modified through this pointer — a <code>const</code> that the compiler enforces.</li>
+  <li>Access-to-subprogram types are how frameworks accept callbacks; in practice you will use them via packages like <code>Ada.Containers</code> cursors or GUI libraries.</li>
+</ul>
+
+<h2 id="when-to-reach-for-access">When to Reach for Access</h2>
+<p>Idiomatic Ada uses far fewer pointers than C. Reach for an access type when:</p>
+<ul>
+  <li>Building linked or recursive structures (nodes referencing nodes).</li>
+  <li>Sharing one object among several owners deliberately (with <code>aliased</code>).</li>
+  <li>Interfacing with a library API that hands out handles.</li>
+</ul>
+<p>Otherwise prefer plain variables, arrays, and records — the compiler's range and bounds checks work better on values it can see. For growable collections, skip hand-rolled linked lists entirely: the <a href="/roadmap/ada/standard-library.html">Standard Library</a> chapter covers <code>Ada.Containers.Vectors</code>.</p>
+<p>Next: <a href="/roadmap/ada/subprograms.html">Subprograms</a>.</p>
+
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

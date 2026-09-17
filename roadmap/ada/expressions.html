@@ -7,11 +7,20 @@
 <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
 <link href="/images/favicon.ico" rel="icon" type="image/png"/>
-<link href="/prism.css" rel="stylesheet"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
 <link rel="stylesheet" href="/assets/css/sage-common.css">
 <link rel="stylesheet" href="/assets/css/content-topic.css">
 <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-<script src="/assets/prism.js">></script>
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
 </head>
 <body>
 <div class="container">
@@ -28,28 +37,79 @@
 </div>
 </aside>
 <main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
-<h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight text-balance text-foreground">Ada: Expressions</h1><p class="text-lg sm:text-xl leading-normal font-normal text-muted-foreground text-balance">Learn about simple and complex expressions.</p><p class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">On this page</p><p>An expression in Ada is a combination of literals, variables, function calls and operators that evaluates to a single value.</p><p><strong>For example:</strong></p><pre><code class="lang-plaintext">10        -- Literal 
-Count     -- Variable
-Abs(X)    -- Function call
-Count + 1 -- Addition operator
-</code></pre><p>All of the above are valid expressions in Ada. Expressions in Ada can be used:</p><ul>
-<li><p>As arguments to subprograms</p>
-</li>
-<li><p>On the right-hand side of the assignments</p>
-</li>
-<li><p>In if statements, loops, case statements etc.</p>
-</li>
-</ul><p>As arguments to subprograms</p><p>On the right-hand side of the assignments</p><p>In if statements, loops, case statements etc.</p><p><strong>For example:</strong></p><pre><code class="lang-plaintext">-- As argument     
-Abs(Count + 1)
+<h1 id="ada-expressions">Ada: Expressions</h1>
+<p>An expression combines literals, names, function calls, and operators to compute one value of one type. Ada's twist is that the type system follows the expression everywhere: arithmetic operators never silently convert, mixing types in one expression is a compile error, and every operator is overloaded per type.</p>
 
--- In assignment   
-Result := Count + 1
+<h2 id="operators-and-precedence">Operators and Precedence</h2>
+<p>Ada has six precedence classes, from highest to lowest:</p>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Class</th><th>Operators</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>Highest (unary)</td><td><code>abs</code>, <code>not</code>, <code>**</code></td><td><code>-X</code>, <code>abs X</code>, <code>2 ** 10</code></td></tr>
+    <tr><td>Multiplying</td><td><code>*</code>, <code>/</code>, <code>mod</code>, <code>rem</code></td><td><code>A * B</code>, <code>X mod 10</code></td></tr>
+    <tr><td>Binary adding</td><td><code>+</code>, <code>-</code>, <code>&amp;</code></td><td><code>A + B</code>, <code>First &amp; Last</code></td></tr>
+    <tr><td>Relational</td><td><code>=</code>, <code>/=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></td><td><code>A /= B</code> (note: <code>/=</code> means "not equal")</td></tr>
+    <tr><td>Logical (short circuit)</td><td><code>and then</code>, <code>or else</code></td><td><code>Present and then Valid</code></td></tr>
+    <tr><td>Logical</td><td><code>and</code>, <code>or</code>, <code>xor</code>, <code>in</code>, <code>not in</code></td><td><code>N in 1 .. 10</code></td></tr>
+  </tbody>
+</table>
+<p>Two operators deserve immediate attention because they encode decisions most languages leave unsafe:</p>
+<ul>
+  <li><code>and then</code> short-circuits: if the left side is False the right side is never evaluated. Use it whenever the right side would crash on invalid input.</li>
+  <li><code>in</code> tests membership in a range or subtype — the natural spelling of validation.</li>
+</ul>
 
--- In if statement
-if Count + 1 &gt; 10 then
-   ...
-end if;
-</code></pre><p>So in short, expressions in Ada allow you to compute a single value by combining literals, variables, functions and operators, which can then be used in statements.</p>
+<h2 id="integer-division-and-remainders">Integer Division and Remainders</h2>
+<p>Ada distinguishes <code>mod</code> (result has the sign of the <em>divisor</em>) from <code>rem</code> (sign of the <em>dividend</em>). Both are total: division by zero raises <code>Constraint_Error</code>, there is no undefined behavior:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+
+procedure Remainder_Demo is
+begin
+   Put_Line (Integer'Image (7 mod 3));    --  1   sign of divisor (+)
+   Put_Line (Integer'Image ((-7) mod 3)); --  2   wraps up to the divisor's sign
+   Put_Line (Integer'Image (7 rem 3));    --  1   sign of dividend (+)
+   Put_Line (Integer'Image ((-7) rem 3)); -- -1   truncates toward zero
+   --  Put_Line (Integer'Image (7 / 0));  -- Constraint_Error, never UB
+end Remainder_Demo;
+</code></pre>
+<p>If you need the mathematical "wrap around a circle" behavior, <code>mod</code> is always right; <code>rem</code> matches what C's <code>%</code> does.</p>
+
+<h2 id="type-safety-in-expressions">Type Safety in Expressions</h2>
+<p>Operators belong to types. <code>+</code> for <code>Integer</code> and <code>+</code> for <code>Float</code> are different overloads, and operands must agree:</p>
+<pre><code class="language-ada">procedure Mixing_Demo is
+   Count : Integer := 3;
+   Rate  : Float   := 2.5;
+begin
+   --  declare
+   --     Bad : Float := Count * Rate;   -- compile error: Integer * Float
+   --  is rejected: the compiler will not guess. State the conversion:
+   declare
+      Good : constant Float := Float (Count) * Rate;   -- 7.5
+   begin
+      null;
+   end;
+end Mixing_Demo;
+</code></pre>
+<p>Universal expressions are the one exception: numeric literals and named numbers can appear on either side because they belong to no type until the context fixes one.</p>
+
+<h2 id="membership-and-ranges">Membership and Ranges</h2>
+<p><code>in</code> and <code>not in</code> read like the validation they perform:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+
+procedure Membership_Demo is
+   Reading : constant Integer := 47;
+begin
+   if Reading in 40 .. 80 then          -- inclusive range test
+      Put_Line ("within operating band");
+   end if;
+
+   if Reading not in 1 .. 100 then      -- the readable negation
+      Put_Line ("out of range");
+   end if;
+end Membership_Demo;
+</code></pre>
+<p>Next: <a href="/roadmap/ada/conditionals.html">Conditionals</a> — turning these expressions into decisions.</p>
+
 </main>
 </div>
 </div>
@@ -57,6 +117,9 @@ end if;
 <p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
 </footer>
 </div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
 <script>
   window.TOPIC_CONFIG = {
     labId: 'ada',

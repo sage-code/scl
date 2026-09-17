@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>Ada: Setup &amp; Toolchain</title>
+<link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
+<link href="/images/favicon.ico" rel="icon" type="image/png"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
+<link rel="stylesheet" href="/assets/css/sage-common.css">
+<link rel="stylesheet" href="/assets/css/content-topic.css">
+<link rel="stylesheet" href="/assets/css/content-sidebar.css">
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<header class="container-fluid pb-2" id="dynamic-header"></header>
+<div class="container-fluid px-0">
+<div class="row g-0">
+<aside class="side-bar col-lg-3 col-12">
+<div class="sidebar-content shadow-sm p-3 sticky-top" id="study-sidebar">
+<div class="d-flex justify-content-between align-items-center mb-2">
+<h5 class="mb-0">Lab Topics</h5>
+</div>
+<hr/>
+<ul class="list-unstyled" id="bookmark-list"></ul>
+</div>
+</aside>
+<main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
+<h1 id="ada-setup-toolchain">Ada: Setup &amp; Toolchain</h1>
+<p>Ada development needs three tools: the <strong>GNAT compiler</strong> (the GCC Ada front end), <strong>Alire</strong> (the package manager and project tool), and <strong>GPRbuild</strong> (the build engine Alire drives). This page installs all three and runs your first compiled program.</p>
+
+<h2 id="installing-the-toolchain">Installing the Toolchain</h2>
+<h3 id="windows">Windows</h3>
+<p>The simplest path is Alire itself, which can manage the toolchain:</p>
+<ol>
+  <li>Download the Alire installer for Windows from <a href="https://alire.ada.dev/" target="_blank" rel="noopener noreferrer nofollow">alire.ada.dev</a> and run it.</li>
+  <li>Open a new terminal and run <code>alr toolchain install gnat_native gprbuild</code> — Alire downloads and manages the compiler and build engine.</li>
+  <li>Verify with <code>alr --version</code> and <code>gnat --version</code>.</li>
+</ol>
+<h3 id="linux">Linux</h3>
+<p>Most distributions ship GNAT as a package — for example <code>apt install gnat gprbuild</code> on Debian/Ubuntu. Then install Alire from the release page and run <code>alr toolchain install</code> to pin a compiler version Alire controls.</p>
+<h3 id="macos">macOS</h3>
+<p>Install the Ada toolchain via Alire's macOS package or Homebrew's <code>gnat</code> formula, then install Alire from its GitHub releases. <code>alr toolchain install</code> works identically on all three platforms.</p>
+<div class="alert alert-warning shadow-sm">
+  <strong>Version pinning.</strong> If a system GNAT is already installed, prefer <code>alr toolchain install</code> anyway: Alire tracks its own compiler version per workspace, which avoids mixing incompatible outputs.
+</div>
+
+<h2 id="your-first-crate">Your First Crate</h2>
+<p>Alire calls a project a <em>crate</em>. One command scaffolds a buildable, testable project:</p>
+<pre><code class="language-bash"># create and enter a new crate named hello_ada
+alr init --bin hello_ada
+cd hello_ada
+alr run                    # builds, then executes the main unit
+</code></pre>
+<p><code>alr init --bin</code> creates this layout:</p>
+<pre><code class="language-plaintext">hello_ada/
+├── alire.toml          # crate metadata: name, version, dependencies
+├── hello_ada.gpr       # GPRbuild project file
+└── src/
+    └── hello_ada.adb   # your main procedure
+</code></pre>
+<h3 id="the-main-procedure">The main procedure</h3>
+<p>Open <code>src/hello_ada.adb</code>. Every Ada program has exactly one main subprogram; the binder links the one whose name matches the GPR main:</p>
+<pre><code class="language-ada">with Ada.Text_IO; -- import the standard text I/O unit
+
+procedure Hello_Ada is
+   -- declarative part: local names go here
+begin
+   -- statement part: executable code goes here
+   Ada.Text_IO.Put_Line ("Hello, Ada!");
+end Hello_Ada;
+</code></pre>
+<p>Three things to notice, because every Ada unit repeats them: the <code>with</code> clause names a dependency; names are declared in a <em>declarative part</em> before <code>begin</code>; and the closing <code>end</code> repeats the unit name so mismatches are compile errors, not silent bugs. Run <code>alr run</code> — the output is <code>Hello, Ada!</code>.</p>
+
+<h2 id="gprbuild-projects">GPRbuild Projects</h2>
+<p>A <code>.gpr</code> file tells the build engine where sources live and how to organize outputs. The generated one is minimal:</p>
+<pre><code class="language-ada">project Hello_Ada is
+   for Source_Dirs use ("src");      -- where .ads/.adb files live
+   for Object_Dir use "obj";         -- compiled intermediates
+   for Exec_Dir use "bin";           -- final executable
+   for Main use ("hello_ada.adb");   -- entry point of the program
+end Hello_Ada;
+</code></pre>
+<p>GPRbuild compiles units in <em>dependency order</em>: if <code>hello_ada.adb</code> <code>with</code>s a package, that package's specification is compiled first — automatically, no makefile rules to maintain. For this track's single-file demos you can also invoke the compiler directly:</p>
+<pre><code class="language-bash"># compile and run a single-file demo without a project file
+gnatmake demo/foundations/01_hello.adb
+./01_hello
+</code></pre>
+
+<h2 id="editors-and-lsp">Editors and LSP</h2>
+<p>Any editor works. Two good options with real Ada support:</p>
+<ul>
+  <li><strong>VS Code</strong> with the Ada language server (ada-lang.io extension): completion, go-to-definition, and error highlighting via the free, open source <em>ada_language_server</em>.</li>
+  <li><strong>GNAT Studio</strong>, AdaCore's IDE: integrated project view, debugger, and refactoring out of the box.</li>
+</ul>
+
+<h2 id="checklist">Checklist</h2>
+<p>Before moving to the <a href="/roadmap/ada/syntax.html">Syntax</a> lesson, confirm you can:</p>
+<ul>
+  <li>Run <code>alr --version</code> and <code>gnat --version</code> without errors.</li>
+  <li>Create a crate with <code>alr init --bin</code> and run it with <code>alr run</code>.</li>
+  <li>Explain what a <code>.gpr</code> file controls.</li>
+</ul>
+</main>
+</div>
+</div>
+<footer class="footer copyright">
+<p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'ada',
+    topicId: 'ada-setup',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

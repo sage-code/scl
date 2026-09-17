@@ -7,11 +7,21 @@
 <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
 <link href="/images/favicon.ico" rel="icon" type="image/png"/>
-<link href="/prism.css" rel="stylesheet"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
 <link rel="stylesheet" href="/assets/css/sage-common.css">
 <link rel="stylesheet" href="/assets/css/content-topic.css">
 <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-<script src="/assets/prism.js">></script>
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
 </head>
 <body>
 <div class="container">
@@ -28,28 +38,76 @@
 </div>
 </aside>
 <main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
-<h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight text-balance text-foreground">Ada: OOP</h1><p class="text-lg sm:text-xl leading-normal font-normal text-muted-foreground text-balance">Ada OOP - object oriented programming</p><p class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">On this page</p><h2 id="heading-object-oriented-principles">Object-Oriented Principles</h2><p>The object-oriented paradigm is based on a few key principles in computer science:</p><h3 id="heading-encapsulation">Encapsulation</h3><p>Encapsulation refers to the bundling of data with the methods that operate on that data. This allows objects to hide their internal representation, exposing only an interface.</p><p>Encapsulation provides the following benefits:</p><ul>
-<li><p>Reduced coupling between classes</p>
-</li>
-<li><p>Increased modularity</p>
-</li>
-<li><p>Better code reuse</p>
-</li>
-<li><p>Information hiding</p>
-</li>
-</ul><p>Reduced coupling between classes</p><p>Increased modularity</p><p>Better code reuse</p><p>Information hiding</p><p>Encapsulation is achieved in object-oriented languages through the use of access modifiers like <code>public</code>, <code>private</code>, and <code>protected</code>.</p><h3 id="heading-inheritance">Inheritance</h3><p>Inheritance allows classes to inherit data and behavior from other classes. This allows for code reuse and extensibility.</p><p>Inheritance creates an "is-a" relationship between classes.</p><p>Inheritance provides the following benefits:</p><ul>
-<li><p>Code reuse</p>
-</li>
-<li><p>Extensibility</p>
-</li>
-<li><p>Easy maintenance</p>
-</li>
-</ul><p>Code reuse</p><p>Extensibility</p><p>Easy maintenance</p><h3 id="heading-polymorphism">Polymorphism</h3><p>Polymorphism means "many forms" and refers to the ability of an object to take on many forms.</p><p>There are two main types of polymorphism:</p><ul>
-<li><p>Compile time polymorphism - achieved using method overloading</p>
-</li>
-<li><p>Runtime polymorphism - achieved using method overriding</p>
-</li>
-</ul><p>Compile time polymorphism - achieved using method overloading</p><p>Runtime polymorphism - achieved using method overriding</p><p>Polymorphism allows us to perform the same operation in different ways depending on the input. This makes code more flexible and reusable.</p><h3 id="heading-abstraction">Abstraction</h3><p>Abstraction refers to the process of hiding unnecessary details and exposing only relevant information.</p><p>Classes and interfaces allow us to achieve abstraction by hiding their implementation details and exposing only their public methods.</p><p>Abstraction helps manage complexity by hiding irrelevant details.</p>
+<h1 id="ada-oop">Ada: OOP</h1>
+<p>Ada's object-oriented model is built on tagged records: types that carry a hidden <em>tag</em> enabling dynamic dispatch. It is deliberately explicit — inheritance is written <code>new ... with</code>, dispatching calls are visible as class-wide operations, and interfaces are separate from state. You always know where the dynamic behavior is.</p>
+
+<h2 id="tagged-types-and-inheritance">Tagged Types and Inheritance</h2>
+<p><code>tagged</code> marks a record as extensible. A descendant extends it with <code>new ... with record</code>, inheriting fields and primitive operations:</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/ada/img/ada-dispatch-table.svg" class="figure-img img-fluid rounded" alt="Shape hierarchy with dispatching Area call through the type tag" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Each tagged object carries a tag; class-wide calls read it to select the overriding subprogram.</figcaption>
+</figure>
+<pre><code class="language-ada">package Shapes is
+   type Shape is tagged record
+      X, Y : Float;                        -- position shared by all shapes
+   end record;
+
+   function Area (S : in Shape) return Float is (0.0);   -- a primitive operation
+
+   type Circle is new Shape with record
+      Radius : Float;
+   end record;
+
+   overriding
+   function Area (C : in Circle) return Float is (3.14159 * C.Radius ** 2);
+end Shapes;
+</code></pre>
+<p><code>overriding</code> is optional but strongly recommended: it makes the compiler confirm you actually overrode something — a typo in the name or profile becomes an error instead of a silent new subprogram.</p>
+
+<h2 id="class-wide-polymorphism">Class-Wide Polymorphism</h2>
+<p><code>Shape'Class</code> is the class-wide type: any type in the family. A dispatching call through it picks the concrete <code>Area</code> at run time:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+with Shapes; use Shapes;
+
+procedure Dispatch_Demo is
+   S : Shape'Class := Circle'(X | Y =&gt; 0.0, Radius =&gt; 2.0);
+begin
+   --  the compiler does not know which Area runs; the tag decides:
+   Put_Line (Float'Image (Area (S)));   -- dispatches to Circle.Area: 12.57
+end Dispatch_Demo;
+</code></pre>
+<p>The rule: a class-wide value can hold any family member, but must be initialized (the tag is fixed at creation); a class-wide <em>parameter</em> accepts any family member passed in.</p>
+
+<h2 id="abstract-types-and-interfaces">Abstract Types and Interfaces</h2>
+<p><code>abstract</code> types have no objects — only descendants. <code>interface</code> types declare contracts without any state at all:</p>
+<pre><code class="language-ada">package Render is
+   type Drawable is interface;
+   procedure Draw (D : in Drawable) is abstract;
+   --  every descendant MUST provide Draw
+
+   type Shape is abstract tagged null record;   -- abstract base
+   function Area (S : in Shape) return Float is abstract;
+end Render;
+</code></pre>
+<pre><code class="language-ada">declare
+   type Square is new Render.Shape and Render.Drawable with record
+      Side : Float;
+   end record;
+   --  Square must implement both Area and Draw — or itself be abstract
+begin
+   null;
+end;
+</code></pre>
+<p>Interfaces multiply: a type can implement several (<code>new A and B and C</code>) but extend only one tagged parent — the classic single-inheritance, multi-interface compromise, statically checked.</p>
+
+<h2 id="where-ada-oop-differs">Where Ada OOP Differs</h2>
+<ul>
+  <li><strong>Subprograms live outside the type.</strong> Operations are primitive to a type by being declared in the same package — there is no <code>this</code>, no method table syntax, no forced encapsulation of state with behavior in one construct.</li>
+  <li><strong>Dispatch is opt-in.</strong> A call through a specific type is bound at compile time; only class-wide calls dispatch. Reading the code tells you which you get.</li>
+  <li><strong>No hidden hierarchy.</strong> Every ancestor is written in the type declaration and resolvable through the source.</li>
+</ul>
+<p>Next: <a href="/roadmap/ada/contracts.html">Contracts</a> — pre- and postconditions on all of this.</p>
+
 </main>
 </div>
 </div>
@@ -57,6 +115,9 @@
 <p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
 </footer>
 </div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
 <script>
   window.TOPIC_CONFIG = {
     labId: 'ada',

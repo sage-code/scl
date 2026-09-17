@@ -7,11 +7,21 @@
 <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
 <link href="/images/favicon.ico" rel="icon" type="image/png"/>
-<link href="/prism.css" rel="stylesheet"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
 <link rel="stylesheet" href="/assets/css/sage-common.css">
 <link rel="stylesheet" href="/assets/css/content-topic.css">
 <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-<script src="/assets/prism.js">></script>
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
 </head>
 <body>
 <div class="container">
@@ -28,29 +38,68 @@
 </div>
 </aside>
 <main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
-<h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight text-balance text-foreground">Ada: Packages</h1><p class="text-lg sm:text-xl leading-normal font-normal text-muted-foreground text-balance">What are packages and how to use them.</p><p class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">On this page</p><p>Packages are a mechanism to organize Ada code. They allow us to:</p><ul>
-<li><p>Encapsulate related entities: We can group logically related declarations and definitions together in a package. This helps organize our code into logical units.</p>
-</li>
-<li><p>Share entities: Entities declared in a package specification can be shared and accessed by other program units.</p>
-</li>
-<li><p>Hide implementation: The package specification declares the entities that are visible outside the package. The package body contains the implementation which is hidden from outside. This enforces information hiding.</p>
-</li>
-</ul><p>Encapsulate related entities: We can group logically related declarations and definitions together in a package. This helps organize our code into logical units.</p><p>Share entities: Entities declared in a package specification can be shared and accessed by other program units.</p><p>Hide implementation: The package specification declares the entities that are visible outside the package. The package body contains the implementation which is hidden from outside. This enforces information hiding.</p><p>We organize code in packages in the following way:</p><ol>
-<li>Create a package specification with <code>package</code> keyword:</li>
-</ol><pre><code class="lang-plaintext">package PACKAGE_NAME is
-   -- declarations visible to the outside world
-end PACKAGE_NAME;
-</code></pre><ol>
-<li>Create a package body with <code>package body</code> keyword:</li>
-</ol><pre><code class="lang-plaintext">package body PACKAGE_NAME is
-   -- implementation 
-end PACKAGE_NAME;
-</code></pre><ol>
-<li><p>The entities declared in the package specification are visible outside the package and can be used by other program units. The package body contains the implementation which is hidden.</p>
-</li>
-<li><p>Related declarations can be grouped into logical packages to organize your code.</p>
-</li>
-</ol><p>The entities declared in the package specification are visible outside the package and can be used by other program units. The package body contains the implementation which is hidden.</p><p>Related declarations can be grouped into logical packages to organize your code.</p>
+<h1 id="ada-packages">Ada: Packages</h1>
+<p>A package is Ada's unit of modularization: a <strong>specification</strong> that states what it offers, and a <strong>body</strong> that implements it. Clients compile against the specification alone, so the implementation can change — even completely — without recompiling a single client. This is the chapter the whole language is organized around.</p>
+
+<h2 id="spec-and-body">Spec and Body</h2>
+<p>Two files, two roles. The specification (<code>.ads</code>) is the contract; the body (<code>.adb</code>) is the implementation:</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmap/ada/img/ada-package-tree.svg" class="figure-img img-fluid rounded" alt="Package specification, private part, body, and child package relationships" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — The visible part is the API; the private part hides type internals; the body implements; children see more.</figcaption>
+</figure>
+<pre><code class="language-ada">-- geometry.ads — the specification: what clients see
+package Geometry is
+   type Square is private;                      -- hidden internals
+   function Make (Side : Float) return Square;
+   function Area (S : Square) return Float;
+private
+   type Square is record Side : Float; end record;   -- visible to children only
+end Geometry;
+</code></pre>
+<pre><code class="language-ada">-- geometry.adb — the body: how it works
+package body Geometry is
+
+   function Make (Side : Float) return Square is
+     ((Side =&gt; Side));                     -- record aggregate as a body
+
+   function Area (S : Square) return Float is
+     (S.Side * S.Side);
+
+begin
+   null;   -- optional elaboration code runs once at start-up
+end Geometry;
+</code></pre>
+
+<h2 id="using-a-package">Using a Package</h2>
+<p>A client names the package with <code>with</code> and may <code>use</code> it to drop the prefix. Every reference is still resolved at compile time — there is no dynamic dispatch hiding here:</p>
+<pre><code class="language-ada">with Geometry;              -- name the dependency
+--  with Geometry; use Geometry;   -- with use: Area (S) instead of Geometry.Area (S)
+
+procedure Client is
+   S : Geometry.Square := Geometry.Make (2.0);
+begin
+   null;   -- Geometry.Area (S) = 4.0
+end Client;
+</code></pre>
+<p>Style note: many teams reserve <code>use</code> for operators and enumeration literals, keeping type names prefixed — it makes provenance obvious at every call site.</p>
+
+<h2 id="private-types">Private Types</h2>
+<p><code>type Square is private;</code> declares a type whose clients know <em>exists</em> but cannot inspect or construct directly. The full declaration appears under <code>private</code> in the same spec. This is Ada's encapsulation workhorse:</p>
+<ul>
+  <li>Clients can declare <code>Square</code> variables, assign, and compare them — but not read or write <code>Side</code> directly.</li>
+  <li>The only way in is through the package's functions: <code>Make</code> can enforce invariants (side &gt; 0) that <em>every</em> object satisfies.</li>
+  <li>Change the record to hold a diagonal instead — no client recompiles, because nothing in the visible part changed.</li>
+</ul>
+
+<h2 id="child-packages">Child Packages</h2>
+<p>Large units grow as <em>children</em>: <code>Geometry.Shapes</code> lives in its own spec/body pair, has full access to <code>Geometry</code>'s private part, and adds capabilities without touching the parent:</p>
+<pre><code class="language-ada">-- geometry-shapes.ads
+package Geometry.Shapes is
+   function Perimeter (S : Geometry.Square) return Float;
+end Geometry.Shapes;
+</code></pre>
+<p>Children solve the "library extension" problem: the standard library is built this way (<code>Ada.Text_IO</code> is a child of <code>Ada</code>), and your own hierarchies will use the same pattern. Next: <a href="/roadmap/ada/exceptions.html">Exceptions</a>.</p>
+
 </main>
 </div>
 </div>
@@ -58,6 +107,9 @@ end PACKAGE_NAME;
 <p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
 </footer>
 </div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
 <script>
   window.TOPIC_CONFIG = {
     labId: 'ada',
