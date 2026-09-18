@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>25 · Storage lab — strings only, remember</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; max-width: 480px; margin: 2rem auto; }
+    button { font: inherit; padding: 6px 12px; margin: 4px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: inherit; cursor: pointer; }
+    pre { background: #1e293b; padding: 12px; border-radius: 6px; white-space: pre-wrap; }
+    code { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <h1>25 · Storage lab</h1>
+  <p>Open the demo, click around, then reload the page — <code>localStorage</code> survives.</p>
+  <p>
+    <button id="save-object">Save score as JSON</button>
+    <button id="save-raw">Save score raw (the trap)</button>
+    <button id="read">Read back</button>
+    <button id="clear">Clear</button>
+  </p>
+  <pre id="out"></pre>
+
+  <script>
+    const out = document.querySelector("#out");
+    const log = (label, value) => { out.textContent += `${label}: ${JSON.stringify(value)}\n`; };
+
+    document.querySelector("#save-object").addEventListener("click", () => {
+      // Storage only saves strings. JSON.stringify makes the TYPE survive the round trip.
+      localStorage.setItem("score", JSON.stringify({ points: 99 }));
+      log("saved (JSON)", localStorage.getItem("score"));
+    });
+
+    document.querySelector("#save-raw").addEventListener("click", () => {
+      // The trap: the number 99 is coerced to the STRING "99" — silently.
+      localStorage.setItem("score", 99);
+      log("saved raw", localStorage.getItem("score"));
+    });
+
+    document.querySelector("#read").addEventListener("click", () => {
+      const raw = localStorage.getItem("score");
+      log("typeof raw", typeof raw);                       // "string" either way!
+      const value = raw === null ? null : JSON.parse(raw); // JSON.parse("99") → 99, a number
+      log("parsed value", value);
+      log("typeof parsed", typeof value);
+      // Missing keys return null (not undefined, not an error) — always check.
+    });
+
+    document.querySelector("#clear").addEventListener("click", () => {
+      localStorage.removeItem("score");
+      log("cleared, score is now", localStorage.getItem("score")); // null
+    });
+
+    // On load: prove persistence by reading whatever survived from last time.
+    log("on load, score", localStorage.getItem("score"));
+  </script>
+</body>
+</html>

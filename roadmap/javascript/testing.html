@@ -45,24 +45,132 @@
 Node ships a test runner; the browser gives you assertions by example. This lesson builds the no-framework quality loop: test, lint, format.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
+<h2 id="why-test">Why test</h2>
 
+<h3 id="the-refund">The refund on every refactor</h3>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  Lesson 14 split failures into thrown errors and silent logic errors. Tests close the
+  logic-error gap: they are executable expectations that run in milliseconds. Their payoff is
+  not the moment they pass — it is the <em>next</em> refactor, when they tell you within
+  seconds whether you changed behavior. That safety net is what makes fast iteration possible
+  at all.
 </p>
+
+<h2 id="node-test">node:test — the built-in runner</h2>
+
+<h3 id="first-test">No install, no config</h3>
+<pre><code class="language-javascript">// savings.test.js — run with: node --test
+// (or plain `node savings.test.js` — the module runs either way)
+const test = require("node:test");
+const assert = require("node:assert");
+
+function withdraw(balance, amount) {
+  if (amount > balance) throw new RangeError("insufficient funds");
+  return balance - amount;
+}
+
+test("withdraw reduces the balance", () => {
+  assert.strictEqual(withdraw(100, 30), 70); // strictEqual: === with type check
+});
+
+test("withdraw rejects overdrafts", () => {
+  assert.throws(() => withdraw(10, 50), RangeError); // lesson 14's error types, tested
+});
+
+// Expected output (abbreviated):
+// ✔ withdraw reduces the balance (0.6ms)
+// ✔ withdraw rejects overdrafts (0.3ms)
+// ▶ 2 tests passed</code></pre>
+<p>
+  Every assertion failure prints both values with types — most test failures are type or
+  shape mismatches, and the diff shows them immediately.
+</p>
+
+<h2 id="aaa">Arrange–Act–Assert</h2>
+
+<h3 id="structure">Three steps per test, visible</h3>
+<pre><code class="language-javascript">test("transfer moves money between accounts", () => {
+  // ARRANGE — objects under test in a known state
+  const from = { balance: 100 };
+  const to = { balance: 0 };
+
+  // ACT — exactly one behavior
+  transfer(from, to, 40);
+
+  // ASSERT — the observable outcome, not the implementation
+  assert.strictEqual(from.balance, 60);
+  assert.strictEqual(to.balance, 40);
+});</code></pre>
+<p>
+  If Arrange grows longer than Act and Assert together, the code under test is asking for a
+  constructor or a fixture helper — listen to that signal.
+</p>
+<h2 id="testing-async-and-errors">Testing async code and errors</h2>
+
+<h3 id="async-tests">An async test awaits — the runner handles the promise</h3>
+<pre><code class="language-javascript">test("loadUser returns the parsed user", async () => {
+  const user = await loadUser(1);   // return/await the promise — an unawaited call
+  assert.strictEqual(user.id, 1);   // would pass vacuously before the data arrives
+});</code></pre>
+<p>
+  <strong>Contraexample:</strong> an async test without <code>await</code> on the call under
+  test passes in 0 ms while the work is still running. If a test always passes in 0 ms,
+  suspect it is not awaiting anything.
+</p>
+
+<h3 id="asserting-rejections">Asserting rejections, not just throws</h3>
+<pre><code class="language-javascript">test("withdraw rejects overdrafts", async () => {
+  // assert.rejects: for PROMISES that reject (async throws surface as rejections)
+  await assert.rejects(
+    () => withdrawAsync(10, 50),   // a function — the runner calls it and awaits
+    (error) => error instanceof RangeError && /insufficient/.test(error.message),
+  );
+});</code></pre>
+<p>
+  Assert the message when the message is a contract — users saw it in a red banner (lesson
+  14); regressions there are user-visible.
+</p>
+
+<h2 id="quality-loop">Lint and format: the automated reviewers</h2>
+<pre><code class="language-bash">$ npx eslint .        # unused vars, unreachable code, == , undeclared names
+$ npx prettier -w .   # formatting — ended every "tabs vs spaces" debate permanently</code></pre>
+<p>
+  A linter is a style rule you never argue about again: it catches the pitfalls from this
+  phase's sibling lesson (unused variables, accidental globals, floating promises with the
+  right plugin) before any human reads them. Format with a tool, lint in CI, test on
+  <code>node --test</code> — the whole loop ships with zero dependencies beyond dev tooling.
+</p>
+<h2 id="testing-in-the-loop">Testing in the loop</h2>
+
+<h3 id="watch-mode">The inner loop: watch mode</h3>
+<pre><code class="language-bash">$ node --test --watch
+# reruns on every save — the test suite becomes a REPL-level feedback loop</code></pre>
+<p>
+  The workflow this track practices: write one failing test, make it pass, refactor with the
+  green light on. A full runnable suite — nested tests, hooks, async cases — ships as demo
+  <code>demo/practice/32_node_test_demo.js</code>; run it with
+  <code>node --test roadmap/javascript/demo/practice/32_node_test_demo.js</code>.
+</p>
+
+<h2 id="practice-testing">Practice: test first, once</h2>
+
+<h3 id="the-task-testing">The task</h3>
+<p>
+  Run the demo suite above, then extend it: add a <code>deposit(account, amount)</code> that
+  rejects negative amounts, and write its three tests BEFORE the function —
+  happy path, rejection type, rejection message. Notice how much faster the implementation
+  is when the contract is already written down.
+</p>
+
+<h3 id="the-checklist-testing">The checklist</h3>
 <ul>
-  <li>Why test: the refund on every refactor</li>
-  <li>node:test: tests, suites, and assertions</li>
-  <li>Arrange-Act-Assert and test data</li>
-  <li>Mocking timers, fetch, and modules</li>
-  <li>Coverage and what it cannot tell you</li>
-  <li>The TDD loop on a small module</li>
+  <li>Your tests follow Arrange–Act–Assert, one behavior each.</li>
+  <li>You assert error types — and messages when they are contracts.</li>
+  <li>You await every promise in async tests, and distrust 0 ms passes.</li>
+  <li>You run lint and format before any human review.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Take one function from this track, write failing tests first, then make them pass.</p>
+
       </main>
     </div>
   </div>

@@ -42,28 +42,106 @@
 <h1 id="web-workers-and-shared-memory">Web Workers and Shared Memory</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Workers are real threads: real parallelism in the browser. This lesson covers messaging, transferables, shared memory with Atomics, and the patterns that keep it safe.
+  Workers are the exception from lesson 19: JavaScript's one concession to real parallelism.
+  Each worker is a full thread with its own loop and heap. This lesson covers messaging,
+  zero-copy transfer, and what shared memory makes possible — and dangerous.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
-
+<h2 id="why-threads">Why threads</h2>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  Everything in Phases 1–3 shares one constraint: CPU-bound work blocks the main thread.
+  Parse a 5 MB CSV in a <code>for</code> loop and the page freezes — no clicks, no animation,
+  no render step. A worker moves that loop to another core. The trade: workers have
+  <strong>no DOM, no window</strong> — they compute and message, they do not touch the page.
 </p>
+
+<div class="text-center">
+  <img src="/roadmap/javascript/img/worker-messaging.svg" alt="Main thread and worker thread exchanging messages" class="img-fluid protect rounded shadow border">
+  <p>Messages cross the boundary by structured clone — or by zero-copy transfer for buffers.</p>
+</div>
+
+<h2 id="message-passing">Message passing</h2>
+
+<h3 id="lifecycle">Spawn, message, terminate</h3>
+<pre><code class="language-javascript">// main.js — browser context
+const worker = new Worker("worker.js");
+
+worker.postMessage({ job: "hash", payload: bigString }); // structured clone: copied
+worker.onmessage = (event) => console.log("result:", event.data);
+worker.onerror = (error) => console.error("worker failed:", error.message);
+
+// worker.js — a different file, its own world
+self.onmessage = (event) => {
+  const result = heavyCompute(event.data.payload); // blocks the WORKER, not the page
+  self.postMessage(result);
+};</code></pre>
+<p>
+  Everything crossing that boundary is copied (structured clone) — two heaps, two copies of
+  your data. For a 16 MB buffer, the copy is the cost. Hence:
+</p>
+<h2 id="transferables">Transferables: moving instead of copying</h2>
+
+<h3 id="zero-copy">Zero-copy handoff</h3>
+<pre><code class="language-javascript">// Browser context: hand over a 100MB buffer — no bytes are copied.
+const buffer = new ArrayBuffer(100 * 1024 * 1024);
+worker.postMessage(buffer, [buffer]);        // second argument: the TRANSFER list
+
+console.log(buffer.byteLength); // 0 — ownership MOVED; main thread can no longer read it</code></pre>
+<p>
+  Transferring changes <em>ownership</em>, not contents: after the move, the sender's
+  reference is dead. For large buffers this turns a linear-time copy into a constant-time
+  pointer handoff. Demo <code>async/30_workers_lab.js</code> benchmarks both paths with Node's
+  <code>worker_threads</code>.
+</p>
+
+<h2 id="shared-memory">Shared memory and Atomics</h2>
+
+<h3 id="sharedarraybuffer">SharedArrayBuffer: one heap, two threads</h3>
+<pre><code class="language-javascript">// Main thread: create shared memory and share it BY REFERENCE.
+const shared = new SharedArrayBuffer(8);
+const counter = new Int32Array(shared);      // typed-array view over the bytes
+
+worker.postMessage(shared);                  // no copy, no transfer — BOTH see it
+
+// Worker thread — unsynchronized increment is a RACE:
+// counter[0]++;               // read, add, write — three steps, another thread can
+//                             // interleave between them. Lost updates, silently.
+
+// The fix: Atomics read-modify-write as ONE indivisible operation.
+Atomics.add(counter, 0, 1);  // safe: atomic increment
+Atomics.store(counter, 0, 5);
+Atomics.load(counter, 0);    // read without tearing</code></pre>
+<p>
+  <code>Atomics.wait</code> / <code>Atomics.notify</code> go further — a worker can sleep
+  until another thread changes a value, the building block of locks and queues. (For
+  context-management reasons, <code>Atomics.wait</code> is not allowed on the main thread.)
+</p>
+
+<h2 id="worker-pools">Worker pools</h2>
+<p>
+  Spawning a worker per task wastes its startup cost; a <em>pool</em> keeps N workers alive
+  and queues jobs onto them — the same shape as a connection pool. One worker per core is the
+  usual sizing. Demo <code>practice/34_worker_pool_sample.js</code> builds a minimal pool.
+</p>
+
+<h2 id="practice-workers">Practice: parallel versus serial</h2>
+
+<h3 id="the-task-workers">The task</h3>
+<p>
+  Run <code>async/30_workers_lab.js</code> with <code>node</code>. Predict the speedup for two
+  CPU-bound blocks before running. Then add a third block and re-predict — with more workers
+  than blocks, what changes? Finally, verify the transfer demonstration: the main thread's
+  <code>byteLength</code> after handing over the buffer.
+</p>
+
+<h3 id="the-checklist-workers">The checklist</h3>
 <ul>
-  <li>Why threads: the limits of one CPU-bound thread</li>
-  <li>Worker lifecycle and message passing</li>
-  <li>Structured clone versus transferables (with a benchmark)</li>
-  <li>SharedArrayBuffer and Atomics basics</li>
-  <li>A mutex with Atomics.wait and Atomics.notify</li>
-  <li>Worker pools and task scheduling</li>
-  <li>Race conditions: a visible contraexample</li>
+  <li>You can say what a worker cannot touch (DOM, window) and why it exists (CPU-bound work).</li>
+  <li>You know messages are cloned by default and buffers can move by transfer instead.</li>
+  <li>You can explain why unsynchronized <code>counter[0]++</code> on shared memory is a race.</li>
+  <li>You reach for a pool, not a worker per task.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Race two implementations of a heavy computation — one on the main thread, one in a worker pool — and time both.</p>
       </main>
     </div>
   </div>

@@ -42,27 +42,146 @@
 <h1 id="the-runtime-engine-stack-and-memory">The Runtime: Engine, Stack and Memory</h1>
 
 <div class="alert alert-secondary shadow-sm">
-What actually happens between saving a file and seeing output: parsing, bytecode, JIT compilation, the call stack, the heap, and garbage collection.
+  What happens between saving a file and seeing output? The engine parses, interprets, and
+  optimizes; calls build and unwind a stack; objects live in a heap until nothing can reach
+  them. This machinery explains errors, leaks, and performance advice alike.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
+<h2 id="from-source-to-running-code">From source to running code</h2>
 
+<h3 id="parse-bytecode-jit">Parse, bytecode, JIT</h3>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  JavaScript is not executed line by line. An engine — V8 in Chrome and Node, SpiderMonkey in
+  Firefox, JavaScriptCore in Safari — processes your file in stages:
 </p>
+<p>
+  <strong>Parse</strong>: the text becomes a syntax tree. Failures here are lesson 14's
+  <code>SyntaxError</code>s — nothing has executed yet. <strong>Interpret</strong>: the tree
+  becomes bytecode that runs immediately. <strong>Optimize</strong>: while the code runs, the
+  engine watches which types actually arrive and compiles "hot" functions into machine code —
+  the <em>just-in-time</em> (JIT) compiler at work.
+</p>
+<pre><code class="language-javascript">// The engine cannot know at parse time what `a + b` does — JS has no static types.
+// So it SPECULATES: "these were numbers last time — compile for numbers".
+function add(a, b) {
+  return a + b;
+}
+
+for (let i = 0; i < 1_000_000; i++) add(i, i); // hot: JIT compiles a number-fast path
+console.log(add(3, 4));     // 7 — the fast path handles numbers
+console.log(add("3", "4")); // "34" — a string showed up; the assumption is broken
+
+// Expected output:
+// 7
+// 34</code></pre>
+<p>
+  That last call <em>deoptimizes</em>: the engine throws away the specialized version and falls
+  back to the general path. Nothing crashes — but the practical rule stands: keep the types a
+  function sees stable, and it stays fast.
+</p>
+<h2 id="the-call-stack">The call stack</h2>
+
+<h3 id="stack-frames">Frames: one per call, last in / first out</h3>
+<p>
+  Every call creates a <em>frame</em> holding that invocation's local variables and its return
+  address. Frames stack while calls nest and pop off as functions return — which is why lesson
+  14's error list is called a <em>stack trace</em>: it is the current stack, printed.
+</p>
+<pre><code class="language-javascript">function descend(depth) {
+  if (depth === 0) return "bottom"; // base case: the stack stops growing here
+  return descend(depth - 1);        // each frame stays alive while it waits
+}
+
+console.log(descend(3)); // depth 1 → bottom — after building 4 frames, unwinding them</code></pre>
+
+<div class="text-center">
+  <img src="/roadmap/javascript/img/runtime-memory.svg" alt="Call stack frames next to heap objects" class="img-fluid protect rounded shadow border">
+  <p>While <code>descend(1)</code> runs, three frames sit on the stack; the heap object is shared by two references.</p>
+</div>
+
+<h3 id="stack-overflow">Stack overflow — the stack has a hard limit</h3>
+<pre><code class="language-javascript">function runaway(n) {
+  return runaway(n + 1); // no base case: every frame waits on the next
+}
+
+runaway(0);
+// RangeError: Maximum call stack size exceeded</code></pre>
+<p>
+  Deep recursion is the everyday cause (demo <code>runtime/23_runtime_lab.js</code> catches and
+  prints this exact error). The fix is a reachable base case — or a loop, which reuses one frame
+  instead of stacking thousands.
+</p>
+
+<h2 id="the-heap-and-references">The heap and references</h2>
+<p>
+  Frames are small and predictable; objects are not. Objects — arrays, functions, class
+  instances — live in the <em>heap</em>, and variables hold only references to them. Lesson 04's
+  value-versus-reference diagram is a picture of exactly this. Closures live here too: a
+  returned function keeps its captured variables in the heap long after its own frame is gone.
+</p>
+<h2 id="garbage-collection">Garbage collection</h2>
+
+<h3 id="reachability">Reachability, not tidiness</h3>
+<p>
+  There is no <code>free()</code> in JavaScript. The collector periodically frees every object
+  that is <em>unreachable</em> — nothing in scope can lead to it, directly or transitively.
+  This is why removing an element only helps if it also makes the object unreachable.
+</p>
+
+<h3 id="leak-patterns">Three everyday leak patterns</h3>
+<pre><code class="language-javascript">// 1. Unbounded caches: every entry stays reachable, so nothing is ever collected
+const cache = [];
+cache.push({ key: "a", payload: new Array(1000).fill(0) });
+
+// 2. Forgotten timers: the callback closes over big data, the timer keeps it alive
+const bigData = new Array(100_000).fill("x");
+setInterval(() => console.log(bigData.length), 1000); // runs forever unless cleared
+
+// 3. Detached nodes: a removed element stays alive via a saved reference
+let detached = document.querySelector("#widget"); // (browser code)
+document.querySelector("#widget")?.remove();      // out of the DOM…
+console.log(detached !== null);                   // …but alive in the heap,
+                                                  // with every listener attached</code></pre>
+
+<h2 id="shape-matters">Shape matters: hidden classes</h2>
+<p>
+  Engines do not store property names in dictionaries — that would be slow. Objects with the
+  same properties, created in the same order, share a <em>hidden class</em> and run fast,
+  specialized code. Objects that drift (properties added one at a time, in varying orders)
+  push the engine into slower generic paths:
+</p>
+<pre><code class="language-javascript">// Same properties, SAME order → one shape
+const point1 = { x: 1, y: 2 };
+const point2 = { x: 3, y: 4 };
+
+// Drifted shape: properties added one at a time, in a different order
+const point3 = { y: 5 };
+point3.z = 9;
+point3.x = 7;</code></pre>
+<p>
+  The practical habit: build objects with all their properties up front, in a consistent order —
+  constructors and object literals do this naturally.
+</p>
+
+<h2 id="practice-runtime">Practice: make the invisible visible</h2>
+
+<h3 id="the-task-runtime">The task</h3>
+<p>
+  Run <code>runtime/23_runtime_lab.js</code> with <code>node</code>: it builds and unwinds
+  frames, overflows the stack on purpose, contrasts stack and heap semantics, and grows a leak
+  you can measure. Predict each section before running. Then delete the base case in
+  <code>descend</code>, predict the error, and check.
+</p>
+
+<h3 id="the-checklist-runtime">The checklist</h3>
 <ul>
-  <li>From source to bytecode to JIT</li>
-  <li>The call stack and stack frames</li>
-  <li>The heap: objects, closures, and references</li>
-  <li>Garbage collection and common leak patterns</li>
-  <li>Hidden classes and inline caches: why object shape matters</li>
-  <li>Reading engine internals from DevTools</li>
+  <li>You can name the pipeline stages: parse → bytecode → JIT optimize (→ deoptimize).</li>
+  <li>You can explain a stack trace as "the current call stack, printed".</li>
+  <li>You know objects live in the heap and assignment copies references, never objects.</li>
+  <li>You can name two leak patterns and say what keeps each one reachable.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Write a closure that leaks, watch it in the memory profiler, then fix it.</p>
+
       </main>
     </div>
   </div>

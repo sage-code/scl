@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="The DOM: selecting and building nodes, the event system, forms, reflow versus repaint, and accessibility.">
+  <meta name="description" content="The DOM: selecting and building nodes, the event system and delegation, reflow versus repaint, and accessibility.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="javascript dom, events, delegation, reflow, accessibility">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -42,28 +42,154 @@
 <h1 id="dom-events-and-rendering">DOM, Events and Rendering</h1>
 
 <div class="alert alert-secondary shadow-sm">
-The DOM is a live tree API. This lesson covers selecting and building nodes, the event system, and the rendering pipeline your code pays for.
+  The DOM is a live tree the browser builds from your HTML — and your JavaScript's main stage.
+  This lesson covers selecting and building nodes, the event system (including delegation, the
+  pattern that scales), and the rendering pipeline every change pays for.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
+<h2 id="the-dom-is-a-tree">The DOM is a tree</h2>
 
+<h3 id="the-browser-builds-it">The browser builds it for you</h3>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  <strong>DOM</strong> — Document Object Model. Parsing your HTML (lesson 02) produced the
+  objects: one node per element, nested per nesting, with <code>document</code> as the root you
+  can address. The tree is <em>live</em>: change a node and the page updates — no re-parse, no
+  reloaded file.
 </p>
+<pre><code class="language-javascript">// In a browser console, inspect the live tree of any page:
+console.log(document.title);         // the <title> text, as a property
+console.log(document.body.children); // direct element children of <body>
+console.log(document.body.children.length);
+// On this page: an HTMLCollection whose length matches the
+// top-level elements inside the body. Change nothing yet — just look.</code></pre>
+
+<div class="text-center">
+  <img src="/roadmap/javascript/img/dom-render-pipeline.svg" alt="Pipeline from HTML and CSS to pixels, with the DOM and JavaScript in the middle" class="img-fluid protect rounded shadow border">
+  <p>Your JavaScript sits between the tree and the render pipeline: every change you make is materialized by style → layout → paint → composite.</p>
+</div>
+<h2 id="selecting-elements">Selecting elements</h2>
+
+<h3 id="queryselector-and-friends">querySelector and friends</h3>
+<p>
+  Two methods cover everything: <code>querySelector</code> (first match, or <code>null</code>)
+  and <code>querySelectorAll</code> (all matches, as a static NodeList). Both take any CSS
+  selector — the same syntax you style with:
+</p>
+<pre><code class="language-javascript">// Browser context. Assume: <ul id="menu"><li>Home</li><li>About</li></ul>
+const menu = document.querySelector("#menu");
+const items = menu.querySelectorAll("li");
+
+console.log(items.length);         // 2
+console.log(items[0].textContent); // Home
+
+items.forEach((li) => li.classList.add("menu-item")); // NodeList has forEach;
+                                                      // array extras need [...items]</code></pre>
+<p>
+  <strong>If you get this instead:</strong> <code>TypeError: Cannot read properties of null</code> —
+  the selector matched nothing. Log the selector's result alone before debugging anything else;
+  and remember a script in <code>&lt;head&gt;</code> runs before the elements below it exist
+  (lesson 03's <code>defer</code>).
+</p>
+
+<h2 id="reading-and-writing">Reading and writing content</h2>
+
+<h3 id="textcontent-versus-innerhtml">textContent versus innerHTML — a security lesson</h3>
+<pre><code class="language-javascript">// User input must never become HTML. Watch the difference:
+const name = '<img src=x onerror="alert(1)">';
+
+const safe = document.createElement("span");
+safe.textContent = name; // a TEXT node: the tags are shown as characters — harmless
+
+// element.innerHTML = name; // DANGEROUS: the browser parses it as markup —
+                              // the injected onerror RUNS. This is XSS, the #1 web vuln.</code></pre>
+<p>
+  Rule: <code>textContent</code> for anything that came from a user or an API;
+  <code>innerHTML</code> only for markup you wrote yourself.
+</p>
+
+<h3 id="styles-and-classes">Styles and classes</h3>
+<pre><code class="language-javascript">const box = document.querySelector(".box");
+box.classList.add("highlighted");     // classList: add / remove / toggle / contains
+box.classList.toggle("active", true); // the second argument forces the state
+box.style.color = "crimson";          // inline style: for the rare one-off</code></pre>
+
+<h2 id="creating-and-removing">Creating and removing nodes</h2>
+<pre><code class="language-javascript">// Build detached, then attach once — the DOM is only touched at the end:
+const list = document.querySelector("#todos");
+const fragment = document.createDocumentFragment(); // an invisible container
+
+for (const label of ["learn", "practice", "teach"]) {
+  const li = document.createElement("li");
+  li.textContent = label;   // never innerHTML with dynamic data
+  fragment.append(li);      // cheap: no layout work while detached
+}
+list.append(fragment);      // ONE attachment, ONE layout pass
+
+const first = list.firstElementChild;
+first.remove();             // gone from the tree — and from the page</code></pre>
+<h2 id="events">Events: reacting to the user</h2>
+
+<h3 id="propagation">Every click travels: target, then bubbles up</h3>
+<p>
+  An event fires at the element where it happened (the <em>target</em>), then <em>bubbles</em>
+  up through its ancestors — each ancestor's listener can react. Listening on a stable parent
+  is <em>event delegation</em>: one listener handles all current <em>and future</em> children.
+</p>
+<pre><code class="language-javascript">// Delegation: ONE listener for a list that can grow forever.
+document.querySelector("#todos").addEventListener("click", (event) => {
+  const item = event.target.closest("li"); // closest: the <li> ancestor, if any
+  if (item) item.classList.toggle("done");
+});</code></pre>
+<p>
+  <strong>Contraexample:</strong> attaching a listener to each <code>&lt;li&gt;</code> at build
+  time. It works — until you add an item and forget its listener, or remove an item whose
+  listener keeps a closure alive (lesson 15's leak patterns).
+</p>
+
+<h3 id="reflow-and-repaint">The rendering cost: reflow versus repaint</h3>
+<p>
+  The pipeline in the diagram runs after your script yields. <em>Repaint</em> (new colors) is
+  cheap; <em>reflow</em> (layout recalculated because sizes or positions changed) is not.
+  Reading layout properties (<code>offsetWidth</code>, <code>getBoundingClientRect()</code>)
+  forces the browser to compute pending changes <em>now</em> — so alternating writes and reads
+  in a loop triggers a reflow per iteration:
+</p>
+<pre><code class="language-javascript">// Slow: write, read, write, read — every read forces pending layout work
+for (const el of items) {
+  el.style.width = el.offsetWidth + 10 + "px"; // read forces reflow, write invalidates it
+}
+
+// Fast: read everything first, then write everything
+const widths = items.map((el) => el.offsetWidth);                       // all reads together
+items.forEach((el, i) => { el.style.width = widths[i] + 10 + "px"; }); // all writes together</code></pre>
+
+<h3 id="accessibility">Accessibility: semantics beat attributes</h3>
+<p>
+  A <code>&lt;button&gt;</code> gets keyboard focus, Enter/Space activation, and screen-reader
+  announcements for free. A <code>&lt;div onclick&gt;</code> gets none of it — you would have to
+  rebuild all three by hand. Reach for the semantic element first; add ARIA attributes only
+  when no native element fits.
+</p>
+
+<h2 id="practice-dom">Practice: rebuild the list</h2>
+
+<h3 id="the-task-dom">The task</h3>
+<p>
+  Open demo <code>runtime/24_dom_lab.html</code> in a browser (Preview link on the Lab Examples
+  page). Type three languages, add them, remove one with the ✕. Then add a second input for a
+  description and render it as a nested <code>&lt;small&gt;</code> line — using delegation, so
+  removal keeps working without a single new listener.
+</p>
+
+<h3 id="the-checklist-dom">The checklist</h3>
 <ul>
-  <li>The DOM tree and node types</li>
-  <li>Selecting and creating elements safely</li>
-  <li>Event propagation: capture, target, bubble</li>
-  <li>Delegation and the <code>removeEventListener</code> pitfall</li>
-  <li>Forms, validation, and constraint APIs</li>
-  <li>Layout, reflow, and repaint costs</li>
-  <li>Accessibility: semantics beat attributes</li>
+  <li>You can predict <code>querySelector</code> returning null — and the error that follows.</li>
+  <li>You use <code>textContent</code> for dynamic data, and can say why innerHTML is XSS.</li>
+  <li>You attach one delegated listener instead of one per node.</li>
+  <li>You can explain reflow, and why read-then-write beats alternating.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Log the propagation path of one click across capture, target, and bubble phases.</p>
+
       </main>
     </div>
   </div>

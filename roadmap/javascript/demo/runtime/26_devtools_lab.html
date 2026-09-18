@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>26 · DevTools lab — debug this on purpose</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; max-width: 520px; margin: 2rem auto; }
+    button { font: inherit; padding: 6px 12px; margin: 4px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: inherit; cursor: pointer; }
+    pre { background: #1e293b; padding: 12px; border-radius: 6px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>26 · DevTools lab</h1>
+  <p>
+    Open DevTools (F12) → Sources/Debugger panel → click <em>Run report</em>, then:
+  </p>
+  <ol>
+    <li>Set a breakpoint on the line marked <code>BREAK HERE</code>.</li>
+    <li>Press the button again; inspect <code>items</code> in the Scope pane.</li>
+    <li>Step over with F10 and watch <code>totals</code> in the Watch pane.</li>
+  </ol>
+  <p>
+    <button id="run-report">Run report</button>
+    <button id="slow-loop">Slow loop (time it)</button>
+  </p>
+  <pre id="report"></pre>
+
+  <script>
+    const report = document.querySelector("#report");
+
+    function sumPrices(items) {
+      // Bug planted on purpose: prices arrive as STRINGS ("4.50"), so + concatenates.
+      // Find it with the debugger — do not fix it by staring.
+      let totals = { count: items.length, sum: 0 };
+      for (const item of items) {
+        totals.sum = totals.sum + item.price; // BREAK HERE: typeof item.price === "string"
+      }
+      return totals;
+    }
+
+    document.querySelector("#run-report").addEventListener("click", () => {
+      const items = [
+        { name: "tea", price: "4.50" },   // strings — a classic API-response shape
+        { name: "cup", price: "12.00" },
+      ];
+      const totals = sumPrices(items);    // expected 16.5 — you will see "014.5"
+      report.textContent = JSON.stringify(totals, null, 2);
+    });
+
+    document.querySelector("#slow-loop").addEventListener("click", () => {
+      // console.time/timeEnd: measure, do not guess.
+      let sink = 0;
+      console.time("busy loop");
+      for (let i = 0; i < 2_000_000; i++) sink += i % 7;
+      console.timeEnd("busy loop");       // e.g. busy loop: 6.2 ms — check YOUR console
+      report.textContent = `sink = ${sink}\n(see the console for the timing)`;
+    });
+
+    // A one-shot console tour: console.table prints arrays of objects as a sortable grid.
+    console.table([
+      { name: "tea", price: "4.50" },
+      { name: "cup", price: "12.00" },
+    ]);
+  </script>
+</body>
+</html>

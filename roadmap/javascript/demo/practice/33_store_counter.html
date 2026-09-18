@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>33 · Store counter — the same app, two architectures</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; max-width: 720px; margin: 2rem auto; }
+    .col { float: left; width: 46%; margin-right: 4%; } h2 { font-size: 16px; color: #93c5fd; }
+    button { font: inherit; padding: 6px 12px; margin: 4px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: inherit; cursor: pointer; }
+    output { font-size: 28px; display: block; margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <h1>33 · Store counter</h1>
+  <p>Same app, two architectures. Open the console and try to break the right one.</p>
+
+  <div class="col">
+    <h2>LEFT — DOM is the state (fragile)</h2>
+    <output id="fragile-count">0</output>
+    <button id="fragile-inc">+1</button>
+    <button id="fragile-dec">−1</button>
+    <p><small id="fragile-hint">count lives in the DOM only — edit the output in the console and it lies</small></p>
+  </div>
+
+  <div class="col">
+    <h2>RIGHT — state first, render second</h2>
+    <output id="store-count">0</output>
+    <button id="store-inc">+1</button>
+    <button id="store-dec">−1</button>
+    <button id="store-undo">undo</button>
+    <p><small id="store-hint"></small></p>
+  </div>
+
+  <script>
+    // ===== LEFT: truth smeared across the DOM =================================
+    let fragileCount = 0; // a SECOND source of truth — this is the bug
+    document.querySelector("#fragile-inc").addEventListener("click", () => {
+      fragileCount++;
+      document.querySelector("#fragile-count").textContent = fragileCount; // manual sync
+    });
+    document.querySelector("#fragile-dec").addEventListener("click", () => {
+      fragileCount--;
+      document.querySelector("#fragile-count").textContent = fragileCount;
+    });
+    // Try in the console: document.querySelector("#fragile-count").textContent = 999
+    // The DOM now disagrees with fragileCount — nothing stops you.
+
+    // ===== RIGHT: state → render, always in that order ========================
+    const store = {
+      history: [0],           // the stack of past states gives us undo for free
+      get value() { return this.history[this.history.length - 1]; },
+      set value(next) { this.history.push(next); render(); }, // state changes, THEN render
+    };
+
+    function render() {
+      // Pure consequence of state — no other function touches the DOM.
+      document.querySelector("#store-count").textContent = store.value;
+      document.querySelector("#store-hint").textContent =
+        `history: [${store.history.join(", ")}] — derived, cannot disagree`;
+      document.querySelector("#store-undo").disabled = store.history.length < 2;
+    }
+
+    document.querySelector("#store-inc").addEventListener("click", () => { store.value = store.value + 1; });
+    document.querySelector("#store-dec").addEventListener("click", () => { store.value = store.value - 1; });
+    document.querySelector("#store-undo").addEventListener("click", () => {
+      if (store.history.length > 1) { store.history.pop(); render(); }
+    });
+
+    render();
+  </script>
+</body>
+</html>

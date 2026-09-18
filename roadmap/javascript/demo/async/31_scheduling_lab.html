@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>31 · Scheduling lab — debounce, throttle, and the frame budget</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; max-width: 560px; margin: 2rem auto; }
+    .track { height: 14px; background: #1e293b; border-radius: 7px; margin: 6px 0; overflow: hidden; }
+    .fill { height: 100%; background: #3b82f6; width: 0%; }
+    .fill.throttle { background: #f59e0b; }
+    .fill.debounce { background: #22c55e; }
+    label { font: 13px system-ui; color: #94a3b8; }
+    button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: inherit; cursor: pointer; }
+    pre { background: #1e293b; padding: 10px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>31 · Scheduling lab</h1>
+  <p>Move the mouse over this box (or press the button rapidly). Each row shows how often that strategy ran — the raw handler, a throttled version, and a debounced one.</p>
+  <div id="pad" style="height:120px;border:1px dashed #475569;border-radius:8px;text-align:center;line-height:120px;">move here</div>
+
+  <label>raw — fires every event (~hundreds per second)</label>
+  <div class="track"><div class="fill" id="raw-bar"></div></div>
+  <label>throttled — at most once per 200ms</label>
+  <div class="track"><div class="fill throttle" id="throttle-bar"></div></div>
+  <label>debounced — only after 200ms of quiet</label>
+  <div class="track"><div class="fill debounce" id="debounce-bar"></div></div>
+  <pre id="counts">counts: raw 0 · throttled 0 · debounced 0</pre>
+  <p><button id="reset">Reset</button></p>
+
+  <script>
+    const pad = document.querySelector("#pad");
+    const counts = { raw: 0, throttled: 0, debounced: 0 };
+    const out = document.querySelector("#counts");
+
+    function render() {
+      // Scale bars logarithmically so the difference stays visible.
+      const scale = (n) => Math.min(100, (Math.log10(n + 1) * 40));
+      document.querySelector("#raw-bar").style.width = scale(counts.raw) + "%";
+      document.querySelector("#throttle-bar").style.width = scale(counts.throttled) + "%";
+      document.querySelector("#debounce-bar").style.width = scale(counts.debounced) + "%";
+      out.textContent = `counts: raw ${counts.raw} · throttled ${counts.throttled} · debounced ${counts.debounced}`;
+    }
+
+    // THROTTLE: run at most once per window — steady rate, good for scroll/mousemove.
+    function throttle(fn, ms) {
+      let ready = true;
+      return (...args) => {
+        if (!ready) return;
+        ready = false;
+        fn(...args);
+        setTimeout(() => (ready = true), ms);
+      };
+    }
+
+    // DEBOUNCE: run only after quiet — good for "user stopped typing" searches.
+    function debounce(fn, ms) {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), ms);
+      };
+    }
+
+    const throttled = throttle(() => counts.throttled++, 200);
+    const debounced = debounce(() => counts.debounced++, 200);
+
+    pad.addEventListener("mousemove", () => {
+      counts.raw++;
+      throttled();
+      debounced();
+      render();
+    });
+
+    document.querySelector("#reset").addEventListener("click", () => {
+      counts.raw = counts.throttled = counts.debounced = 0;
+      render();
+    });
+
+    // Frame budget: how long does the main thread actually take per frame?
+    let last = performance.now();
+    function loop(now) {
+      const frameMs = now - last;
+      last = now;
+      if (frameMs > 20) console.log(`long frame: ${frameMs.toFixed(1)}ms (budget is ~16.7ms)`);
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

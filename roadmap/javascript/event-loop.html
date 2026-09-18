@@ -42,27 +42,97 @@
 <h1 id="the-event-loop-and-the-concurrency-model">The Event Loop and the Concurrency Model</h1>
 
 <div class="alert alert-secondary shadow-sm">
-JavaScript runs your code on one thread and never two statements at once. Concurrency comes from queues; this lesson gives you the exact execution-order model.
+  JavaScript runs your code on <strong>one thread</strong> — never two statements at once.
+  Concurrency comes from queues, not threads. This lesson gives you the exact execution-order
+  model, so "why did this log first?" stops being a guess.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
-
+<h2 id="concurrency-versus-parallelism">Concurrency versus parallelism</h2>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  <strong>Concurrency</strong>: multiple tasks are <em>in flight</em> — a fetch waits for the
+  network while a click handler runs. <strong>Parallelism</strong>: two computations run at the
+  <em>same instant</em> on different cores. JavaScript is concurrent by default and parallel
+  only when you add workers (lesson 22). One thread, one call stack — and two queues of work
+  waiting for that stack to empty.
 </p>
+
+<div class="text-center">
+  <img src="/roadmap/javascript/img/event-loop.svg" alt="Call stack, microtask queue, macrotask queue, and render step connected by the event loop" class="img-fluid protect rounded shadow border">
+  <p>The event loop drains microtasks completely after every task, then runs one macrotask — and the browser renders between turns.</p>
+</div>
+
+<h2 id="the-two-queues">The two queues</h2>
+
+<h3 id="microtasks-vs-tasks">Microtasks jump ahead of timers</h3>
+<pre><code class="language-javascript">console.log("1: script start");            // synchronous — the current task
+setTimeout(() => console.log("4: timer"), 0);   // MACROtask: queued for a later turn
+Promise.resolve().then(() => console.log("3: microtask")); // MICROtask: queued for the drain
+console.log("2: script end");              // still the same task
+
+// Expected output:
+// 1: script start
+// 2: script end
+// 3: microtask    ← microtasks drain BEFORE any timer fires
+// 4: timer        ← even with a 0 ms delay</code></pre>
+<p>
+  Rules, in order: (1) the current synchronous task runs to completion; (2) the microtask
+  queue drains <em>completely</em> — including microtasks queued by microtasks; (3) one
+  macrotask runs (timers, I/O callbacks, event handlers); (4) repeat.
+</p>
+
+<h3 id="starvation">Starvation: one blocking loop freezes everything</h3>
+<pre><code class="language-javascript">const start = Date.now();
+setTimeout(() => console.log(`fired ${Date.now() - start}ms late`), 100);
+
+while (Date.now() - start < 300) {} // blocks the ONLY thread for 300ms
+
+// Expected output:
+// fired 302ms late — the timer could not run until the loop finished</code></pre>
+<p>
+  This is the real cost of synchronous work on the main thread: not slowness, but a frozen
+  page — clicks queue, animations stall, nothing responds. Demo
+  <code>async/27_event_loop_lab.js</code> measures it.
+</p>
+<h2 id="rendering-steps">Rendering and loop lag</h2>
+
+<h3 id="measuring-lag">The browser renders between tasks — when it can</h3>
+<p>
+  The style → layout → paint pipeline from lesson 16 runs <em>between</em> event-loop turns.
+  If tasks queue faster than they finish, renders are skipped and the page drops frames —
+  <em>jank</em>. You can measure the lag directly:
+</p>
+<pre><code class="language-javascript">// Browser context: measure how late a 0ms timer actually fires.
+let last = performance.now();
+setInterval(() => {
+  const now = performance.now();
+  const expected = 100;             // we asked for 100ms
+  const lag = now - last - expected;
+  console.log(`loop lag: ${lag.toFixed(1)}ms — high values mean a busy thread`);
+  last = now;
+}, 100);</code></pre>
+<p>
+  Steady lag above a few milliseconds under idle conditions is a signal: something is blocking
+  the thread. Lesson 23 builds the scheduling habits that fix it.
+</p>
+
+<h2 id="practice-event-loop">Practice: predict before you run</h2>
+
+<h3 id="the-task-event-loop">The task</h3>
+<p>
+  Run <code>async/27_event_loop_lab.js</code> with <code>node</code>. For each block, write the
+  expected order <em>first</em>, including which queue puts each line there. Then modify Part 3:
+  wrap the timer's callback in <code>await Promise.resolve()</code> (make the callback
+  <code>async</code>) and predict how the order changes before running it.
+</p>
+
+<h3 id="the-checklist-event-loop">The checklist</h3>
 <ul>
-  <li>Concurrency versus parallelism in JavaScript</li>
-  <li>The call stack, the task queue, the microtask queue</li>
-  <li>Timers, I/O callbacks, and rendering steps</li>
-  <li>Starvation: one blocking loop freezes everything (contraexample)</li>
-  <li>An execution-order quiz you can run and verify</li>
-  <li>Measuring loop lag with performance.now()</li>
+  <li>You can state the four event-loop rules in order, from memory.</li>
+  <li>You know microtasks drain completely — including microtasks queued by microtasks.</li>
+  <li>You can explain jank as "tasks starving the render step", not as "slow code".</li>
+  <li>You can name the one situation where concurrency becomes parallelism: workers.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Predict the log order of ten mixed setTimeout/Promise snippets, then run them.</p>
       </main>
     </div>
   </div>
