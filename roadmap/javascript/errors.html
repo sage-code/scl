@@ -1,6 +1,200 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"><head><meta charset="utf-8"><meta name="description" content="JavaScript errors and debugging mindset for front-end code."><meta name="author" content="Elucian Moise"><meta name="keywords" content="javascript errors debugging"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>JavaScript Errors and Bug Fixing</title><link rel="canonical" href="https://sagecode.org/roadmap/javascript/errors.html"><meta name="robots" content="index, follow"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"><link rel="icon" type="image/png" href="/images/favicon.ico"><link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js"></script><link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/sage-common.css">   <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
-  <link rel="stylesheet" href="/assets/css/content-code.css"></head><body><div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3"><h1 id="errors-bug-fixing">Errors and Bug Fixing</h1><div class="alert alert-secondary shadow-sm">Debugging is a skill, not luck. Build a repeatable process and follow evidence.</div><h2 id="error-types">Common error types</h2><ul><li>Syntax errors</li><li>Reference/type errors</li><li>Logic errors (runs but wrong output)</li><li>Async timing issues</li></ul><h2 id="debug-workflow">Debug workflow</h2><ol><li>Reproduce the bug reliably.</li><li>Read console and stack trace first.</li><li>Inspect variables at failure point.</li><li>Fix the root cause, not symptoms.</li><li>Retest related flows.</li></ol><h2 id="defensive-coding">Defensive coding</h2><pre><code class="language-javascript">function safeUpper(text) {
-  if (typeof text !== "string") return "";
+<html lang="en" data-bs-theme="dark"><head><meta charset="utf-8"><meta name="description" content="JavaScript errors and debugging: the five failure modes, throw and try/catch, custom Error subclasses, and validation that fails loudly."><meta name="author" content="Elucian Moise"><meta name="keywords" content="javascript errors debugging"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>JavaScript Errors and Bug Fixing</title><link rel="canonical" href="https://sagecode.org/roadmap/javascript/errors.html"><meta name="robots" content="index, follow"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"><link rel="icon" type="image/png" href="/images/favicon.ico"><link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js"></script><link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/sage-common.css">   <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css"></head><body><div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3"><h1 id="errors-bug-fixing">Errors and Bug Fixing</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Things go wrong in every program; professionals differ in how they respond. This lesson gives
+  failure a vocabulary (the error types), a toolbox (<code>throw</code>, <code>try</code>,
+  <code>catch</code>), and a repeatable workflow — so debugging stops being luck and becomes a process.
+</div>
+
+<h2 id="error-types">The five ways code fails</h2>
+
+<h3 id="the-three-runtime-errors">Three runtime errors — and when each fires</h3>
+<p>
+  When JavaScript cannot continue, it <em>throws</em> an object that describes the problem.
+  Three types cover most of daily life. Every one of these lines runs (this is not a syntax
+  lesson) — try each in isolation and read the message:
+</p>
+<pre><code class="language-javascript">// 1. ReferenceError — the name was never declared (or is still in its TDZ)
+console.log(username);
+// ReferenceError: username is not defined
+
+// 2. TypeError — the value exists, but you asked it for something it cannot do
+const count = 3;
+console.log(count.toUpperCase());
+// TypeError: count.toUpperCase is not a function
+
+// 3. RangeError — the value is the right kind, but outside the allowed range
+new Array(-5);
+// RangeError: Invalid array length</code></pre>
+<p>
+  The distinction matters because it tells you <em>where</em> to look: a <code>ReferenceError</code>
+  points at a typo or a scope problem; a <code>TypeError</code> points at a value that arrived in
+  the wrong shape; a <code>RangeError</code> points at input that passed your type checks but is
+  still invalid.
+</p>
+
+<h3 id="the-fourth-syntaxerror">The fourth kind — SyntaxError — fires before anything runs</h3>
+<pre><code class="language-javascript">// One missing bracket anywhere in the file...
+const list = [1, 2, 3;
+// SyntaxError: Unexpected token ';'</code></pre>
+<p>
+  A <code>SyntaxError</code> is thrown at parse time: <strong>none</strong> of the script runs,
+  not even the lines above the mistake. This is why one broken file can take down an entire page —
+  and why the browser console is the first thing to open when a page appears to do nothing.
+</p>
+
+<h3 id="the-fifth-logic-errors">The fifth kind — logic errors — throw nothing at all</h3>
+<pre><code class="language-javascript">// Runs fine. Fails silently. This "average" divides by length twice:
+const scores = [80, 90, 100];
+const average = scores.reduce((sum, s) => sum + s) / scores.length / 2;
+console.log(average); // 45 — no error, just a confidently wrong number</code></pre>
+<p>
+  Logic errors are the reason tests exist (Phase 5): the machine cannot catch them for you.
+  Only the expected value can.
+</p><h2 id="throwing-and-catching">throw, try and catch</h2>
+
+<h3 id="throwing-your-own">Throwing your own errors — fail loudly, fail early</h3>
+<p>
+  Any value <em>can</em> be thrown, but throw <strong>Error instances</strong> only: they carry a
+  <code>message</code>, a <code>name</code>, and a <code>stack</code> — the three things a
+  debugger reads:
+</p>
+<pre><code class="language-javascript">function divide(a, b) {
+  // Guard clause: reject impossible input immediately, with a message a human can act on
+  if (b === 0) {
+    throw new RangeError(`divide: b must not be 0 (got b=${b})`);
+  }
+  return a / b;
+}
+
+console.log(divide(10, 4)); // 2.5
+console.log(divide(10, 0)); // uncaught RangeError: divide: b must not be 0 (got b=0)</code></pre>
+<p>
+  An uncaught error is not a failure of your program — it is your program refusing to continue
+  on false pretences. Silent wrong output is far more expensive than a loud failure.
+</p>
+
+<h3 id="catching-is-for-recovery">Catching is for recovery, not for hiding</h3>
+<pre><code class="language-javascript">function loadScore(raw) {
+  try {
+    const score = JSON.parse(raw);                       // can throw SyntaxError on bad JSON
+    if (typeof score !== "number") {
+      throw new TypeError("score must be a number");     // our own, deliberate throw
+    }
+    return score;
+  } catch (error) {
+    console.error("loadScore failed:", error.message);   // log it — never vanish silently
+    return 0;                                            // a fallback the caller can rely on
+  }
+}
+
+console.log(loadScore('{"not":"a number"}'));
+// loadScore failed: score must be a number
+// 0
+console.log(loadScore("42")); // 42</code></pre>
+<p>
+  <strong>If you see this instead:</strong> nothing. An empty <code>catch</code> block is the most
+  expensive five characters in programming: the program continues in a state nobody planned for,
+  and the real bug surfaces later, far from its cause. Every catch must do one of three things:
+  recover, log, or rethrow.
+</p>
+
+<h3 id="custom-error-subclasses">Custom error subclasses — errors you can filter on</h3>
+<p>
+  When different failures need different handling, subclass <code>Error</code> and branch on the
+  type instead of on message strings:
+</p>
+<pre><code class="language-javascript">class ValidationError extends Error {
+  constructor(message) {
+    super(message);                // Error's constructor sets .message and .stack
+    this.name = "ValidationError"; // otherwise it would print as "Error"
+  }
+}
+
+function registerUser(name) {
+  if (!name || name.length < 2) {
+    throw new ValidationError(`name must be at least 2 characters (got "${name}")`);
+  }
+  return { name };
+}
+
+try {
+  registerUser("");
+} catch (error) {
+  if (error instanceof ValidationError) {
+    console.log("show the red border:", error.message);
+    // show the red border: name must be at least 2 characters (got "")
+  } else {
+    throw error; // not ours — do not swallow it
+  }
+}</code></pre><h2 id="debug-workflow">A repeatable debug workflow</h2>
+
+<ol>
+  <li><strong>Reproduce.</strong> A bug you cannot trigger on demand cannot be fixed on purpose.</li>
+  <li><strong>Read the error and stack trace first.</strong> The top line names the error; the
+      lines below name the path of calls that led there:</li>
+</ol>
+<pre><code class="language-text">TypeError: Cannot read properties of undefined (reading 'role')
+    at showBadge (user.js:12:15)     ← where it broke
+    at renderHeader (header.js:40:3) ← who called it
+    at main (app.js:5:1)</code></pre>
+<p>
+  The classic beginner mistake is re-reading the code that <em>should</em> work. Read the trace
+  instead: <code>showBadge</code> received <code>undefined</code> — the question is who passed
+  it, and the answer is in the frame above.
+</p>
+<ol start="3">
+  <li><strong>Inspect</strong> values at the failure point (breakpoints — lesson 18).</li>
+  <li><strong>Fix the root cause</strong>, not the symptom: a missing check one level up, not a
+      <code>?.</code> sprinkled at the crash site.</li>
+  <li><strong>Retest related flows</strong> — the same bad value probably reaches other callers.</li>
+</ol>
+
+<h2 id="defensive-coding">Defensive coding: validate at the boundary</h2>
+
+<p>
+  Inside a function you may trust your own types; at the edges — user input, network responses,
+  JSON files — trust nothing:
+</p>
+<pre><code class="language-javascript">function safeUpper(text) {
+  if (typeof text !== "string") {
+    // Boundary: the caller may be anyone. Fail fast with a precise message.
+    throw new TypeError(`safeUpper: expected a string, got ${typeof text}`);
+  }
   return text.toUpperCase();
-}</code></pre><h2 id="practice-errors">Practice</h2><p>Intentionally create three bugs in a small app, then fix them using the same workflow.</p></main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button><script>window.TOPIC_CONFIG={labId:'javascript',topicId:'errors',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script><script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script></body></html>
+}
+
+console.log(safeUpper("ok")); // OK</code></pre><h2 id="where-try-catch-cannot-help">Where try/catch cannot help (yet)</h2>
+
+<p>
+  A <code>try</code>/<code>catch</code> only sees errors thrown <em>synchronously</em> inside it.
+  An error inside a <code>setTimeout</code> callback, or a failed <code>fetch</code>, escapes it
+  entirely — that failure mode is the subject of Phase 4. For now, know the boundary:
+</p>
+<pre><code class="language-javascript">try {
+  setTimeout(() => {
+    throw new Error("too late — the catch is long gone");
+  }, 100);
+} catch (error) {
+  console.log("caught"); // NEVER printed — different turn of the event loop
+}</code></pre>
+
+<h2 id="practice-errors">Practice: break it on purpose</h2>
+
+<h3 id="the-task-errors">The task</h3>
+<p>
+  Run <code>runtime/22_errors_lab.js</code> with <code>node</code>. It triggers each error type on
+  purpose, catches them by class, and prints the real message text — predict each line before
+  running. Then build a <code>parseAge(raw)</code> that throws <code>ValidationError</code> for
+  negative or non-numeric input, and prove both failure paths with a test call.
+</p>
+
+<h3 id="the-checklist-errors">The checklist</h3>
+<ul>
+  <li>You can name the error type you expect from a typo, a bad shape, and bad input.</li>
+  <li>You know SyntaxError runs nothing, and logic errors run everything.</li>
+  <li>Every catch you write recovers, logs, or rethrows — never hides.</li>
+  <li>You can read a three-frame stack trace and say where to look first.</li>
+</ul></main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button><script>window.TOPIC_CONFIG={labId:'javascript',topicId:'errors',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script><script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script></body></html>

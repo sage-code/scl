@@ -45,24 +45,130 @@
 Performance is a budget: one main thread, 60 frames a second. This lesson covers the patterns that keep interactive JavaScript inside that budget.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
+<h2 id="frame-budget">The frame budget</h2>
 
+<h3 id="16ms">16 ms — where the number comes from</h3>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  A 60 fps display shows a new frame every <code>1000/60 ≈ 16.7 ms</code>. That is the total
+  allowance for <em>everything</em> in lesson 16's pipeline: your event handlers, style,
+  layout, paint. Miss it once and one frame drops — usually invisible. Miss it every frame
+  and the page feels broken. This is why lesson 19's "don't block the thread" is a budget,
+  not a slogan: there is a number attached.
 </p>
+<pre><code class="language-javascript">// Measure your own frame budget compliance (browser):
+function frame(now) {
+  const delta = now - last; // time since the previous frame
+  if (delta > 20) console.warn(`dropped frames: ${delta.toFixed(1)}ms`); // missed budget
+  last = now;
+  requestAnimationFrame(frame);
+}
+let last = performance.now();
+requestAnimationFrame(frame);</code></pre>
+
+<h2 id="debounce-throttle">Debounce versus throttle</h2>
+
+<h3 id="two-regulators">Two different regulators — pick by intent</h3>
+<pre><code class="language-javascript">// THROTTLE: at most once per interval DURING activity.
+// Use when you want continuous updates: scroll position, mousemove tracking.
+function throttle(fn, ms) {
+  let ready = true;
+  return (...args) => {
+    if (!ready) return;
+    ready = false;
+    fn(...args);
+    setTimeout(() => (ready = true), ms); // reopen the gate after ms
+  };
+}
+
+// DEBOUNCE: only after QUIET. Use when you want a final answer: search-as-you-type,
+// resize-end. Every new event cancels the pending call.
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);          // cancel the last scheduled call…
+    timer = setTimeout(() => fn(...args), ms); // …and reschedule
+  };
+}
+
+// Demo 31 (demo/async/31_scheduling_lab.html) visualizes both side by side.</code></pre>
+<p>
+  The one-line version: <strong>throttle = at most once per X ms; debounce = once, X ms after
+  you stop</strong>. Confusing them ships search boxes that never search while typing
+  (debounced button) or scroll logs 200 times a second (debounced where throttled was meant).
+</p>
+<h2 id="scheduling-and-yielding">Scheduling: rAF and yielding</h2>
+
+<h3 id="long-tasks">Break up long tasks</h3>
+<p>
+  Any task over ~50 ms is a "long task": it delays every queued event and at least one frame.
+  The fix is not a faster loop — it is <em>yielding</em>: split the work so the thread can
+  serve input and rendering between chunks:
+</p>
+<pre><code class="language-javascript">// Yield to the main thread between chunks (browser):
+async function processInChunks(items, fn) {
+  for (let i = 0; i < items.length; i++) {
+    fn(items[i]);
+    if (i % 100 === 0) {
+      await new Promise((r) => setTimeout(r, 0)); // hand the thread back:
+      // queued clicks and render steps get their turn here
+    }
+  }
+}</code></pre>
+<p>
+  The cost: total wall time grows slightly. The win: the page stays responsive throughout.
+  For work that does not need to finish this frame, that trade is almost always right.
+  CPU-bound work that cannot be chunked belongs in a worker (lesson 22).
+</p>
+
+<h3 id="visual-work">Visual work belongs in requestAnimationFrame</h3>
+<pre><code class="language-javascript">// setTimeout fires whenever the queue allows — mid-layout, too early, or too late.
+// rAF fires exactly at the next frame, BEFORE paint — one layout per frame:
+function animate(now) {
+  box.style.transform = `translateX(${(now - start) / 10}px)`; // transform: no reflow
+  if (running) requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);</code></pre>
+<p>
+  Animating <code>transform</code> and <code>opacity</code> (compositor-friendly, lesson 16)
+  inside rAF keeps the frame budget intact; animating layout properties inside
+  <code>setTimeout</code> breaks both rules at once.
+</p>
+<h2 id="measuring">Measuring: marks and measures</h2>
+
+<h3 id="user-timing">Instrument the code, not the wall clock</h3>
+<pre><code class="language-javascript">// performance.mark/measure: named timestamps the Performance panel displays
+// alongside its own recording — your phases aligned with the browser's.
+performance.mark("search:start");
+const results = await search(query);
+performance.mark("search:end");
+performance.measure("search", "search:start", "search:end");
+
+console.log(performance.getEntriesByName("search")[0].duration); // e.g. 41.237</code></pre>
+<p>
+  Named measures survive refactors and show up as user-owned tracks in the panel — the
+  difference between "the page feels slow" and "search takes 41 ms, budget was 16".
+</p>
+
+<h2 id="practice-performance">Practice: inside the budget</h2>
+
+<h3 id="the-task-performance">The task</h3>
+<p>
+  Open <code>demo/async/31_scheduling_lab.html</code> (Preview link on the Lab Examples page).
+  Move the pointer and compare raw, throttled, and debounced counts. Then implement the
+  chunked processor from this lesson over a 10,000-item array and watch the frame meter:
+  before chunking, frames drop; after, they hold. Finish by adding a
+  <code>performance.measure</code> around the whole batch and reading the number.
+</p>
+
+<h3 id="the-checklist-performance">The checklist</h3>
 <ul>
-  <li>The frame budget and why 16 ms matters</li>
-  <li>Debounce versus throttle (with a visual lab)</li>
-  <li>Batching DOM writes against layout thrash</li>
-  <li>scheduler.postTask and requestIdleCallback</li>
-  <li>performance marks, measures, and User Timing</li>
-  <li>Profiling a jank case end to end</li>
+  <li>You can say where 16 ms comes from and what it must cover.</li>
+  <li>You pick throttle for continuous updates, debounce for quiet-then-final.</li>
+  <li>You yield to the main thread in chunks instead of blocking once.</li>
+  <li>You measure with marks and measures, not with guesses.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Fix a scroll handler that fires 200 times a second using throttle, then measure the difference.</p>
+
       </main>
     </div>
   </div>

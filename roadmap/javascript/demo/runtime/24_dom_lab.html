@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>24 · DOM lab — build a list with delegation</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; max-width: 480px; margin: 2rem auto; }
+    input, button { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: inherit; }
+    button { cursor: pointer; }
+    li { padding: 6px 10px; margin: 4px 0; background: #1e293b; border-radius: 6px; display: flex; justify-content: space-between; }
+    li button { border: none; background: transparent; color: #f87171; }
+  </style>
+</head>
+<body>
+  <h1>24 · DOM lab</h1>
+  <p>Type a language, press Enter or Add — then remove items by clicking their ✕.</p>
+  <p><input id="lang-input" placeholder="e.g. JavaScript" aria-label="language name">
+     <button id="add-btn">Add</button></p>
+  <ul id="lang-list"></ul>
+
+  <script>
+    // The DOM tree is live: every change below is visible immediately in the page.
+    const input = document.querySelector("#lang-input");
+    const list = document.querySelector("#lang-list");
+    const addBtn = document.querySelector("#add-btn");
+
+    function addLanguage() {
+      const name = input.value.trim();            // trim: whitespace-only items are not content
+      if (name === "") return;                     // guard clause: nothing to add
+      const li = document.createElement("li");     // 1. create (detached — not in the page yet)
+      li.textContent = name;                       // 2. textContent, NEVER innerHTML with user input
+      const remove = document.createElement("button");
+      remove.textContent = "✕";
+      remove.dataset.action = "remove";            // data attribute: the click handler reads it
+      li.append(remove);
+      list.append(li);                             // 3. attach — one layout pass for one node
+      input.value = "";
+      input.focus();
+    }
+
+    addBtn.addEventListener("click", addLanguage);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") addLanguage();    // forms would do this natively
+    });
+
+    // DELEGATION: one listener on the stable parent instead of one per <li>.
+    // New items work for free — there is nothing to re-register when they appear.
+    list.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-action='remove']");
+      if (btn) btn.closest("li").remove();
+    });
+  </script>
+</body>
+</html>

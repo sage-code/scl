@@ -45,24 +45,140 @@
 Frameworks sell architecture; vanilla JavaScript can have the same discipline. This lesson builds the small patterns real apps are made of.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
+<h2 id="one-way-data-flow">One-way data flow</h2>
 
+<h3 id="state-then-render">State first, render second</h3>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  The single highest-leverage architectural rule for vanilla apps: keep a single state object,
+  and make DOM changes a <em>consequence</em> of state changes — never the other way around.
+  Without it, the truth is smeared across DOM attributes and variables that drift apart.
 </p>
+<pre><code class="language-javascript">// WRONG — the DOM IS the state; two sources of truth drift:
+function addTodoWrong(text) {
+  const li = document.createElement("li");
+  li.textContent = text;
+  list.append(li);        // truth lives in the DOM now…
+  count++;                // …and also here. They WILL disagree.
+}
+
+// RIGHT — state is the source; render is a pure consequence:
+const state = { todos: [] };
+
+function addTodo(text) {
+  state.todos = [...state.todos, { text, done: false }]; // new array: no mutation
+  render();                                              // DOM rebuilt from state
+}
+
+function render() {
+  list.replaceChildren(...state.todos.map((todo) => {
+    const li = document.createElement("li");
+    li.textContent = todo.text;
+    return li;
+  }));
+  countEl.textContent = `${state.todos.length} items`;   // derived — cannot disagree
+}</code></pre>
+<p>
+  This is the pattern every framework formalizes (React made it famous). Vanilla does not
+  need the framework — only the discipline. Demo <code>practice/33_store_counter.html</code>
+  shows the same counter written both ways.
+</p>
+
+<h2 id="module-pattern">The module pattern</h2>
+
+<h3 id="private-state">Private state without classes</h3>
+<pre><code class="language-javascript">// An IIFE (or a module file) closes over state nothing else can touch:
+const cart = (() => {
+  const items = [];                     // PRIVATE — no accessor exists
+
+  return {
+    add(item) { items.push(item); },
+    get total() {                       // read-only by construction
+      return items.reduce((sum, i) => sum + i.price, 0);
+    },
+    get size() { return items.length; },
+  };
+})();
+
+cart.add({ name: "tea", price: 4.5 });
+console.log(cart.size, cart.total); // 1 4.5
+console.log(cart.items);            // undefined — the array is unreachable from outside</code></pre>
+<h2 id="pubsub">Pub/sub — decoupling with events</h2>
+
+<h3 id="tiny-event-bus">A tiny event bus in fifteen lines</h3>
+<pre><code class="language-javascript">// The publisher knows NOTHING about subscribers — that is the whole point.
+function createBus() {
+  const handlers = new Map(); // event name → Set of callbacks
+
+  return {
+    on(event, handler) {
+      if (!handlers.has(event)) handlers.set(event, new Set());
+      handlers.get(event).add(handler);
+      return () => handlers.get(event).delete(handler); // returns the unsubscribe fn
+    },
+    emit(event, data) {
+      handlers.get(event)?.forEach((handler) => handler(data));
+    },
+  };
+}
+
+const bus = createBus();
+const off = bus.on("cart:changed", (items) => console.log("badge:", items.length));
+bus.emit("cart:changed", [{ price: 4 }]); // badge: 1
+off();                                    // the badge stops listening — no leaks</code></pre>
+<p>
+  This is the same delegation idea as lesson 13, lifted to application events: one emitter,
+  many subscribers, zero direct references between modules. The <code>off</code> return value
+  exists because forgotten subscriptions are the leak pattern from lesson 15.
+</p>
+
+<h3 id="when-not-to">Contraexample: bus for everything</h3>
+<p>
+  A pub/sub for a linear call chain (A calls B calls C) hides the flow — a plain function
+  call is easier to trace. Use the bus when modules genuinely should not know each other:
+  cross-cutting concerns like auth state, analytics, or several views reacting to one change.
+</p>
+<h2 id="composition">Composition over inheritance</h2>
+
+<h3 id="factories">Build capabilities by combining small factories</h3>
+<pre><code class="language-javascript">// Small, single-purpose factories — each returns a plain object:
+const canLog = (self) => ({ log: () => console.log(self.name) });
+const canSave = (self) => ({ save: () => localStorage.setItem(self.id, JSON.stringify(self)) });
+
+// Compose what a type needs — no hierarchy, no fragile base class:
+function makeDocument(name) {
+  const self = { id: crypto.randomUUID(), name };
+  return { ...self, ...canLog(self), ...canSave(self) };
+}
+
+const doc = makeDocument("report");
+doc.log(); // report
+doc.save();</code></pre>
+<p>
+  Deep class hierarchies couple every subclass to decisions made above it; composition lets
+  each capability change alone. Classes still earn their place for genuine
+  <code>instanceof</code> semantics (lesson 09) — pick per problem, not per fashion.
+</p>
+
+<h2 id="practice-patterns">Practice: one store, two components</h2>
+
+<h3 id="the-task-patterns">The task</h3>
+<p>
+  Open <code>demo/practice/33_store_counter.html</code> (Preview link on the Lab Examples
+  page): one counter written twice — DOM-as-state on the left, one-way data flow on the
+  right. Break the left one on purpose (edit the count directly in the console), then add a
+  second counter to the right side using the same <code>render()</code>. Then extend the
+  lesson's bus with a <code>once(event, handler)</code> method.
+</p>
+
+<h3 id="the-checklist-patterns">The checklist</h3>
 <ul>
-  <li>One-way data flow: state, then render</li>
-  <li>The module pattern and private state</li>
-  <li>Pub/sub: an event bus in thirty lines</li>
-  <li>An observable store with selectors</li>
-  <li>Immutability discipline and structuredClone</li>
-  <li>Dependency injection for testable code</li>
+  <li>You keep one state object and render as a pure consequence of it.</li>
+  <li>You use the module pattern whenever state must stay private.</li>
+  <li>You reach for pub/sub only when modules should not know each other.</li>
+  <li>You compose small factories before growing a class hierarchy.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Build a counter app twice — once with direct DOM writes, once from a store — and compare the diffs.</p>
+
       </main>
     </div>
   </div>

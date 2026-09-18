@@ -42,27 +42,106 @@
 <h1 id="callbacks-promises-and-async-await">Callbacks, Promises and async/await</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Asynchronous JavaScript evolved from callbacks to promises to async/await. This lesson teaches the current model and the failure modes that survive all three eras.
+  Asynchronous code evolved through three eras — callbacks, promises, <code>async</code>/<code>await</code>.
+  The third reads like synchronous code but runs on the same event loop as lesson 19. This
+  lesson teaches the current model and the failure modes that survive all three eras.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
+<h2 id="promises">Promises: a handle for one future value</h2>
 
+<h3 id="states">Three states, settled exactly once</h3>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  A promise starts <em>pending</em> and settles once — <em>fulfilled</em> (has a value) or
+  <em>rejected</em> (has an error). Settlement is final: a second <code>resolve</code> is a
+  no-op. That guarantee is what makes chaining composable.
 </p>
+
+<div class="text-center">
+  <img src="/roadmap/javascript/img/promise-states.svg" alt="Promise states and how the chain routes fulfillment and rejection" class="img-fluid protect rounded shadow border">
+  <p>Fulfillment flows through <code>.then</code>; rejection skips ahead to the nearest <code>.catch</code>.</p>
+</div>
+
+<h3 id="chaining">Chaining transforms values; rejections skip ahead</h3>
+<pre><code class="language-javascript">fetchLike(2)
+  .then((n) => n * 10)   // return a value → next .then receives it
+  .then((n) => fetchLike(n)) // return a PROMISE → the chain waits for it
+  .then((n) => console.log("chain result:", n))
+  .catch((error) => console.log("caught:", error.message)); // covers EVERY step above
+
+// Expected output:
+// chain result: 31   (fetchLike(2)=3 → 3*10=30 → fetchLike(30)=31)</code></pre>
+
+<h3 id="combinators">The four combinators, one job each</h3>
+<pre><code class="language-javascript">// p1, p2, p3 are promises.
+Promise.all([p1, p2, p3]);      // all must fulfill — one rejection rejects everything
+Promise.allSettled([p1, p2]);   // never rejects — reports every outcome
+Promise.any([p1, p2]);          // first FULFILLED wins (rejections ignored)
+Promise.race([p1, p2]);         // first SETTLED wins — even a rejection</code></pre>
+<h2 id="async-await">async/await — sequential syntax, concurrent scheduling</h2>
+
+<h3 id="sequential-looks-concurrent-runs">The await keyword pauses the FUNCTION, not the thread</h3>
+<pre><code class="language-javascript">// SEQUENTIAL: 30ms + 40ms — the second waits for the first on purpose
+const a = await fetchSlow(30);
+const b = await fetchSlow(40); // starts only after a finished
+
+// CONCURRENT: both requests are in flight immediately — total ≈ max, not sum
+const [x, y] = await Promise.all([fetchSlow(30), fetchSlow(40)]);
+
+// Expected timing (roughly):
+// sequential ≈ 70ms · concurrent ≈ 40ms</code></pre>
+<p>
+  Choosing between them is an architectural decision: depend on each other → sequential;
+  independent → concurrent. The single most common performance bug in async code is
+  <code>await</code>-ing in a loop what could be <code>Promise.all</code>-ed.
+</p>
+
+<h3 id="error-handling">Errors: try/catch works — if you do not float the promise</h3>
+<pre><code class="language-javascript">async function loadProfile(id) {
+  try {
+    const response = await fetch(`/api/users/${id}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`); // lesson 17's trap
+    return await response.json();
+  } catch (error) {
+    console.error("loadProfile failed:", error.message); // covers BOTH awaits
+    return null;
+  }
+}</code></pre>
+<p>
+  <strong>Contraexample — the floating promise:</strong> calling
+  <code>saveSettings();</code> without <code>await</code> (or <code>.catch</code>) detaches
+  the entire chain: no <code>try/catch</code> can see its failures, and since Node 15 an
+  unhandled rejection kills the process. Demo <code>async/28_promises_lab.js</code> shows the
+  crash and the fix.
+</p>
+
+<h2 id="practice-async">Practice: from pyramid to async/await</h2>
+
+<h3 id="the-task-async">The task</h3>
+<p>
+  Run <code>async/27_event_loop_lab.js</code> and <code>async/28_promises_lab.js</code> with
+  <code>node</code>. Predict every log line before each runs. Then take this callback
+  pyramid and flatten it into <code>async</code>/<code>await</code> with a
+  <code>try/catch</code> — without changing what happens, only how it reads:
+</p>
+<pre><code class="language-javascript">getUser(id, (err, user) => {
+  if (err) return console.error(err);
+  getPosts(user, (err, posts) => {
+    if (err) return console.error(err);
+    getComments(posts[0], (err, comments) => {
+      if (err) return console.error(err); // three levels deep and counting
+      console.log(comments.length);
+    });
+  });
+});</code></pre>
+
+<h3 id="the-checklist-async">The checklist</h3>
 <ul>
-  <li>Callbacks and the pyramid problem</li>
-  <li>Promise states and settlement rules</li>
-  <li>Chaining with then, catch, finally</li>
-  <li>all, allSettled, any, race: choosing a combinator</li>
-  <li>async/await: sequential looks, concurrent runs</li>
-  <li>Floating promises and unhandled rejections (contraexamples)</li>
+  <li>You can predict any mixed sync/timer/promise log order — and explain it with the two queues.</li>
+  <li>You know settlement is final, and one <code>catch</code> covers a whole chain.</li>
+  <li>You pick the combinator by its rejection behavior, not by habit.</li>
+  <li>You never leave a promise floating: every call is awaited or has a <code>catch</code>.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Refactor a callback pyramid into async/await without changing when anything runs.</p>
       </main>
     </div>
   </div>

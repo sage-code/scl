@@ -45,26 +45,143 @@
 A catalog of the classic JavaScript traps, each shown as wrong code beside right code, with the rule that prevents the bug.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
+<h2 id="coercion">Coercion surprises</h2>
 
+<h3 id="loose-equality">== bends types until something matches</h3>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  The rule for every trap on this page is the same: <strong>run the wrong version first</strong>.
+  Predict, execute, compare — a trap you have triggered once is a rule you own.
 </p>
+<pre><code class="language-javascript">// WRONG — == coerces both sides until they compare equal:
+console.log(1 == "1");      // true  — string coerced to number
+console.log("" == 0);       // true  — empty string coerced to 0
+console.log(null == 0);     // false — special case! null only equals undefined
+console.log([] == false);   // true  — [] → "" → 0 → false
+
+// RIGHT — === compares type first, then value:
+console.log(1 === "1");     // false
+console.log("" === 0);      // false
+console.log(null === 0);    // false
+console.log([] === false);  // false</code></pre>
+<p>
+  <strong>The rule:</strong> always <code>===</code> (and <code>!==</code>). The single
+  exception is idiomatic: <code>x == null</code> to test "null <em>or</em> undefined" at once.
+</p>
+
+<h3 id="plus-and-if">+ and if — the two other coercion hotspots</h3>
+<pre><code class="language-javascript">// + prefers STRINGS if either side is one:
+console.log("1" + 2);   // "12" — concatenation
+console.log(1 + 2);     // 3
+console.log(1 + true);  // 2 — true coerces to 1
+console.log([] + {});   // "[object Object]" — both coerced to strings
+
+// if coerces to boolean — the FALSY values are exactly six:
+// false, 0, "", null, undefined, NaN
+const input = "0";
+if (input) console.log("truthy!"); // prints — "0" is a non-empty STRING, so truthy
+
+// RIGHT: decide explicitly instead of letting coercion decide:
+if (input !== null && input !== "") console.log("real input");</code></pre>
+
+<h2 id="this-traps">this: four ways to lose it</h2>
+
+<h3 id="losing-this">Extraction, callbacks, arrow functions, and events</h3>
+<pre><code class="language-javascript">// WRONG — extracting a method LOSES the receiver:
+const counter = {
+  count: 0,
+  increment() { this.count++; }, // this = whoever calls it
+};
+const inc = counter.increment;
+inc(); // this === undefined (strict mode) — TypeError, or a global `count`
+
+// WRONG — passing a method as a callback does the same:
+setTimeout(counter.increment, 0); // increments nothing of counter's
+
+// RIGHT — bind once, or use an arrow (arrows have NO this of their own):
+const incBound = counter.increment.bind(counter);
+setTimeout(() => counter.increment(), 0); // the arrow defers to the surrounding this</code></pre>
+<p>
+  Lesson 10's diagram holds: <code>this</code> is decided by the <em>call</em>, not the
+  definition. Anywhere you detach a method from its object, plan to
+  <code>bind</code> it or wrap it in an arrow.
+</p>
+<h2 id="async-and-closure-traps">Async and closure traps</h2>
+
+<h3 id="async-foreach">async in a forEach — fire and forget, silently</h3>
+<pre><code class="language-javascript">// WRONG — forEach ignores the returned promise; nothing waits:
+urls.forEach(async (url) => {
+  const r = await fetch(url); // all in flight, order lost…
+  save(r);                    // …and errors escape every try/catch around the loop
+});
+
+// RIGHT A — sequential when order matters:
+for (const url of urls) {
+  const r = await fetch(url); // one at a time
+  save(r);
+}
+
+// RIGHT B — concurrent when it does not (lesson 20's rule):
+await Promise.all(urls.map((url) => fetch(url)));</code></pre>
+<p>
+  The trap is invisible: the code <em>looks</em> sequential and runs concurrently — the worst
+  of both. Anything array-shaped that takes a callback (forEach, map, setTimeout) does not
+  await; only loops and combinators do.
+</p>
+
+<h3 id="closure-in-loop">The closure-in-a-loop trap</h3>
+<pre><code class="language-javascript">// WRONG — var is function-scoped: ALL three callbacks share ONE i,
+// and by the time they run, the loop finished: 3, 3, 3
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 0);
+}
+
+// RIGHT — let is block-scoped: a fresh binding per iteration: 0, 1, 2
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 0);
+}</code></pre>
+<p>
+  With <code>let</code>, every iteration gets its own <code>i</code>, so each closure captures
+  a different binding. This single rule retires one of the most famous JavaScript interview
+  traps — and explains why modern style bans <code>var</code> outright.
+</p>
+<h2 id="mutation-and-references">Mutation and shared references</h2>
+
+<h3 id="shallow-copies">Copies are shallow — one level deep, always</h3>
+<pre><code class="language-javascript">// WRONG — spread copied the ARRAY, not the OBJECTS inside it:
+const original = [{ count: 1 }];
+const copy = [...original];
+copy[0].count = 99;
+console.log(original[0].count); // 99 — same object, two paths to it (lesson 15)
+
+// RIGHT — copy every level you intend to change:
+const safeCopy = original.map((item) => ({ ...item })); // new objects, level by level</code></pre>
+<p>
+  This is the same aliasing diagram from the heap lesson, wearing a bug costume. It bites
+  hardest in the "state first, render second" pattern from the architecture lesson: mutate a
+  "copy" and the framework sees no change, because the reference stayed identical. Immutable
+  updates (<code>{ ...state, page: 2 }</code>) exist precisely to keep references honest.
+</p>
+
+<h2 id="practice-pitfalls">Practice: trigger every trap</h2>
+
+<h3 id="the-task-pitfalls">The task</h3>
+<p>
+  Several of this lesson's wrong blocks are runnable in
+  <code>demo/practice/33_store_counter.html</code> and the earlier phase demos. Rebuild two
+  traps from memory — no peeking: (1) an async <code>forEach</code> that loses errors, then
+  its two fixes; (2) a shallow copy that mutates the original, then the per-level fix. Predict
+  each output <em>before</em> running.
+</p>
+
+<h3 id="the-checklist-pitfalls">The checklist</h3>
 <ul>
-  <li>Coercion surprises: ==, +, and if</li>
-  <li>this binding: four ways to lose it</li>
-  <li>var in loops and the closure trap</li>
-  <li>Floating-point and parseInt hazards</li>
-  <li>Mutation by reference: aliasing bugs</li>
-  <li>JSON round-trip data loss</li>
-  <li>Silent failures: empty catch blocks</li>
-  <li>Prototype pollution and eval</li>
+  <li>You default to <code>===</code> and can name the one idiomatic exception.</li>
+  <li>You bind or arrow-wrap any method that leaves its object.</li>
+  <li>You never pass an <code>async</code> callback where nothing awaits it.</li>
+  <li>You treat every copy as shallow until you have copied each level on purpose.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>For each trap, write the broken version, trigger it, then write the rule on a flashcard.</p>
+
       </main>
     </div>
   </div>

@@ -42,27 +42,136 @@
 <h1 id="iterators-generators-and-async-iteration">Iterators, Generators and Async Iteration</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Generators produce sequences on demand. They power lazy pipelines, custom iterables, and async streams — the foundation for backpressure.
+  <code>for…of</code> works on anything that implements the iterator protocol. Generators let
+  you implement that protocol with a function — producing values <em>on demand</em>, even
+  infinitely, even asynchronously. This lesson covers the protocol, <code>yield</code>,
+  delegation, and the lazy pipelines they enable.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
+<h2 id="the-iterator-protocol">The iterator protocol</h2>
 
+<h3 id="by-hand">By hand first — then never again</h3>
+<pre><code class="language-javascript">// An ITERABLE has a Symbol.iterator method returning an ITERATOR:
+const handMade = {
+  upTo: 3,
+  [Symbol.iterator]() {
+    let i = 1;
+    return {
+      next: () => (i <= this.upTo
+        ? { value: i++, done: false }   // a step
+        : { value: undefined, done: true }), // the end
+    };
+  },
+};
+
+console.log([...handMade].join(", ")); // spread and for…of both speak this protocol
+// Expected output:
+// 1, 2, 3</code></pre>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  Arrays, strings, Maps, Sets, and NodeLists all implement this — which is exactly one
+  protocol, and why <code>for…of</code> works uniformly on all of them.
 </p>
+
+<h2 id="generators">Generators: the protocol, written for you</h2>
+
+<h3 id="yield">yield pauses the function; next() resumes it</h3>
+<pre><code class="language-javascript">function* fibonacci() {
+  let [a, b] = [0, 1];
+  while (true) {        // an INFINITE loop — safe, because nothing runs until asked
+    yield a;            // pause here, hand out a, wait to be asked again
+    [a, b] = [b, a + b];
+  }
+}
+
+const fib = fibonacci();
+console.log(fib.next().value, fib.next().value, fib.next().value, fib.next().value);
+
+// Expected output:
+// 0 1 1 2</code></pre>
+<p>
+  Calling <code>fibonacci()</code> runs <strong>no code</strong> — it returns a paused
+  generator. Each <code>.next()</code> runs to the next <code>yield</code> and freezes again.
+  Contrast with an array: a generator holds no history, only the recipe.
+</p>
+
+<h3 id="lazy-pipelines">Lazy pipelines: cap the infinite</h3>
+<pre><code class="language-javascript">// take(n) stops PULLING — the generator freezes at its yield, computing nothing more.
+function* take(iterable, n) {
+  let count = 0;
+  for (const value of iterable) {
+    if (count++ >= n) return;
+    yield value;
+  }
+}
+
+console.log([...take(fibonacci(), 8)].join(", "));
+// Expected output:
+// 0, 1, 1, 2, 3, 5, 8, 13</code></pre>
+<h3 id="yield-star">yield* — delegation</h3>
+<pre><code class="language-javascript">// yield* hands control to ANOTHER generator — its yields flow through ours.
+function* tree(node) {
+  if (typeof node !== "object" || node === null) {
+    yield node;               // a leaf: produce its value
+    return;
+  }
+  for (const child of Object.values(node)) {
+    yield* tree(child);       // recursive delegation: depth-first traversal
+  }
+}
+
+const doc = { id: "root", children: [{ id: "a" }, { id: "b", children: [{ id: "ba" }] }] };
+console.log([...tree(doc)].join(", "));
+// Expected output:
+// root, a, b, ba   (every string leaf, depth first)</code></pre>
+<p>
+  This is the natural shape for walking trees, flattening structures, and composing
+  pipelines — recursion that produces a stream instead of building an array.
+</p>
+
+<h2 id="async-iteration">Async iteration: for await…of</h2>
+<p>
+  An <strong>async generator</strong> yields promises; <code>for await…of</code> awaits each
+  value in order. This is the foundation of streaming data — event sources, paginated APIs,
+  reading a file chunk by chunk:
+</p>
+<pre><code class="language-javascript">async function* ticks(count) {
+  for (let i = 1; i <= count; i++) {
+    await new Promise((r) => setTimeout(r, 10)); // simulate an async event source
+    yield `tick ${i}`;                           // produced only when the consumer asks
+  }
+}
+
+for await (const message of ticks(3)) {
+  console.log(message); // the loop awaits each value before the next iteration
+}
+// Expected output (one per 10ms):
+// tick 1
+// tick 2
+// tick 3</code></pre>
+<p>
+  Because values are produced <em>on demand</em>, a slow consumer applies natural
+  <strong>backpressure</strong>: the generator simply pauses at its <code>yield</code> until
+  the next pull. No buffer grows, nothing is computed early.
+</p>
+
+<h2 id="practice-generators">Practice: infinite, capped</h2>
+
+<h3 id="the-task-generators">The task</h3>
+<p>
+  Run <code>async/29_generators_lab.js</code> with <code>node</code>. Then build
+  <code>function* unique(iterable)</code> that yields each value only the first time it appears
+  (a lazy <code>Set</code> filter), and chain it:
+  <code>[...unique(take(fibonacci(), 20))]</code>. Predict the result before running.
+</p>
+
+<h3 id="the-checklist-generators">The checklist</h3>
 <ul>
-  <li>The iterator protocol by hand</li>
-  <li>Generator functions and yield</li>
-  <li>yield* and recursive traversal</li>
-  <li>Lazy pipelines and infinite sequences</li>
-  <li>Async iterators and for await…of</li>
-  <li>Backpressure with a bounded queue</li>
+  <li>You can implement Symbol.iterator by hand — and explain what a generator saves you.</li>
+  <li>You know calling a generator function runs no code until the first next().</li>
+  <li>You use <code>yield*</code> for recursive delegation instead of manual forwarding.</li>
+  <li>You can explain backpressure: consumers pull, producers pause at yield.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Build an infinite Fibonacci generator, then cap it with a take(n) helper.</p>
       </main>
     </div>
   </div>

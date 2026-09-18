@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Browser platform APIs: fetch with AbortController, storage tiers, URL and History, Web Components, Canvas and Web Audio.">
+  <meta name="description" content="Browser platform APIs: timers, web storage tiers, fetch with cancellation, and URL and History.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="fetch, localstorage, indexeddb, web components, browser apis">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -42,27 +42,123 @@
 <h1 id="storage-network-and-platform-apis">Storage, Network and Platform APIs</h1>
 
 <div class="alert alert-secondary shadow-sm">
-The platform gives you network, storage, URL, and hardware APIs without any library. This lesson covers the ones every vanilla project uses.
+  The language is JavaScript; the <em>host</em> adds the rest. Browsers hand you network,
+  storage, URL, and hardware APIs as globals — no install, no import. This lesson covers the
+  ones every vanilla project touches: timers, storage, and <code>fetch</code>.
 </div>
 
-<h2 id="outline">What this lesson covers</h2>
-
+<h2 id="language-versus-platform">The language versus the platform</h2>
 <p>
-  This chapter is being written as part of the track rebuild, in track order. The outline
-  below is the planned sequence; as each stage lands, every section ships with worked
-  examples, contraexamples, diagrams where the concept is spatial, and a practice block.
+  <code>setTimeout</code> is not part of JavaScript — nor is <code>document</code>,
+  <code>localStorage</code>, or <code>fetch</code>. They live on the host's global object
+  (<code>window</code> in a browser, <code>globalThis</code> everywhere, <code>process</code>
+  on Node). That is why a browser API throws <code>ReferenceError</code> in Node and vice
+  versa. Everything below is "same language, bigger global".
 </p>
+
+<h2 id="timers">Timers — and the minimum-delay trap</h2>
+
+<h3 id="delay-is-a-minimum">The delay is a minimum, not a target</h3>
+<pre><code class="language-javascript">// Browser context.
+console.log("start");
+setTimeout(() => console.log("done"), 0); // "0 ms" means: as soon as the queue allows
+console.log("end");
+
+// Expected output:
+// start
+// end
+// done</code></pre>
+<p>
+  Timers never run early — and may run late, because the main thread must finish its current
+  work first (the event loop, Phase 4, has the full story). A <code>0</code> delay still runs
+  only after the current script completes.
+</p>
+<pre><code class="language-javascript">const id = setInterval(tick, 1000); // returns a handle…
+clearInterval(id);                  // …without clearing, it runs FOREVER —
+                                    // the classic forgotten-timer leak (lesson 15)</code></pre>
+<h2 id="storage-tiers">Web storage — strings only</h2>
+
+<h3 id="strings-only">The type you did not save is not there</h3>
+<pre><code class="language-javascript">// Browser context.
+localStorage.setItem("score", 99);         // the number 99 is coerced…
+const raw = localStorage.getItem("score"); // …into the STRING "99"
+console.log(typeof raw);                   // string — always, for any value
+
+// Round-trip objects with JSON; storage has no object type of its own:
+localStorage.setItem("user", JSON.stringify({ id: 7, role: "admin" }));
+const user = JSON.parse(localStorage.getItem("user"));
+console.log(user.role);                    // admin</code></pre>
+<p>
+  Tiers, briefly: <code>localStorage</code> persists until cleared (~5 MB, same-origin),
+  <code>sessionStorage</code> clears with the tab, cookies ride every request (use only for
+  server-session data), and IndexedDB is the asynchronous database for large structured data.
+</p>
+
+<h2 id="fetch">fetch — network requests as promises</h2>
+
+<h3 id="fetch-does-not-reject-on-404">fetch does NOT reject on 404 — the classic trap</h3>
+<pre><code class="language-javascript">// Browser context. A 404 is a valid HTTP response — the network WORKED.
+async function loadUser(id) {
+  const response = await fetch(`/api/users/${id}`);
+  // fetch rejects only on network failure (offline, DNS, CORS block…).
+  if (!response.ok) {                    // ok === status in 200–299
+    throw new Error(`HTTP ${response.status} for user ${id}`); // make 404 loud ourselves
+  }
+  return response.json();                // ALSO a promise — await it too
+}
+
+loadUser(999).catch((error) => console.log(error.message));
+// Expected output (when the route 404s):
+// HTTP 404 for user 999</code></pre>
+<p>
+  <code>async</code>/<code>await</code> gets its full lesson in Phase 4 — read it here as
+  "pause until the response arrives".
+</p>
+
+<h3 id="abortcontroller">Cancelling a slow request with AbortController</h3>
+<pre><code class="language-javascript">const controller = new AbortController();
+
+fetch("/api/search", { signal: controller.signal })
+  .then((r) => r.json())
+  .catch((error) => {
+    if (error.name === "AbortError") {
+      console.log("user navigated away — expected, not an error");
+    } else {
+      throw error; // real failures still surface
+    }
+  });
+
+controller.abort(); // the caller decides when waiting is no longer worth it</code></pre>
+<h2 id="url-and-history">URL and History — reading the address bar</h2>
+<pre><code class="language-javascript">// Browser context, on https://sagecode.org/roadmap/javascript/index.html?lang=js&page=2
+const url = new URL(location.href);
+
+console.log(url.pathname);                   // /roadmap/javascript/index.html
+console.log(url.searchParams.get("lang"));  // js — parsed, decoded, no regex needed
+
+history.pushState({}, "", "?lang=js&page=3"); // changes the bar WITHOUT reloading —
+                                              // the basis of every client-side router</code></pre>
+
+<h2 id="practice-apis">Practice: fetch, cancel, cache</h2>
+
+<h3 id="the-task-apis">The task</h3>
+<p>
+  Open demo <code>runtime/25_storage_lab.html</code> (Preview link on the Lab Examples page).
+  Save a score raw and as JSON; read it back and predict each <code>typeof</code>; reload the
+  page and confirm persistence. Then write <code>loadWithCache(url)</code>: check
+  <code>localStorage</code> first, <code>fetch</code> only on miss, and store the JSON result
+  before returning it.
+</p>
+
+<h3 id="the-checklist-apis">The checklist</h3>
 <ul>
-  <li><code>fetch</code>, JSON, and checking <code>response.ok</code> (contraexample)</li>
-  <li><code>AbortController</code> and cancellation</li>
-  <li>Storage tiers: localStorage, sessionStorage, IndexedDB, cookies</li>
-  <li><code>URL</code>, <code>URLSearchParams</code>, and <code>History</code></li>
-  <li>Web Components: a custom element in one file</li>
-  <li>Canvas and Web Audio in miniature</li>
+  <li>You can say which side provides setTimeout, document, and fetch — and why Node lacks one.</li>
+  <li>You know storage saves strings only, and round-trip objects through JSON.</li>
+  <li>You check <code>response.ok</code> on every fetch, because 404 does not throw.</li>
+  <li>You can cancel a fetch with AbortController and handle the AbortError branch.</li>
 </ul>
 
-<h2 id="how-to-study">How to study it</h2>
-<p>Build one page that fetches, cancels a slow request, and caches the result in storage.</p>
+
       </main>
     </div>
   </div>
