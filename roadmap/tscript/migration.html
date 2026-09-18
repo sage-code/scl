@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Migrating JavaScript to TypeScript without a rewrite: allowJs/checkJs, the strangler-fig rollout, strictness tiers, and handling untyped dependencies.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="typescript migration, allowjs, checkjs, strangler fig, incremental adoption">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>From JavaScript to TypeScript: Migration Without a Rewrite</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/tscript/migration.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+</head>
+<body>
+<div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+
+<h1 id="from-javascript-to-typescript-migration-without-a-rewrite">From JavaScript to TypeScript: Migration Without a Rewrite</h1>
+
+<p>Most production TypeScript was not born as TypeScript — it was a JavaScript codebase that converted one file at a time. This lesson teaches that process: why big-bang rewrites fail, how the compiler tolerates mixed codebases, and how strictness becomes a ratchet you tighten file by file.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-migration-strangler.svg" class="figure-img img-fluid rounded" alt="Strangler-fig migration: the JavaScript core shrinks while TypeScript modules grow around it, perimeter files converted first" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — The strangler-fig rollout. Convert the perimeter (leaf modules with few importers) first, keep the build green at every commit, and the legacy JavaScript core shrinks incrementally until nothing is left to strangle.</figcaption>
+</figure>
+
+<h2 id="why-rewrites-fail-and-increments-work">Why rewrites fail and increments work</h2>
+
+<p>The instinct — "pause features, rewrite everything, resume" — fails for the same reason every big-bang rewrite fails: the business does not stop changing while the port happens, so the rewrite chases a moving target and ships neither. Incremental conversion inverts this: every merged change is shippable, value arrives with the first converted file, and the process can be paused indefinitely. TypeScript was explicitly designed for this — mixed JavaScript/TypeScript codebases are a supported configuration, not a workaround.</p>
+
+<h3 id="the-three-dials-allowjs-checkjs-and-strictness-tiers">The three dials: allowJs, checkJs, and strictness tiers</h3>
+
+<p>Migration is governed by three compiler settings that loosen different things:</p>
+
+<ul>
+  <li><code>allowJs: true</code> — the compiler <em>includes</em> <code>.js</code> files in the program, so TypeScript code can import JavaScript code and vice versa. This is the dial that makes mixed codebases possible at all.</li>
+  <li><code>checkJs: true</code> — the compiler also <em>checks</em> the <code>.js</code> files, inferring types from JSDoc and usage. An optional intermediate stage: your JavaScript gets checked before it even gets renamed.</li>
+  <li><code>strict</code> — the full strict family. Converted files inherit it; the standard trick for legacy code is a per-file opt-out (below) rather than a global downgrade.</li>
+</ul>
+
+<p><strong>Purpose of the example:</strong> the migration-ready tsconfig — permissive enough to include the legacy tree, strict enough that converted files get the full contract.</p>
+
+<pre><code class="language-json">{
+  "compilerOptions": {
+    "allowJs": true,           // include legacy .js in the program
+    "checkJs": false,          // phase 2 upgrade: start checking the .js too
+    "strict": true,
+    "noEmit": true,            // bundler still emits; tsc only verifies
+    "moduleResolution": "Bundler",
+    "target": "ES2022"
+  },
+  "include": ["src"]
+}</pre></code>
+
+<p><strong>What you should see:</strong> <code>npx tsc --noEmit</code> passes on day one — with <code>allowJs</code> and no conversion yet, there is nothing new to fail. The check gate is now live for every file you convert.</p>
+
+<h3 id="converting-the-first-file">Converting the first file</h3>
+
+<p><strong>Purpose of the example:</strong> the actual conversion loop, and the <code>@ts-nocheck</code> escape hatch for files that must move now but cannot be fixed yet.</p>
+
+<pre><code class="language-bash">git mv src/utils/format.js src/utils/format.ts
+npx tsc --noEmit</pre></code>
+
+<p><strong>What you should see:</strong> a finite list of errors in exactly one file. Fix them (usually by adding annotations where inference is insufficient), or — if the file is too noisy to fix in one sitting — park it honestly:</p>
+
+<pre><code class="language-typescript">// format.ts — TEMPORARY: converted 2026-09-18, follow-up ticket TS-411
+// @ts-nocheck
+// ... existing code, now type-checked-while-disabled ...</pre></code>
+
+<p><strong>What we learn:</strong> <code>@ts-nocheck</code> is discoverable and greppable, unlike a file simply being wrong. The migration metric becomes visible: count <code>@ts-nocheck</code> occurrences; drive them toward zero.</p>
+
+<h2 id="the-strategy-in-order">The strategy, in order</h2>
+
+<p>File choice determines migration speed. The ordering below is the one that keeps each step small:</p>
+
+<h3 id="convert-the-perimeter-first">Convert the perimeter first</h3>
+
+<p>Start with <em>leaf</em> modules — utilities, formatters, pure functions with few or no importers. Their conversions ripple into nothing. Order the work by <em>dependency direction</em>: things nothing depends on first, the app entry point last. Convert tests along with the module they cover — the tests double as the conversion's safety net, which is why the <a href="testing.html">testing lesson</a> precedes this one.</p>
+
+<h3 id="handle-untyped-dependencies">Handle untyped dependencies</h3>
+
+<p>Importing an untyped npm package produces the infamous <code>TS7016: Could not find a declaration file</code>. Three responses, in order of preference:</p>
+
+<p><strong>Purpose of the example:</strong> unblock imports without lying to the compiler.</p>
+
+<pre><code class="language-typescript">// 1. Best: the community already typed it
+//    npm install --save-dev @types/left-pad
+import pad from "left-pad";
+
+// 2. Second: type just what you use, in a local .d.ts
+//    src/types/left-pad.d.ts
+declare module "left-pad" {
+  function pad(str: string, len: number, char?: string): string;
+  export default pad;
+}
+
+// 3. Last resort: declare it any, with a comment and a ticket
+// declare module "untyped-legacy-sdk";  // TS-412: type the 4 methods we call</pre></code>
+
+<p><strong>What you should see:</strong> option 1 gives you full types with zero effort — always check <a href="https://www.typescriptlang.org/dt" target="_blank" rel="noopener noreferrer nofollow">TypeSearch</a> first. Option 3 compiles, but imports the exact looseness the migration is trying to remove; it is a lease, not a solution.</p>
+
+<h3 id="tightening-strictness-as-a-ratchet">Tightening strictness as a ratchet</h3>
+
+<p>Once everything is TypeScript, a second campaign begins: turning flags on that could not be on during migration. The professional pattern is the <strong>ratchet</strong> — enable a flag, fix what it breaks, and never allow the count to rise again:</p>
+
+<pre><code class="language-bash"># Current debt, tracked in CI like coverage:
+grep -rc "@ts-nocheck\|@ts-ignore" src/ | wc -l    # e.g. 37 — must not increase
+npx tsc --noEmit --noUncheckedIndexedAccess 2>&1 | wc -l   # e.g. 214 — target 0</pre></code>
+
+<p><strong>What you should see:</strong> two numbers trending down over weeks. Ratchets turn migration from a project into a trajectory — and prevent the "we'll be strict someday" trap that permanently benches the value of the type system.</p>
+
+<h2 id="practice-migration">Practice: rehearse on a small codebase</h2>
+
+<h3 id="convert-a-three-file-project">Convert a three-file project</h3>
+
+<p>Take any small JavaScript project (or the demo files from this track's lab, merged into one folder): enable <code>allowJs</code>, run <code>tsc --noEmit</code>, then convert the leaf file, run again, convert the next. <strong>What you should see:</strong> the program stays runnable at every step — the definition of success for a migration. If a step forces you to convert two files at once, your ordering was wrong, and that observation is the lesson.</p>
+
+<h3 id="write-the-migration-plan">Write the migration plan</h3>
+
+<p>For a codebase you know, produce a one-page plan: the perimeter files in conversion order, the untyped dependencies and their <code>@types</code> status, the flags that stay off during phase one, and the two ratchet numbers. The <a href="architecture.html">architecture lesson</a> shows what the codebase looks like when the campaign succeeds.</p>
+</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
+<script>window.TOPIC_CONFIG={labId:'tscript',topicId:'migration',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
+<script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

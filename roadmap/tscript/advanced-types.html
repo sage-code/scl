@@ -2,47 +2,257 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Advanced TypeScript patterns for enterprise correctness.">
+  <meta name="description" content="Type-level programming for JavaScript developers: mapped types, conditional types, template literals, and the standard library's utility types explained from first principles.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript advanced types, mapped types, conditional types">
+  <meta name="keywords" content="typescript advanced types, mapped types, conditional types, utility types, infer">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Advanced Types</title>
+  <title>Type-Level Programming: Mapped and Conditional Types</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/advanced-types.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="advanced-types-core">Advanced Types</h2>
-<div class="alert alert-secondary shadow-sm">Advanced types are not decoration. They encode real domain constraints directly into code.</div>
+<h1 id="type-level-programming">Type-Level Programming: Mapped and Conditional Types</h1>
 
-<h2 id="mapped-types">Mapped types</h2>
-<pre><code class="language-typescript">type ValidationState&lt;T&gt; = {
+<p>Everything so far used types to <em>describe</em> values. This lesson uses types to <em>compute</em> other types — a second programming language living in your type definitions, with its own functions (mapped types), conditionals (conditional types), and pattern matching (<code>infer</code>). You already depend on this layer: <code>Partial&lt;T&gt;</code> and <code>Record&lt;K, V&gt;</code> are not builtins, they are ordinary TypeScript code in the standard library's <code>lib.es5.d.ts</code>. By the end you will be able to read their definitions — and write your own.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-advanced-type-computation.svg" class="figure-img img-fluid rounded" alt="Input type flows into a mapped-type transformer and a conditional-type transformer, producing a derived output type consumed by the checker" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — Type-level computation. A base type flows through type transformers that derive new types at compile time. Nothing here exists at runtime — the whole figure happens inside the checker.</figcaption>
+</figure>
+
+<h2 id="mapped-types-types-from-types">Mapped types: types from types</h2>
+
+<p>A mapped type iterates over the keys of one type and produces a new property for each — the <code>map</code> you write in JavaScript, applied to a type's shape.</p>
+
+<h3 id="the-mechanics-keyof-and-the-k-in-keyof-t-syntax">The mechanics: keyof and the [K in keyof T] syntax</h3>
+
+<p><code>keyof T</code> gives you a type's keys as a union of string literals; the <code>[K in keyof T]</code> clause iterates it.</p>
+
+<p><strong>Purpose of the example:</strong> build form-validation state so that forgetting a field is a type error, not a bug report.</p>
+
+<pre><code class="language-typescript">interface SignupForm {
+  email: string;
+  password: string;
+  age: number;
+}
+
+// For every key K of SignupForm, produce a validation result property.
+// The value type is computed once and applied to each field.
+type ValidationState&lt;T&gt; = {
   [K in keyof T]: { valid: boolean; message?: string };
-};</code></pre>
+};
 
-<h2 id="conditional-types">Conditional types</h2>
-<pre><code class="language-typescript">type ElementType&lt;T&gt; = T extends (infer U)[] ? U : T;</code></pre>
+// The checker derives the shape — all three fields, exactly spelled:
+const state: ValidationState&lt;SignupForm&gt; = {
+  email: { valid: true },
+  password: { valid: false, message: "too short" },
+  age: { valid: true },
+};
 
-<h2 id="utility-types">Utility types in architecture</h2>
-<p>Use <code>Pick</code>, <code>Omit</code>, <code>Partial</code>, and <code>Readonly</code> to shape contracts for specific layers.</p>
+// type ValidationState<SignupForm> =
+// {
+//   email:    { valid: boolean; message?: string };
+//   password: { valid: boolean; message?: string };
+//   age:      { valid: boolean; message?: string };
+// }</pre></code>
 
-<h2 id="discriminated-unions">Discriminated unions</h2>
-<pre><code class="language-typescript">type LoadingState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "success"; data: string[] }
-  | { status: "error"; message: string };</code></pre>
+<p><strong>What you should see:</strong> delete the <code>age</code> property or misspell it, and the checker errors. In JavaScript the same object would drift silently as fields were added; here the derived type tracks <code>SignupForm</code> automatically.</p>
 
-<h2 id="exhaustive-checks">Exhaustive checks</h2>
-<p>Use <code>never</code> checks in switch statements to prevent missing state handling during refactors.</p>
+<h3 id="modifiers-and-key-remapping">Modifiers and key remapping</h3>
 
-<h2 id="practice-advanced-types">Practice</h2>
-<p>Define a typed form engine with field rules, validation state, and strongly typed submit payload.</p>
+<p>Two additions make mapped types expressive: modifiers and remapping.</p>
+
+<p><strong>Purpose of the example:</strong> recreate the standard library's <code>Partial</code> and <code>Readonly</code>, then rename keys — the two tricks behind most real-world type utilities.</p>
+
+<pre><code class="language-typescript">// lib.es5.d.ts, unabbreviated — you have been using this all along:
+type MyPartial&lt;T&gt; = { [K in keyof T]?: T[K] };       // ? adds optionality
+type MyReadonly&lt;T&gt; = { readonly [K in keyof T]: T[K] }; // readonly blocks writes
+
+// TS 4.1+: `as` remaps keys while mapping values.
+type Setters&lt;T&gt; = {
+  [K in keyof T as `set${Capitalize&lt;string &amp; K&gt;}`]: (value: T[K]) =&gt; void;
+};
+// type Setters<SignupForm> = {
+//   setEmail:    (value: string) => void;
+//   setPassword: (value: string) => void;
+//   setAge:      (value: number) => void;
+// };</pre></code>
+
+<p><strong>What you should see:</strong> hover <code>MyPartial</code> in the editor and expand any standard-library utility to its definition — you will find mapped types like these, not magic. <code>T[K]</code> ("indexed access") reads the value type of key K, the same bracket syntax objects use, at the type level.</p>
+
+<h2 id="conditional-types-type-level-if">Conditional types: the type-level if</h2>
+
+<p>A conditional type picks one of two types based on whether a type is assignable to another — <code>X extends Y ? A : B</code>. Combined with <code>infer</code>, it becomes pattern matching on types.</p>
+
+<h3 id="conditional-types-and-infer">Conditional types and infer</h3>
+
+<p><strong>Purpose of the example:</strong> extract the element type of an array and unwrap a promise — the two canonical "type destructuring" patterns.</p>
+
+<pre><code class="language-typescript">// If T is an array type, capture ("infer") its element type as U; else keep T.
+type ElementType&lt;T&gt; = T extends (infer U)[] ? U : T;
+
+type A = ElementType&lt;string[]&gt;;   // string
+type B = ElementType&lt;number[]&gt;;   // number
+type C = ElementType&lt;boolean&gt;;    // boolean — the else branch
+
+// The same pattern unwraps one layer of a Promise:
+type Awaited1&lt;T&gt; = T extends Promise&lt;infer V&gt; ? V : T;
+type D = Awaited1&lt;Promise&lt;string&gt;&gt;;  // string</pre></code>
+
+<p><strong>What you should see:</strong> hover <code>A</code>, <code>B</code>, <code>C</code>, <code>D</code> — the editor displays the resolved types. <code>infer U</code> introduces a type variable inside the pattern, like a destructuring declaration but for types; the checker fills it in and uses it in the true branch.</p>
+
+<h3 id="distributive-conditionals-and-never">Distributive conditionals and never</h3>
+
+<p>One subtlety trips everyone: conditional types <em>distribute</em> over unions. This behavior is load-bearing in idiom — and the reason <code>never</code> shows up in filters.</p>
+
+<p><strong>Purpose of the example:</strong> see distribution turn one conditional into several, and use <code>never</code> to subtract from a union.</p>
+
+<pre><code class="language-typescript">type ToArray&lt;T&gt; = T extends any ? T[] : never;
+
+// Distributes: applied to each member separately, then unioned.
+type X = ToArray&lt;string | number&gt;;  // string[] | number[]
+// — NOT (string | number)[]! Write [T] if you want to block distribution.
+
+// Filtering: the false branch yields `never`, and never vanishes from unions.
+type NonNull&lt;T&gt; = T extends null | undefined ? never : T;
+type Y = NonNull&lt;string | null | undefined&gt;;  // string
+
+// never is the empty set of types: string | never is just string.
+// That is exactly how the standard library defines NonNullable.</pre></code>
+
+<p><strong>What you should see:</strong> the difference between <code>string[] | number[]</code> and <code>(string | number)[]</code> is real and checkable — hover both variants. <strong>What we learn:</strong> <code>never</code> acts as the type-level zero element, which makes union arithmetic (add with <code>|</code>, subtract via conditional filters) work like set algebra.</p>
+
+<h2 id="utility-types-as-architecture">Utility types as architecture</h2>
+
+<p>The standard library's utilities are your first stop — composing them usually beats writing custom type code.</p>
+
+<h3 id="pick-omit-partial-readonly-record">Pick, Omit, Partial, Readonly, Record</h3>
+
+<p><strong>Purpose of the example:</strong> shape layer-specific contracts from one domain type — the daily workflow of a typed codebase.</p>
+
+<pre><code class="language-typescript">interface Article {
+  id: string;
+  title: string;
+  body: string;
+  views: number;
+  updatedAt: Date;
+}
+
+type ArticleDraft = Omit&lt;Article, "id" | "views" | "updatedAt"&gt;;  // what POST accepts
+type ArticleSummary = Pick&lt;Article, "id" | "title"&gt;;              // what lists render
+type ArticlePatch = Partial&lt;Omit&lt;Article, "id"&gt;&gt;;                 // what PATCH accepts
+type ArticlesById = Record&lt;string, Article&gt;;                      // a keyed lookup table
+
+function createArticle(draft: ArticleDraft): Article {
+  // `id` and `views` cannot be forgotten here — the type demands them
+  return { ...draft, id: crypto.randomUUID(), views: 0, updatedAt: new Date() };
+}</pre></code>
+
+<p><strong>What you should see:</strong> add a field to <code>Article</code> and every derived type updates; make <code>id</code> optional and <code>createArticle</code> still compiles because it sets the fields itself. <strong>What we learn:</strong> derive types from the domain type instead of hand-maintaining near-duplicates — the single highest-leverage habit in a typed codebase.</p>
+
+<h2 id="mapped-and-conditional-types">Mapped and conditional types</h2>
+
+<p>Utility types are not compiler magic — they are built from two primitives you can use yourself: <em>mapped types</em> (transform every property) and <em>conditional types</em> (choose a type based on a test). Master these and the type system becomes a small functional language.</p>
+
+<h3 id="mapped-types-transform-every-property">Mapped types transform every property</h3>
+
+<p><strong>Purpose of the example:</strong> rebuild two famous utilities by hand to see the machinery inside them.</p>
+
+<pre><code class="language-typescript">// A mapped type: for each key K in T, produce a property of the new shape.
+// The `?` and `-?` modifiers add/remove optionality; `readonly` works the same way.
+type MyPartial&lt;T&gt; = {
+  [K in keyof T]?: T[K];        // same keys, each optional, same value types
+};
+
+type MyReadonly&lt;T&gt; = {
+  readonly [K in keyof T]: T[K]; // same keys, none writable
+};
+
+// Key remapping (TS 4.1+): template literal types rename keys on the fly.
+type Getters&lt;T&gt; = {
+  [K in keyof T as `get${Capitalize&lt;string &amp; K&gt;}`]: () =&gt; T[K];
+};
+
+interface Point { x: number; y: number }
+// Getters&lt;Point&gt; = { getX: () => number; getY: () => number } — check it on hover</pre></code>
+
+<p><strong>What you should see:</strong> hovering <code>Getters&lt;Point&gt;</code> shows renamed methods generated from the keys of <code>Point</code> — the type system producing new properties from old ones. <strong>What we learn:</strong> <code>[K in keyof T]</code> is a loop over property names, <code>T[K]</code> is an index into the value types, and the <code>as</code> clause is a rename step. That is the entire model.</p>
+
+<h3 id="conditional-types-choose-based-on-a-test">Conditional types choose based on a test</h3>
+
+<p><strong>Purpose of the example:</strong> write type-level branching, including the recursive case that powers <code>Awaited</code> and deep utilities.</p>
+
+<pre><code class="language-typescript">// A conditional type: C extends B ? Then : Else — evaluated by the checker.
+type Unwrap&lt;T&gt; = T extends Promise&lt;infer U&gt; ? U : T;
+
+type A = Unwrap&lt;Promise&lt;string&gt;&gt;;   // string — infer captures the inner type
+type B = Unwrap&lt;number&gt;;           // number — test fails, else branch
+
+// Recursion makes it work through nested promises, like the built-in Awaited:
+type DeepUnwrap&lt;T&gt; = T extends Promise&lt;infer U&gt; ? DeepUnwrap&lt;U&gt; : T;
+type C = DeepUnwrap&lt;Promise&lt;Promise&lt;boolean&gt;&gt;&gt;; // boolean
+
+// distributive conditional: applied to a union, it maps over each member —
+// which is why NonNullable&lt;string | null&gt; filters the union member by member.
+type ToArray&lt;T&gt; = T extends unknown ? T[] : never;
+type D = ToArray&lt;string | number&gt;; // string[] | number[], NOT (string | number)[]</pre></code>
+
+<p><strong>What you should see:</strong> the <code>infer U</code> pattern — "match a Promise and name its inner type" — is the workhorse of every typed async library. Note the last case: conditionals distribute over unions, which is a feature to exploit deliberately. <strong>What we learn:</strong> with mapped types for iteration and conditional types for branching, a type can be a <em>program</em> — but each program you write is a claim on the next reader's attention.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-advanced-type-computation.svg" class="figure-img img-fluid rounded" alt="Flow: input type T passes through keyof to a mapped type loop, and through extends tests with infer capture in a conditional type; both feed derived types" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — Type-level computation. Mapped types iterate (<code>[K in keyof T]</code>); conditional types branch (<code>extends ? :</code>) and capture (<code>infer</code>). Every utility type you have ever used is some composition of these two machines.</figcaption>
+</figure>
+
+<h2 id="discipline-when-advanced-types-earn-their-keep">Discipline: when advanced types earn their keep</h2>
+
+<p>The advanced toolbox is where TypeScript teams win or lose readability. Two rules keep it professional.</p>
+
+<h3 id="the-three-honest-uses-of-type-assertions">The three honest uses of type assertions</h3>
+
+<p><code>as</code> overrides the checker without proof — it is a scoped version of <code>@ts-ignore</code>. Legitimate uses are narrow:</p>
+
+<pre><code class="language-typescript">// 1. Narrowing a known-specific value (e.g. a DOM lookup the checker can't type):
+const canvas = document.getElementById("stage") as HTMLCanvasElement;
+
+// 2. Bridging an untyped boundary AFTER validation:
+const data: unknown = JSON.parse(raw);
+const cfg = data as Config;   // acceptable ONLY with a validation step — see below
+
+// 3. Interoperating with a mis-typed dependency, commented and localized.
+
+// The dishonest use: silencing a real error.
+const n = "42" as unknown as number;  // double assertion = an alarm bell;
+                                      // the string is still a string at runtime</pre></code>
+
+<p><strong>What you should see:</strong> the double assertion (<code>as unknown as</code>) is the compiler's own warning sign that you are lying in two steps. <strong>What we learn:</strong> every assertion is a claim that a runtime invariant exists. If code outside the type system produced the value, validate it first (Chapter: errors & validation) — then the assertion is provable rather than hopeful.</p>
+
+<h3 id="a-decision-checklist-for-custom-type-code">A decision checklist for custom type code</h3>
+
+<p>Before writing any mapped or conditional type, answer four questions: (1) Does a built-in utility already do this — <code>Parameters</code>, <code>ReturnType</code>, <code>Awaited</code>, <code>NonNullable</code>? (2) Will the hover on the result be readable to a colleague who has never seen it? (3) Does the type appear in more than one place, or would it be dead abstraction? (4) Can the test suite exercise the runtime behavior it describes? Advanced types in production codebases follow the same rule as clever algorithms: pay for them once in a well-documented utility, not everywhere in business logic.</p>
+
+<h2 id="practice-advanced-types">Practice: build your own utility library</h2>
+
+<h3 id="derive-the-form-contract">Derive the form contract</h3>
+
+<p>Given <code>interface Signup { email: string; password: string; promoCode?: string }</code>, write <code>type SignupForm</code> where every field is optional <em>and</em> every string field may be empty — using mapped types over <code>keyof</code>, not a hand-written duplicate interface. <strong>What you should see:</strong> renaming <code>promoCode</code> in <code>Signup</code> updates <code>SignupForm</code> with zero edits. <strong>What we learn:</strong> the mapped type is the contract; the interface is the single source of truth.</p>
+
+<h3 id="write-an-event-map-with-guarded-keys">Write an event map with guarded keys</h3>
+
+<p>Define <code>type EventEmitter&lt;T extends Record&lt;string, unknown[]&gt;&gt;</code> so that <code>on("score", (points: number) =&gt; void)</code> checks but <code>on("scroe", …)</code> is an error — key remapping plus an indexed parameter list. <strong>What you should see:</strong> a typo in the event name becomes a compile error listing the valid alternatives. <strong>What we learn:</strong> this exact pattern is how libraries like <code>socket.io</code> and <code>mitt</code> made stringly-typed APIs checkable.</p>
+
+<p>With the computation tools covered, the <a href="declarations.html">declarations lesson</a> turns to the boundary where your types meet code you did not write.</p>
+
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'advanced-types',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

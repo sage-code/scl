@@ -166,6 +166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         'for': 'fortran', // legacy fixed-form Fortran 77
         'fpp': 'fortran'  // preprocessor output
     };
+    // TypeScript — grammar ships in the single Prism bundle (assets/prism.js
+    // download header lists typescript). .tsx renders as typescript: the tsx
+    // grammar only adds JSX-aware tagging, and demo sources here are plain .ts.
+    langMap['ts'] = 'typescript';
+    langMap['tsx'] = 'typescript';
 
     display.className = `language-${langMap[ext] || 'javascript'}`;
 

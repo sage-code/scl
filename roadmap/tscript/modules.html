@@ -2,49 +2,161 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="TypeScript module boundaries for large front-end applications.">
+  <meta name="description" content="TypeScript modules for JavaScript developers: import/export typing, export type, import type, verbatimModuleSyntax, module resolution, and organizing feature boundaries.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript modules, architecture boundaries">
+  <meta name="keywords" content="typescript modules, esm, import type, verbatimModuleSyntax, module resolution">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Modules and Boundaries</title>
+  <title>TypeScript Modules: Organizing and Shipping Typed Code</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/modules.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="modules-boundaries">Modules and Boundaries</h2>
-<div class="alert alert-secondary shadow-sm">A scalable front-end app is a set of small, coherent modules with strict public contracts.</div>
+<h1 id="typescript-modules-organizing-and-shipping-typed-code">TypeScript Modules: Organizing and Shipping Typed Code</h1>
 
-<h2 id="export-strategy">Export strategy</h2>
-<p>Prefer named exports for discoverability and refactoring safety across large codebases.</p>
+<p>You already know ES modules — TypeScript keeps that syntax and adds a layer of questions JavaScript never asks: which imports are <em>types</em>, what happens to them after erasure, and how does the checker find the file an import refers to? This lesson answers those, then applies the answers to the architecture problem they were built for: keeping large codebases' boundaries honest.</p>
 
-<h2 id="feature-slices">Feature slicing</h2>
+<h2 id="the-type-side-of-imports-and-exports">The type side of imports and exports</h2>
+
+<p>Every import carries two kinds of payload: <em>values</em> (which exist at runtime) and <em>types</em> (which do not). Since the compiler erases types, it needs to know which is which — otherwise an import of a pure type can survive into emitted JavaScript and crash the runtime.</p>
+
+<h3 id="export-type-and-import-type">export type and import type</h3>
+
+<p><strong>Purpose of the example:</strong> make the value/type distinction explicit, so the emitted JavaScript never imports what does not exist.</p>
+
+<pre><code class="language-typescript">// billing/pricing.ts
+export interface PriceRule {          // a TYPE — vanishes at runtime
+  id: string;
+  apply(total: number): number;
+}
+
+export const VAT_RATE = 0.2;          // a VALUE — survives at runtime
+
+// billing/invoice.ts
+import { VAT_RATE } from "./pricing";
+import type { PriceRule } from "./pricing";   // explicit: type-only import
+
+const rule: PriceRule = {             // the type is usable…
+  id: "vat",
+  apply: (total) => total * (1 + VAT_RATE),
+};
+// `import { VAT_RATE, type PriceRule }` — inline form — also works per-specifier</pre></code>
+
+<p><strong>What you should see:</strong> both forms compile to the same runtime import of <code>VAT_RATE</code> only; <code>PriceRule</code> appears nowhere in the emitted JavaScript. <strong>What we learn:</strong> <code>import type</code> documents intent in both directions — the reader knows the name carries no runtime weight, and the bundler knows it can drop the import even when its single-pass analysis cannot see how the name is used.</p>
+
+<h3 id="verbatimmodulesyntax-making-erasure-honest">verbatimModuleSyntax: making erasure honest</h3>
+
+<p>Historically the compiler guessed: an import it deemed type-only was dropped at emit, sometimes wrongly (the famous <code>isolatedModules</code> pitfall that made single-file transpilers emit broken code). <code>verbatimModuleSyntax</code> ends the guessing:</p>
+
+<pre><code class="language-json">{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "verbatimModuleSyntax": true   // emit imports EXACTLY as written
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> with the flag on, <code>import { PriceRule } from "./pricing"</code> without the <code>type</code> keyword is an <em>error</em> ("'PriceRule' is a type and must be imported using a type-only import") — because the emit would keep an import the runtime cannot resolve. <strong>What we learn:</strong> this flag aligns the compiler with reality: bundlers and Node strip types per-file without seeing the whole program, so the source itself must say what is a type. It also matches Node's native type stripping, which demands the <code>type</code> keyword for the same reason (see the setup lesson).</p>
+
+<h2 id="how-resolution-finds-what-you-import">How resolution finds what you import</h2>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-module-resolution.svg" class="figure-img img-fluid rounded" alt="An import specifier branches into relative resolution against the current file and bare resolution through node_modules, governed by the moduleResolution setting" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — Import resolution in one picture. The <em>specifier</em> you write and the <em>strategy</em> the checker uses are separate decisions; <code>moduleResolution</code> selects the strategy and must match what your bundler or runtime actually does.</figcaption>
+</figure>
+
+
+<p>When the checker reads <code>import … from "./pricing"</code>, it must map that specifier to a file — using rules chosen by <code>moduleResolution</code>. Getting this wrong is the classic "works in my editor, fails in the build" bug.</p>
+
+<h3 id="resolution-modes-and-relative-imports">Resolution modes and relative imports</h3>
+
+<p><strong>Purpose of the example:</strong> see which resolution mode your project needs and what each changes.</p>
+
+<pre><code class="language-typescript">// Relative import — always the right tool for code you own:
+import { createInvoice } from "./invoice";       // sibling file
+import { logger } from "../shared/logger.js";    // Node-style: extension may
+                                                 // be REQUIRED depending on mode
+
+// Extension rules differ by mode:
+//  • moduleResolution "Bundler"  — extensions optional, package.json "exports"
+//    honored, allows importing bare directories (Vite/esbuild behavior)
+//  • moduleResolution "NodeNext" — matches real Node ESM: extensions REQUIRED
+//    in relative imports (./invoice.js for ./invoice.ts)</pre></code>
+
+<p><strong>What you should see:</strong> the same file can check cleanly under <code>"Bundler"</code> and fail under <code>"NodeNext"</code> with "Relative import paths need explicit file extensions" — the rules, not your code, changed. <strong>What we learn:</strong> pick <code>moduleResolution</code> to match what actually runs your code, and prefer relative imports with explicit intent for anything inside the repo.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-module-resolution.svg" class="figure-img img-fluid rounded" alt="Import specifier resolution: bare specifier checked against package.json exports then node_modules; relative specifier checked against tsconfig paths then the file tree" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — Where an import goes. Bare specifiers (<code>"zod"</code>) resolve through package metadata; relative specifiers (<code>"./invoice"</code>) resolve through your tree and tsconfig aliases. The checker, the bundler, and the runtime each implement these rules — misalignment between them is the root of most module bugs.</figcaption>
+</figure>
+
+<h3 id="path-aliases-and-why-they-are-config-not-syntax">Path aliases — and why they are config, not syntax</h3>
+
+<p>Large repos use aliases to import across features without brittle <code>../../..</code> chains:</p>
+
+<pre><code class="language-json">{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@billing/*": ["src/features/billing/*"]
+    }
+  }
+}</pre></code>
+
+<pre><code class="language-typescript">import { createInvoice } from "@billing/invoice";  // checker-resolved alias</pre></code>
+
+<p><strong>What you should see:</strong> clean checking — and, if you run Node natively, a runtime crash: Node does not read tsconfig and cannot expand <code>@billing</code>. Bundlers (Vite) need the alias configured <em>twice</em>, once for the checker and once in their own config. <strong>What we learn:</strong> aliases are a checker-level fiction that every other tool must be taught separately. Modern repos either mirror them in the bundler config or use package.json <code>imports</code> (<code>#billing/*</code>), which all real tools understand.</p>
+
+<h2 id="module-boundaries-as-architecture">Module boundaries as architecture</h2>
+
+<p>The type system turns module design from convention into something checkable. The pattern below — feature slices with a single public entry file — is the standard shape for React and Node codebases alike.</p>
+
+<h3 id="feature-slices-and-the-barrel-contract">Feature slices and the barrel contract</h3>
+
+<p><strong>Purpose of the example:</strong> enforce a public API per feature so internal refactors stay local.</p>
+
 <pre><code class="language-text">src/
   features/
     billing/
-      api/
-      domain/
-      ui/
-      index.ts
-    auth/
-      ...</code></pre>
+      pricing.ts        # implementation detail
+      invoice.ts        # implementation detail
+      index.ts          # THE public contract of the feature
+    auth/ …</pre></code>
 
-<h2 id="public-api">Public module API</h2>
-<p>Each feature should expose a stable entry point. Avoid deep imports into private files.</p>
+<pre><code class="language-typescript">// src/features/billing/index.ts — the only file other features import
+export { createInvoice } from "./invoice";
+export type { Invoice, PriceRule } from "./pricing";   // types in the API too
 
-<h2 id="dependency-direction">Dependency direction</h2>
-<p>UI may depend on domain contracts, but domain should not depend on UI rendering details.</p>
+// src/features/reporting/monthly.ts
+import { createInvoice } from "../billing";        // ✓ through the barrel
+// import { createInvoice } from "../billing/invoice"; // ✗ style-enforced deep import</pre></code>
 
-<h2 id="boundary-tests">Boundary tests</h2>
-<p>Test exported functions and contracts, not internal file layout.</p>
+<p><strong>What you should see:</strong> renaming or reorganizing files <em>inside</em> <code>billing/</code> touches only its <code>index.ts</code>; no other feature notices. <strong>What we learn:</strong> the barrel file is a module's public interface, the same idea as an interface on a class — and <code>export type</code> keeps type-only API surface out of the runtime bundle.</p>
 
-<h2 id="practice-modules">Practice</h2>
-<p>Refactor one feature into a clean module with <code>index.ts</code> as the only public API.</p>
+<h3 id="dependency-direction-you-can-check">Dependency direction you can check</h3>
+
+<p>The rule "domain code must not depend on UI code" is usually a lint rule — but the module structure makes it checkable in the cheapest possible way: if <code>billing/domain.ts</code> imports nothing from <code>ui/</code>, the emitted dependency graph proves it. Circular imports, the other classic hazard, are where <code>import type</code> earns its keep a second time: type-only cycles are harmless (both sides are erased), value cycles are bugs. When the checker reports a cycle, first check whether one side can become <code>import type</code>.</p>
+
+<h2 id="practice-modules">Practice: build and break a module boundary</h2>
+
+<h3 id="extract-a-feature-with-a-barrel">Extract a feature with a barrel</h3>
+
+<p>Take any small project and split off one feature directory with an <code>index.ts</code> exporting exactly three names (two values, one type), enabling <code>verbatimModuleSyntax</code> first. <strong>What you should see:</strong> the flag forces <code>export type</code> on the type re-export immediately — the compiler teaching your contract. <strong>What we learn:</strong> a public API is a decision, and the module system gives you the syntax to enforce it.</p>
+
+<h3 id="diagnose-a-resolution-failure">Diagnose a resolution failure</h3>
+
+<p>Write an import with a deliberately wrong specifier (<code>./Invoice</code> vs <code>./invoice</code>) and read the error under <code>"Bundler"</code> resolution. <strong>What you should see:</strong> TS2307 with a list of candidates the checker tried. On case-sensitive Linux CI the same mistake is a runtime crash instead — which is why <code>forceConsistentCasingInFileNames</code> is on in every professional config. <strong>What we learn:</strong> resolution errors are environment mismatches, and the compiler is your only chance to catch them before deployment.</p>
+
+<p>Modules define the skeleton; the <a href="decorators.html">decorators lesson</a> adds the metaprogramming layer that frameworks build on.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'modules',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

@@ -2,80 +2,221 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="TypeScript classes from fundamentals to professional domain modeling.">
+  <meta name="description" content="TypeScript classes for JavaScript developers: when classes beat plain objects, access modifiers as design-time encapsulation, parameter properties, and structural-typing surprises.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript classes, encapsulation, domain models">
+  <meta name="keywords" content="typescript classes, access modifiers, parameter properties, encapsulation">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>TypeScript Classes for UI Domain Models</title>
+  <title>TypeScript Classes and Encapsulation</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/classes.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="classes-domain-models">Classes for UI Domain Models</h2>
-<div class="alert alert-secondary shadow-sm">Classes are useful when data and behavior must stay together with strict invariants.</div>
+<h1 id="typescript-classes-and-encapsulation">TypeScript Classes and Encapsulation</h1>
 
-<h2 id="class-structure">1. Class structure</h2>
+<div class="alert alert-secondary shadow-sm">JavaScript already has classes — so what does TypeScript add? Access modifiers that become real encapsulation (<code>private</code> members can be truly hidden in the emit), checked <code>implements</code> contracts, and a constructor shorthand that removes a third of the boilerplate. Equally important: knowing when a plain object type is the better tool.</div>
+
+<h2 id="when-a-class-is-the-right-tool">When a class is the right tool</h2>
+
+<p>A class earns its keep when <em>data and invariant must stay together</em>: a <code>Money</code> that can never hold negative cents, a <code>Session</code> that cannot be used after expiry. If your value is a bag of fields without behavior — most API payloads — use an interface and plain objects; the previous lesson covered why.</p>
+
+<h3 id="the-invariant-keeping-class">The invariant-keeping class</h3>
+
+<p><strong>Purpose of the example:</strong> model a counter whose value can never go negative — a guarantee no plain object type can enforce.</p>
+
 <pre><code class="language-typescript">class Counter {
-  private value = 0;
+  private value = 0;          // hidden member — see "one surprise" below
 
-  increment(): void {
-    this.value += 1;
+  increment(step = 1): void {
+    this.value += step;
   }
 
-  get current(): number {
+  get current(): number {     // read-only view of the hidden state
     return this.value;
   }
-}</code></pre>
+}
 
-<h2 id="constructor-parameters">2. Constructor and parameter properties</h2>
+const c = new Counter();
+c.increment(); c.increment(2);
+console.log(c.current);   // 3
+// c.value = -10;         // blocked — see the erasure caveat below</pre></code>
+
+<p><strong>What you should see:</strong> external code can only read via <code>current</code> and mutate via <code>increment</code>; the class alone decides what transitions are legal. That is the encapsulation argument for classes.</p>
+
+<h2 id="access-modifiers-and-the-one-surprise">Access modifiers and the one surprise</h2>
+
+<p>TypeScript's modifiers — <code>public</code> (default), <code>private</code>, <code>protected</code>, plus <code>readonly</code> — are checked at compile time. But they interact with type erasure in a way that matters for what you ship.</p>
+
+<h3 id="compile-time-vs-runtime-privacy">Compile-time vs runtime privacy</h3>
+
+<p>By default, TypeScript's <code>private</code> is <em>erased</em>: the emitted JavaScript keeps the property, readable by anyone. There is a second spelling — ECMAScript's <code>#private</code> fields — that the runtime itself enforces:</p>
+
+<pre><code class="language-typescript">class Card {
+  private pin = "1234";     // design-time private; visible in the JS emit
+  #secret = "hash";         // runtime private — inaccessible even from JS
+  get pinHint(): string { return `***${this.pin.slice(-1)}`; }
+}
+
+const card = new Card();
+// card.pin            // compile error: Property 'pin' is private
+console.log((card as any).pin);   // "1234" — TypeScript privacy is advisory!
+// card.#secret        // syntax error even in plain JavaScript</pre></code>
+
+<p><strong>What you should see:</strong> the <code>as any</code> escape reads a <code>private</code> field without complaint at runtime, while <code>#secret</code> is genuinely unreachable. <strong>What we learn:</strong> choose <code>private</code> for API design intent (normal case); choose <code>#fields</code> when the value must be hidden for security, not just tidiness.</p>
+
+<h3 id="parameter-properties-the-shorthand">Parameter properties: the shorthand</h3>
+
+<p>Writing <code>private readonly x: number</code> as a constructor parameter declares, types, <em>and assigns</em> the field in one move — TypeScript's most visible ergonomic win over JavaScript classes:</p>
+
+<p><strong>Purpose of the example:</strong> compare the JavaScript boilerplate with the TypeScript shorthand.</p>
+
 <pre><code class="language-typescript">class Money {
+  // these two parameters create and initialize two readonly fields:
   constructor(
     private readonly cents: number,
-    private readonly currency: "USD" | "EUR"
+    private readonly currency: "USD" | "EUR",
   ) {}
 
   format(): string {
     return `${this.currency} ${(this.cents / 100).toFixed(2)}`;
   }
-}</code></pre>
+}
 
-<h2 id="modifiers">3. Access modifiers</h2>
-<ul>
-  <li><code>public</code>: visible everywhere.</li>
-  <li><code>private</code>: visible only in class.</li>
-  <li><code>protected</code>: visible in class and subclasses.</li>
-  <li><code>readonly</code>: can only be assigned in constructor/field init.</li>
-</ul>
+const price = new Money(1299, "EUR").format();
+console.log(price);   // "EUR 12.99"</pre></code>
 
-<h2 id="getters-setters">4. Getters and setters</h2>
-<p>Use getters/setters to validate state transitions instead of exposing raw field mutation.</p>
+<p><strong>What you should see:</strong> the same class in plain JavaScript needs field declarations plus two assignment lines (<code>this.cents = cents;</code> …). <strong>What we learn:</strong> parameter properties eliminate the "declare, then assign" ritual; note they are <em>transformed</em> syntax — one of the constructs Node's native stripping cannot run (setup lesson), fine everywhere else.</p>
 
-<h2 id="abstract-classes">5. Abstract classes</h2>
+<h2 id="implements-and-structural-surprises">implements and structural surprises</h2>
+
+<p><code>implements</code> promises the checker that a class satisfies an interface. Because checking is structural, the promise behaves in ways Java/C# developers find surprising — and those surprises cut both ways.</p>
+
+<h3 id="implements-is-a-claim-not-a-constraint">implements is a claim, not a constraint</h3>
+
+<p><strong>Purpose of the example:</strong> show that classes remain structurally typed even when they implement an interface.</p>
+
+<pre><code class="language-typescript">interface Greeter { greet(name: string): string }
+
+class Formal implements Greeter {
+  greet(name: string): string { return `Good day, ${name}.`; }
+  farewell(name: string): string { return `Farewell, ${name}.`; }  // extra: fine
+}
+
+const g: Greeter = new Formal();          // OK — structural superset
+const anyObj = { greet: (n: string) => `Hi ${n}` };
+const g2: Greeter = anyObj;               // OK too — no class required!
+console.log(g.greet("Ada"), g2.greet("Grace"));</pre></code>
+
+<p><strong>What you should see:</strong> both assignments pass. A plain object literal satisfies the interface just as well as the class does. <strong>What we learn:</strong> <code>implements</code> only checks the class against the interface; it does <em>not</em> make the type nominal. The flip side — the second surprise — is that extra public members keep a class assignable, but <code>private</code>/<code>protected</code> members <em>do</em> make two structurally identical classes incompatible: privacy participates in structural identity.</p>
+
+<h3 id="abstract-classes-partway-instances">Abstract classes: partway instances</h3>
+
+<p>When subclasses must fill in behavior the base class depends on, an abstract class documents and enforces that half-implemented state:</p>
+
 <pre><code class="language-typescript">abstract class Repository<T> {
   abstract getById(id: string): Promise<T | null>;
-}</code></pre>
 
-<h2 id="composition-over-inheritance">6. Composition over inheritance</h2>
-<p>Prefer small collaborating classes over deep hierarchies. Composition is easier to test and refactor.</p>
+  // concrete method using the abstract one — subclasses inherit it:
+  async exists(id: string): Promise<boolean> {
+    return (await this.getById(id)) !== null;
+  }
+}
 
-<h2 id="testing-classes">7. Testing classes</h2>
-<p>Test public behavior and invariants. Avoid tests that lock internal implementation details.</p>
+class UserRepo extends Repository<{ id: string }> {
+  async getById(id: string) {
+    return id === "u_1" ? { id } : null;   // stub: real code queries a DB
+  }
+}
 
-<h2 id="class-anti-patterns">8. Class anti-patterns</h2>
-<ol>
-  <li>God classes that manage unrelated concerns.</li>
-  <li>Public mutable fields everywhere.</li>
-  <li>Hidden side effects in getters.</li>
-</ol>
+console.log(await new UserRepo().exists("u_1")); // true</pre></code>
 
-<h2 id="practice-classes">9. Practice</h2>
-<p>Implement a <code>SessionState</code> class with timeout rules and a separate <code>SessionFormatter</code> helper using composition.</p>
+<p><strong>What you should see:</strong> <code>new Repository(...)</code> is a compile error — abstract classes cannot be instantiated; the checker forces missing methods to exist. <strong>What we learn:</strong> abstract classes combine a contract with shared implementation; prefer plain interfaces when no shared code exists.</p>
+
+<h2 id="composition-over-inheritance-in-practice">Composition over inheritance in practice</h2>
+
+<p>TypeScript's structural system weakens the traditional argument for deep hierarchies: since any shape-compatible object substitutes for a class, you rarely need five levels of base classes. The professional default in 2026 codebases: shallow classes (often one level), <code>override</code> keyword mandatory (<code>noImplicitOverride</code> from the setup lesson), and capabilities delivered by injecting collaborators rather than inheriting them.</p>
+
+<h3 id="why-structural-typing-changes-the-tradeoff">Why structural typing changes the trade-off</h3>
+
+<p>In nominal languages, substitutability requires inheritance, so reuse grows hierarchies. In TypeScript, substitutability requires only shape agreement — a plain object literal can stand in for a class instance. When the "is-a" tax is gone, so is the main reason to pay for deep inheritance.</p>
+
+<h3 id="decorator-pattern-composition-in-action">Decorator pattern: composition in action</h3>
+
+<p><strong>Purpose of the example:</strong> compare a hierarchy extension with a composition extension when requirements change.</p>
+
+<pre><code class="language-typescript">// Requirement change: "also log every greet call"
+// Inheritance solution: touch the hierarchy
+class LoggingGreeter extends Formal {
+  override greet(name: string): string {
+    console.log(`greet(${name})`);
+    return super.greet(name);
+  }
+}
+
+// Composition solution: wrap any Greeter, no hierarchy knowledge
+class LoggingGreeter2 implements Greeter {
+  constructor(private inner: Greeter) {}
+  greet(name: string): string {
+    console.log(`greet(${name})`);
+    return this.inner.greet(name);
+  }
+}
+
+const decorated = new LoggingGreeter2(new Formal());
+console.log(decorated.greet("Ada"));   // logs, then "Good day, Ada."</pre></code>
+
+<p><strong>What you should see:</strong> both work here; the composed version works for <em>any</em> <code>Greeter</code> — plain objects included — while the inheritance version is welded to <code>Formal</code>. <strong>What we learn:</strong> structural typing makes the decorator pattern nearly free. This is the strongest practical argument for composition in TypeScript.</p>
+
+<h2 id="testing-and-anti-patterns">Testing and anti-patterns</h2>
+
+<h3 id="test-behavior-not-structure">Test behavior, not structure</h3>
+
+<p>Because of structural typing, test doubles need no mocking framework: a hand-written object with the right shape substitutes for the real collaborator. Test public behavior and invariants (<code>format()</code>, <code>exists()</code>); tests reaching into <code>private</code> state lock in implementation and rot fastest — and the checker will tell you when you try.</p>
+
+<h3 id="the-three-class-anti-patterns">The three class anti-patterns</h3>
+
+<p><strong>Purpose of the example:</strong> recognize the defects in the wild:</p>
+
+<pre><code class="language-typescript">// 1. God class — unrelated concerns in one stateful bag:
+class AppManager {
+  private users: User[] = [];
+  private cache = new Map<string, string>();
+  sendEmail(to: string): void { /* … */ }
+  renderReport(): string { /* … */ }   // four jobs, zero cohesion
+}
+
+// 2. Public mutable fields — invariants impossible:
+class BadSession { expiresAt: Date = new Date(); } // anyone can un-expire it
+
+// 3. Side effects in getters — reads that mutate:
+class Tricky {
+  private loaded = false;
+  get data(): string {
+    if (!this.loaded) this.loaded = true;  // ← mutation inside a read!
+    return "payload";
+  }
+}</pre></code>
+
+<p><strong>What we learn:</strong> each anti-pattern breaks the reason you chose a class: cohesion, invariant, or predictable reads. A getter must be repeatable without consequence; state changes belong in methods with intent-revealing names.</p>
+
+<h2 id="practice-classes">Practice: model a session</h2>
+
+<h3 id="session-with-timeout-rules">Session with timeout rules</h3>
+
+<p>Build a <code>SessionState</code> class: private <code>lastSeen: Date</code>, a <code>touch()</code> method, a <code>get expired</code> getter comparing against a 30-minute timeout, and no public field mutation possible. Write three checks: fresh session not expired, expired after simulated time, <code>touch()</code> resetting the clock. <strong>What you should see:</strong> the class making invalid states unrepresentable — no caller can construct an expired-but-active session through the public API.</p>
+
+<h3 id="replace-inheritance-with-decorator">Replace inheritance with a decorator</h3>
+
+<p>Refactor the <code>LoggingGreeter</code> above into a composing wrapper implementing the same interface. <strong>What you should see:</strong> the wrapper compiles against any conforming implementation, and the inheritance edge cases (base renames, constructor chaining) simply disappear. Then continue to the <a href="generics.html">generics lesson</a>, which makes <code>Repository&lt;T&gt;</code> fully general.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'classes',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

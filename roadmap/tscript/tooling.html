@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="TypeScript tooling: typescript-eslint with type-aware rules, formatting, editor integration, and keeping the checker honest in CI.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="typescript eslint, typescript-eslint, biome, tooling, ci">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>TypeScript Tooling and Linting</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/tscript/tooling.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+
+<h1 id="typescript-tooling-and-linting">TypeScript Tooling and Linting</h1>
+
+<p>The compiler is the core of the toolchain, but it is deliberately narrow: it asks "are these types consistent?", not "is this code maintainable?". Production teams wrap the checker with a linter that understands types, a formatter that removes style arguments, and a CI arrangement where none of it is optional. This lesson assembles that wrapper.</p>
+
+<h2 id="the-quality-pipeline">The quality pipeline</h2>
+
+<p>Four tools, each with a narrow mandate. Understanding the division of labor prevents the classic arguments about which tool "owns" a rule:</p>
+
+<table class="table table-dark table-striped">
+  <thead><tr><th>Tool</th><th>Mandate</th><th>Example rule</th></tr></thead>
+  <tbody>
+    <tr><td><code>tsc</code></td><td>type consistency</td><td><em>"string is not assignable to number"</em></td></tr>
+    <tr><td><code>typescript-eslint</code></td><td>bugs + maintainability, type-aware</td><td>floating promises, unsafe <code>any</code> propagation, no non-null assertions</td></tr>
+    <tr><td><code>prettier</code></td><td>formatting only</td><td>indentation, quotes, line width — zero semantic rules</td></tr>
+    <tr><td><code>editor</code></td><td>instant feedback</td><td>squiggles, quick fixes, rename refactors</td></tr>
+  </tbody>
+</table>
+
+<h3 id="why-eslint-still-matters-in-a-typescript-project">Why ESLint still matters in a TypeScript project</h3>
+
+<p>The most common question from JavaScript developers: "doesn't the compiler make the linter redundant?" No — the checker verifies consistency, not intent. Two examples the compiler accepts happily:</p>
+
+<p><strong>Purpose of the example:</strong> two dangerous lines that type-check perfectly clean.</p>
+
+<pre><code class="language-typescript">// 1. Floating promise: work launched, result discarded, failures invisible.
+// The compiler sees a valid call; typescript-eslint's
+// no-floating-promises sees an unhandled rejection waiting:
+fetchTelemetry();
+
+// 2. Non-null assertion: a lie you tell the compiler with no proof.
+// If users[0] is undefined at runtime, this is a TypeError in production:
+const first = users[0]!.name;
+
+// The lint fixes push you toward the honest versions:
+void fetchTelemetry();                       // intentional fire-and-forget
+const first2 = users[0]?.name ?? "unknown";  // undefined handled explicitly</pre></code>
+
+<p><strong>What you should see:</strong> with <code>typescript-eslint</code> configured with type-checking rules (<code>no-floating-promises</code>, <code>noNonNullAssertion</code>), both original lines are flagged. These rules need the type information — plain (non-type-aware) linting cannot see them, which is why the setup requires the parser to run on the TypeScript AST.</p>
+
+<h3 id="formatting-is-solved-hand-it-to-prettier">Formatting is solved — hand it to Prettier</h3>
+
+<p>Never encode style opinions in your linter; it produces rules that fight the formatter and reviews that argue about commas. Configuration is one file, and the CI gate is <code>prettier --check .</code>:</p>
+
+<pre><code class="language-json">// .prettierrc — boring on purpose
+{
+  "printWidth": 100,
+  "singleQuote": false,
+  "trailingComma": "all"
+}</pre></code>
+
+<p><strong>What you should see:</strong> formatting diffs disappear from code reviews entirely, because the machine makes every formatting decision. Keep <code>prettier</code> and <code>typescript-eslint</code> from colliding by disabling ESLint's stylistic rules (the tooling section of typescript-eslint's docs lists the exact rule sets to switch off).</p>
+
+<h2 id="monorepos-and-project-references">Monorepos and project references</h2>
+
+<h3 id="why-one-tsconfig-stops-scaling">Why one tsconfig stops scaling</h3>
+
+<p>As codebases grow, one giant tsconfig becomes slow and ambiguous: every file sees every other file's internals. TypeScript's answer is <strong>project references</strong> — multiple small tsconfigs with explicit dependency edges, checked and cached independently.</p>
+
+<p><strong>Purpose of the example:</strong> split an app into a shared library and an app that depends on it, with incremental builds.</p>
+
+<pre><code class="language-json">// tsconfig.json — the solution file: it builds nothing itself
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/web" }
+  ]
+}</pre></code>
+
+<pre><code class="language-json">// packages/shared/tsconfig.json — a leaf project
+{
+  "compilerOptions": {
+    "composite": true,        // required for referenced projects;
+    "declaration": true       // exposes .d.ts to dependents
+  },
+  "include": ["src"]
+}</pre></code>
+
+<h3 id="incremental-builds-across-packages">Incremental builds across packages</h3>
+
+<p><strong>What you should see:</strong> <code>npx tsc --build</code> (note the flag: <code>--build</code>, not <code>--noEmit</code>) compiles <code>shared</code> first, then <code>web</code>, and on the second run rebuilds only what changed. Editing a file in <code>shared</code> that <code>web</code> imports gives a precise error across the boundary — with the <em>public</em> types, not internal files.</p>
+
+<p><strong>What we learn:</strong> boundaries you make explicit are boundaries the checker enforces. Project references are also the mechanism behind workspace monorepos (npm/pnpm workspaces, Turborepo): each package owns its tsconfig, and CI caches per project.</p>
+
+<h2 id="the-ci-gate-in-practice">The CI gate in practice</h2>
+
+<h3 id="cheap-checks-first">Cheap checks first</h3>
+
+<p>Tools only create quality when CI makes them non-optional. A complete pipeline for a TypeScript project:</p>
+
+<p><strong>Purpose of the example:</strong> the exact script set CI expects — order matters, cheap checks first.</p>
+
+<pre><code class="language-json">{
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test"
+  }
+}</pre></code>
+
+<h3 id="zero-warning-discipline">Zero-warning discipline</h3>
+
+<p><strong>What you should see:</strong> one <code>npm run verify</code> that any contributor can run locally with identical results to CI. <code>--max-warnings 0</code> is the detail that keeps warning counts from ratcheting upward: warnings are errors, so the count can only stay flat or go down.</p>
+
+<h2 id="practice-tooling">Practice: assemble the wrapper</h2>
+
+<h3 id="wire-the-pipeline-into-a-real-project">Wire the pipeline into a real project</h3>
+
+<p>Take the strict project from the setup lesson and add typescript-eslint (type-checked config), Prettier, and the <code>verify</code> script. Then seed three violations on purpose: a floating promise, a non-null assertion, and a formatting inconsistency. Run <code>npm run verify</code> and fix each using the tool's own suggestion. <strong>What you should see:</strong> three failures, each with an autofix — and after the fix, a clean gate.</p>
+
+<h3 id="measure-the-inner-loop">Measure the inner loop</h3>
+
+<p>Run <code>npx tsc --noEmit --extendedDiagnostics</code> on the project and read the phases: how long parsing, binding, and checking each take. Add <code>"incremental": true</code> to tsconfig and rerun. <strong>What we learn:</strong> the checker's cost is real and measurable, and this is the data that justifies project references when the project outgrows a single tsconfig.</p>
+</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
+<script>window.TOPIC_CONFIG={labId:'tscript',topicId:'tooling',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
+<script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
