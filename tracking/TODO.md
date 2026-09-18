@@ -42,6 +42,16 @@ All 42 roadmap indexes implement the roadmap index standard:
 - References verified free: GNU Bash Manual, TLDP guides, Greg's Wiki (BashGuide/FAQ/Pitfalls), Google Shell Style Guide, ShellCheck, explainshell, LearnShell, OverTheWire Bandit, Pure Bash Bible, awesome-bash.
 - Removed legacy artifacts: 10 obsolete pages (`commands`, `groups`, `braces`, `math`, `control`, `directory`, `regex`, `external`, `types`, `startup`) and their sidebars, old images and 4 undocumented demos.
 
+## ✅ css — Roadmap rebuilt & expanded (2026-09-17)
+`css` was an 8-topic stub (3 phases, flat sidebars, no practice section); rebuilt as a 20-row / 7-phase track modeled on `html`:
+- 17 lessons across 7 phases — LANGUAGE FOUNDATIONS (`syntax`, `selectors`, `cascade`, `values`), THE BOX AND TEXT (`box-model`, `typography`), LAYOUT (`layout`, `flexbox`, `grid`), RESPONSIVE AND MOTION (`responsive`, `animation`, `accessibility`), ARCHITECTURE AND SCALE (`variables`, `architecture`, `modern`), ECOSYSTEM (`bootstrap`, `frameworks`).
+- Every lesson has an anchorable `h1` and a 3-level single-root sidebar JSON (`roadmap/css/data/<topic>.json`, h1 → h2 → h3) generated with `gen_topic_sidebars.py`.
+- Practice & Demo: 20 self-contained commented demos (`demo/{foundations,box-and-text,layout,quality}/01..20`) + `demo_examples.html` with View code / Preview columns; Study Projects (`samples.html`); `references.html` rewritten with categorized 4-column tables (specs, docs, validators, tokens, playgrounds, a11y, hosting — all links verified live).
+- 8 new track-specific SVGs (`roadmap/css/img/`): cascade-origins, specificity-ladder, selector-anatomy, flow-and-positioning, flexbox-axes, grid-areas, breakpoints, custom-property-scope; superseded orphan `css-selector.svg` removed.
+- Head hygiene: fixed the `<script src="/assets/prism.js">>` typo, added `content-code.css`/`content-tables.css`, canonical `/assets/js/sage.js` (mechanical pass in `scripts/tools/polish_css_pages.py`).
+- Index: 20 sequential rows under 7 phase headers, Credits alert, Free References block, `courseLevel: "Beginner to Expert"`.
+- Validated: `run test` (0 css warnings) → `run build` → `run check` (0 css warnings) → `check:html` (21 files clean) → `check:sidebar` (0 failures).
+
 ## 🚧 cpp — IN PROGRESS (2026-09-11)
 
 `cpp` is the active track: rebuilding the legacy 6-topic scaffold into a complete first-language tutorial

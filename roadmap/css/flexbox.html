@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Flexbox from first principles: the two axes, sizing of flex items, the auto margin trick, and the patterns you will use daily.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>Flexbox</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/css/flexbox.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="flexbox">Flexbox</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Flexbox lays out a group of items along <em>one axis</em> — a row or a column — with real control over
+  alignment and how items grow or shrink. It is the right tool for toolbars, media objects, form rows, and
+  card contents. It is the wrong tool for a whole page grid; that is <em>Grid</em>'s job.
+</div>
+
+<h2 id="the-container-and-its-axes">The container and its axes</h2>
+
+<h3 id="two-axes-not-four-sides">Two axes, not four sides</h3>
+<figure class="text-center">
+  <img src="/roadmap/css/img/flexbox-axes.svg" width="560" class="img-fluid protect rounded shadow border" alt="Flex container showing the main axis and cross axis with three items">
+  <figcaption>Flexbox alignment is axis-based: <code>justify-content</code> works along the main axis, <code>align-items</code> across it. <code>flex-direction: column</code> swaps them.</figcaption>
+</figure>
+<pre><code class="language-css">/* The container declares flexbox; everything else keys off its axes */
+.nav {
+  display: flex;
+  flex-direction: row;            /* main axis = horizontal (the default) */
+  justify-content: space-between; /* distribute along the MAIN axis */
+  align-items: center;            /* align across the CROSS axis */
+  gap: 1rem;                      /* spacing BETWEEN items - replaces margin tricks */
+}</code></pre>
+<p>
+  The single most useful habit: think in axes, not in horizontal/vertical. When
+  <code>flex-direction: column</code>, <code>justify-content</code> becomes vertical — the property did not
+  change meaning, the axis did. This one insight resolves most flexbox confusion.
+</p>
+
+<h3 id="wrapping-is-opt-in">Wrapping is opt-in</h3>
+<pre><code class="language-css">/* A flex row NEVER wraps by default: items shrink or overflow instead.
+   For a responsive card row without media queries: */
+.card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.card-row > * {
+  flex: 1 1 16rem;   /* each card: at least 16rem, may stretch to share the row */
+}</code></pre>
+<h2 id="flex-items-growing-and-shrinking">Flex items: growing and shrinking</h2>
+
+<h3 id="the-flex-shorthand-reads-growth-shrink-basis">The flex shorthand reads: grow, shrink, basis</h3>
+<pre><code class="language-css">/* flex: &lt;grow&gt; &lt;shrink&gt; &lt;basis&gt;
+   basis  = the ideal size before free space is shared
+   grow   = share of EXTRA space (0 = never grow)
+   shrink = willingness to shrink below basis (default 1) */
+.sidebar { flex: 0 0 16rem; }   /* fixed rail: never grows, never shrinks */
+.content { flex: 1; }           /* takes ALL remaining space (basis 0%, grow 1) */
+.card    { flex: 1 1 16rem; }   /* ideal 16rem, grows and shrinks with siblings */</code></pre>
+<p>
+  Grow factors distribute <em>proportionally</em>, not absolutely. Two items with <code>flex: 1</code>
+  split the free space evenly; <code>flex: 2</code> takes twice as much of the <em>extra</em> space, not
+  twice the total width. Keeping that distinction straight prevents most "why is my column wider"
+  surprises.
+</p>
+
+<h3 id="the-auto-margin-trick">The auto-margin trick</h3>
+<pre><code class="language-css">/* justify-content spreads ALL items; a single auto margin absorbs
+   all free space on ONE side - the "push the last item right" idiom */
+.nav { display: flex; gap: 1rem; }
+.nav .login { margin-inline-start: auto; }</code></pre>
+
+<h2 id="flexbox-patterns">The patterns you will use daily</h2>
+
+<h3 id="the-media-object">The media object</h3>
+<pre><code class="language-css">/* Icon + text, icon stays put, text wraps within its own column */
+.media { display: flex; gap: 0.75rem; align-items: flex-start; }
+.media .icon { flex: 0 0 auto; }     /* never grows, never shrinks */
+.media .body { min-width: 0; }       /* allows the text to shrink and wrap */
+.media .title { overflow-wrap: anywhere; } /* long words cannot push the layout out */</code></pre>
+
+<h3 id="perfect-centering-and-the-sticky-footer">Perfect centering and the sticky footer</h3>
+<pre><code class="language-css">/* The entire "how do I center a div" answer */
+.center {
+  display: flex;
+  justify-content: center;  /* main axis */
+  align-items: center;      /* cross axis */
+  min-height: 12rem;
+}
+
+/* Sticky footer: page fills the viewport, footer pinned to the bottom */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;   /* dynamic viewport height: correct on mobile */
+}
+main { flex: 1; }        /* the content area absorbs the free space */</code></pre>
+
+<h3 id="equal-height-cards-and-the-gap-habit">Equal-height cards and the gap habit</h3>
+<pre><code class="language-css">/* stretch (the default align-items) gives equal heights for free;
+   the CARD is a flex column so its footer can be pushed to the bottom */
+.card-row { display: flex; gap: 1rem; }
+.card {
+  display: flex;
+  flex-direction: column;
+}
+.card .actions { margin-top: auto; }  /* aligned across cards of different text length */</code></pre>
+
+<h2 id="flexbox-or-grid">Flexbox or Grid?</h2>
+
+<h3 id="a-rule-of-thumb-with-exceptions">A rule of thumb, with exceptions</h3>
+<p>
+  Flexbox for <em>content-driven</em> one-dimensional groups: the number of items is unknown, items size
+  themselves. Grid for <em>layout-driven</em> two-dimensional structures: rows and columns are declared
+  regardless of content. Components routinely mix them — a grid page shell containing flex toolbars
+  containing flex media objects.
+</p>
+
+<h2 id="practice-flex-workout">Practice: flex workout</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  Open <code>demo/layout/15_flexbox_patterns.html</code> from the
+  <a href="/roadmap/css/demo_examples.html">Lab Examples</a> page and rebuild each pattern from memory.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>Build a toolbar: brand left, links center-right, login pushed fully right with one auto margin.</li>
+  <li>Build a card row that goes 3 → 2 → 1 columns by resizing, with no media query.</li>
+  <li>Explain the difference between <code>flex: 1</code> and <code>flex: 0 0 auto</code> on a sibling pair.</li>
+  <li>Center a box in a viewport-height section using <code>dvh</code>, then shrink the window to verify
+      it never overflows.</li>
+</ul>
+</main>
+    </div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'css',
+    topicId: 'flexbox',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

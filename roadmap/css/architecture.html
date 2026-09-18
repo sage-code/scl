@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="CSS architecture for real projects: naming conventions, cascade layers, specificity management, and maintainability at scale.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>CSS Architecture at Scale</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/css/architecture.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="css-architecture-at-scale">CSS Architecture at Scale</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  A 200-line stylesheet needs no architecture. A 20,000-line one shared by forty pages does: without
+  explicit rules about naming, layering, and specificity, every fix fights the last one. This lesson is
+  about the decisions that keep a stylesheet maintainable — in plain CSS, no preprocessor required.
+</div>
+
+<h2 id="the-problem-shape">The problem shape</h2>
+
+<h3 id="why-stylesheets-rot">Why stylesheets rot</h3>
+<p>
+  Three forces compound over time. <strong>Specificity creep</strong>: each fix adds a more specific
+  selector to beat the last one. <strong>Dead code</strong>: deleting a class feels risky because nothing
+  tells you what still uses it. <strong>Location opacity</strong>: the rule that styles a button could be
+  in any of six files, under any of four selectors. Every convention below attacks one of these.
+</p>
+
+<h2 id="naming-conventions">Naming conventions</h2>
+
+<h3 id="the-idea-behind-bem">The idea behind BEM — and its variants</h3>
+<p>
+  Block Element Modifier (BEM) is the most widespread naming contract: each class announces
+  <em>what it belongs to</em> and <em>what it is for</em>, which makes the connection between markup and
+  styles greppable and deletions safe.
+</p>
+<pre><code class="language-css">/* Block: a standalone component */
+.card { padding: 1rem; }
+
+/* Element: a part of the block, named with __ */
+.card__title { font-weight: 600; }
+.card__body { color: var(--color-surface-ink); }
+
+/* Modifier: a variant of the block or element, named with -- */
+.card--featured { border-color: var(--color-action); }
+.card__title--small { font-size: 0.875rem; }</code></pre>
+<ul>
+  <li><strong>BEM</strong> (above): explicit, verbose, greppable. A solid default for teams.</li>
+  <li><strong>Utility-first</strong>: skip semantic classes; compose styles from many single-purpose
+      classes in the markup (Tailwind's model — see the <em>Ecosystem</em> lessons).</li>
+  <li><strong>No convention</strong>: viable only with strict cascade discipline (layers + low-specificity
+      selectors), typical for small design systems with deep component encapsulation.</li>
+</ul>
+<p>
+  The convention matters less than its two invariants: a reader can find where a style is defined, and a
+  class can be deleted when its markup is gone. Pick one, write it down, enforce it in review.
+</p>
+<h2 id="cascade-layers-as-architecture">Cascade layers as architecture</h2>
+
+<h3 id="ordering-the-codebase-itself">Ordering the codebase itself</h3>
+<p>
+  <code>@layer</code> (introduced in the <em>Cascade</em> lesson) is the modern answer to specificity
+  creep. Declare the layer order once, early, and every file slots into a known priority:
+</p>
+<pre><code class="language-css">/* The declaration order is the ONLY thing that sets layer priority.
+   Later @layer statements add files to these layers, never reorder them. */
+@layer reset, tokens, base, layout, components, utilities;
+
+@layer reset      { *, *::before, *::after { box-sizing: border-box; } }
+@layer tokens     { :root { --space-3: 1rem; } }        /* design tokens */
+@layer base       { body { line-height: 1.6; } }         /* element defaults */
+@layer layout     { .page { display: grid; } }           /* page shells */
+@layer components { .card { padding: var(--space-3); } }
+@layer utilities  { .visually-hidden { /* ... */ } }     /* highest: always win */</code></pre>
+<p>
+  With layers in place, specificity only needs to rank rules <em>within</em> a layer — and utilities in
+  the top layer beat any component without a single <code>!important</code>. Unlayered overrides remain
+  available for one-off patches, deliberately ranked above everything.
+</p>
+
+<h3 id="the-specificity-budget">The specificity budget</h3>
+<p>
+  Layering replaces the older, weaker guardrails — but the habits still help: keep selectors to one class
+  where possible, avoid IDs in selectors entirely, and reserve <code>!important</code> for the utilities
+  layer. If a fix needs two classes and a parent chain to win, the fix belongs in a higher layer, not in a
+  longer selector.
+</p>
+
+<h2 id="organizing-files">Organizing files</h2>
+
+<h3 id="a-file-layout-that-scales">A file layout that scales</h3>
+<pre><code class="language-css">/* styles.css - the entry point: order IS the layer contract */
+@layer reset, tokens, base, layout, components, utilities;
+@import url("reset.css") layer(reset);
+@import url("tokens.css") layer(tokens);
+@import url("base.css") layer(base);
+@import url("layout.css") layer(layout);
+/* components: one file per component, imported where used */
+@import url("components/card.css") layer(components);
+@import url("utilities.css") layer(utilities);</code></pre>
+<p>
+  The <code>layer()</code> import annotation assigns a file to a layer at import time, so a bundler-less
+  project still gets deterministic ordering. Within <code>components/</code>, one file per component keeps
+  deletions local: delete the component, delete its file.
+</p>
+
+<h3 id="deleting-dead-css-safely">Deleting dead CSS safely</h3>
+<p>
+  Workflow that works: grep the class name across the templates and scripts (not just HTML — class names
+  are constructed in JavaScript too), remove the rule, run the visual smoke test, commit the deletion
+  separately. Tooling (Stylelint's <code>no-unused</code>-style plugins, coverage tools) helps at scale —
+  see <a href="/roadmap/css/references.html">References</a>.
+</p>
+
+<h2 id="practice-architect-a-stylesheet">Practice: architect a stylesheet</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  Take a multi-page project you have styled and reorganize it into the layered structure above, one step
+  at a time, verifying visually after each step.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>Declare the layer order once and move the reset into <code>layer(reset)</code>.</li>
+  <li>Rename one component's classes to a BEM contract and confirm no other rule needed changing.</li>
+  <li>Delete one dead rule end-to-end: grep, delete, smoke test, commit.</li>
+  <li>Move an <code>!important</code> fix into the utilities layer and remove the importance.</li>
+</ul>
+</main>
+    </div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'css',
+    topicId: 'architecture',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

@@ -6,15 +6,19 @@
   <meta name="keywords" content="css syntax, selectors, specificity, cascade">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-  <title>CSS Syntax and Selectors</title>
+  <title>CSS Syntax and Rule Anatomy</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/css/syntax.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
   </head>
 <body>
 
@@ -35,102 +39,195 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="syntax-and-selectors">Syntax and Selectors</h2>
+<h1 id="css-syntax-and-rule-anatomy">CSS Syntax and Rule Anatomy</h1>
 
 <div class="alert alert-secondary shadow-sm">
-CSS tells the browser how elements should look. A CSS file is a sequence of rules: selector + declarations.
+  CSS is a declarative language: you describe <em>what the result should look like</em>, and the browser
+  works out how to get there. A stylesheet is a sequence of <strong>rules</strong>, and every rule has the
+  same two-part shape. Master this shape and the rest of the language is vocabulary.
 </div>
 
-<h2 id="rule-anatomy">Rule anatomy</h2>
+<h2 id="what-css-is">What CSS is</h2>
 
-<p>Every rule has two parts:</p>
-<ul>
-  <li><strong>Selector</strong>: chooses the element(s).</li>
-  <li><strong>Declaration block</strong>: one or more <code>property: value;</code> pairs.</li>
-</ul>
+<h3 id="a-declarative-language">A declarative language, not a programming one</h3>
+<p>
+  In JavaScript you write steps that run in order. In CSS you write <em>constraints</em>: "paragraphs are
+  dark gray", "the navigation sits in a row". There is no control flow to manage — the browser takes
+  every rule that matches an element and resolves conflicts using the cascade (the subject of the next
+  lesson). This is also why CSS is merciless about typos: a declaration is either valid and applied, or
+  invalid and silently dropped.
+</p>
 
-<pre><code class="language-css">p {
-  color: #e2e8f0;
-  line-height: 1.6;
-}</code></pre>
+<h3 id="why-presentation-is-separated">Why presentation is a separate language</h3>
+<p>
+  HTML answers "what is this content?", CSS answers "how should it look?". Keeping the two apart is not
+  pedantry — it is what makes one stylesheet restyle a thousand pages, what lets a media query reformat
+  the same markup for a phone, and what allows a user stylesheet or browser setting to override yours
+  for accessibility. When markup carries its presentation inline, none of those are possible.
+</p>
 
-<h2 id="where-to-write-css">Where to write CSS</h2>
+<h3 id="how-the-browser-processes-a-stylesheet">How the browser processes a stylesheet</h3>
+<p>
+  The browser parses your CSS into rules, collects every declaration matching each element, sorts them
+  with the cascade, and computes a final value per property. Two consequences matter daily: the browser
+  does <strong>not</strong> stop at the first error (it recovers and keeps parsing), and a rule cannot
+  reach into another rule — there is no execution, only patterns.
+</p>
 
-<p>Use external CSS files for maintainability. Inline and internal styles are useful only for quick tests.</p>
+<h2 id="anatomy-of-a-rule">Anatomy of a rule</h2>
 
+<h3 id="selector-and-declaration-block">The selector and the declaration block</h3>
+<p>
+  Every rule pairs a <strong>selector</strong> (which elements?) with a <strong>declaration block</strong>
+  (what should they look like?). Each declaration is a <code>property: value</code> pair terminated by a
+  semicolon.
+</p>
+
+<pre><code class="language-css">/* One complete rule: selector + declaration block.
+   The selector reads left to right: "any p element". */
+p {
+  color: #e2e8f0;         /* property: color, value: a hex color */
+  line-height: 1.6;       /* unitless numbers are valid line heights */
+  margin-block-end: 1rem; /* logical property: spacing after the block */
+}
+
+/* The final semicolon is optional...
+body { color: #e2e8f0 }
+...but always write it. Omitting it makes the next
+pasted-in line silently merge into this value. */</code></pre>
+
+<h3 id="comments-in-css">Comments — and what they must explain</h3>
+<p>
+  CSS has exactly one comment syntax: <code>/* ... */</code>, which may span lines but does not nest.
+  A useful comment explains <em>why</em> the rule exists, not what the syntax already says. "Removes the
+  list margin" adds nothing; "the nav list is laid out by flexbox, so the default margin breaks the
+  alignment" teaches the next reader something.
+</p>
+
+<h3 id="invalid-declarations-are-dropped">Invalid declarations are dropped, not fatal</h3>
+<p>
+  If a value makes no sense — <code>color: 12px;</code> — the browser discards that one declaration and
+  continues. This is a feature: it is the mechanism behind progressive enhancement, where modern
+  declarations are layered after fallbacks (used deliberately in the <em>Modern CSS</em> lesson). But it
+  also means a typo never announces itself: the dev-tools Styles pane shows dropped declarations struck
+  through — check it when a style "does nothing".
+</p>
+
+<h2 id="where-styles-live">Where styles live</h2>
+
+<h3 id="three-locations-three-use-cases">Three locations, three use cases</h3>
 <table class="table table-bordered table-striped table-dark">
   <thead>
-    <tr>
-      <th>Style location</th>
-      <th>Use case</th>
-      <th>Recommendation</th>
-    </tr>
+    <tr><th>Location</th><th>How</th><th>Use case</th><th>Recommendation</th></tr>
   </thead>
   <tbody>
     <tr>
-      <td>Inline (<code>style="..."</code>)</td>
-      <td>One-off quick debugging</td>
-      <td>Avoid for production pages</td>
+      <td>External file</td>
+      <td><code>&lt;link rel="stylesheet" href="styles.css"&gt;</code></td>
+      <td>Real sites: styles cached once, reused on every page</td>
+      <td>Default choice</td>
     </tr>
     <tr>
-      <td>Internal (<code>&lt;style&gt;</code>)</td>
-      <td>Small isolated demos</td>
-      <td>Acceptable for prototypes</td>
+      <td>Internal <code>&lt;style&gt;</code></td>
+      <td>A <code>&lt;style&gt;</code> element in the <code>&lt;head&gt;</code></td>
+      <td>Single-file demos and first-load critical CSS</td>
+      <td>Fine for demos and small pages</td>
     </tr>
     <tr>
-      <td>External (<code>.css</code> file)</td>
-      <td>Real websites and reusable styles</td>
-      <td>Best practice</td>
+      <td>Inline <code>style</code> attribute</td>
+      <td><code>&lt;p style="color: red"&gt;</code></td>
+      <td>Debugging a computed value; some JS-driven positioning</td>
+      <td>Avoid in authored markup — it wins the cascade and cannot be overridden by class</td>
     </tr>
   </tbody>
 </table>
 
-<h2 id="selector-basics">Selector basics</h2>
+<h3 id="link-versus-import">link versus @import</h3>
+<p>
+  Both can pull a stylesheet into a page, but they behave differently. <code>&lt;link&gt;</code> is
+  discovered in parallel with the HTML download; <code>@import</code> is discovered only after the CSS
+  containing it has been fetched and parsed, serializing your requests. Prefer <code>link</code>.
+</p>
+<pre><code class="language-html">&lt;!-- Parallel discovery: preferred --&gt;
+&lt;link rel="stylesheet" href="/css/base.css"&gt;
+&lt;link rel="stylesheet" href="/css/components.css"&gt;</code></pre>
+<pre><code class="language-css">/* base.css — the second import waits for this file to download and parse first */
+@import url("components.css");   /* works, but serializes the waterfall */</code></pre>
 
-<pre><code class="language-css">/* Element selector */
-h1 { color: #22c55e; }
+<h2 id="at-rules">At-rules</h2>
 
-/* Class selector */
-.card-title { font-weight: 700; }
+<h3 id="conditional-at-rules">Conditional at-rules: @media and @supports</h3>
+<p>
+  At-rules (statements starting with <code>@</code>) instruct the browser rather than style an element.
+  The two you will meet first are <em>conditional</em> — their block applies only when the condition holds:
+</p>
+<pre><code class="language-css">/* Applies only when the viewport is at least 768px wide (Responsive Design lesson) */
+@media (min-width: 768px) {
+  .layout { grid-template-columns: 1fr 1fr; }
+}
 
-/* ID selector */
-#hero { padding: 2rem; }
+/* Applies only when the browser implements the feature (progressive enhancement) */
+@supports (display: grid) {
+  .gallery { display: grid; gap: 1rem; }
+}</code></pre>
 
-/* Group selector */
-h2, h3 { margin-top: 1.25rem; }</code></pre>
+<h3 id="defining-at-rules">Defining at-rules: @font-face, @keyframes, @layer</h3>
+<p>
+  Other at-rules <em>define</em> something for later use: <code>@font-face</code> registers a web font,
+  <code>@keyframes</code> defines an animation (the <em>Animations</em> lesson), and <code>@layer</code>
+  declares a cascade layer (the <em>Architecture</em> lesson). You only need to recognize the shape for
+  now: <code>@name</code> followed by a block or parameters.
+</p>
 
-<h2 id="cascade-and-specificity">Cascade and specificity</h2>
+<h2 id="error-recovery">Error recovery: what happens when CSS is wrong</h2>
 
-<p>The browser resolves style conflicts in this order:</p>
-<ol>
-  <li>Importance (<code>!important</code> beats normal declarations).</li>
-  <li>Specificity (ID selector beats class selector, class beats element).</li>
-  <li>Source order (later rule wins when specificity is equal).</li>
-</ol>
+<h3 id="bad-declaration-good-rule">A bad declaration kills only itself</h3>
+<pre><code class="language-css">.notice {
+  color: #f59e0b;
+  colr: #ef4444;   /* typo: unknown property, this line alone is dropped */
+  padding: 1rem;   /* still applied */
+}</code></pre>
 
-<pre><code class="language-css">.notice { color: #f59e0b; }
-#banner .notice { color: #38bdf8; } /* more specific, so it wins */</code></pre>
+<h3 id="bad-selector-dead-rule">A bad selector kills the whole rule</h3>
+<pre><code class="language-css">/* One bad selector in the list invalidates the ENTIRE rule -
+   the browser cannot know which part you meant to keep. */
+.notice, h2..typo {
+  color: #ef4444;   /* never applied, not even to .notice */
+}</code></pre>
+<p>
+  This is the most common surprise for beginners who build a comma-separated selector list with one
+  malformed entry. It is also why the <code>:is()</code> pseudo-class matters: a forgiving selector list
+  inside <code>:is()</code> only drops the invalid entry (covered in <em>Selectors</em>).
+</p>
 
-<h2 id="color-notation">Color notation</h2>
+<h3 id="why-this-matters-in-practice">Why this matters in practice</h3>
+<p>
+  Error recovery is why CSS never throws, and why "my style isn't applying" is always one of three
+  things: the selector doesn't match, the declaration was dropped, or another declaration won the
+  cascade. Check them in that order — dev tools shows all three in the Styles pane.
+</p>
 
-<p>Use whatever notation improves readability for your team:</p>
-<ul>
-  <li><code>#0ea5e9</code> (hex)</li>
-  <li><code>rgb(14 165 233)</code> (RGB)</li>
-  <li><code>hsl(199 89% 48%)</code> (HSL)</li>
-  <li><code>white</code>, <code>black</code> (named colors)</li>
-</ul>
+<h2 id="practice-first-stylesheet">Practice: write your first stylesheet</h2>
 
-<h2 id="quick-practice">Quick practice</h2>
-
-<p>Create one <code>styles.css</code> file and style this HTML with selectors:</p>
+<h3 id="the-task">The task</h3>
+<p>
+  Create a folder with two files, <code>index.html</code> and <code>styles.css</code>, link them, and
+  style this markup using only what this lesson covered — selectors plus declarations:
+</p>
 <pre><code class="language-html">&lt;article id="intro" class="card"&gt;
   &lt;h2 class="card-title"&gt;CSS Practice&lt;/h2&gt;
   &lt;p&gt;Write a clean first stylesheet.&lt;/p&gt;
+  &lt;p class="muted"&gt;Small text, comfortable spacing.&lt;/p&gt;
 &lt;/article&gt;</code></pre>
 
-<p>Target <code>#intro</code>, <code>.card-title</code>, and <code>p</code>. Add spacing, colors, and readable line-height.</p>
-
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>Target the article by its ID, the two paragraphs by type, and the small text by its class.</li>
+  <li>Give every declaration a trailing semicolon, even the last one.</li>
+  <li>Add one comment per rule that says <em>why</em> the rule exists.</li>
+  <li>Then deliberately break it: misspell a property and a selector, reload, and confirm the dev-tools
+      Styles pane shows exactly what this lesson predicted.</li>
+</ul>
 </main>
     </div>
   </div>
@@ -155,7 +252,7 @@ h2, h3 { margin-top: 1.25rem; }</code></pre>
     inlineContent: true
   };
 </script>
-<script src="/sage.js" defer></script>
+<script src="/assets/js/sage.js" defer></script>
 <script src="/assets/js/topic-loader.js" defer></script>
 
 </body>
