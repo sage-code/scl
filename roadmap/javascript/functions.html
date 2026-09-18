@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head><meta charset="utf-8"><meta name="description" content="JavaScript functions for beginners: declarations, arrows, parameters and returns, scope, closures, pure functions, and callbacks."><meta name="author" content="Elucian Moise"><meta name="keywords" content="javascript functions, arrow functions, closures, callbacks, pure functions, parameters"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>JavaScript Functions, Parameters and Closures</title><link rel="canonical" href="https://sagecode.org/roadmap/javascript/functions.html"><meta name="robots" content="index, follow"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"><link rel="icon" type="image/png" href="/images/favicon.ico"><link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js"></script><link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/sage-common.css">   <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css"></head><body><div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="functions-core">Functions, Parameters and Closures</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  A function is a named, reusable block of behaviour: defined once, run many times, with different
+  inputs. Functions are the unit of reuse and testing — and, through closures, the way JavaScript
+  remembers state between calls. This is the most important lesson in Phase 1.
+</div>
+
+<h2 id="why-functions-exist">Why functions exist</h2>
+
+<h3 id="name-a-behaviour-once-use-it-everywhere">Name a behaviour once, use it everywhere</h3>
+<pre><code class="language-javascript">// The behaviour: turn a raw name into a display name.
+function displayName(first, last) {
+  const clean = first.trim() + " " + last.trim();
+  return clean.toUpperCase();
+}
+
+console.log(displayName("  ada ", "lovelace ")); // ADA LOVELACE
+console.log(displayName("grace", "hopper"));     // GRACE HOPPER</code></pre>
+<p>
+  The anatomy: <code>function</code> starts the declaration; <code>displayName</code> is the name;
+  <code>(first, last)</code> are <strong>parameters</strong> — named placeholders for values that
+  arrive later; the body runs on each call; <code>return</code> hands the result back and
+  <em>stops the function immediately</em>.
+</p>
+
+<h3 id="the-words-parameter-and-argument">The words parameter and argument</h3>
+<p>
+  The <strong>parameter</strong> is the placeholder in the definition (<code>first</code>); the
+  <strong>argument</strong> is the actual value in the call (<code>"  ada "</code>). Mixing the
+  words is harmless; mixing the <em>order</em> is not — arguments arrive in order.
+</p>
+
+<h2 id="three-ways-to-write-one">Three ways to write one</h2>
+
+<h3 id="declaration-expression-arrow">Declaration, expression, arrow</h3>
+<pre><code class="language-javascript">// 1. Declaration — hoisted: callable even from lines above it.
+function add(a, b) { return a + b; }
+
+// 2. Function expression — a function stored like any value (NOT hoisted).
+const multiply = function (a, b) { return a * b; };
+
+// 3. Arrow — short; no braces means "return this automatically".
+const square = n => n * n;
+
+console.log(add(2, 3), multiply(2, 3), square(4)); // 5 6 16</code></pre>
+<p>
+  Style: declarations for named top-level operations; arrows for the small functions you hand to
+  <code>addEventListener</code>, <code>map</code> and friends. One arrow difference matters later:
+  an arrow's <code>this</code> is inherited, not set (lesson 12).
+</p>
+
+<h3 id="defaults-and-rest">Defaults and rest</h3>
+<pre><code class="language-javascript">function greet(name, greeting = "Hello") {
+  return `${greeting}, ${name}!`;
+}
+console.log(greet("Ada"));       // Hello, Ada! — the default kicked in
+console.log(greet("Ada", "Hi")); // Hi, Ada!
+
+function total(first, ...others) { // ...others gathers the rest into an array
+  return first + others.reduce((sum, n) => sum + n, 0);
+}
+console.log(total(1, 2, 3, 4));  // 10</code></pre>
+
+<h2 id="return-semantics">Return semantics</h2>
+
+<h3 id="return-stops-the-function">return stops the function — and undefined is the default</h3>
+<pre><code class="language-javascript">function firstEven(numbers) {
+  for (const n of numbers) {
+    if (n % 2 === 0) return n;  // exits HERE, with the value
+  }
+  return "none";                // only reached when nothing matched
+}
+
+function noReturn() {
+  const x = 1 + 1;              // computed, then dropped
+}
+console.log(noReturn());        // undefined — the lesson 01 mystery, solved</code></pre>
+<p>
+  Every function returns <em>something</em>: the value of its <code>return</code>, or
+  <code>undefined</code>. That is why the console echoed <code>undefined</code> after your first
+  <code>console.log</code> line — <code>console.log</code> itself returns nothing.
+</p>
+
+<h2 id="scope-inside-a-function">Scope inside a function</h2>
+
+<h3 id="locals-die-with-the-call">Locals die with the call</h3>
+<pre><code class="language-javascript">const rate = 1.2; // outer
+
+function convert(euro) {
+  const result = euro * rate; // result is LOCAL: invisible outside
+  return result;
+}
+console.log(result); // ReferenceError — locals vanish when the call ends</code></pre>
+<p>
+  Each call creates a fresh scope: locals are born on entry and gone on return — which is why two
+  calls never interfere, and the exact machinery that makes closures possible.
+</p>
+
+<h2 id="closures">Closures</h2>
+
+<h3 id="a-function-remembers-its-birthplace">A function remembers its birthplace</h3>
+<div class="text-center">
+  <img src="/roadmap/javascript/img/closure-capture.svg" alt="Diagram: makeCounter's scope holds count and the returned function; the function keeps a live reference to count, so calls return 1, 2, 3" class="img-fluid protect rounded shadow border">
+  <p>The returned function keeps its birth scope alive: count outlives the call that created it.</p>
+</div>
+<pre><code class="language-javascript">function makeCounter() {
+  let count = 0;              // private: no code outside can reach it
+  return function () {
+    count += 1;               // the inner function REMEMBERS count
+    return count;
+  };
+}
+
+const next = makeCounter();
+console.log(next(), next(), next()); // 1 2 3 — count survived between calls
+console.log(count);                  // ReferenceError — it stays private</code></pre>
+<p>
+  A function plus its captured scope is a <strong>closure</strong>. Each <code>makeCounter()</code>
+  call creates a fresh, independent <code>count</code> — the pattern behind private state
+  everywhere. Demo <code>foundations/14_closures.html</code> puts two independent counters on one
+  page.
+</p>
+
+<h2 id="pure-functions-and-side-effects">Pure functions and side effects</h2>
+
+<h3 id="the-testability-line">The testability line</h3>
+<pre><code class="language-javascript">// PURE: same input → same output; touches nothing outside itself.
+function fullName(first, last) {
+  return `${first} ${last}`;
+}
+
+// IMPURE: it changes the page — a side effect.
+function showScore(score) {
+  document.querySelector("#score").textContent = score;
+}</code></pre>
+<p>
+  Pure functions are trivial to test and reason about; side effects (DOM writes, network) are
+  unavoidable but belong at the <em>edges</em> of a program. The professional shape: pure logic
+  core, thin effect layer.
+</p>
+
+<h2 id="callbacks">Callbacks: functions as values</h2>
+
+<h3 id="run-this-later">"Run this later"</h3>
+<pre><code class="language-javascript">const button = document.querySelector("#save");
+
+button.addEventListener("click", () => {
+  console.log("clicked"); // stored by the browser, run on EVERY click
+});
+
+setTimeout(() => console.log("3 seconds passed"), 3000);</code></pre>
+<p>
+  A function passed to another function, to be run later, is a <strong>callback</strong>. You have
+  used them since lesson 02 without the name — and they are the doorway to asynchronous
+  JavaScript (Phase 4) and the reason functions-as-values matter so much.
+</p>
+
+<h2 id="practice-small-helpers">Practice: small helpers</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  Run <code>foundations/13_functions_lab.js</code> with <code>node</code>, predicting each line.
+  Then write <code>formatPrice(cents)</code> returning <code>"€12.50"</code> from
+  <code>1250</code> (pure!), and preview <code>foundations/14_closures.html</code> — explain in
+  one sentence why the two counters never interfere.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>You can name the three function forms and when each is the natural choice.</li>
+  <li>You can predict whether a call returns a value or <code>undefined</code>.</li>
+  <li>You can explain a closure as "a function plus its captured scope".</li>
+  <li>You can sort a function into pure vs impure — and say where the impure ones belong.</li>
+</ul>
+</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button><script>window.TOPIC_CONFIG={labId:'javascript',topicId:'functions',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script><script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script></body></html>

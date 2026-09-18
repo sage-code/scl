@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="How the CSS cascade resolves conflicts: origin and importance, cascade layers, specificity arithmetic, inheritance, and the legitimate use of !important.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="css cascade, specificity, inheritance, !important, css layers">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>CSS Cascade, Specificity and Inheritance</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/css/cascade.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="cascade-specificity-and-inheritance">Cascade, Specificity and Inheritance</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Many rules can target the same element and disagree. The cascade is the deterministic algorithm that
+  picks the winner; specificity and source order are only two of its inputs. Understanding the full order
+  turns "why is my style ignored?" from a mystery into a checklist.
+</div>
+
+<h2 id="why-conflicts-need-an-arbiter">Why conflicts need an arbiter</h2>
+
+<h3 id="three-sources-of-styles">Three sources of styles</h3>
+<p>
+  Every declaration comes from one of three <em>origins</em>: the browser's built-in defaults
+  (user-agent), the user's preferences (user stylesheets and accessibility settings such as a minimum font
+  size), and the author — you. All three can be loaded at once and all three can disagree. The cascade
+  exists so the result is never ambiguous.
+</p>
+
+<h3 id="the-cascade-in-one-sentence">The cascade in one sentence</h3>
+<p>
+  For each property on each element, the browser collects every candidate declaration and runs a fixed
+  sequence of tie-breakers; the first test that leaves a single candidate standing wins. Only when all
+  structural tests tie does <em>source order</em> decide — which is why the last rule in your file is the
+  one that wins.
+</p>
+
+<h2 id="the-cascade-order">The cascade order</h2>
+
+<h3 id="the-six-tie-breakers">The tie-breakers, in order</h3>
+<figure class="text-center">
+  <img src="/roadmap/css/img/cascade-origins.svg" width="440" class="img-fluid protect rounded shadow border" alt="Flowchart of the cascade tie-breakers from origin and importance down to source order">
+  <figcaption>The cascade resolves conflicts top to bottom: origin and importance first, then context, style attribute, cascade layers, specificity, and finally source order.</figcaption>
+</figure>
+<h3 id="origin-and-importance">Origin and importance, precisely</h3>
+<p>
+  Normal declarations: author beats user beats browser. <code>!important</code> <em>reverses</em> that:
+  browser-<code>!important</code> (a legal hook for accessibility modes like forced colors) beats
+  user-<code>!important</code> beats author-<code>!important</code> beats normal author styles. The lesson
+  is not "never use <code>!important</code>"; it is that importance is a ladder, and the rung you jump to
+  is hard to come back down from.
+</p>
+
+<h3 id="cascade-layers-change-the-game">Cascade layers change the game</h3>
+<p>
+  <code>@layer</code> lets you group rules and rank the groups explicitly. Unlayered styles beat layered
+  styles for normal declarations, so layers are the modern way to say "resets and vendor styles may
+  always be overridden":
+</p>
+<pre><code class="language-css">/* Declared order fixes the priority: reset < components < unlayered */
+@layer reset, components;
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+}
+
+@layer components {
+  .card { padding: 1rem; }
+}
+
+/* Unlayered: wins over BOTH layers above, regardless of specificity */
+.card { padding: 1.5rem; }</code></pre>
+
+<h2 id="specificity-arithmetic">Specificity arithmetic</h2>
+
+<h3 id="reading-id-class-type">Reading the weight as id–class–type</h3>
+<p>
+  A selector's weight is written as three numbers: <strong>IDs – classes/attributes/pseudo-classes –
+  types/pseudo-elements</strong>. Compare them position by position; a higher left number always wins,
+  and numbers never carry between positions (twelve type selectors still lose to one class).
+</p>
+<figure class="text-center">
+  <img src="/roadmap/css/img/specificity-ladder.svg" width="520" class="img-fluid protect rounded shadow border" alt="Ladder of specificity weights from universal selector to inline style">
+  <figcaption>Specificity as a ladder: <code>:where()</code> and the universal selector weigh nothing, types and classes climb, IDs and inline styles sit at the top.</figcaption>
+</figure>
+
+<table class="table table-bordered table-striped table-dark">
+  <thead>
+    <tr><th>Selector</th><th>Weight</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>* {}</code></td><td>0-0-0</td><td>Universal matches everything, weighs nothing</td></tr>
+    <tr><td><code>:where(.card) p {}</code></td><td>0-0-1</td><td><code>:where()</code> contributes zero</td></tr>
+    <tr><td><code>p {}</code></td><td>0-0-1</td><td>One type</td></tr>
+    <tr><td><code>.card p {}</code></td><td>0-1-1</td><td>One class, one type</td></tr>
+    <tr><td><code>.card:hover {}</code></td><td>0-2-0</td><td>Class + pseudo-class</td></tr>
+    <tr><td><code>#nav .card {}</code></td><td>1-1-0</td><td>ID dominates everything to its right</td></tr>
+  </tbody>
+</table>
+
+<h3 id="zero-specificity-by-design">Zero specificity by design</h3>
+<pre><code class="language-css">/* Defaults that must be trivially overridable belong in :where() */
+:where(.prose) p { margin-block: 1rem; }   /* weighs 0-0-1 total */
+
+/* A later rule with the SAME weight now wins purely by source order: */
+:where(.prose) p { margin-block: 0; }</code></pre>
+<h2 id="inheritance">Inheritance</h2>
+
+<h3 id="which-properties-inherit">Which properties inherit — and why that split makes sense</h3>
+<p>
+  Some properties flow down the tree automatically: <code>color</code>, <code>font-family</code>,
+  <code>font-size</code>, <code>line-height</code>, <code>letter-spacing</code>, <code>text-align</code>,
+  and the other typographic properties. Everything box-related — <code>margin</code>,
+  <code>padding</code>, <code>border</code>, <code>width</code>, <code>background</code> — does not. The
+  split is deliberate: children inheriting your font is what you want almost every time; children
+  inheriting your border would be chaos.
+</p>
+<pre><code class="language-css">/* Set typography ONCE, at the top of the tree */
+body {
+  font-family: system-ui, sans-serif;
+  line-height: 1.6;
+  color: #e2e8f0;
+}
+/* Every descendant now has it - no "reset every element" rules needed */</code></pre>
+
+<h3 id="controlling-inheritance-explicitly">Controlling inheritance explicitly</h3>
+<table class="table table-bordered table-striped table-dark">
+  <thead>
+    <tr><th>Keyword</th><th>Resolves the value to</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>inherit</code></td><td>The parent's computed value — even for non-inherited properties</td></tr>
+    <tr><td><code>initial</code></td><td>The property's spec default</td></tr>
+    <tr><td><code>unset</code></td><td><code>inherit</code> if the property inherits, <code>initial</code> otherwise</td></tr>
+    <tr><td><code>revert</code></td><td>What the value would be with none of YOUR styles — the browser default</td></tr>
+  </tbody>
+</table>
+<pre><code class="language-css">/* The all: shorthand applies a keyword to EVERY property at once */
+.overlay * {
+  all: unset;   /* strip the component's inherited baggage before restyling */
+}</code></pre>
+
+<h2 id="important-in-practice">!important in practice</h2>
+
+<h3 id="when-it-is-legitimate">When it is legitimate</h3>
+<ul>
+  <li><strong>Utility classes</strong> meant to always win: <code>.visually-hidden</code>,
+      <code>.text-center</code>.</li>
+  <li><strong>Overriding inline styles</strong> you do not control (third-party widgets).</li>
+  <li><strong>Accessibility overrides</strong>: respecting <code>prefers-reduced-motion</code> even
+      against careless animation rules.</li>
+</ul>
+<pre><code class="language-css">/* Utility: the whole point is that it beats context */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}</code></pre>
+
+<h3 id="how-to-escape-an-important-war">How to escape an !important war</h3>
+<p>
+  When a codebase needs <code>!important</code> to fight itself, the fix is structural, not more
+  importance: move the competing styles into cascade layers and rank the layers, or drop the over-specific
+  selector. Adding <code>!important</code> to a second rule only moves the arms race one rung up.
+</p>
+
+<h2 id="practice-debug-the-conflict">Practice: debug the conflict</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  Open <code>demo/foundations/04_cascade_order.html</code> and
+  <code>demo/foundations/05_specificity_ladder.html</code> from the
+  <a href="/roadmap/css/demo_examples.html">Lab Examples</a>. Each renders one element under several
+  competing rules. Predict the winner and the reason (which tie-breaker decided), then verify in the
+  Styles pane — dev tools lists every candidate with the loser struck through.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>Explain, without looking, why a later <code>p</code> rule beats an earlier <code>.card p</code> rule
+      only when the layers or weights allow it.</li>
+  <li>Recreate the layer example and confirm the unlayered rule wins despite lower specificity.</li>
+  <li>Find one <code>!important</code> in a stylesheet you wrote and decide honestly which of the three
+      legitimate cases it falls under.</li>
+</ul>
+</main>
+    </div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'css',
+    topicId: 'cascade',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

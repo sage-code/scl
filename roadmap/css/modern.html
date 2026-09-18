@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Modern CSS: nesting, container queries, :has(), logical properties, color functions, and shipping features safely with @supports and fallbacks.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>Modern CSS</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/css/modern.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="modern-css">Modern CSS</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  The last few years added capabilities that used to require JavaScript or preprocessor build steps:
+  nesting, container queries, parent selection with <code>:has()</code>, typed custom properties, and
+  perceptual color. This lesson tours them — with the shipping discipline that keeps modern features from
+  breaking older browsers.
+</div>
+
+<h2 id="nesting">Native nesting</h2>
+
+<h3 id="nest-rules-without-a-preprocessor">Nest rules without a preprocessor</h3>
+<pre><code class="language-css">/* Native nesting: supported in every evergreen browser.
+   The nested selector needs &amp; (unlike Sass, implicit &amp; is NOT assumed). */
+.card {
+  padding: 1rem;
+
+  & > .card__title {          /* explicit child reference */
+    font-weight: 600;
+  }
+
+  &:hover {                   /* state variants live with the component */
+    border-color: var(--color-action);
+  }
+
+  @media (min-width: 48em) {  /* media queries nest too */
+    padding: 2rem;
+  }
+}</code></pre>
+<p>
+  Nesting trades grep-ability for locality: everything about a component sits in one block. Whether that
+  trade is worth it depends on the codebase — teams using nesting usually pair it with a naming
+  convention (see <em>Architecture</em>) so styles remain findable.
+</p>
+
+<h2 id="container-queries">Container queries</h2>
+
+<h3 id="components-that-respond-to-their-own-size">Components that respond to their own size</h3>
+<figure class="text-center">
+  <img src="/roadmap/css/img/container-vs-media.svg" width="560" class="img-fluid protect rounded shadow border" alt="Comparison of media queries measuring the viewport and container queries measuring a component box">
+  <figcaption>Media queries measure the viewport; container queries measure the element's container. The same card can now reflow itself depending on the slot it lands in.</figcaption>
+</figure>
+
+<pre><code class="language-css">/* 1. Opt IN on the ancestor: this element becomes queryable */
+.card-slot { container-type: inline-size; }
+
+/* 2. Query it: the card reflows by its own measured width */
+.card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@container (min-width: 24rem) {
+  .card {
+    grid-template-columns: 6rem 1fr;  /* wide slot: media object layout */
+  }
+}</code></pre>
+<p>
+  This is the change that retires most "card layout" media queries: a component in a narrow sidebar and
+  the same component in a wide main column now style themselves correctly, regardless of viewport.
+</p>
+<h2 id="has-and-the-new-selectors">:has() and the new selectors</h2>
+
+<h3 id="styling-the-parent-at-last">Styling the parent at last</h3>
+<pre><code class="language-css">/* :has() selects an element BY ITS CONTENTS - the "parent selector" */
+.card:has(img) { padding: 0; }                 /* only cards with an image */
+.form-field:has(input:invalid) label { color: #ef4444; }
+.grid:has(.featured) { grid-template-columns: 1fr 1fr; }  /* container reacts */
+
+/* Quantity queries: style depending on HOW MANY siblings exist */
+ul li:nth-last-child(n + 5):first-child { font-size: 0.875rem; }
+/* "a first child with at least 4 more siblings after it" -> tighten spacing */</code></pre>
+<p>
+  <code>:has()</code> moves decisions from JavaScript to the stylesheet — but it also couples a rule to
+  markup you cannot see from the rule's location. Comment the markup contract when you use it.
+</p>
+
+<h2 id="more-capabilities-worth-knowing">More capabilities worth knowing</h2>
+
+<h3 id="logical-properties-and-color">Logical properties and perceptual color</h3>
+<pre><code class="language-css">/* Writing-mode aware spacing (Box Model lesson) */
+.card { padding-inline: 1rem; margin-block-start: 1.5rem; }
+
+/* Perceptual color spaces and relative color syntax */
+.brand { color: oklch(0.62 0.19 260); }
+.brand-dark { color: oklch(from oklch(0.62 0.19 260) calc(l - 0.1) c h); }</code></pre>
+
+<h3 id="typed-variables-and-anchor-positioning">Typed variables, view transitions, and anchors</h3>
+<pre><code class="language-css">/* @property: give a custom property a type so it can transition (Variables lesson) */
+@property --panel-x { syntax: "&lt;length&gt;"; inherits: false; initial-value: 0px; }
+
+/* scroll-driven animations: progress driven by scroll position, no JavaScript */
+@keyframes reveal { from { opacity: 0; } to { opacity: 1; } }
+.reveal { animation: reveal linear both; animation-timeline: view(); }</code></pre>
+<p>
+  Verify support before relying on any of these: the <code>cssdb</code> database (linked from
+  <a href="/roadmap/css/references.html">References</a>) tracks each feature's standardization stage and
+  browser support.
+</p>
+
+<h2 id="shipping-modern-css-safely">Shipping modern CSS safely</h2>
+
+<h3 id="the-fallback-first-pattern">The fallback-first pattern</h3>
+<pre><code class="language-css">/* Declare the fallback FIRST, the modern value after.
+   Invalid-at-parse-time values are dropped (Syntax lesson), so old
+   browsers keep the first, new browsers the second. */
+.gallery {
+  display: flex;           /* fallback: usable everywhere */
+  flex-wrap: wrap;
+  display: grid;           /* modern: better alignment when supported */
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+/* @supports gates behavior that cannot degrade gracefully */
+@supports not (container-type: inline-size) {
+  /* JS-free alternatives or wider defaults for old browsers */
+}</code></pre>
+
+<h3 id="the-support-matrix-is-a-product-decision">The support matrix is a product decision</h3>
+<p>
+  "Modern" is not "experimental": nesting, <code>:has()</code>, container queries, and OKLCH are shipped
+  across evergreen browsers; anchor positioning is not. Check <code>caniuse.com</code> per feature,
+  decide your baseline, and record it — the feature list is the easy part.
+</p>
+
+<h2 id="practice-modernize-a-component">Practice: modernize a component</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  Take the card component from the <em>Flexbox</em> practice and rebuild it with modern primitives, then
+  compare the two stylesheets line by line.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>Convert a card's media queries to container queries and verify it in a narrow sidebar.</li>
+  <li>Replace one JavaScript-free "parent gets a class" pattern with <code>:has()</code>.</li>
+  <li>Nest one component's styles and confirm the dev-tools Styles pane shows the resolved selectors.</li>
+  <li>Add fallbacks for every modern declaration you used and test with <code>@supports not</code>.</li>
+</ul>
+</main>
+    </div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'css',
+    topicId: 'modern',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

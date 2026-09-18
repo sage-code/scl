@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="How JavaScript is integrated in HTML: the script element, defer vs async vs module, wiring code to the page with querySelector and events, and local servers.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="javascript in html, script tag, defer, async, module, queryselector, addeventlistener">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>JavaScript in HTML: How the Script Is Wired to the Page</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/javascript/html-and-js.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="javascript-in-html-how-the-script-is-wired-to-the-page">JavaScript in HTML: How the Script Is Wired to the Page</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Lesson 01 got JavaScript running in the console and from a file. This lesson connects the two
+  worlds: how a <code>&lt;script&gt;</code> element embeds or loads your code inside an HTML page,
+  when the browser runs it, and how that code reaches into the page and changes it. After this
+  lesson you can build and run a small interactive page — the setup for every lesson that follows.
+</div>
+
+<h2 id="a-page-is-three-cooperating-files">A page is three cooperating files</h2>
+
+<h3 id="html-css-and-javascript">HTML, CSS and JavaScript, in one loading step</h3>
+<p>
+  A web page is not one file but a small system. The HTML file is the entry point: the browser
+  reads it top to bottom, builds the <strong>DOM</strong> (the page as a tree of objects), loads
+  the stylesheets and scripts it references, and renders. CSS files describe appearance. JavaScript
+  files contain the behaviour — and the <em>only</em> connection between a page and its behaviour
+  is the <code>&lt;script&gt;</code> element.
+</p>
+<div class="text-center">
+  <img src="/roadmap/javascript/img/html-js-integration.svg" alt="Diagram: an index.html file contains an h1 hook and a script tag that loads app.js; the browser engine runs it top to bottom, and it updates the page or writes to the console" class="img-fluid protect rounded shadow border">
+  <p>The HTML declares <em>what exists</em> (including a hook: <code>id="greeting"</code>); the script the browser loads reads and changes it.</p>
+</div>
+
+<h3 id="the-contract-declare-then-react">The contract: declare, then react</h3>
+<p>
+  Keep this contract in mind for the whole track: <strong>HTML declares what exists; JavaScript
+  reacts and updates.</strong> Code that quietly expects an element to exist is the source of the
+  most common beginner error — you will meet it below, on purpose.
+</p>
+
+<h2 id="the-script-element">The <code>&lt;script&gt;</code> element</h2>
+
+<h3 id="a-minimal-document-with-a-script">A minimal document with a script</h3>
+<p>
+  This is a complete, working HTML page with JavaScript in it. Save it as
+  <code>first.html</code>, open it in your browser, and open the console:
+</p>
+<pre><code class="language-html">&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8"&gt;
+  &lt;title&gt;My first scripted page&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1 id="title"&gt;Hello&lt;/h1&gt;
+
+  &lt;script&gt;
+    // From this line on, the content is JavaScript, not HTML.
+    console.log("The page says hi");
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+<p><strong>You should see</strong> in the console: <code>The page says hi</code>, and the page
+shows a big "Hello" heading — which the script did <em>not</em> draw; the HTML did.</p>
+<p>
+  <strong>If you get this instead:</strong> nothing in the console — check that the tag is spelled
+  <code>&lt;script&gt;</code> (not <code>&lt;scripts&gt;</code>) and that you saved the file before
+  opening or reloading it.
+</p>
+
+<h3 id="inline-or-external-file">Inline or external file?</h3>
+<p>
+  JavaScript can live <em>inside</em> the HTML (above) or in its own file loaded with
+  <code>src</code>. Both run identically; the difference is organization:
+</p>
+<pre><code class="language-html">&lt;!-- inline: fine for a tiny, page-specific snippet --&gt;
+&lt;script&gt;
+  console.log("inline");
+&lt;/script&gt;
+
+&lt;!-- external: the normal choice for anything real --&gt;
+&lt;script src="app.js"&gt;&lt;/script&gt;</code></pre>
+<p>
+  External files win for three reasons: the same code can serve many pages; the browser caches
+  the file and stops re-downloading it; and HTML stays readable. The one rule that trips beginners
+  is the <strong>path</strong> in <code>src</code>: <code>src="app.js"</code> means
+  <em>same folder as the HTML file</em>; <code>src="js/app.js"</code> means a subfolder named
+  <code>js</code>; <code>src="/app.js"</code> means <em>from the root of the site</em> — that one
+  silently fails when you open the file from disk instead of a server.
+</p>
+
+<h2 id="placement-and-loading-order">Placement and loading order</h2>
+
+<h3 id="the-classic-beginner-error">The classic beginner error</h3>
+<p>
+  The browser runs a script the moment it reaches it, while still reading the HTML. So this page
+  fails:
+</p>
+<pre><code class="language-html">&lt;head&gt;
+  &lt;script&gt;
+    // The browser has not built the body yet — there is no #title!
+    const title = document.querySelector("#title"); // null
+    title.textContent = "Hello";                    // TypeError!
+  &lt;/script&gt;
+&lt;/head&gt;</code></pre>
+<p><strong>You should see</strong> in the console:</p>
+<pre><code class="language-text">Uncaught TypeError: Cannot set properties of null (setting 'textContent')</code></pre>
+<p>
+  Read it with the habit from lesson 01: the value was <code>null</code> ("nothing"), and you
+  cannot set a property on nothing. The cause is <em>timing</em>, not spelling: the script ran
+  before the element existed. There are three fixes, and one of them is the everyday default.
+</p>
+
+<h3 id="defer-async-module">defer, async, module — what the timeline means</h3>
+<div class="text-center">
+  <img src="/roadmap/javascript/img/script-loading-timeline.svg" alt="Timeline diagram: a plain script in the head blocks HTML parsing during download and execution; defer downloads in parallel and runs after parsing; async runs as soon as it downloads" class="img-fluid protect rounded shadow border">
+  <p>A plain script pauses the whole page while it downloads and runs. <code>defer</code> downloads in parallel and runs after parsing; <code>async</code> runs whenever it is ready, in unpredictable order.</p>
+</div>
+<table class="table table-bordered table-dark">
+  <thead><tr><th>How you load it</th><th>When it runs</th><th>Use it when</th></tr></thead>
+  <tbody>
+    <tr><td>plain <code>&lt;script&gt;</code></td><td>immediately, blocking the parser</td><td>almost never, in the head</td></tr>
+    <tr><td><code>&lt;script src defer&gt;</code></td><td>after HTML is parsed, in order</td><td><strong>default choice</strong> for app code</td></tr>
+    <tr><td><code>&lt;script src async&gt;</code></td><td>as soon as downloaded, any order</td><td>independent widgets, analytics</td></tr>
+    <tr><td><code>&lt;script type="module"&gt;</code></td><td>like <code>defer</code>, plus imports</td><td>multi-file apps (lesson 13)</td></tr>
+  </tbody>
+</table>
+<p>
+  Demo <code>foundations/06_defer_vs_async.html</code> demonstrates the difference live — predict
+  the console order before you preview it.
+</p>
+
+<h2 id="connecting-code-to-the-page">Connecting code to the page</h2>
+
+<h3 id="selecting-an-element">Selecting an element</h3>
+<p>
+  <code>document</code> is the live page, provided by the browser. Its most used method,
+  <code>querySelector</code>, takes any CSS selector and returns the <em>first</em> matching
+  element — or <code>null</code> if there is none:
+</p>
+<pre><code class="language-javascript">const title = document.querySelector("#title");   // by id — the usual case
+const warning = document.querySelector(".warning"); // by class
+const firstList = document.querySelector("ul");     // by tag</code></pre>
+<p>
+  <strong>If you get <code>null</code>:</strong> the selector matched nothing. Check spelling
+  (<code>#titel</code> finds nothing quietly) and check timing — the section above.
+</p>
+
+<h3 id="reading-and-writing-content">Reading and writing content</h3>
+<pre><code class="language-javascript">const title = document.querySelector("#title");
+
+title.textContent = "Hello, JavaScript"; // write: replace the text, safely
+console.log(title.textContent);          // read: what does it say now?</code></pre>
+<p>
+  <code>textContent</code> treats everything as plain text — it is the safe default. Its cousin
+  <code>innerHTML</code> parses the string as HTML, which is powerful for your own markup and
+  dangerous with anything a user typed (it is how sites get hacked; stay on
+  <code>textContent</code> until lesson 14).
+</p>
+
+<h3 id="reacting-to-the-user">Reacting to the user</h3>
+<p>
+  The page should respond <em>when something happens</em>. You hand the browser a function and
+  the event that triggers it:
+</p>
+<pre><code class="language-javascript">const button = document.querySelector("#save");
+
+// "when a click happens on this button, run this function"
+button.addEventListener("click", function () {
+  console.log("The button was clicked!");
+});</code></pre>
+<p>
+  Nothing runs as you write this line — the function is stored and runs <em>later</em>, once per
+  click. This "run it later" pattern is why functions exist, and lesson 08 makes them solid.
+</p>
+
+<h3 id="a-complete-example-a-click-counter">A complete example: a click counter</h3>
+<pre><code class="language-html">&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;&lt;meta charset="utf-8"&gt;&lt;title&gt;Counter&lt;/title&gt;&lt;/head&gt;
+&lt;body&gt;
+  &lt;button id="increment"&gt;Clicked 0 times&lt;/button&gt;
+  &lt;p id="milestone"&gt;Click the button.&lt;/p&gt;
+
+  &lt;script&gt;
+    let count = 0; // state: remembers the count between clicks
+
+    const button = document.querySelector("#increment");
+
+    button.addEventListener("click", function () {
+      count = count + 1;
+      button.textContent = "Clicked " + count + " times";
+
+      if (count === 10) {
+        document.querySelector("#milestone").textContent = "Ten!";
+      }
+    });
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+<p>
+  <strong>You should see:</strong> the button label climbing with every click, and the paragraph
+  changing at ten. Read it again and name each part: state (<code>count</code>), wiring
+  (<code>addEventListener</code>), updating the page (<code>textContent</code>), and one condition.
+  Demo <code>foundations/08_click_counter.html</code> is this exact file, with more comments.
+</p>
+
+<h2 id="where-the-output-goes">Where the output goes</h2>
+
+<h3 id="the-page-is-the-product-the-console-is-diagnostics">The page is the product; the console is diagnostics</h3>
+<p>
+  You now have two output channels, and choosing between them is a real skill:
+  changes the user should see go to the <strong>page</strong> (<code>textContent</code> and
+  friends); observations for you, the developer, go to the <strong>console</strong>. The console
+  family is worth knowing early:
+</p>
+<pre><code class="language-javascript">console.log("normal progress notes");
+console.warn("something looks off, but it still works");
+console.error("something failed");
+console.table(["a", "b", "c"]); // arrays and objects, as a sortable table</code></pre>
+
+<h3 id="when-nothing-seems-to-happen">When nothing seems to happen</h3>
+<p>
+  The three checks, in order: (1) is the console open at all? (2) is there a red error — read its
+  line number; (3) did your file load — add a <code>console.log("loaded")</code> as the first line
+  of the file, and if it never appears, the <code>src</code> path is wrong. Ninety percent of
+  "my JavaScript does not work" is one of these three.
+</p>
+
+<h2 id="when-file-is-not-enough">When <code>file://</code> is not enough</h2>
+
+<h3 id="why-the-browser-refuses-file">Why the browser refuses <code>file://</code></h3>
+<p>
+  Opening an HTML file from disk gives it the address scheme <code>file://</code>. Plain scripts
+  work fine that way, but two features refuse it for security reasons: <code>type="module"</code>
+  scripts and <code>fetch</code> (network requests). The console tells you unmistakably — you will
+  see a <em>CORS</em> or <em>Access to script … has been blocked</em> error.
+</p>
+
+<h3 id="run-a-local-server">Run a local server</h3>
+<p>
+  The fix is a tiny local web server, which serves your folder over <code>http://localhost</code>:
+</p>
+<pre><code class="language-shell">python -m http.server 8000   # then open http://localhost:8000/first.html</code></pre>
+<p>
+  In VS Code, the free <em>Live Server</em> extension does the same with a click and reloads the
+  page when you save. From here on, the track's module demos expect a local server; everything
+  else previews straight from disk.
+</p>
+
+<h2 id="practice-wire-a-page">Practice: wire a page</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  From the <a href="/roadmap/javascript/demo_examples.html">Lab Examples</a> page, preview
+  <code>foundations/04_script_inline.html</code>, <code>foundations/05_script_external.html</code>,
+  and <code>foundations/08_click_counter.html</code>; then predict the console order of
+  <code>foundations/06_defer_vs_async.html</code> before previewing it. Finally, rebuild the
+  counter from an empty file without looking at the demo.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>You can explain why the head-script example reads <code>null</code> — and name two fixes.</li>
+  <li>You know which loading attribute is the everyday default (<code>defer</code>) and why.</li>
+  <li>You can select an element, change its text, and react to a click, from memory.</li>
+  <li>You know when <code>file://</code> stops working and how to run a local server.</li>
+  <li>You rebuilt the counter from scratch and it worked — or you debugged it with the
+      three checks above.</li>
+</ul>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'javascript',
+    topicId: 'html-and-js',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

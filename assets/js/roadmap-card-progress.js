@@ -73,6 +73,7 @@
     }
 
     var map = {
+      javascript: { courseIds: ["csp-javascript-main", "javascript", "script"], labIds: ["javascript", "script"] },
       cse: { courseIds: ["cse-main", "cse"], labIds: ["engineering", "cse"] },
       go: { courseIds: ["go", "go-main"], labIds: ["go"] },
       html: { courseIds: ["csp-html-main", "html-main", "html"], labIds: ["html"] },

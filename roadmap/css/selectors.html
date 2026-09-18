@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="CSS selectors from first principles: simple selectors, combinators, pseudo-classes, and pseudo-elements, with specificity in mind.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="css selectors, combinators, pseudo-class, pseudo-element, attribute selector">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>CSS Selectors and Combinators</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/css/selectors.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="selectors-and-combinators">Selectors and Combinators</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  A selector is a pattern the browser matches against the DOM. Everything else in CSS — the cascade,
+  inheritance, custom properties — only matters <em>after</em> the right elements are selected. This lesson
+  builds the full selector vocabulary from simple to structural.
+</div>
+
+<h2 id="the-selector-family">The selector family</h2>
+
+<h3 id="three-kinds-of-patterns">Three kinds of patterns</h3>
+<p>
+  Selectors come in three shapes that compose freely. <strong>Simple selectors</strong> match one
+  characteristic of an element (its type, class, ID, attribute, or state). <strong>Combinators</strong>
+  describe relationships between elements (descendant, child, sibling). <strong>Pseudo-classes and
+  pseudo-elements</strong> match states and generated boxes that have no node in the markup. A real-world
+  selector chains all three: <code>nav.menu &gt; li:hover::after</code>.
+</p>
+
+<h3 id="why-selector-choice-is-architecture">Why selector choice is an architecture decision</h3>
+<p>
+  Choosing <code>#submit-btn</code> versus <code>.btn-primary</code> is not a style preference. IDs make
+  rules nearly impossible to override later (highest specificity); classes compose and re-use; element
+  selectors style patterns globally. Teams converge on class-based selectors precisely because they keep
+  specificity predictable — a theme explored fully in the <em>Architecture</em> lesson.
+</p>
+
+<h2 id="simple-selectors">Simple selectors</h2>
+
+<h3 id="type-class-and-id">Type, class, and ID</h3>
+<pre><code class="language-css">/* Type: every element of that kind - specificity 0-0-1 */
+p { line-height: 1.6; }
+
+/* Class: every element carrying the class - 0-1-0.
+   The workhorse: reusable, composable, overridable. */
+.card { border-radius: 8px; }
+
+/* ID: exactly one element - 1-0-0.
+   Valid but rarely desirable: hard to override, cannot repeat. */
+#site-nav { border-bottom: 1px solid #334155; }
+
+/* Compound: element AND class together - 0-1-1.
+   No space between the parts: both must match the same element. */
+p.lead { font-size: 1.125rem; }</code></pre>
+
+<h3 id="universal-and-attribute">Universal and attribute selectors</h3>
+<pre><code class="language-css">/* Universal: everything - 0-0-0. Most useful in the box-sizing reset. */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Attribute presence and exact value - 0-1-0 */
+[data-loading] { opacity: 0.6; }              /* has the attribute at all */
+input[type="email"] { font-family: inherit; } /* exact attribute value */
+
+/* Substring matches - use sparingly, they couple CSS to naming conventions */
+a[href^="https://"]::after { content: " ↗"; } /* starts with */
+a[href$=".pdf"]::after { content: " (PDF)"; } /* ends with */</code></pre>
+<p>
+  Attribute selectors shine for <em>state stored in markup</em>: <code>[aria-expanded="true"]</code>,
+  <code>[data-theme="dark"]</code>, <code>[disabled]</code>. They let the HTML carry state and the CSS
+  react to it — no class toggling required.
+</p>
+<h2 id="combinators">Combinators</h2>
+
+<h3 id="the-four-relationships">The four relationships</h3>
+<table class="table table-bordered table-striped table-dark">
+  <thead>
+    <tr><th>Combinator</th><th>Reads as</th><th>Matches</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>A B</code> (space)</td><td>B inside A</td><td>Any descendant, at any depth</td></tr>
+    <tr><td><code>A &gt; B</code></td><td>B child of A</td><td>Direct children only</td></tr>
+    <tr><td><code>A + B</code></td><td>B after A</td><td>The immediately following sibling</td></tr>
+    <tr><td><code>A ~ B</code></td><td>B after A</td><td>Every following sibling</td></tr>
+  </tbody>
+</table>
+
+<pre><code class="language-css">/* Descendant: any a inside .nav, however deeply nested.
+   Convenient but fragile - an added wrapper changes what it matches. */
+.nav a { color: #38bdf8; }
+
+/* Child: only direct children. Survives wrapper changes. */
+.nav > li { padding: 0.25rem 0.5rem; }
+
+/* Adjacent sibling: the classic "first paragraph after a heading" pattern.
+   Note it styles the SECOND element, not the first. */
+h2 + p { font-size: 1.125rem; }
+
+/* General sibling: every label after the first in a fieldset. */
+fieldset label ~ label { margin-top: 0.5rem; }</code></pre>
+
+<figure class="text-center">
+  <img src="/roadmap/css/img/selector-anatomy.svg" width="560" class="img-fluid protect rounded shadow border" alt="Anatomy of a selector chain annotated part by part">
+  <figcaption>A compound selector chain: type and class parts add specificity, combinators describe relationships, pseudo-classes match states and pseudo-elements match generated boxes.</figcaption>
+</figure>
+
+<h3 id="combinator-specificity">Combinators add, they do not multiply</h3>
+<p>
+  Each simple selector in the chain contributes its own weight, so <code>.nav &gt; li a</code> is
+  0-1-2. Long chains are a smell: they usually mean you are reaching across the DOM for styling instead
+  of marking the element with a class. Keep chains to two or three parts.
+</p>
+
+<h2 id="pseudo-classes">Pseudo-classes</h2>
+
+<h3 id="structural-pseudo-classes">Structural: :first-child, :nth-child(), :not()</h3>
+<pre><code class="language-css">/* Structural selectors read the DOM shape, not classes or attributes */
+li:first-child { border-top: none; }        /* first in its parent */
+li:nth-child(odd) { background: #1e293b; }  /* zebra striping without classes */
+li:nth-child(3n + 1) { clear: both; }       /* an arithmetic pattern: 1, 4, 7... */
+li:last-child { border-bottom: none; }
+
+/* :not() inverts - but its argument still adds specificity */
+li:not(:last-child) { border-bottom: 1px solid #334155; }</code></pre>
+<p>
+  <code>:nth-child()</code> counts among <em>all</em> siblings; <code>:nth-of-type()</code> counts among
+  siblings of the same element type. When a list mixes element types, that difference matters.
+</p>
+
+<h3 id="state-pseudo-classes">State: :hover, :focus-visible, :checked, :disabled</h3>
+<pre><code class="language-css">/* Interactive states. :focus-visible fires for KEYBOARD focus,
+   unlike :focus which also fires on pointer click - the accessible choice. */
+.button { background: #2563eb; }
+.button:hover { background: #1d4ed8; }
+.button:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;   /* never delete the focus indicator without a replacement */
+}
+.button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Form state lives in the element - the CSS only reacts to it */
+input:invalid { border-color: #ef4444; }
+input:checked + .price { font-weight: 700; }  /* sibling combinator + state */
+</code></pre>
+
+<h3 id="logical-pseudo-classes">Logical: :is(), :where(), and forgiving lists</h3>
+<pre><code class="language-css">/* :is() shortens long lists - and takes the specificity of its MOST
+   specific argument (here 0-1-0 because of section). */
+:is(section, article, aside) h2 { margin-top: 2rem; }
+
+/* :where() is identical but contributes ZERO specificity.
+   Ideal for base/default layers you want anything to override. */
+:where(figure) img { max-width: 100%; }
+
+/* Forgiving selector list: an invalid entry inside :is() is skipped,
+   while the same typo in a plain list would kill the entire rule. */
+:is(.menu, .menu..typo) a { text-decoration: none; }</code></pre>
+<h2 id="pseudo-elements">Pseudo-elements</h2>
+
+<h3 id="generated-content-with-before-and-after">Generated boxes with ::before and ::after</h3>
+<pre><code class="language-css">/* ::before / ::after insert a generated child box.
+   content is REQUIRED, even when empty. */
+.badge::after {
+  content: "new";
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.625rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  margin-inline-start: 0.375rem;
+}
+
+/* The empty-content idiom: a purely decorative box, styled entirely in CSS. */
+.quote::before {
+  content: "";
+  display: block;
+  width: 2rem;
+  border-top: 2px solid #38bdf8;
+  margin-bottom: 0.5rem;
+}</code></pre>
+
+<h3 id="the-lesser-known-pseudo-elements">::marker, ::selection, ::placeholder</h3>
+<pre><code class="language-css">/* ::marker styles list bullets/numbers (limited properties apply) */
+li::marker { color: #38bdf8; }
+
+/* ::selection styles the text the user highlights */
+::selection { background: #1d4ed8; color: #fff; }
+
+/* ::placeholder styles input hint text - keep it readable, never below
+   WCAG contrast for the text it replaces */
+input::placeholder { color: #64748b; }</code></pre>
+<p>
+  Pseudo-elements are real boxes: they take part in layout, can be positioned, and are often the cheapest
+  way to add decoration without adding markup. They are also invisible to accessibility tools — never put
+  meaningful text in one.
+</p>
+
+<h2 id="practice-selector-workout">Practice: selector workout</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  Open <code>demo/foundations/02_selector_lab.html</code> and
+  <code>demo/foundations/03_combinators.html</code> from the
+  <a href="/roadmap/css/demo_examples.html">Lab Examples</a> page. For each rendered element, predict
+  which rule styled it <em>before</em> opening the dev-tools inspector, then verify.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>Write one rule for "every other row of a table" without adding classes to the markup.</li>
+  <li>Style only the <em>direct</em> labels of a fieldset, however deeply the markup nests later.</li>
+  <li>Add a focus style that appears for keyboard users only, using <code>:focus-visible</code>.</li>
+  <li>Replace a three-rule font-size override with a single <code>:where()</code> rule and confirm any
+      later rule now wins regardless of order.</li>
+</ul>
+</main>
+    </div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'css',
+    topicId: 'selectors',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

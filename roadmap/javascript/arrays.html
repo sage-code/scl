@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="JavaScript arrays for beginners: mutating versus non-mutating methods, map/filter/reduce pipelines, the sort trap, sparse arrays, and iteration forms.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="javascript arrays, map filter reduce, sort trap, sparse array, tosorted">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>Arrays, Iteration and Transformation</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/javascript/arrays.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="arrays-iteration-and-transformation">Arrays, Iteration and Transformation</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Arrays are the workhorse data structure of JavaScript. The skill is knowing which methods
+  mutate and which copy, how to build transformation pipelines, and where the traps hide
+  (<code>sort</code>, sparse arrays, spread on big data).
+</div>
+
+<h2 id="arrays-are-ordered-lists">Arrays are ordered lists</h2>
+
+<h3 id="literals-indexes-and-length">Literals, indexes and length</h3>
+<p>
+  An <strong>array</strong> is an ordered collection — the workhorse data structure of JavaScript.
+  Positions start at 0; <code>length</code> is always one more than the last index:
+</p>
+<pre><code class="language-javascript">const colors = ["red", "green", "blue"];
+console.log(colors[0], colors.length);  // red 3
+colors.push("yellow");                  // add at the end -> 4 items
+colors.pop();                           // remove from the end
+colors.unshift("black");                // add at the START (slow on big arrays)
+console.log(colors);                    // [ 'black', 'red', 'green', 'blue' ]</code></pre>
+<p>
+  Arrays are objects with number keys — <code>typeof colors</code> is
+  <code>"object"</code>; test for a real array with <code>Array.isArray(colors)</code>.
+</p>
+
+<h3 id="mutating-versus-non-mutating">Mutating versus non-mutating — know which family you call</h3>
+<pre><code class="language-javascript">const scores = [3, 1, 2];
+scores.push(4);                  // MUTATES: scores is now [3, 1, 2, 4]
+console.log(scores.toSorted());  // [1, 2, 3, 4] — a COPY; original untouched
+console.log(scores);             // [3, 1, 2, 4] — original order survives</code></pre>
+<p>
+  The mutating classics: <code>push/pop/shift/unshift</code>, <code>splice</code>,
+  <code>sort</code>, <code>reverse</code>. Their modern copy-first twins:
+  <code>toSorted</code>, <code>toReversed</code>, <code>toSpliced</code>, <code>with</code>.
+  In state-driven code (lesson 24) prefer the copies — shared arrays bite exactly like the
+  shared objects in lesson 04's value-versus-reference diagram.
+</p>
+
+<h3 id="the-sort-trap">The sort trap — a runnable contraexample</h3>
+<pre><code class="language-javascript">const numbers = [10, 9, 100, 1];
+console.log(numbers.sort());   // [ 1, 10, 100, 9 ] — sorted as TEXT!
+console.log([...numbers].sort((a, b) => a - b)); // [ 1, 9, 10, 100 ] — correct</code></pre>
+<p>
+  The default <code>sort()</code> converts items to strings and compares characters:
+  <code>"1" &lt; "10" &lt; "100" &lt; "9"</code>. Always pass a compare function for numbers —
+  and remember <code>sort()</code> mutates, hence the spread copy.
+</p>
+
+<h2 id="the-transformation-pipeline">The transformation pipeline</h2>
+
+<h3 id="filter-map-reduce">filter → map → reduce: the workhorse chain</h3>
+<pre><code class="language-javascript">const orders = [
+  { id: 1, total: 25,  paid: true },
+  { id: 2, total: 120, paid: false },
+  { id: 3, total: 80,  paid: true },
+];
+
+const revenue = orders
+  .filter(order => order.paid)               // keep paid orders
+  .map(order => order.total)                 // project to amounts
+  .reduce((sum, amount) => sum + amount, 0); // fold into ONE number
+console.log(revenue);                        // 105</code></pre>
+<p>
+  Each link returns a new array (or value) — no mutation, easy to test, reads like the sentence
+  "of the paid orders, take the totals and add them". The <code>0</code> is
+  <code>reduce</code>'s starting accumulator. Single-question helpers:
+  <code>find</code> (first match), <code>some</code> (any true?), <code>every</code> (all true?).
+</p>
+
+<h3 id="when-a-plain-loop-wins">When a plain loop wins</h3>
+<p>
+  Chains run to the end; a <code>for</code> loop with <code>break</code> exits early, and complex
+  multi-step reductions often read better as a loop. Reach for the chain first, drop to a loop
+  when it gets in the way.
+</p>
+
+<h2 id="sparse-arrays">Sparse arrays — the hole trap</h2>
+
+<h3 id="delete-leaves-a-hole">delete leaves a hole, not an undefined slot</h3>
+<pre><code class="language-javascript">const sparse = [1, 2, 3];
+delete sparse[1];
+console.log(1 in sparse);          // false — a HOLE, not a value
+console.log(sparse.length);        // 3 — the hole still counts
+console.log(sparse.map(x => "x")); // [ 'x', <1 empty item>, 'x' ] — skipped!</code></pre>
+<p>
+  Holes make methods behave inconsistently (iteration skips them, <code>length</code> counts
+  them). Remove items with <code>splice</code>/<code>toSpliced</code>, or write
+  <code>undefined</code> explicitly instead of <code>delete</code>.
+</p>
+
+<h2 id="typedarrays-in-one-paragraph">TypedArrays in one paragraph</h2>
+
+<h3 id="exact-memory-layout">Exact memory layout, fixed length</h3>
+<p>
+  When you need raw binary — image bytes, audio, shared memory (lesson 22) — you leave normal
+  arrays for <strong>TypedArrays</strong>: <code>new Float32Array(8)</code> is a fixed-length
+  array of 8 real 32-bit numbers, backed by a contiguous buffer
+  (<code>ArrayBuffer</code>). They exist so memory layout is exact; the transformation pipelines
+  above do not apply to them directly.
+</p>
+
+<h2 id="practice-the-array-lab">Practice: the array lab</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  Run <code>foundations/16_arrays_lab.js</code> with <code>node</code>, predicting every line —
+  especially the sort trap. Then take the <code>orders</code> array and produce, in one chain,
+  the <em>largest</em> paid total.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>You can say for any method: does it mutate or copy?</li>
+  <li>You can explain why <code>[10, 9, 100, 1].sort()</code> puts 9 last.</li>
+  <li>You can build a filter/map/reduce chain for a small dataset.</li>
+  <li>You know what <code>delete</code> does to an array — and what to use instead.</li>
+</ul>
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'javascript',
+    topicId: 'arrays',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

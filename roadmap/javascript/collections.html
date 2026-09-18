@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head><meta charset="utf-8"><meta name="description" content="JavaScript collections for beginners: Map versus object keys, Set deduplication, weak collections and garbage collection, and the iteration protocol."><meta name="author" content="Elucian Moise"><meta name="keywords" content="javascript map, set, weakmap, weakset, iteration protocol, symbol iterator"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>JavaScript Map, Set and Weak Collections</title><link rel="canonical" href="https://sagecode.org/roadmap/javascript/collections.html"><meta name="robots" content="index, follow"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"><link rel="icon" type="image/png" href="/images/favicon.ico"><link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js"></script><link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/sage-common.css">   <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css"></head><body><div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="map-set-and-weak-collections">Map, Set and Weak Collections</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Plain objects are records with a known shape. When you need a <em>dictionary</em> (unknown keys,
+  any key type), a <em>bag of unique values</em>, or side-data that must not leak — the language
+  gives purpose-built collections: <code>Map</code>, <code>Set</code>, and their weak cousins,
+  all built on one shared idea, the iteration protocol.
+</div>
+
+<h2 id="why-not-just-objects">Why not just objects?</h2>
+
+<h3 id="the-dictionary-traps">The dictionary traps</h3>
+<pre><code class="language-javascript">const counts = {};              // a dictionary? Three surprises:
+console.log(counts.constructor); // ƒ Object() — inherited keys leak in
+counts[1] = "one";               // numeric keys become "1" — strings only, really
+console.log(Object.keys(counts).length); // must count by hand
+// + no reliable size, and keys collide with names like "toString"</code></pre>
+<p>
+  <code>Map</code> fixes all three: any key type (objects included), a real
+  <code>size</code>, and no inherited keys.
+</p>
+
+<h2 id="map">Map</h2>
+
+<h3 id="set-get-has-iterate">set, get, has, delete — and iteration in insertion order</h3>
+<pre><code class="language-javascript">const sessions = new Map();
+const client = { id: 1 };       // an OBJECT as key — impossible in a plain object
+sessions.set(client, 420);      // attach data to an object, no key collision
+sessions.set("lobby", 90);
+
+console.log(sessions.size);            // 2
+console.log(sessions.get(client));     // 420
+for (const [key, value] of sessions) { // iterates in INSERTION order
+  console.log(key, value);
+}</code></pre>
+
+<h2 id="set">Set</h2>
+
+<h3 id="unique-values-fast-membership">Unique values, fast membership</h3>
+<pre><code class="language-javascript">const tags = ["js", "web", "js", "async", "web"];
+console.log([...new Set(tags)]);      // [ 'js', 'web', 'async' ] — the dedup idiom
+const seen = new Set();
+seen.add("x");
+console.log(seen.has("x"));           // true — constant-time, even for big sets</code></pre>
+
+<h2 id="weak-collections">Weak collections</h2>
+
+<h3 id="side-data-that-cannot-leak">Side data that cannot leak</h3>
+<pre><code class="language-javascript">const metadata = new WeakMap();       // keys may only be OBJECTS, held weakly
+const domNode = { tagName: "section" };
+metadata.set(domNode, { visits: 3 });
+console.log(metadata.has(domNode));   // true
+// no .size, no iteration — BY DESIGN: entries whose key object is garbage-
+// collected vanish on their own. Attach data to DOM nodes without leak risk.</code></pre>
+<p>
+  <code>WeakSet</code> works the same for "has this object been seen?" flags. The rule: strong
+  collections (<code>Map</code>/<code>Set</code>) when the collection <em>owns</em> the data;
+  weak ones when the objects elsewhere own their own lifetime.
+</p>
+
+<h2 id="the-iteration-protocol">The iteration protocol</h2>
+
+<h3 id="one-interface-for-everything-iterable">One interface for everything iterable</h3>
+<p>
+  <code>for...of</code> works on arrays, strings, <code>Map</code>, <code>Set</code> — anything
+  with a <code>[Symbol.iterator]</code> method returning an object whose
+  <code>next()</code> yields <code>{ value, done }</code>. You can implement it too:
+</p>
+<pre><code class="language-javascript">const range = {
+  from: 1, to: 3,
+  [Symbol.iterator]() {
+    let current = this.from;
+    return { next: () => ({ value: current, done: current++ > this.to }) };
+  },
+};
+for (const n of range) console.log(n); // 1, 2, 3 — your own iterable</code></pre>
+<p>
+  Generators (lesson 21) produce the same interface with far less ceremony — but the protocol
+  explains <em>why</em> <code>for...of</code> refuses plain objects: they have no iterator.
+</p>
+
+<h2 id="choosing-the-right-collection">Choosing the right collection</h2>
+
+<h3 id="the-decision-table">The decision table</h3>
+<table class="table table-bordered table-dark">
+  <thead><tr><th>Need</th><th>Reach for</th></tr></thead>
+  <tbody>
+    <tr><td>Fixed shape, named fields</td><td>plain object (record)</td></tr>
+    <tr><td>Unknown/untrusted keys, any key type, size</td><td><code>Map</code></td></tr>
+    <tr><td>Uniqueness, fast membership</td><td><code>Set</code></td></tr>
+    <tr><td>Side-data tied to objects' lifetimes</td><td><code>WeakMap</code>/<code>WeakSet</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="practice-tag-counter">Practice: the tag counter</h2>
+
+<h3 id="the-task">The task</h3>
+<p>
+  Run <code>foundations/17_collections_lab.js</code> with <code>node</code>, predicting each
+  output. Then build a tag counter: count occurrences of tags in an array with a
+  <code>Map</code>, and print them sorted by count.
+</p>
+
+<h3 id="the-checklist">The checklist</h3>
+<ul>
+  <li>You can name three things a <code>Map</code> does that a plain object cannot.</li>
+  <li>You use <code>[...new Set(items)]</code> without looking it up.</li>
+  <li>You can explain why a <code>WeakMap</code> has no <code>size</code>.</li>
+  <li>You can say which collection fits a given need from the table, from memory.</li>
+</ul>
+</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button><script>window.TOPIC_CONFIG={labId:'javascript',topicId:'collections',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script><script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script></body></html>
