@@ -2,19 +2,22 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="TypeScript syntax fundamentals from zero to professional usage.">
+  <meta name="description" content="The TypeScript syntax delta for JavaScript developers: annotation and assertion operators, type-only syntax, and the JavaScript syntax you already know.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript syntax, comments, operators, statements, symbols">
+  <meta name="keywords" content="typescript syntax, annotations, type operators, unions, assertions">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>TypeScript Syntax Fundamentals</title>
+  <title>TypeScript Syntax: the JavaScript Developer's Delta</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/syntax.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
@@ -29,140 +32,247 @@
         </div>
       </aside>
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h2 id="syntax-fundamentals">Syntax Fundamentals</h2>
-        <div class="alert alert-secondary shadow-sm">This is a complete beginner lesson. We start with writing rules, then statements, then operators and symbols used in production TypeScript.</div>
+        <h1 id="typescript-syntax-the-javascript-developers-delta">TypeScript Syntax: the JavaScript Developer's Delta</h1>
 
-        <h2 id="comments-and-style">1. Comments and style</h2>
-        <pre><code class="language-typescript">// Single-line: explain one decision
+<p>Here is the encouraging news this lesson is built on: you already know most of TypeScript's syntax, because <em>it is JavaScript's syntax</em>. TypeScript adds exactly one new category — type-level syntax — layered on top of the language you write every day. This lesson maps that delta precisely, so the rest of the track reads like JavaScript with annotations rather than a new language.</p>
 
-/* Multi-line:
-   explain non-obvious business rules */</code></pre>
-        <p>Professional rule: comments explain <strong>why</strong>, code explains <strong>what</strong>.</p>
+<h2 id="what-carries-over-unchanged">What carries over unchanged</h2>
 
-        <h2 id="declarations-and-types">2. Declarations and type annotations</h2>
-        <pre><code class="language-typescript">const appName: string = "Sage Portal";
-let retries: number = 3;
-let isEnabled: boolean = true;
+<p>Every statement, operator, and construct from modern JavaScript works identically in TypeScript: <code>if</code>/<code>switch</code>, <code>for</code> and <code>for…of</code>, arrow functions, destructuring, spread, template literals, optional chaining (<code>?.</code>), nullish coalescing (<code>??</code), classes, modules, async/<code>await</code>. The compiler parses them all — because they <em>are</em> JavaScript.</p>
 
-// Avoid var in modern code
-var legacy: boolean = false;</code></pre>
-        <ul>
-          <li><code>const</code>: cannot be reassigned.</li>
-          <li><code>let</code>: can be reassigned.</li>
-          <li><code>:</code>: attaches a type annotation.</li>
-          <li><code>=</code>: assignment operator.</li>
-          <li><code>;</code>: statement terminator (recommended for consistency).</li>
-        </ul>
+<h3 id="the-same-javascript-with-one-addition">The same JavaScript, with one addition</h3>
 
-        <h2 id="statements-and-control-flow">3. Statements and control flow</h2>
-        <pre><code class="language-typescript">if (retries > 0) {
-  console.log("Retrying...");
-} else {
-  console.log("No retries left");
+<p><strong>Purpose of the example:</strong> see how little actually changes between the JS you write today and the TS you will write tomorrow.</p>
+
+<pre><code class="language-typescript">// JavaScript you already know — unchanged in TypeScript:
+const retries = 3;
+const names = ["Ada", "Linus"];
+const shout = (s) =&gt; s.toUpperCase();   // (JS: implicit any param)
+
+// TypeScript adds only annotations — a second channel of information:
+const retries: number = 3;              // : number — the only addition
+const names: string[] = ["Ada", "Linus"];
+const shout = (s: string): string =&gt; s.toUpperCase();
+//            ^^^^^^^^^            ^^^^^^
+//            param type           return type</pre></code>
+
+<p><strong>What you should see:</strong> identical runtime behavior — annotations vanish (the compiler lesson showed the erasure). The right-hand side is byte-for-byte your JavaScript; the colon syntax is metadata <em>about</em> it.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-syntax-delta.svg" class="figure-img img-fluid rounded" alt="Left column: JavaScript statement syntax. Right column: the TypeScript additions — annotations, generics, type aliases, assertion operators" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — The syntax delta. Left: constructs JavaScript already gave you. Right: the TypeScript-only layer — and every symbol on the right is erased at compile time.</figcaption>
+</figure>
+
+<h2 id="the-annotation-layer">The annotation layer</h2>
+
+<p>Annotations attach types to existing JavaScript positions. There are only a handful of positions to learn.</p>
+
+<h3 id="where-annotations-attach">Where annotations attach</h3>
+
+<p><strong>Purpose of the example:</strong> cover every annotation position in one file — variables, function parameters, return values, and class members.</p>
+
+<pre><code class="language-typescript">// 1. Variables — annotate when the initializer doesn't make the type obvious
+let port: number = 8080;
+let host: string | undefined = undefined;   // union: one OR the other
+
+// 2. Function parameters and return type
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
-for (let i = 0; i < 3; i++) {
-  console.log(i);
+// 3. Arrow function — the return type goes after the parameter list
+const clampArrow = (value: number, lo: number, hi: number): number =&gt;
+  Math.min(Math.max(value, lo), hi);
+
+// 4. Class members
+class Server {
+  port: number = 8080;              // property annotation + initializer
+  startedAt?: Date;                 // ? = the property may be absent
+}</pre></code>
+
+<p><strong>What you should see:</strong> the checker now rejects <code>port = "8080"</code> and <code>clamp(1, 10)</code> (missing argument) before the code ever runs. In practice you write <em>fewer</em> annotations than you expect — initializers like <code>let port = 8080</code> are inferred as <code>number</code> without help. Annotate boundaries (public functions, exported values); let inference handle the internals.</p>
+
+<h3 id="type-and-interface-naming-shapes">type and interface: naming shapes</h3>
+
+<p>Inline annotations scale poorly. <code>type</code> and <code>interface</code> give a shape a name — these keywords are TypeScript-only and exist purely on the type channel.</p>
+
+<p><strong>Purpose of the example:</strong> the two declaration forms, and when each reads better.</p>
+
+<pre><code class="language-typescript">// interface: describes an object shape — can be extended via declaration merging
+interface User {
+  id: number;
+  name: string;
+  email?: string;          // optional: string | absent
 }
 
-switch (appName) {
-  case "Sage Portal":
-    console.log("Known app");
-    break;
-  default:
-    console.log("Unknown app");
-}</code></pre>
-        <p>Essential statements: <code>if</code>, <code>switch</code>, <code>for</code>, <code>for...of</code>, <code>while</code>, <code>return</code>, <code>throw</code>, <code>try/catch/finally</code>.</p>
+// type: names ANY type — unions, primitives, tuples, mapped types
+type Role = "admin" | "editor" | "viewer";   // union of literals
+type Id = number | string;
+type Pair = [User, Role];                    // tuple type
 
-        <h2 id="operators-basics">4. Operators basics</h2>
-        <h3 id="arithmetic-operators">Arithmetic operators</h3>
-        <pre><code class="language-typescript">const sum = 2 + 2;
-const diff = 5 - 2;
-const product = 3 * 4;
-const quotient = 12 / 3;
-const remainder = 10 % 3;</code></pre>
+const promote = (u: User, r: Role): User =&gt; ({ ...u });
+// ERROR: promote({ id: 1, name: "Ada" }, "owner")
+//                      ^^^^^^^ "owner" is not assignable to Role</pre></code>
 
-        <h3 id="comparison-operators">Comparison operators</h3>
-        <pre><code class="language-typescript">const isEqual = 10 === 10;
-const isDifferent = 10 !== 5;
-const isGreater = 10 > 8;
-const isAtMost = 10 <= 10;</code></pre>
+<p><strong>What you should see:</strong> the checker rejecting any <code>role</code> outside the three literal strings — the exact bug class free-text strings cause in JavaScript. Start with <code>interface</code> for object shapes and <code>type</code> for everything else; the <a href="interfaces.html">interfaces lesson</a> compares them in depth.</p>
 
-        <h3 id="logical-operators">Logical operators</h3>
-        <pre><code class="language-typescript">const hasToken = true;
-const isAdmin = false;
+<h2 id="the-type-operator-layer">The type-operator layer</h2>
 
-const canAccess = hasToken && isAdmin;
-const canRead = hasToken || isAdmin;
-const isBlocked = !hasToken;</code></pre>
+<p>On top of annotations, TypeScript contributes a small set of operators that work <em>on types</em>. These are the symbols that make TypeScript code look foreign at first — and they are all erased at compile time, exactly like annotations.</p>
 
-        <h3 id="assignment-operators">Assignment operators</h3>
-        <pre><code class="language-typescript">let count = 10;
-count += 2;
-count -= 1;
-count *= 2;
-count /= 2;</code></pre>
+<h3 id="union-intersection-and-literals">Union, intersection, and literal types</h3>
 
-        <h2 id="nullish-optional">5. Nullish and optional syntax</h2>
-        <pre><code class="language-typescript">type User = { name?: string };
-const user: User = {};
+<p><strong>Purpose of the example:</strong> the two combination operators, plus the literal-type idiom that replaces stringly-typed JavaScript.</p>
 
-const name = user.name ?? "Anonymous"; // ?? nullish coalescing
-const len = user.name?.length;          // ?. optional chaining</code></pre>
-        <p>Use these two operators everywhere optional data appears (forms, APIs, local storage).</p>
+<pre><code class="language-typescript">// | : union — a value is ONE of the listed types
+type Status = "idle" | "loading" | "error";  // literal union
+type Id = string | number;
 
-        <h2 id="typescript-type-symbols">6. TypeScript-specific symbols and keywords</h2>
-        <ul>
-          <li><code>|</code> union type: <code>string | number</code>.</li>
-          <li><code>&amp;</code> intersection type: <code>A &amp; B</code>.</li>
-          <li><code>as</code> type assertion: <code>value as HTMLElement</code>.</li>
-          <li><code>keyof</code> property-name union of a type.</li>
-          <li><code>typeof</code> type from runtime value.</li>
-          <li><code>extends</code> generic constraint or inheritance.</li>
-          <li><code>infer</code> type extraction in conditional types.</li>
-        </ul>
-        <pre><code class="language-typescript">type Account = { id: string; active: boolean };
-type AccountKey = keyof Account; // "id" | "active"
+// &amp; : intersection — a value must satisfy ALL listed types
+type Serializable = { toJSON(): string };
+type Identifiable = { id: string };
+type Entity = Identifiable &amp; Serializable;  // both required
 
-function read&lt;T, K extends keyof T&gt;(obj: T, key: K): T[K] {
-  return obj[key];
-}</code></pre>
+// Literal types pin a value to exact strings/numbers —
+// the replacement for magic constants scattered in JS:
+let state: Status = "idle";
+// state = "loaded";   // ERROR: "loaded" is not assignable to Status</pre></code>
 
-        <h2 id="punctuation-reference">7. Punctuation reference</h2>
-        <ul>
-          <li><code>{ }</code> block/object</li>
-          <li><code>( )</code> grouping/function parameters</li>
-          <li><code>[ ]</code> arrays/indexing</li>
-          <li><code>&lt; &gt;</code> generics</li>
-          <li><code>,</code> separators</li>
-          <li><code>.</code> property access</li>
-          <li><code>...</code> spread/rest</li>
-          <li><code>=&gt;</code> arrow functions</li>
-          <li><code>?</code> optional property/ternary</li>
-        </ul>
+<p><strong>What you should see:</strong> <code>Status</code> behaves like an enum from other languages but is erased to nothing — the emitted JavaScript is a plain string. This is why modern TypeScript prefers literal unions over <code>enum</code>.</p>
 
-        <h2 id="module-import-export">8. Module import and export syntax</h2>
-        <pre><code class="language-typescript">// logger.ts
-export function logInfo(message: string): void {
-  console.log(`[INFO] ${message}`);
+<h3 id="typeof-keyof-and-indexed-access">typeof, keyof, and indexed access</h3>
+
+<p><strong>Purpose of the example:</strong> derive types <em>from</em> other types instead of re-declaring them — the habit that keeps types honest as code evolves.</p>
+
+<pre><code class="language-typescript">const settings = {
+  theme: "dark" as "dark" | "light",
+  retries: 3,
+  verbose: false,
+};
+
+// typeof (type position): the type of a VALUE
+type Settings = typeof settings;
+//   = { theme: "dark" | "light"; retries: number; verbose: boolean }
+
+// keyof: the union of an object type's property names
+type SettingKey = keyof Settings;   // "theme" | "retries" | "verbose"
+
+// Indexed access: the type at a given key
+type Theme = Settings["theme"];     // "dark" | "light"
+
+function get&lt;K extends keyof Settings&gt;(key: K): Settings[K] {
+  return settings[key];   // checker links key to the returned type
+}</pre></code>
+
+<p><strong>What you should see:</strong> rename a property in <code>settings</code> and every derived type follows — there is no second declaration to drift out of sync. This is the foundation the <a href="advanced-types.html">advanced types lesson</a> builds on.</p>
+
+<h2 id="the-assertion-escape-hatches">The assertion escape hatches</h2>
+
+<p>Two constructs let you override the checker. They look similar and do opposite-accuracy jobs; confusing them is a classic source of runtime bugs.</p>
+
+<h3 id="as-assertions-versus-satisfies">as assertions versus satisfies</h3>
+
+<p><strong>Purpose of the example:</strong> show when to use <code>as</code>, when <code>satisfies</code> is strictly better, and why assertions are a last resort.</p>
+
+<pre><code class="language-typescript">interface Config { port: number; host: string }
+
+// `as`: "treat this as Config — I take responsibility."
+// The checker does NOT verify the object against Config.
+const cfg1 = JSON.parse(raw) as Config;      // unchecked cast
+
+// `satisfies`: "check this value against Config, but keep the
+// inferred (more precise) type." Verifies AND remembers.
+const cfg2 = {
+  port: 8080,
+  host: "localhost",
+} satisfies Config;          // checked: missing/misspelled keys error here
+
+// satisfies also preserves literal types for later use:
+const routes = {
+  home: "/",
+  admin: "/admin",
+} satisfies Record&lt;string, string&gt;;
+// routes.home is still exactly "/" — not widened to string</pre></code>
+
+<p><strong>What you should see:</strong> with <code>as</code>, a typo'd or missing property sails through compilation and explodes at runtime — erasure means the cast left no trace. With <code>satisfies</code>, the same mistake is a compile error. Rule of thumb: <code>satisfies</code> first, <code>as</code> only when the checker genuinely cannot know (rare), <code>any</code> never.</p>
+
+<h3 id="non-null-and-optional-access">Non-null and optional access</h3>
+
+<p><strong>Purpose of the example:</strong> the daily-driver operators for optional data — one promises, one checks.</p>
+
+<pre><code class="language-typescript">type User = { name?: string };
+
+function label(u: User): string {
+  // ?. : access only if present — evaluates to undefined otherwise
+  const len = u.name?.length;
+
+  // ?? : fall back when null/undefined (NOT on "" or 0 — unlike ||)
+  return u.name ?? "anonymous";
 }
 
-// app.ts
-import { logInfo } from "./logger";
-logInfo("App started");</code></pre>
+function shout(u: User): string {
+  // ! : non-null assertion — "this is NOT null/undefined, trust me".
+  // Unchecked, like `as`. Crashes at runtime if you are wrong.
+  return u.name!.toUpperCase();
+}</pre></code>
 
-        <h2 id="syntax-walkthrough">9. Step-by-step walkthrough</h2>
-        <ol>
-          <li>Write declarations using <code>const</code> and <code>let</code>.</li>
-          <li>Add one typed function with explicit return type.</li>
-          <li>Use <code>if</code> and <code>switch</code> statements.</li>
-          <li>Apply comparison and logical operators.</li>
-          <li>Add optional chaining and nullish coalescing.</li>
-          <li>Split code into two files with import/export.</li>
-        </ol>
+<p><strong>What you should see:</strong> <code>label</code> handles absence honestly; <code>shout</code> throws <code>TypeError: Cannot read properties of undefined</code> if <code>name</code> is missing — the assertion disabled exactly the check that would have caught it. Prefer narrowing (<code>if (u.name) …</code>) over <code>!</code>; the <a href="types.html">types lesson</a> shows how narrowing replaces most assertions.</p>
 
-        <h2 id="practice-syntax">10. Practice</h2>
-        <p>Build a tiny user settings module with typed state, validation logic, and separate logger module.</p>
+        <h2 id="a-one-page-syntax-table">A one-page syntax table</h2>
+
+<p>The delta, compressed. When you meet an unfamiliar symbol in real code, look it up here first.</p>
+
+<h3 id="punctuation-and-what-it-belongs-to">Punctuation, and what it belongs to</h3>
+
+<table class="table table-dark table-striped">
+  <thead><tr><th>Syntax</th><th>Layer</th><th>Meaning</th><th>Erased?</th></tr></thead>
+  <tbody>
+    <tr><td><code>x: T</code></td><td>TypeScript</td><td>annotation — attach type <code>T</code> to <code>x</code></td><td>yes</td></tr>
+    <tr><td><code>T1 | T2</code></td><td>TypeScript</td><td>union — one of the alternatives</td><td>yes</td></tr>
+    <tr><td><code>T1 &amp; T2</code></td><td>TypeScript</td><td>intersection — all of them combined</td><td>yes</td></tr>
+    <tr><td><code>&lt;T&gt;</code></td><td>TypeScript</td><td>generics — type parameters</td><td>yes</td></tr>
+    <tr><td><code>keyof T</code></td><td>TypeScript</td><td>union of property names of <code>T</code></td><td>yes</td></tr>
+    <tr><td><code>typeof v</code> (type position)</td><td>TypeScript</td><td>the type of value <code>v</code></td><td>yes</td></tr>
+    <tr><td><code>v as T</code></td><td>TypeScript</td><td>assertion — unchecked cast</td><td>yes</td></tr>
+    <tr><td><code>v satisfies T</code></td><td>TypeScript</td><td>checked cast, keeps precision</td><td>yes</td></tr>
+    <tr><td><code>v!</code></td><td>TypeScript</td><td>non-null assertion — unchecked</td><td>yes</td></tr>
+    <tr><td><code>prop?: T</code></td><td>TypeScript</td><td>optional property — <code>T | absent</code></td><td>yes</td></tr>
+    <tr><td><code>readonly prop: T</code></td><td>TypeScript</td><td>no reassignment on the type channel</td><td>yes</td></tr>
+    <tr><td><code>v?.p</code>, <code>v ?? d</code></td><td><strong>JavaScript</strong></td><td>optional chaining, nullish coalescing</td><td>no — runtime</td></tr>
+    <tr><td><code>? :</code> (ternary)</td><td><strong>JavaScript</strong></td><td>conditional expression</td><td>no — runtime</td></tr>
+  </tbody>
+</table>
+
+<p><strong>What we learn:</strong> the runtime language is unchanged — <code>?.</code> and <code>??</code> execute, while everything from the annotation layer onward compiles away. When debugging a runtime failure, ignore the type channel entirely; when reviewing code, read it first.</p>
+
+<h3 id="reading-type-signatures-aloud">Reading type signatures aloud</h3>
+
+<p>Practitioners read type signatures the way musicians read notation. Decode this one as practice:</p>
+
+<pre><code class="language-typescript">function pluck&lt;T, K extends keyof T&gt;(obj: T, keys: K[]): T[K][] {
+  return keys.map((k) =&gt; obj[k]);
+}
+// Read: "pluck takes an object T and an array of keys K, where every K
+// must be a property name of T, and returns an array of the values
+// at those keys — so the result's element types match the keys."</pre></code>
+
+<p><strong>What you should see:</strong> <code>pluck({ a: 1, b: "x" }, ["a"])</code> returns <code>number[]</code>, and the checker rejects <code>pluck(obj, ["c"])</code> — <code>"c"</code> is not a <code>keyof</code>. Every symbol here was introduced in this lesson; if any felt unfamiliar, the table above is your review sheet.</p>
+
+<h2 id="practice-syntax">Practice: write the delta, not the language</h2>
+
+<h3 id="migrate-a-snippet">Migrate a snippet</h3>
+
+<p>Take this plain JavaScript and add the minimal annotations that make it check under strict mode — no more:</p>
+
+<pre><code class="language-typescript">function formatPrice(item) {
+  return `$${(item.price * item.qty).toFixed(2)}`;
+}</pre></code>
+
+<p><strong>What you should see:</strong> an <code>Item</code> interface (<code>price: number</code>, <code>qty: number</code>), the parameter annotated, and the return type left to inference — <code>string</code> is obvious. If you annotated the return type too, you wrote more than the minimal delta; if you reached for <code>any</code>, revisit the assertions section.</p>
+
+<h3 id="predict-what-erases">Predict what erases</h3>
+
+<p>From your migrated snippet, list every token that survives to the emitted JavaScript. The interface disappears, both annotations disappear, and <code>formatPrice</code> remains byte-identical to the original. Holding that duality — <em>design-time channel vs runtime channel</em> — is the skill the next lesson, on the type system itself, will exercise constantly.</p>
       </main>
     </div>
   </div>

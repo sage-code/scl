@@ -12,76 +12,217 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="core-types">Core Types and Narrowing</h2>
-<div class="alert alert-secondary shadow-sm">Type safety starts here. If you master core types and narrowing, advanced TypeScript becomes much easier.</div>
+<h1 id="core-types-and-narrowing">Core Types and Narrowing</h1>
 
-<h2 id="primitive-types">1. Primitive types</h2>
-<pre><code class="language-typescript">let username: string = "maya";
-let score: number = 42;
-let active: boolean = true;
-let nothing: null = null;
-let missing: undefined = undefined;</code></pre>
+<div class="alert alert-secondary shadow-sm">Type annotations alone do not make code safe — <em>narrowing</em> does. This lesson shows why values that change shape are the daily reality of JavaScript, how unions model that reality, and how the checker follows your runtime logic so that the compiler proves what your <code>if</code> statements imply. Master this chapter and the advanced material later becomes arithmetic.</div>
 
-<h2 id="union-types">2. Union types</h2>
-<pre><code class="language-typescript">type Id = string | number;
-let currentId: Id = "u-100";
-currentId = 100;</code></pre>
-<p>Union types model real-world variability while preserving safety.</p>
+<h2 id="why-narrowing-is-the-core-skill">Why narrowing is the core skill</h2>
 
-<h2 id="literal-types">3. Literal types and enums-like patterns</h2>
-<pre><code class="language-typescript">type Status = "idle" | "loading" | "success" | "error";
-let state: Status = "idle";</code></pre>
+<p>A JavaScript variable has no type; a JavaScript <em>value</em> has one, and it can differ every time a function runs. That is the root cause of the most common runtime bug in the language: <code>undefined is not a function</code> and <code>cannot read property of undefined</code>. TypeScript's answer is a division of labor — types describe the set of possible shapes, and <strong>narrowing</strong> lets the checker track which member of that set is live at each line.</p>
 
-<h2 id="narrowing-basics">4. Narrowing basics</h2>
-<pre><code class="language-typescript">function normalize(value: string | number): string {
-  if (typeof value === "number") {
-    return value.toFixed(2);
+<h3 id="the-problem-values-change-shape">The problem: values change shape at runtime</h3>
+
+<p><strong>Purpose of the example:</strong> show a plain-JavaScript function that works in tests and fails in production, because nothing recorded the possible shapes of its input.</p>
+
+<pre><code class="language-javascript">// plain JS — what is the problem here?
+function formatId(id) {
+  // Sometimes the backend sends a number, sometimes a string.
+  return id.trim();          // 💥 TypeError when id is a number
+}
+
+formatId("u-100");  // works
+formatId(100);      // works in code review, crashes at runtime</code></pre>
+
+<p><strong>What you should see:</strong> nothing warns you — the failure is discovered by users. The function's contract in JavaScript is implicit and unwritten: it <em>means</em> "anything with <code>.trim</code>", but nothing enforces it.</p>
+
+<h3 id="the-solution-unions-plus-narrowing">The solution: unions plus narrowing</h3>
+
+<p>TypeScript solves this with two cooperating features. A <strong>union type</strong> honestly documents the set of possible shapes; a type guard (<code>typeof</code> here) lets the checker refine the union inside each branch.</p>
+
+<p><strong>Purpose of the example:</strong> turn the crash above into a compile-time conversation.</p>
+
+<pre><code class="language-typescript">// The union documents reality: callers may send either shape.
+type Id = string | number;
+
+function formatId(id: Id): string {
+  if (typeof id === "number") {
+    // Inside this block, `id` IS a number: .toFixed exists, .trim does not.
+    return `id-${id.toFixed(0)}`;
   }
-  return value.trim();
+  // After the check, `id` IS a string: .trim exists, .toFixed does not.
+  return id.trim();
+}
+
+formatId("u-100"); // OK
+formatId(100);     // OK — both shapes are part of the contract
+formatId(true);    // ✖ compile error: boolean is not string | number</code></pre>
+
+<p><strong>What you should see:</strong> the editor autocompletes <code>id.toFixed</code> in the first branch and only <code>id.trim</code> in the second. Passing a <code>boolean</code> is flagged before you save.</p>
+
+<p><strong>What we learn:</strong> a union is not "loose typing" — it is a <em>precise</em> description of variability, and narrowing is how you (and the checker) navigate it. This pattern replaces thousands of defensive runtime checks.</p>
+
+<h2 id="primitives-unions-literals">Primitives, unions, and literals</h2>
+
+<p>Before narrowing strategies, make sure the vocabulary is exact. These three constructs cover most annotations you will write in application code.</p>
+
+<h3 id="annotating-primitives">Annotating primitives</h3>
+
+<p><strong>Purpose of the example:</strong> the five primitives you will annotate daily — and the two that interact with strict mode in a special way.</p>
+
+<pre><code class="language-typescript">let username: string = "maya";
+let score: number = 42;        // JS has one number type (no int/float split)
+let isActive: boolean = true;
+let nothingHere: null = null;
+let notFetchedYet: undefined = undefined;
+
+// With strictNullChecks (on by default via `strict`):
+let name2: string = "maya";
+name2 = null;   // ✖ compile error: null is not a string
+// A nullable value must say so in the type:
+let nickname: string | null = null;   // honest about "may be absent"</code></pre>
+
+<p><strong>What you should see:</strong> the last assignment errors. That error <em>is</em> the feature: <code>strictNullChecks</code> turns JavaScript's billion-dollar mistake into a visible, fixable type error at the exact line where absence could sneak in.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-strict-null-flow.svg" class="figure-img img-fluid rounded" alt="Flow diagram: a string-or-null value passes through a null check; the null path is rejected early and the rest of the flow sees plain string" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — strictNullChecks in one picture. The type <code>string | null</code> forces a check; after the check, the checker narrows the type so the rest of the code can treat the value as plain <code>string</code>. The check is not boilerplate — it is the price of provable safety.</figcaption>
+</figure>
+
+<h3 id="literal-types-closed-vocabularies">Literal types: closed vocabularies</h3>
+
+<p>A literal type is a type with exactly one value. Combined with unions, it models every "stringly typed" API field in JavaScript — but with autocomplete and exhaustiveness.</p>
+
+<p><strong>Purpose of the example:</strong> replace magic strings with a closed set the checker enforces.</p>
+
+<pre><code class="language-typescript">// Without TS, this value could be any string — typos included.
+type Status = "idle" | "loading" | "success" | "error";
+
+let state: Status = "idle";
+state = "loding";   // ✖ compile error: typo caught instantly
+state = "loading";  // OK</code></pre>
+
+<p><strong>What you should see:</strong> the typo is underlined in the editor before you even save. This is why modern TypeScript prefers literal unions over enums: zero runtime cost (fully erased), same closed-vocabulary guarantee.</p>
+
+<h2 id="narrowing-strategies">Narrowing strategies, from basic to discriminated</h2>
+
+<p>Narrowing is not one technique but a family. Learning them in order of strength pays off for the rest of the track.</p>
+
+<h3 id="typeof-narrowing">typeof narrowing</h3>
+
+<p>The workhorse for primitive unions. <code>typeof value === "number"</code> inside a branch makes <code>value</code> a <code>number</code>; returning or <code>throw</code>ing in a branch narrows the code that follows. TypeScript also understands <code>===</code> comparisons, <code>in</code> checks for object properties, and <code>Array.isArray</code>.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-narrowing-flow.svg" class="figure-img img-fluid rounded" alt="Flowchart: a union value enters a guard diamond; each branch carries the narrowed type, and the branches re-join at the end" loading="lazy">
+  <figcaption class="figure-caption">Figure 2 — Narrowing is flow analysis. Each branch of the guard gets a <em>different, smaller</em> type; after the branches re-join, the type widens back. The checker simulates every path your code can take.</figcaption>
+</figure>
+
+<h3 id="discriminated-unions">Discriminated unions: the professional pattern</h3>
+
+<p>For object shapes, <code>typeof</code> is not enough. The strongest narrowing tool is a <em>discriminated union</em>: every member carries a literal tag property, and one check on the tag narrows everything.</p>
+
+<p><strong>Purpose of the example:</strong> model an API call result honestly, so the compiler forces callers to handle failure.</p>
+
+<pre><code class="language-typescript">// Two shapes, distinguished by the literal `ok` tag.
+type ApiSuccess = { ok: true; data: string[] };
+type ApiFailure = { ok: false; error: string };
+type ApiResult = ApiSuccess | ApiFailure;
+
+function render(result: ApiResult): string {
+  if (result.ok) {
+    // TS knows: this is ApiSuccess. `.data` exists, `.error` does not.
+    return result.data.join(", ");
+  }
+  // TS knows: this is ApiFailure. `.error` exists here — no null check needed.
+  return `Error: ${result.error}`;
 }</code></pre>
 
-<h2 id="type-guards">5. Type guards in API flows</h2>
-<pre><code class="language-typescript">type ApiResult =
-  | { ok: true; data: string[] }
-  | { ok: false; error: string };
+<p><strong>What you should see:</strong> inside the <code>if</code>, the editor offers <code>result.data</code> but not <code>result.error</code>; in the <code>else</code> path, vice versa. Accessing the wrong member is a compile error.</p>
 
-function isSuccess(result: ApiResult): result is { ok: true; data: string[] } {
-  return result.ok;
-}</code></pre>
+<p><strong>What we learn:</strong> the tag property (<code>ok: true</code> vs <code>ok: false</code>) is what makes narrowing <em>reliable</em> — a single check collapses the whole shape, not just one field. This exact pattern powers Redux reducers, fetch wrappers, and result types across the ecosystem. A related tool is the type predicate (<code>value is Foo</code>) for custom guards the checker cannot infer, like <code>isEmail(value): value is Email</code>.</p>
 
-<h2 id="unknown-vs-any">6. unknown vs any</h2>
-<ul>
-  <li><code>any</code>: disables safety.</li>
-  <li><code>unknown</code>: requires checks before use.</li>
-</ul>
-<pre><code class="language-typescript">function parseInput(input: unknown): string {
-  if (typeof input === "string") return input;
+<h2 id="unknown-any-readonly">unknown, any, and readonly discipline</h2>
+
+<h3 id="unknown-vs-any-at-boundaries">unknown vs any at boundaries</h3>
+
+<p><strong>Purpose of the example:</strong> show how one <code>any</code> silently disables every guarantee in this lesson — and why <code>unknown</code> is the professional default at program boundaries.</p>
+
+<pre><code class="language-typescript">function parse(json: string) {
+  const data: any = JSON.parse(json);
+  // No error — `any` accepts anything and checks nothing:
+  return data.nmae.toUpperCase();  // typo ships to production 💥
+}
+
+// The fix: `unknown` — accepts anything TOO, but refuses to be USED
+// until narrowed:
+function parseSafe(json: string): string {
+  const data: unknown = JSON.parse(json);
+  // return data.nmae.toUpperCase();  // ✖ compile error: data is unknown
+  if (typeof data === "object" && data !== null && "name" in data) {
+    return String((data as { name: unknown }).name).toUpperCase();
+  }
   return "";
 }</code></pre>
 
-<h2 id="readonly-as-const">7. Readonly and as const</h2>
-<pre><code class="language-typescript">const roles = ["admin", "editor", "viewer"] as const;
-type Role = typeof roles[number];
+<p><strong>What you should see:</strong> the <code>any</code> version compiles and crashes at runtime; the <code>unknown</code> version refuses to compile until you validate. Rule of thumb: <code>any</code> is for migrations you have not finished; <code>unknown</code> is for data you do not control (APIs, <code>JSON.parse</code>, <code>localStorage</code>, <code>event.target</code>). For structured input, replace the cast with a runtime validator — covered in the errors lesson.</p>
 
-const config: Readonly<{ apiUrl: string }> = { apiUrl: "/api" };</code></pre>
+<h3 id="readonly-and-as-const">readonly and as const</h3>
 
-<h2 id="nullable-values">8. Nullable values in UI code</h2>
-<p>Always model nullable values explicitly, especially for async-loaded state and optional user data.</p>
+<p><strong>Purpose of the example:</strong> make immutability visible to the checker, so accidental mutation becomes a compile error instead of a debugging session.</p>
 
-<h2 id="common-errors-types">9. Common errors</h2>
-<ol>
-  <li>Overusing <code>as</code> to silence errors.</li>
-  <li>Ignoring null checks in rendering code.</li>
-  <li>Using broad unions without narrowing strategy.</li>
-</ol>
+<pre><code class="language-typescript">// `as const` makes every member a literal AND the whole array readonly.
+const ROLES = ["admin", "editor", "viewer"] as const;
+type Role = (typeof ROLES)[number];   // "admin" | "editor" | "viewer"
+ROLES.push("owner");                  // ✖ compile error: readonly array
 
-<h2 id="practice-types">10. Practice</h2>
-<p>Implement typed state for a profile page: <code>idle | loading | success | error</code>, and render each state safely.</p>
+// `Readonly<T>` protects object properties:
+type Config = Readonly<{ apiUrl: string }>;
+const config: Config = { apiUrl: "/api" };
+// config.apiUrl = "/other";          // ✖ compile error</code></pre>
+
+<p><strong>What you should see:</strong> mutation attempts flagged immediately, and <code>Role</code> staying a precise union instead of widening to <code>string[]</code>. Note the two-way trick: <code>as const</code> creates the data, <code>typeof</code> extracts its type — the pattern behind most "single source of truth" constant modules.</p>
+
+<h2 id="types-common-mistakes">Common mistakes (and their fixes)</h2>
+
+<p>The same handful of mistakes accounts for most "TypeScript didn't save me" stories. They split into two groups: mistakes at the <em>boundary</em> (where untyped data enters) and mistakes in <em>modeling</em> (how the type describes the domain).</p>
+
+<h3 id="boundary-mistakes-any-and-casts">Boundary mistakes: any and casts</h3>
+
+<table class="table table-dark table-striped">
+  <thead><tr><th>Mistake</th><th>Symptom</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td>Casting instead of narrowing (<code>value as string</code>)</td><td>Runtime crash the compiler "approved"</td><td>Use a real guard; cast only when you genuinely know more than the checker, with a comment justifying it</td></tr>
+    <tr><td><code>any</code> at API boundaries</td><td>Typo bugs survive to production</td><td><code>unknown</code> + narrowing, or a validator</td></tr>
+  </tbody>
+</table>
+
+<h3 id="modeling-mistakes-unions-and-nullability">Modeling mistakes: unions and nullability</h3>
+
+<table class="table table-dark table-striped">
+  <thead><tr><th>Mistake</th><th>Symptom</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td>Wide unions without a narrowing plan</td><td>Endless optional checks everywhere</td><td>Discriminated unions with a literal tag</td></tr>
+    <tr><td>Nullable fields rendered without checks</td><td><code>Cannot read properties of undefined</code> in UI</td><td><code>| null</code> in the type forces the check the render path needs</td></tr>
+  </tbody>
+</table>
+
+<h2 id="types-practice">Practice: a typed state machine</h2>
+
+<h3 id="state-machine-exercise">Exercise: profile page state</h3>
+
+<p>Model a profile page as a discriminated union — <code>idle</code>, <code>loading</code>, <code>success</code> (with the profile), <code>error</code> (with a message) — and write a <code>render(state)</code> function that handles every case. <strong>What you should see:</strong> removing any <code>case</code> from the renderer is a compile error once you add a <code>default</code>-free switch or an exhaustive-check helper; adding a new state (try <code>retrying</code>) forces the compiler to point at every place that must adapt. That forcing function — the type system as a checklist that maintains itself — is the single biggest workflow change TypeScript delivers to a JavaScript developer.</p>
+
+<h3 id="checkpoint">Checkpoint</h3>
+
+<p>You can now: read a union as a set of possible shapes; choose between <code>any</code> and <code>unknown</code>; and write discriminated unions with exhaustive handling. The <a href="type-system.html">next lesson</a> zooms out to the rule that decides <em>which values</em> are allowed where — structural typing.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'types',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

@@ -2,9 +2,9 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="TypeScript interfaces and contracts from beginner usage to enterprise patterns.">
+  <meta name="description" content="TypeScript interfaces for JavaScript developers: object contracts, optional and readonly members, extends, index signatures, declaration merging, and interface vs type.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript interfaces, contracts, api models">
+  <meta name="keywords" content="typescript interfaces, declaration merging, api contracts, index signatures">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>TypeScript Interfaces and Contracts</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/interfaces.html">
@@ -12,56 +12,195 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="interfaces-contracts">Interfaces and Contracts</h2>
-<div class="alert alert-secondary shadow-sm">Interfaces turn implicit assumptions into explicit agreements. This is essential for teamwork and long-lived front-end applications.</div>
+<h1 id="typescript-interfaces-and-contracts">TypeScript Interfaces and Contracts</h1>
 
-<h2 id="interface-basics">1. Interface basics</h2>
+<div class="alert alert-secondary shadow-sm">In JavaScript, an object's "contract" lives in convention: a README, a JSDoc comment, a teammate's memory. Interfaces make that contract a <em>compile-time artifact</em> the checker enforces on every read and write. This lesson covers the syntax — but more importantly, the two jobs interfaces do better than type aliases: naming shapes and merging declarations.</div>
+
+<h2 id="why-interfaces-exist">Why interfaces exist</h2>
+
+<p>JavaScript already checks shapes — at runtime, by failing. The classic failure: a typo'd property or a missing field from an API survives every test that doesn't hit the exact path, then explodes as <code>undefined is not a function</code> in production. An interface moves that discovery from runtime to compile time by writing the contract down once, where the checker sees every use.</p>
+
+<h3 id="the-contract-in-action">The contract in action</h3>
+
+<p><strong>Purpose of the example:</strong> define an object contract and watch the checker enforce it at every touchpoint — construction, mutation, and property access.</p>
+
 <pre><code class="language-typescript">interface User {
   id: string;
   email: string;
   active: boolean;
-}</code></pre>
-
-<h2 id="optional-readonly">2. Optional and readonly fields</h2>
-<pre><code class="language-typescript">interface Profile {
-  readonly id: string;
-  displayName?: string;
-}</code></pre>
-
-<h2 id="function-interfaces">3. Function interfaces</h2>
-<pre><code class="language-typescript">interface Formatter {
-  (value: number): string;
 }
 
-const currency: Formatter = (v) => `$${v.toFixed(2)}`;</code></pre>
+// Construction: every required field must be present, with the right types
+const u: User = {
+  id: "u_42",
+  email: "ada@example.com",
+  active: true,
+  // admin: true,          // ← error: excess property (see below)
+};
 
-<h2 id="extends-composition">4. Extends and composition</h2>
-<pre><code class="language-typescript">interface Timestamped { createdAt: string; updatedAt: string; }
-interface Product extends Timestamped { id: string; name: string; price: number; }</code></pre>
+// Mutation: only known properties, only compatible types
+u.active = false;
+// u.actve = false;        // ← error: Property 'actve' does not exist
 
-<h2 id="api-contract-modeling">5. API contract modeling</h2>
-<p>Define external DTO interfaces and map them to internal domain interfaces. Do not leak unstable backend formats into UI components.</p>
+// Access: no undefined-in-disguise
+console.log(u.email.toUpperCase()); // checker knows email is always string</pre></code>
 
-<h2 id="interface-vs-type">6. Interface vs type alias</h2>
-<p>Use interfaces for object contracts and public API surfaces. Use type aliases for unions, primitives, and advanced type composition.</p>
+<p><strong>What you should see:</strong> a program that compiles only when every contract line is honored. The commented lines each produce a distinct, precise diagnostic — including the typo <code>actve</code>, which in JavaScript would silently create a new property and fail later, somewhere else.</p>
 
-<h2 id="evolution-versioning">7. Contract evolution and versioning</h2>
-<p>When backend contracts change, keep versioned interfaces and explicit adapters during migration.</p>
+<h3 id="structural-typing-the-rule-behind-the-check">Structural typing: the rule behind the check</h3>
 
-<h2 id="review-checklist-interfaces">8. Review checklist</h2>
-<ol>
-  <li>Is every API response typed?</li>
-  <li>Are optional fields intentionally optional?</li>
-  <li>Are old/new schema versions handled safely?</li>
-</ol>
+<p>Interfaces are <em>names for shapes</em>, not gated clubs. Compatibility is decided by structure, not by declared identity — which is why TypeScript stays compatible with idiomatic JavaScript:</p>
 
-<h2 id="practice-interfaces">9. Practice</h2>
-<p>Define interfaces for auth session, user profile, and role-based navigation configuration.</p>
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-structural-typing.svg" class="figure-img img-fluid rounded" alt="A Person value flowing into a LoggedIn slot: the checker compares shape lists, not names; extra members are allowed, missing members are not" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — Structural typing. The checker asks "does this value have at least these members with these types?" — never "was this value declared as this interface?" Extra members are fine; missing members are the error.</figcaption>
+</figure>
+
+<pre><code class="language-typescript">interface LoggedIn { userId: string; since: Date }
+
+// No "implements", no declaration linking — it just fits:
+const session = { userId: "u_42", since: new Date(), device: "macOS" };
+const rec: LoggedIn = session;   // OK: has userId: string and since: Date</pre></code>
+
+<p><strong>What you should see:</strong> assignment accepted without any explicit relationship between the types. <strong>What we learn:</strong> in TypeScript, "is a" is replaced by "has the shape of" — the reverse of nominal systems like Java, and the reason integrating untyped JS data is straightforward.</p>
+
+<h3 id="excess-property-checking-the-one-special-case">Excess property checking: the one special case</h3>
+
+<p>Structural typing allows extra properties, yet the first example flagged <code>admin: true</code> as an error. That is <strong>excess property checking</strong>: when an object <em>literal</em> is assigned directly to a typed target, the checker treats unknown keys as probable typos. The rule is narrow and worth memorizing:</p>
+
+<pre><code class="language-typescript">const later: LoggedIn = session;              // OK — variable, no literal check
+const direct: LoggedIn = {                    // ← error on 'usrId' (typo guard)
+  usrId: "u_42", since: new Date(), device: "macOS",
+};</pre></code>
+
+<p><strong>What you should see:</strong> the literal with the typo fails even though structurally "more" information is present. <strong>What we learn:</strong> freshness is checked only at the literal; store-then-assign flow bypasses it, which is why typos on untyped boundaries still need runtime tests.</p>
+
+<h2 id="member-syntax-optional-readonly-and-methods">Member syntax: optional, readonly, and methods</h2>
+
+<p>Contracts are more useful when they express <em>how</em> a field behaves, not just its type.</p>
+
+<h3 id="optional-and-readonly-members">Optional and readonly members</h3>
+
+<p><strong>Purpose of the example:</strong> model "sometimes absent" and "set once, then immutable" — two facts JavaScript cannot express but every API implies.</p>
+
+<pre><code class="language-typescript">interface Profile {
+  readonly id: string;        // assignable at creation, never after
+  displayName?: string;       // may be absent — type is string | undefined
+}
+
+function render(p: Profile): string {
+  // strictNullChecks forces you to handle absence:
+  return p.displayName ?? "Anonymous user"; // ← compiler-required fallback
+}
+
+const p: Profile = { id: "p_1" };
+p.displayName = "Ada";   // OK
+// p.id = "p_2";         // ← error: Cannot assign to 'id' — read-only</pre></code>
+
+<p><strong>What you should see:</strong> removing the <code>??</code> fallback produces an error under strict mode. <strong>What we learn:</strong> <code>?:</code> is documentation the compiler enforces; <code>readonly</code> catches mutation bugs at compile time that would otherwise rely on code review.</p>
+
+<h2 id="composition-and-api-contracts">Composition and API contracts</h2>
+
+<p>Contracts scale by composition: small named interfaces assembled into larger ones, mirroring how production APIs actually evolve.</p>
+
+<h3 id="extends-building-larger-contracts">extends: building larger contracts</h3>
+
+<p><strong>Purpose of the example:</strong> compose contracts instead of repeating fields — the interface equivalent of "spread this base shape".</p>
+
+<pre><code class="language-typescript">interface Timestamped {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface Product extends Timestamped {
+  id: string;
+  name: string;
+  price: number;
+}
+
+// Every Product is also a valid Timestamped — structurally guaranteed:
+function audit(t: Timestamped): Date { return t.updatedAt; }
+const book: Product = {
+  id: "b_1", name: "Types at Scale", price: 39,
+  createdAt: new Date(), updatedAt: new Date(),
+};
+console.log(audit(book)); // fine: Product extends Timestamped</pre></code>
+
+<p><strong>What you should see:</strong> one level of composition; real codebases stack several. <strong>What we learn:</strong> <code>extends</code> on interfaces is declarative and merge-free — every extension is checked, and a conflicting redefinition (e.g. re-typing <code>createdAt: string</code>) is an immediate error, unlike class inheritance where the constraint is looser.</p>
+
+<h3 id="index-signatures-dynamic-keys">Index signatures: dynamic keys</h3>
+
+<p>Some objects genuinely have unknown key sets — dictionaries, caches, i18n tables. Index signatures type the "rest":</p>
+
+<pre><code class="language-typescript">interface Messages {
+  greeting: string;              // fixed, required key
+  [locale: string]: string;      // any other key must map to string
+}
+
+const i18n: Messages = { greeting: "Hello", fr: "Bonjour", de: "Hallo" };
+console.log(i18n["fr"]);         // all reads return string — never undefined here</pre></code>
+
+<p><strong>What you should see:</strong> a trade-off, not a free lunch: with <code>noUncheckedIndexedAccess</code> (set in the setup lesson) the indexed read becomes <code>string | undefined</code> — honest about what a map lookup is. <strong>What we learn:</strong> index signatures trade precision for flexibility; prefer <code>Record&lt;string, string&gt;</code> or <code>Map</code> when the whole object is dynamic.</p>
+
+<h2 id="interface-versus-type-alias">Interface versus type alias</h2>
+
+<p>By now you have seen both <code>interface X { … }</code> and <code>type X = { … }</code> describe object shapes. The choice is a team-level convention with one technical backbone.</p>
+
+<h3 id="the-capability-table">The capability table</h3>
+
+<table class="table table-dark table-striped">
+  <thead><tr><th>Capability</th><th><code>interface</code></th><th><code>type</code></th></tr></thead>
+  <tbody>
+    <tr><td>Describe object shapes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Unions, primitives, tuples, conditional types</td><td>no</td><td><strong>yes</strong></td></tr>
+    <tr><td><strong>Declaration merging</strong> (reopen and extend)</td><td><strong>yes</strong></td><td>no</td></tr>
+    <tr><td><code>extends</code> other object types</td><td>yes</td><td>via intersection <code>&amp;</code></td></tr>
+  </tbody>
+</table>
+
+<h3 id="declaration-merging-the-one-interface-only-power">Declaration merging: the one interface-only power</h3>
+
+<p><strong>Purpose of the example:</strong> show the one behavior only interfaces have — and why it is a double-edged sword.</p>
+
+<pre><code class="language-typescript">// augmenting a library interface — merging in action
+interface Window { sageReady: boolean }   // your addition to a lib interface
+interface Window { analytics: unknown }   // declared elsewhere — merges with it
+
+// At use time, both members exist on Window. Types cannot do this:
+// type Window { sageReady: boolean }  // ← duplicate identifier error</pre></code>
+
+<p><strong>What we learn:</strong> merging is essential for augmenting library and DOM types (the declarations lesson builds on it) but dangerous for your own domain types — an accidental second declaration silently widens a contract instead of erroring. Common professional convention: <code>interface</code> for object shapes and public API contracts, <code>type</code> for everything else.</p>
+
+<h2 id="contract-evolution-versioning">Contract evolution and versioning</h2>
+
+<p>Backend contracts change; your interfaces must make that visible.</p>
+
+<h3 id="three-practices-for-changing-contracts">Three practices for changing contracts</h3>
+
+<ul>
+  <li><strong>Version the type</strong> (<code>UserV2</code>) while migrating instead of mutating it in place, so both shapes coexist during the rollout.</li>
+  <li><strong>Write an explicit adapter function</strong> from DTO to domain type, so every field rename is one compiler-guided change rather than a grep-and-hope search.</li>
+  <li><strong>Parse at the boundary:</strong> never let a raw API response object reach a component — validate it into the interface first (the errors lesson covers the gap checking cannot close).</li>
+</ul>
+
+<h2 id="practice-interfaces">Practice: contracts under pressure</h2>
+
+<h3 id="refactor-with-the-checker">Refactor with the checker</h3>
+
+<p>Take the <code>User</code> contract, rename <code>email</code> to <code>primaryEmail</code>, and let <code>tsc --noEmit</code> list every broken touchpoint. <strong>What you should see:</strong> a compile-error-driven todo list — exactly the places a JavaScript rename would have found by grepping and hoping. This is the daily workflow benefit interfaces buy.</p>
+
+<h3 id="model-a-real-response">Model a real response</h3>
+
+<p>Pick a public API response (GitHub's <code>GET /users/:name</code> is a good one) and write its interface: required fields, optional fields (<code>?</code>), readonly identity fields, and an index signature where the API allows extra keys. <strong>What you should see:</strong> the decisions you are forced to make — "is <code>bio</code> always present?" — are the same ones JavaScript developers leave implicit; here they become checked facts. Then read the <a href="classes.html">classes lesson</a>, where these contracts meet implementation.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'interfaces',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

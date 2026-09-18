@@ -2,50 +2,147 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Framework integration patterns for TypeScript in front-end engineering.">
+  <meta name="description" content="TypeScript in frameworks: typed React, Vue, and Svelte patterns, typing props and events, and what each framework's types can and cannot prove.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript react vue svelte integration">
+  <meta name="keywords" content="typescript react, typescript vue, typescript svelte, typed props, typed events">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Framework Integration</title>
+  <title>TypeScript in Frameworks</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/frameworks.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="framework-integration">Framework Integration</h2>
-<div class="alert alert-secondary shadow-sm">TypeScript should be applied consistently from UI components to API clients and state management layers.</div>
+<h1 id="typescript-in-frameworks">TypeScript in Frameworks</h1>
 
-<h2 id="react-patterns">React + TypeScript patterns</h2>
+<p>Frameworks are where types earn their keep daily — and where the most type-system abuse happens. Every major framework is TypeScript-first in 2026, but each integrates the checker differently. This lesson shows the shared principles, the framework-specific idioms, and the honest limits of each integration.</p>
+
+<h2 id="principles-that-transcend-frameworks">Principles that transcend frameworks</h2>
+
+<p>Before the specifics, four rules that apply to React, Vue, Svelte, and beyond:</p>
+
+<h3 id="type-props-as-data-model-the-impossible-states">Type props as data — model the impossible states away</h3>
+
+<p><strong>Purpose of the example:</strong> show the single highest-value frontend typing decision: making invalid component states unrepresentable.</p>
+
+<pre><code class="language-typescript">// JS habit: flags that allow nonsense combinations
+// { isLoading: boolean; data: Data | null; error: Error | null }
+// → isLoading + data + error all set: which renders?
+
+// TS approach: a discriminated union — exactly one state exists at a time
+type AsyncView&lt;Data&gt; =
+  | { status: "loading" }
+  | { status: "success"; data: Data }     // data only exists on success
+  | { status: "error"; error: Error };    // error only exists on failure
+
+function AsyncViewComponent&lt;Data&gt;({ view }: { view: AsyncView&lt;Data&gt; }) {
+  switch (view.status) {
+    case "loading":  return Spinner();
+    case "success":  return Content(view.data);   // view.data: Data — no !
+    case "error":    return Alert(view.error);    // narrowing again
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> the component body has no null checks and no "is loading but has data?" branches — they cannot compile. This is the types lesson's discriminated union applied to UI state, and it is the same idiom in every framework.</p>
+
+<h3 id="type-boundaries-events-props-and-slots">Type boundaries: events, props, and slots</h3>
+
+<p><strong>Purpose of the example:</strong> the React idiom for events, where the default types are traps.</p>
+
+<pre><code class="language-typescript">// antipattern: `event: any` — accepted everywhere, checks nothing
+// function SearchBox({ onChange }: { onChange: (e: any) => void })
+
+import type { ChangeEvent } from "react";
+
+function SearchBox({ onChange }: {
+  onChange: (e: ChangeEvent&lt;HTMLInputElement&gt;) => void;
+}) {
+  // e.target is typed as HTMLInputElement → .value: string — no casting:
+  return &lt;input onChange={(e) =&gt; onChange(e)} /&gt;;
+}
+
+// Generic list props: RenderProps pattern with generics (from the generics lesson)
+function List&lt;T&gt;({ items, renderItem }: {
+  items: T[];
+  renderItem: (item: T) => React.ReactNode;
+}) {
+  return &lt;ul&gt;{items.map((item, i) =&gt; &lt;li key={i}&gt;{renderItem(item)}&lt;/li&gt;)}&lt;/ul&gt;;
+}</pre></code>
+
+<p><strong>What you should see:</strong> full inference on event objects and generic list contents. <strong>What we learn:</strong> framework types are libraries of precisely the patterns from Phases 2–3 — unions, generics, narrowing — applied to component APIs.</p>
+
+<h2 id="framework-specific-idioms">Framework-specific idioms</h2>
+
+<p>Same principles, different mechanics. The examples below are the canonical typing idiom for each of the three major frameworks.</p>
+
+<h3 id="vue-script-setup-and-defineprops">Vue: script setup and defineProps</h3>
+
+<p><strong>Purpose of the example:</strong> type-safe props and emits without runtime schemas — the compiler reads the types.</p>
+
+<pre><code class="language-typescript">&lt;script setup lang="ts"&gt;
+// Type-only declaration: defineProps infers the prop types at compile time.
+// `id?` and the union type flow into the template with full narrowing:
+defineProps&lt;{ id: string; status: "active" | "archived"; note?: string }&gt;();
+
+// Typed emits — the event contract, not string folklore:
+const emit = defineEmits&lt;{ (e: "save", id: string): void;
+                           (e: "cancel"): void }&gt;();
+&lt;/script&gt;</pre></code>
+
+<p><strong>What you should see:</strong> mis-typed props and unknown events fail at compile time, in the component that declares them. Vue's language tools compile the single-file component through the TypeScript checker, so the template's bindings are checked too.</p>
+
+<h3 id="svelte-lang-ts-and-stores">Svelte: lang="ts" and typed stores</h3>
+
+<p><strong>Purpose of the example:</strong> a typed store — the shared-state primitive — with the same union discipline as props.</p>
+
+<pre><code class="language-typescript">&lt;script lang="ts"&gt;
+import { writable, derived } from "svelte/store";
+
+// The store's type is the union from earlier — consumers cannot
+// construct invalid states:
+export const view = writable&lt;AsyncView&lt;Cart&gt;&gt;({ status: "loading" });
+
+// derived stores keep the type flowing through transformations:
+export const itemCount = derived(view, (v) =&gt;
+  v.status === "success" ? v.data.items.length : 0);
+&lt;/script&gt;</pre></code>
+
+<p><strong>What you should see:</strong> <code>itemCount</code> is a <code>Store&lt;number&gt;</code>; subscribing in the template is fully checked. Svelte 5's runes (<code>$props()</code>, <code>$state()</code>) are similarly type-driven.</p>
+
+<h2 id="where-framework-typing-hits-its-limits">Where framework typing hits its limits</h2>
+
+<h3 id="gaps-you-will-meet">Gaps you will meet</h3>
+
+<p>Know the gaps so they do not surprise you in review:</p>
+
 <ul>
-  <li>Typed props and discriminated unions for component modes.</li>
-  <li>Typed hooks for async data and UI state machines.</li>
-  <li>Strict event typing for safer form handling.</li>
+  <li><strong>Stringly-typed routes.</strong> Framework routers (React Router's path strings, route names in Vue Router) historically accept <code>to="/usres/42"</code> — a typo, unchecked. Type-safe route layers (typed links, code-generated route types) exist; adopt one rather than tolerating <code>any</code> navigation helpers.</li>
+  <li><strong>CSS and template string references</strong> are untyped by design — class names, element IDs.</li>
+  <li><strong>Two-way bindings</strong> in Vue/Svelte hide reassignment from the checker; the value's type is checked, the binding lifecycle is not.</li>
+  <li><strong>Server data</strong> is untyped at the network boundary in all frameworks — the errors lesson's validation discipline applies identically whether you use React Query, Loaders, or Actions. End-to-end typed stacks (tRPC, server-side <code>fetch</code> wrappers with schema types) exist precisely to close this gap.</li>
 </ul>
 
-<h2 id="vue-patterns">Vue + TypeScript patterns</h2>
-<ul>
-  <li>Type <code>defineProps</code> and emitted events.</li>
-  <li>Use typed composables for feature logic reuse.</li>
-  <li>Keep domain contracts in shared type modules.</li>
-</ul>
+<h3 id="the-rule-that-transfers">The rule that transfers</h3>
 
-<h2 id="svelte-patterns">Svelte + TypeScript patterns</h2>
-<ul>
-  <li>Typed stores and derived stores.</li>
-  <li>Typed component events and slot contracts.</li>
-  <li>Shared domain types for route-level modules.</li>
-</ul>
+<p><strong>What we learn:</strong> framework types cover the component contract, not the system. The typed boundaries you design — state unions, event payloads, domain types in shared modules — carry across every framework you will ever use.</p>
 
-<h2 id="enterprise-rollout">Enterprise rollout strategy</h2>
-<p>Start with one feature vertical, establish typed patterns, document conventions, then scale to all teams.</p>
+<h2 id="practice-frameworks">Practice: one feature, typed end to end</h2>
 
-<h2 id="practice-frameworks">Practice</h2>
-<p>Implement the same typed feature in one framework and document which type patterns improved clarity the most.</p>
+<h3 id="implement-the-async-view-in-your-framework">Implement the AsyncView in your framework</h3>
+
+<p>Build a small "notifications" feature: fetch a list, render three states (loading / list / error), allow dismissing an item. Requirements: the view state is a discriminated union; every event handler's parameter is a framework type (no <code>any</code>); domain types live in a separate module the component imports. <strong>What you should see:</strong> the component compiles with zero casts — and deleting the "loading" branch of the union is a compile error, not a UI bug.</p>
+
+<h3 id="audit-for-impossible-states">Audit for impossible states</h3>
+
+<p>Find one component in a real project with <code>isLoading</code>-style boolean flags plus nullable data. Replace them with the union from this lesson and count the branches that disappear — including the ones that were hiding real bugs (for example, "loading and error both true"). <strong>What we learn:</strong> refactors driven by types regularly delete defensive code that was only necessary because the types allowed nonsense.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'frameworks',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

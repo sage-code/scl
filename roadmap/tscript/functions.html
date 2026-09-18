@@ -2,9 +2,9 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Typed functions and API design in TypeScript.">
+  <meta name="description" content="Typed functions in TypeScript for JavaScript developers: signatures, optional/rest params, overloads, void vs never, and typing async contracts and callbacks.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript functions, overloads, api contracts">
+  <meta name="keywords" content="typescript functions, overloads, never, async typing, callbacks">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Typed Functions and APIs</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/functions.html">
@@ -12,38 +12,161 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="typed-functions">Typed Functions and APIs</h2>
-<div class="alert alert-secondary shadow-sm">Functions are architectural boundaries. If function contracts are weak, the whole application becomes fragile.</div>
+<h1 id="typed-functions-and-apis">Typed Functions and APIs</h1>
 
-<h2 id="signature-design">Designing signatures</h2>
-<pre><code class="language-typescript">type PriceRequest = { amount: number; currency: "USD" | "EUR" };
+<div class="alert alert-secondary shadow-sm">Functions are where types earn their salary: every parameter and return value is a contract enforced at every call site. In JavaScript, a function's signature lives in documentation (and drifts); in TypeScript it lives in the code — and the compiler rejects every call that drifts from it.</div>
 
-type PriceResponse = { ok: true; formatted: string } | { ok: false; reason: string };
+<h2 id="anatomy-of-a-typed-signature">Anatomy of a typed signature</h2>
 
-function formatPrice(input: PriceRequest): PriceResponse {
-  if (input.amount < 0) return { ok: false, reason: "Negative amount" };
-  return { ok: true, formatted: `${input.currency} ${input.amount.toFixed(2)}` };
-}</code></pre>
+<p>The vocabulary is small, but each piece changes what bugs become impossible:</p>
 
-<h2 id="overloads">Overloads and trade-offs</h2>
-<p>Use overloads when callers need different signatures. Keep overload count low and implementation explicit.</p>
+<h3 id="parameters-return-optional-default-rest">Parameters, returns, optional, default, rest</h3>
 
-<h2 id="async-contracts">Async contracts</h2>
-<p>Return typed result objects or typed exceptions. Avoid returning ambiguous shapes.</p>
+<p><strong>Purpose of the example:</strong> one function showing every signature position and what the checker enforces at each.</p>
 
-<h2 id="callback-typing">Callback typing</h2>
-<p>Always type callback arguments and return values. Unclear callbacks create hidden runtime bugs.</p>
+<pre><code class="language-typescript">// `timeout?` and `retries = 3` model "caller may omit";
+// `...tags` collects the rest — all plain JS syntax, now checked.
+function request(
+  url: string,                 // required positional
+  timeout?: number,            // optional — type is number | undefined
+  retries = 3,                 // default — inferred as number
+  ...tags: string[]            // rest — array or nothing
+): Promise<string> {           // explicit return type: the contract
+  return Promise.resolve(`${url} t=${timeout ?? 0} r=${retries} [${tags.join(",")}]`);
+}
 
-<h2 id="error-strategy">Error handling strategy</h2>
-<p>Choose one pattern per layer: either throw typed errors or return typed result unions. Mixing both causes confusion.</p>
+request("/users");                                  // OK
+request("/users", 5000, undefined, "cache", "api"); // OK — skipped optional
+request("/users", "5000");                          // ✗ TS2345: string not assignable
+request();                                          // ✗ TS2554: url is required</pre></code>
 
-<h2 id="practice-functions">Practice</h2>
-<p>Build a typed <code>fetchUserProfile</code> function with explicit success and failure contracts and use it in UI rendering code.</p>
+<p><strong>What you should see:</strong> two accepted calls and two precise errors — TS2345 for the wrong type, TS2554 for the missing argument. In plain JavaScript, the wrong-type call silently coerces and fails at runtime, possibly far from the cause.</p>
+
+<p><strong>What we learn:</strong> annotate the return type on <em>exported</em> functions even though inference could: the explicit type keeps the contract stable when the body changes, and stops return-type changes from rippling invisibly into every caller.</p>
+
+<h3 id="inference-lets-you-annotate-less-not-never">Inference lets you annotate less — not never</h3>
+
+<p>The checker is excellent at inferring types from initializers: <code>const rate = 0.5</code> is <code>number</code>, <code>const tags = ["a", "b"]</code> is <code>string[]</code>. Annotate where the contract must hold: parameters (always), public returns (always), and local variables (only when inference would be too wide or wrong). Sprinkling annotations on obvious locals is noise that hides the annotations that matter.</p>
+
+<h2 id="void-never-and-the-return-type-vocabulary">void, never, and the return-type vocabulary</h2>
+
+<p>Two return types are frequently confused; they describe opposite guarantees.</p>
+
+<h3 id="void-versus-never">void versus never</h3>
+
+<p><strong>Purpose of the example:</strong> distinguish "returns nothing useful" from "never returns at all".</p>
+
+<pre><code class="language-typescript">// void: returns undefined — callers shouldn't use the result.
+// (Callbacks passed to forEach etc. are typed this way.)
+function log(message: string): void {
+  console.log(`[log] ${message}`);
+}
+
+// never: the function NEVER completes normally — it throws or loops forever.
+// The checker uses this to prove code below the call is unreachable.
+function fail(message: string): never {
+  throw new Error(message);
+}
+
+function assertNever(x: never): never {   // exhaustiveness helper
+  throw new Error(`Unhandled: ${JSON.stringify(x)}`);
+}</pre></code>
+
+<p><strong>What you should see:</strong> both compile. The difference is a guarantee: after <code>fail("boom")</code>, the checker knows the next statement cannot execute. You will meet <code>assertNever</code> again in the <a href="type-system.html">type-system lesson</a>'s exhaustiveness pattern — it is the standard idiom built on <code>never</code>.</p>
+
+<h2 id="overloads-one-name-several-signatures">Overloads: one name, several signatures</h2>
+
+<p>JavaScript has no overloading — functions accept anything. TypeScript can declare multiple signatures for one implementation, but the pattern is narrower than you expect.</p>
+
+<h3 id="when-overloads-are-worth-it">When overloads are worth it</h3>
+
+<p><strong>Purpose of the example:</strong> a <code>createElement</code>-style API where the argument shape determines the return type — the legitimate overload use case.</p>
+
+<pre><code class="language-typescript">// Signatures (visible to callers' types; the body never sees them)
+function parse(input: string): Record<string, string>;
+function parse(input: string[]): string[];
+function parse(input: string | string[]): Record<string, string> | string[] {
+  if (Array.isArray(input)) {
+    return input;                       // string[] branch
+  }
+  return Object.fromEntries(new URLSearchParams(input)); // record branch
+}
+
+const asRecord = parse("a=1&b=2");  // type: Record<string, string>
+const asList   = parse(["a", "b"]); // type: string[]
+// asRecord.toUpperCase — ✗ Property does not exist on Record</pre></code>
+
+<p><strong>What you should see:</strong> each call gets the exact matching return type — impossible to express with a plain union return. The implementation signature itself is <em>not</em> callable from outside; it only constrains the implementation.</p>
+
+<p><strong>What we learn:</strong> prefer a union return or a discriminated argument when you can; add overloads only when callers must get different return types per argument shape. Order matters (first match wins), and more than two or three overloads is usually a design smell.</p>
+
+<h2 id="typing-async-contracts">Typing async contracts</h2>
+
+<p><code>async</code> functions return <code>Promise&lt;T&gt;</code>, and the checker verifies what you <code>await</code> — turning broken promise chains into compile errors.</p>
+
+<h3 id="the-result-union-not-try-catch-everywhere">The result union, not try/catch everywhere</h3>
+
+<p><strong>Purpose of the example:</strong> encode success and failure in the return type itself, following the discriminated-union pattern from the <a href="type-system.html">type-system lesson</a>.</p>
+
+<pre><code class="language-typescript">type Result<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: string };
+
+async function fetchJson<T>(url: string): Promise<Result<T>> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    return { ok: true, value: (await res.json()) as T }; // payload verified elsewhere
+  } catch (cause) {
+    return { ok: false, error: String(cause) };
+  }
+}
+
+const out = await fetchJson<{ id: string }>("/api/user/7");
+if (out.ok) {
+  console.log(out.value.id);   // value exists only in the ok branch
+} else {
+  console.error(out.error);    // and error only here
+}</pre></code>
+
+<p><strong>What you should see:</strong> reading <code>out.value</code> before the <code>if</code> is an error; narrowing guarantees the payload is only touched on success. Note that <code>catch</code> variables are typed <code>unknown</code> under strict mode — you must stringify or check them, which closes the "throw a string" bug class.</p>
+
+<h3 id="typing-callbacks">Typing callbacks</h3>
+
+<p>Callbacks are functions as parameters; type them like any other function:</p>
+
+<pre><code class="language-typescript">function mapWait<T, R>(
+  items: T[],
+  transform: (item: T, index: number) => R   // full signature inline
+): R[] {
+  return items.map(transform);
+}
+
+const lengths = mapWait(["alpha", "beta"], (s) => s.length);
+// s and the return value are inferred from the contract — no annotations needed</pre></code>
+
+<p><strong>What you should see:</strong> the arrow body is checked against the declared contract: return <code>s + 1</code> and the checker errors. <strong>What we learn:</strong> annotate the callback's <em>parameters</em> in the contract once, and every caller's lambda is checked for free — this is exactly how library APIs like <code>Array.prototype.map</code> give you typed callbacks with zero configuration.</p>
+
+<h2 id="function-practice">Practice: design a real API</h2>
+
+<h3 id="typed-pagination">Typed pagination</h3>
+
+<p>Build <code>fetchPage</code> returning <code>Promise&lt;Result&lt;Page&lt;Item&gt;&gt;&gt;</code> where <code>Page</code> carries <code>items: Item[]</code>, <code>nextCursor?: string</code>, and a total count. Requirements: an explicit return type, a rest parameter for filters, and an optional callback <code>onProgress?: (loaded: number) => void</code>. <strong>What you should see:</strong> every misuse of the API — wrong filter types, forgetting the failure branch — surfaces as a red squiggle at the call site, not as a production incident.</p>
+
+<h3 id="refactor-drill">Refactor drill</h3>
+
+<p>Find a JavaScript function in an old project that returns "an object or null depending on the day". Give it a <code>Result</code>-style or discriminated return type and watch the checker list every caller that forgot the null case. That discovery list is the refactor TypeScript just did for you.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'functions',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

@@ -2,9 +2,9 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Run and debug TypeScript with production-grade workflows.">
+  <meta name="description" content="Run and debug TypeScript professionally: execution modes, source maps, debugging narrowed types, and error triage in Node and the browser.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript debugging, sourcemaps, ci">
+  <meta name="keywords" content="typescript debugging, source maps, tsx, node inspector, browser devtools">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Run and Debug TypeScript</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/run-debug.html">
@@ -12,37 +12,134 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="run-debug-ts">Run and Debug TypeScript</h2>
-<div class="alert alert-secondary shadow-sm">Debugging TypeScript effectively means debugging source, not output JavaScript.</div>
+<h1 id="run-and-debug-typescript">Run and Debug TypeScript</h1>
 
-<h2 id="execution-modes">Execution modes</h2>
-<ul>
-  <li>Type check only: <code>tsc --noEmit</code></li>
-  <li>Continuous checks: <code>tsc --watch</code></li>
-  <li>Bundler-driven builds for production delivery</li>
-</ul>
+<p>Bugs do not care about your type annotations: invalid states can still reach the runtime through untyped boundaries, and logic can be wrong in perfectly well-typed code. This lesson covers the running options, the source-map machinery that lets you debug <code>.ts</code> instead of emitted JavaScript, and a triage playbook that exploits the type system during debugging.</p>
 
-<h2 id="source-maps">Source maps</h2>
-<p>Enable source maps so breakpoints map back to <code>.ts</code> source files in browser DevTools.</p>
+<h2 id="choosing-the-execution-path">Choosing the execution path</h2>
 
-<h2 id="debugging-playbook">Debugging playbook</h2>
-<ol>
-  <li>Reproduce bug with deterministic steps.</li>
-  <li>Set breakpoints at typed boundaries (API parsing, state transitions).</li>
-  <li>Inspect narrowed types and runtime values together.</li>
-  <li>Fix root cause and rerun type-check plus tests.</li>
-</ol>
+<p>Three ways to run, each with a distinct debugging consequence — pick deliberately or the debugger will surprise you.</p>
 
-<h2 id="ci-gates">CI quality gates</h2>
-<p>Required pipeline stages: lint, type-check, unit tests, and production build. Fail fast on type regressions.</p>
+<h3 id="matching-runner-to-workflow">Matching runner to workflow</h3>
 
-<h2 id="practice-run-debug">Practice</h2>
-<p>Resolve one runtime state bug and one contract bug using the same debugging checklist.</p>
+<p><strong>Purpose of the example:</strong> map the three runners from the setup lesson onto debugging scenarios.</p>
+
+<pre><code class="language-bash"># 1. Fast dev loop with full syntax support (enums, decorators, paths):
+npx tsx --watch src/server.ts
+
+# 2. Node's native stripping for zero-dependency scripts (Node ≥ 22.18):
+node src/strip-demo.ts
+
+# 3. Debug with the inspector attached — the topic of this lesson:
+node --inspect-brk -r tsx/cjs src/server.ts     # or: npx tsx --inspect-brk src/server.ts</pre></code>
+
+<p><strong>What you should see:</strong> for scenario 3, Node prints an inspector URL (<code>chrome://inspect</code>). Open it in Chrome or use VS Code's JavaScript Debug Terminal, and the debugger attaches before the first line runs (<code>--inspect-brk</code> breaks on start).</p>
+
+<h3 id="vs-code-launch-configuration">VS Code launch configuration</h3>
+
+<p><strong>Purpose of the example:</strong> a committed <code>launch.json</code> makes debugging reproducible for the whole team — like a test, but for breakpoints.</p>
+
+<pre><code class="language-json">// .vscode/launch.json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug current file (tsx)",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+      "args": ["${file}"],
+      "console": "integratedTerminal",
+      "skipFiles": ["&lt;node_internals&gt;/**"]
+    }
+  ]
+}</pre></code>
+
+<p><strong>What you should see:</strong> F5 launches the open file under the debugger, with breakpoints in <code>.ts</code> files binding correctly — no emitted-code stepping. <code>skipFiles</code> keeps the stack focused on your code rather than Node internals.</p>
+
+<h2 id="source-maps-debugging-source-not-output">Source maps: debugging source, not output</h2>
+
+<p>Whenever JavaScript is emitted (by <code>tsc</code> or a bundler), the executing file is not the file you wrote. Source maps bridge the two; without them, every stack trace points at line numbers that do not exist in your source.</p>
+
+<h3 id="enabling-source-maps-in-tsconfig">Enabling source maps in tsconfig</h3>
+
+<p><strong>Purpose of the example:</strong> one flag makes emitted JavaScript reference its TypeScript origin.</p>
+
+<pre><code class="language-json">{
+  "compilerOptions": {
+    "sourceMap": true,       // write .js.map next to each .js
+    "inlineSources": true    // embed original source in the map —
+                             // enables debugging without serving .ts files
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> in browser DevTools or a Node stack trace, errors report <code>src/orders.ts:42:11</code> instead of <code>dist/orders.js:19:3</code>. Two consequences to internalize: stack traces, breakpoints, and profiler entries all show source positions; and error-monitoring services (Sentry and similar) reconstruct the original stack from the same maps — upload them at build time, never ship them to users.</p>
+
+<p><strong>What we learn:</strong> source maps are part of the emit contract, not an optional nicety. A project without them produces un-debuggable output; a project with them keeps the entire debugging experience in TypeScript.</p>
+
+<h2 id="debugging-with-types-as-a-map">Debugging with types as a map</h2>
+
+<p>The checker is a debugging instrument, not just a gatekeeper. During a live session, the types of the values in front of you encode what the program believes.</p>
+
+<h3 id="the-triage-playbook">The triage playbook</h3>
+
+<p><strong>Purpose of the example:</strong> a repeatable procedure for a value that is "wrong at runtime but valid per the types."</p>
+
+<pre><code class="language-typescript">// Symptom: order.total is NaN somewhere. Pause in the debugger and ask
+// three questions, in order:
+
+// 1. What does the CHECKER believe `total` is at this breakpoint?
+//    (hover in the editor / debugger tooltip)
+//    → number  — so the type system is satisfied; not a type bug.
+
+// 2. What does the RUNTIME say?
+//    typeof order.total          → "number"  (NaN is a number!)
+//    Number.isNaN(order.total)   → true
+//    → a value typed `number` holds NaN: a boundary smuggled bad data in.
+
+// 3. Where did the value enter? Walk the call stack to the last place the
+//    type was *proved* rather than asserted — usually a parse boundary
+//    (JSON.parse, form input, URL param). There, add the runtime check
+//    the types could not provide:
+const total = Number.isFinite(raw) ? raw : fallback();</pre></code>
+
+<p><strong>What you should see:</strong> the bug located not by stepping blindly but by asking "where does the runtime violate what the checker assumed?" Nine times in ten, the answer is an untyped boundary — the exact theme of the errors lesson.</p>
+
+<h3 id="node-and-browser-debugging-recipes">Node and browser debugging recipes</h3>
+
+<p><strong>Purpose of the example:</strong> the two most common day-to-day debug setups, in copyable form.</p>
+
+<pre><code class="language-bash"># Node: drop into a REPL at the breakpoint with full source positions:
+npx tsx --inspect-brk src/script.ts
+
+# Browser (Vite project): dev server + sourcemaps mean DevTools breakpoints
+# set in src/*.ts bind natively — no extra config:
+npm run dev        # then open DevTools → Sources → webpack:// or src/
+
+# Print the checker's view of a value while debugging in the editor:
+# hover any identifier — the tooltip shows the *narrowed* type at that line,
+# which answers "why didn't my guard work?" instantly.</pre></code>
+
+<p><strong>What you should see:</strong> breakpoints binding to <code>.ts</code> lines in both environments; editor tooltips showing narrowed types that change across your <code>if</code> guards.</p>
+
+<h2 id="practice-run-debug">Practice: debug with the map on</h2>
+
+<h3 id="triage-a-nan-in-anger">Triage a NaN, in anger</h3>
+
+<p>Create a module that computes a total from a parsed JSON string with a deliberately inconsistent field type in the JSON. Run it with the debugger attached and execute the three-question playbook above, writing down where the checker's belief and the runtime diverged. <strong>What we learn:</strong> the divergence point is always a boundary — and boundaries are where the next lesson's validation patterns live.</p>
+
+<h3 id="debug-the-types-themselves">Debug the types themselves</h3>
+
+<p>Take any complex type from the advanced-types lesson and add an intentionally wrong annotation. The editor's tooltip vs. the runtime value now disagree — trace which line <em>lied</em> (usually an <code>as</code> cast or an <code>any</code> leak) using the editor's "go to type definition". <strong>What we learn:</strong> when debugging, treat <code>as</code> casts as suspects before treating data as the culprit.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'run-debug',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

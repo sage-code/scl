@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Declaration files for JavaScript developers: what .d.ts files are, ambient declarations, typing untyped JS modules, and declaration merging for safe global augmentation.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="d.ts, declaration files, ambient types, declare module, declaration merging, typescript">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>TypeScript Declaration Files: Typing the Untyped World</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/tscript/declarations.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+</head>
+<body>
+<div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+
+<h1 id="declaration-files-typing-the-untyped-world">Declaration Files: Typing the Untyped World</h1>
+
+<p>Sooner or later the checker reports <code>Could not find a declaration file for module 'left-pad'</code>. The type checker only knows about code that declares its types — and enormous amounts of JavaScript does not. Declaration files (<code>.d.ts</code>) are the bridge: type descriptions that travel with, or alongside, code that has none. This lesson covers reading them, consuming them, and writing your own.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-declaration-augment.svg" class="figure-img img-fluid rounded" alt="Diagram: an untyped JS package plus a declaration file d.ts merge into one typed module view for the checker" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — The declaration bridge. The runtime runs <code>module.js</code>; the checker reads <code>module.d.ts</code>. The two never meet — the declaration only has to be kept <em>true</em>, and TypeScript merges them into one view.</figcaption>
+</figure>
+
+<h2 id="where-types-come-from">Where types come from</h2>
+
+<p>Before writing declarations, know the four sources the checker consults, in order of preference. Most "missing types" problems are solved by picking the right source, not by writing syntax.</p>
+
+<h3 id="the-four-sources-of-types">The four sources of types</h3>
+
+<ol>
+  <li><strong>The package itself ships types.</strong> Its <code>package.json</code> has a <code>"types"</code> field pointing at a <code>.d.ts</code>. Modern packages ( Vue, Zod, most new libraries) do this. Nothing to do.</li>
+  <li><strong>DefinitelyTyped (<code>@types/…</code>).</strong> A community monorepo of declaration packages for untyped JS libraries. <code>npm install --save-dev @types/lodash</code> and the checker finds it automatically. This is what the error message suggests.</li>
+  <li><strong>Your own declaration files.</strong> For private packages, vendored files, or globals — the rest of this lesson.</li>
+  <li><strong>Checking the JS directly.</strong> With <code>checkJs</code>/JSDoc (covered in the migration lesson) the checker infers types from the JavaScript itself. A last resort for dependencies, a first-class workflow for your own JS.</li>
+</ol>
+
+<p><strong>What we learn:</strong> <code>npm i -D @types/…</code> is the reflex for public packages, but it is source #2, not #1 — prefer packages that ship their own types when choosing between dependencies. The <code>types</code> field's presence is a signal of how seriously a package takes TypeScript.</p>
+
+<h2 id="reading-and-writing-declaration-files">Reading and writing declaration files</h2>
+
+<p>A <code>.d.ts</code> file contains declarations with no implementations — all the shape, none of the behavior. You have already read hundreds without noticing: they are what IntelliSense shows for <code>Array.prototype</code>.</p>
+
+<h3 id="anatomy-of-a-dts-file">Anatomy of a .d.ts file</h3>
+
+<p><strong>Purpose of the example:</strong> write a declaration for a fictional untyped module so both sides of the bridge (Figure 1) are visible at once.</p>
+
+<pre><code class="language-typescript">// types/analytics.d.ts — describes a JS module that has no types
+
+// `declare` means: this thing exists at runtime, don't emit anything for it.
+// A .d.ts file is ALL declarations — writing function bodies here is an error.
+export interface AnalyticsClient {
+  track(event: string, payload?: Record&lt;string, unknown&gt;): void;
+  flush(): Promise&lt;void&gt;;
+}
+
+export function createClient(apiKey: string): AnalyticsClient;
+
+export default createClient;</pre></code>
+
+<pre><code class="language-typescript">// src/order.ts — consuming the untyped module as if it were typed
+import createClient from "analytics";
+
+const client = createClient("key-123"); // inferred: AnalyticsClient
+client.track("order_placed", { total: 42 });
+client.track(123); // ✗ error: Argument of type 'number' is not assignable
+                   //   to parameter of type 'string' — the declaration works</pre></code>
+
+<p><strong>What you should see:</strong> full checking on an untyped package. Without the declaration, the same import produced either an error (under strict rules) or an implicit <code>any</code> that silently disabled checking. <strong>What we learn:</strong> a declaration file is a contract with the <em>real</em> JS behavior — if the .d.ts lies (says <code>track</code> takes a string when the JS crashes on numbers), the checker repeats that lie with total confidence.</p>
+
+<h3 id="ambient-declarations-and-the-global-scope">Ambient declarations and the global scope</h3>
+
+<p>Scripts loaded by a <code>&lt;script&gt;</code> tag, or globals injected by a build tool, exist outside the module system. <code>declare</code> at the top level of a non-module file describes them:</p>
+
+<p><strong>Purpose of the example:</strong> teach the compiler about globals it cannot see from the imports.</p>
+
+<pre><code class="language-typescript">// types/globals.d.ts — must be a script (no top-level import/export)
+// to describe the true global scope:
+
+declare const SAGE_CONFIG: {
+  apiBase: string;
+  version: string;
+};
+
+declare function trackEvent(name: string, detail?: unknown): void;
+
+// Describe an existing untyped module so imports resolve:
+declare module "legacy-widget" {
+  export function mount(el: HTMLElement, opts?: { theme?: "dark" | "light" }): void;
+}</pre></code>
+
+<pre><code class="language-typescript">// src/app.ts — the globals are now checked, not assumed
+const base = SAGE_CONFIG.apiBase;  // string — no error, no any
+trackEvent("app_ready");
+// trackEvent("app_ready", 42, "extra"); // ✗ error: too many arguments</pre></code>
+
+<p><strong>What you should see:</strong> completion and checking for names that come from nowhere in your own source tree. Keep these files in a dedicated <code>types/</code> folder included by <code>tsconfig</code>. <strong>What we learn:</strong> ambient declarations are how typed code coexists with script-tag legacy — the alternative is every developer re-assuming the global's shape from memory.</p>
+
+<h2 id="declaration-merging-extending-what-exists">Declaration merging: extending what exists</h2>
+
+<p>When two declarations for the same name are in scope, TypeScript <em>merges</em> them. Interfaces merge their members; namespaces merge their exports. This is how the language lets you extend types you do not own — including globals.</p>
+
+<h3 id="augmenting-a-modules-public-contract">Augmenting a module's public contract</h3>
+
+<p><strong>Purpose of the example:</strong> add a missing field to a dependency's exported type — without editing <code>node_modules</code>.</p>
+
+<pre><code class="language-typescript">// types/express.d.ts — module augmentation
+import "express";
+
+declare module "express-serve-static-core" {
+  interface Request {
+    // your auth middleware attaches this to every request:
+    userId?: string;
+  }
+}
+
+// src/middleware.ts — the augmentation is visible everywhere:
+export function auth(req: Request, res: Response, next: NextFunction): void {
+  req.userId = extractUser(req);       // typed access…
+  if (req.userid) { }                  // ✗ error: did you mean 'userId'?
+  next();
+}</pre></code>
+
+<p><strong>What you should see:</strong> <code>req.userId</code> autocompletes and checks, while the typo <code>req.userid</code> errors — impossible to achieve safely with <code>(req as any).userId</code>. <strong>What we learn:</strong> augmentation is the professional answer to "the library's types don't know about our middleware". It is scoped, reviewable, and merges into the real contract instead of replacing it with <code>any</code>.</p>
+
+<h3 id="merging-rules-and-when-not-to-use-them">Merging rules — and when not to use them</h3>
+
+<p>Three facts govern merging: interfaces with the same name in the same scope merge their members (duplicate <em>function</em> members become overloads; duplicate <em>data</em> members with different types are an error); namespaces merge with namespaces, classes, and interfaces; <code>type</code> aliases do <strong>not</strong> merge — two same-named aliases are a hard error. That last rule is usually what you want: augmentation is for <em>extending shared contracts</em>, and the restriction of merging to interfaces is why the handbook recommends <code>interface</code> for public API surfaces and <code>type</code> for most everything else.</p>
+
+<h2 id="generating-and-publishing-declarations">Generating and publishing declarations</h2>
+
+<p>When <em>you</em> ship a package, consumers deserve the same bridge in reverse: emit your own <code>.d.ts</code> files so <code>npm i your-package</code> is fully typed.</p>
+
+<h3 id="emit-declarations-with-tsc">Emit declarations with tsc</h3>
+
+<p><strong>Purpose of the example:</strong> the minimal publish-ready config for a library.</p>
+
+<pre><code class="language-json">{
+  "compilerOptions": {
+    "declaration": true,          // emit a .d.ts beside every .ts
+    "emitDeclarationOnly": true,  // types only — a bundler (esbuild) emits the JS
+    "outDir": "dist",
+    "strict": true
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> after <code>npx tsc</code>, <code>dist/</code> contains pairs like <code>client.js</code> + <code>client.d.ts</code>, and <code>package.json</code> gains <code>"types": "dist/client.d.ts"</code>. <strong>What we learn:</strong> declaration emit is the checker reading your source and writing the contract out — which is also why <code>isolatedDeclarations</code> exists for fast pipelines: it guarantees the declarations can be generated without full type inference.</p>
+
+<h3 id="wire-the-package-entry-points">Wire the package entry points</h3>
+
+<p>Emitting files is not enough — Node and bundlers must <em>find</em> the declarations. Modern packages point at them through the <code>exports</code> map, with <code>types</code> listed first so tools resolve the contract before the implementation:</p>
+
+<p><strong>Purpose of the example:</strong> a publishable <code>package.json</code> fragment for a dual-consumption library (import and require).</p>
+
+<pre><code class="language-json">{
+  "name": "my-lib",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",   // resolved first — the contract
+      "import": "./dist/index.js",    // ESM consumers
+      "require": "./dist/index.cjs"   // CommonJS consumers
+    }
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> a consumer running <code>tsc --noEmit</code> against your package resolves types through the <code>exports</code> map with zero configuration on their side. If they instead see "Could not find a declaration file", the <code>types</code> condition is missing or points at a file that was never emitted. <strong>What we learn:</strong> shipping types is a packaging problem as much as a compiler one — the contract travels through <code>package.json</code>, and a broken map silently degrades your library back to untyped JavaScript.</p>
+
+<h2 id="practice-declarations">Practice: type an untyped module yourself</h2>
+
+<h3 id="write-the-declaration-from-behavior">Write the declaration from behavior</h3>
+
+<p>Take a small untyped package you use (or a util file from an old JS project). Write a <code>.d.ts</code> for its three most-used functions, including one that accepts an options object. <strong>What you should see:</strong> reading the JS source to extract the contract — which parameter is optional, what is mutated, what throws — is the real work; the syntax is trivial. <strong>What we learn:</strong> declarations encode <em>decisions about truth</em>, which is why the DefinitelyTyped project has millions of lines reviewed by humans.</p>
+
+<h3 id="break-your-own-contract">Break your own contract</h3>
+
+<p>Deliberately make your declaration lie: declare a function as returning <code>number</code> when the JS returns a string. <strong>What you should see:</strong> the consumer compiles cleanly and then misbehaves at runtime — the checker amplified your lie. This is the cost-benefit picture in one exercise: declarations move trust <em>forward</em> to the contract, so keeping them accurate is everyone's job.</p>
+
+<p>Next, the <a href="modules.html">modules lesson</a> covers how the files themselves are organized, resolved, and shipped.</p>
+</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
+<script>window.TOPIC_CONFIG={labId:'tscript',topicId:'declarations',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
+<script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

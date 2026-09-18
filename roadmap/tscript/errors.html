@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Error handling in TypeScript: unknown in catch, discriminated error unions, Result patterns, and runtime validation at boundaries.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="typescript errors, unknown catch, result pattern, runtime validation">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Errors and Runtime Validation</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/tscript/errors.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+
+<h1 id="errors-and-runtime-validation">Errors and Runtime Validation</h1>
+
+<p>Types eliminate an entire class of bugs before the program runs — but they cannot eliminate errors that come from <em>outside the program</em>: user input, network responses, files, environment variables. This lesson covers the two halves of production error handling: what the checker can and cannot prove about failure, and how to build a verified boundary where untyped data becomes typed data.</p>
+
+<h2 id="what-the-type-system-cannot-prevent">What the type system cannot prevent</h2>
+
+<p>Strict mode removes type inconsistencies, but three failure sources remain fundamentally outside its reach. Naming them precisely is what separates systematic error handling from defensive clutter.</p>
+
+<ul>
+  <li><strong>Data from outside.</strong> A JSON response parsed from the network is, at runtime, unverified data. <code>JSON.parse</code> returns <code>any</code> — the checker takes your word for whatever shape you claim.</li>
+  <li><strong>Runtime failure conditions.</strong> Network timeouts, disk full, permission denied. These are not type errors; they are states of the world.</li>
+  <li><strong>Logic errors on valid values.</strong> A discount of <code>-999</code> is a perfectly valid <code>number</code>. The type system proves the value is a number, never that it is sensible.</li>
+</ul>
+
+<h3 id="the-any-shaped-hole-in-catch-blocks">The any-shaped hole in catch blocks</h3>
+
+<p>JavaScript's <code>catch</code> accepts anything a <code>throw</code> delivers — a string, a number, an <code>Error</code>. TypeScript models that honestly: by default (and with <code>useUnknownInCatchVariables</code>, part of <code>strict</code>) the caught value is <code>unknown</code>, and <code>unknown</code> must be narrowed before use.</p>
+
+<p><strong>Purpose of the example:</strong> show the correct reflex for every catch block: treat the caught value as opaque until proven otherwise.</p>
+
+<pre><code class="language-typescript">try {
+  await saveProfile(profile);
+} catch (error) {                      // error: unknown under strict mode
+  // Compiler error: 'error' is of type 'unknown'.
+  // console.log(error.message);
+
+  if (error instanceof Error) {        // narrow with instanceof first
+    console.error(`Save failed: ${error.message}`);
+  } else {
+    // Something threw a non-Error — log it whole, never assume shape
+    console.error("Save failed with non-Error throw:", error);
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> with the narrowing removed, the compiler rejects <code>error.message</code> — the same protection <code>noImplicitAny</code> gives variables, extended to the most chaotic value in the program. <strong>What we learn:</strong> <code>throw "oops"</code> is legal JavaScript, so <code>catch (e: any)</code> assumptions are lies waiting to happen; <code>unknown</code> plus an explicit narrow is the professional default.</p>
+
+<h2 id="modeling-failure-in-the-type-signature">Modeling failure in the type signature</h2>
+
+<p>Exceptions have a documentation problem: the signature <code>fetchUser(id): Promise&lt;User&gt;</code> says nothing about the three ways it can fail. Developers discover failure modes by reading the source — or by experiencing them in production. Type unions fix the documentation problem by putting failure <em>in the signature</em>.</p>
+
+<h3 id="discriminated-error-unions">Discriminated error unions</h3>
+
+<p><strong>Purpose of the example:</strong> make every failure mode a value the caller must handle, using the discriminated-union skill from the types lesson.</p>
+
+<pre><code class="language-typescript">type LoadUserResult =
+  | { status: "ok"; user: User }             // success carries the payload
+  | { status: "not-found"; id: string }      // each failure mode carries
+  | { status: "network"; cause: Error }      // exactly the data needed
+  | { status: "unauthorized" };              // to recover from it
+
+async function loadUser(id: string): Promise&lt;LoadUserResult&gt; {
+  try {
+    const user = await api.getUser(id);
+    return { status: "ok", user };
+  } catch (cause) {
+    if (cause instanceof NetworkError) {
+      return { status: "network", cause };
+    }
+    throw cause;   // unclassified: rethrow, never swallow
+  }
+}
+
+// The caller cannot read `.user` without proving status === "ok" first:
+const result = await loadUser("u_42");
+if (result.status === "ok") {
+  render(result.user);        // narrowed: user is guaranteed here
+} else {
+  showError(result.status);   // every other case, handled explicitly
+}</pre></code>
+
+<p><strong>What you should see:</strong> the compiler refuses <code>result.user</code> outside the <code>"ok"</code> branch — the "cannot read property of undefined" crash is now a compile error. Exhaustiveness (the <code>never</code> check from the advanced-types lesson) makes adding a fifth failure mode break every caller that must react to it.</p>
+
+<h3 id="when-to-throw-versus-when-to-return">When to throw versus when to return</h3>
+
+<p>Both mechanisms are correct; the choice is about <em>expectation</em>:</p>
+
+<table class="table table-dark table-striped">
+  <thead><tr><th>Situation</th><th>Mechanism</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Programmer error (broken invariant, unreachable branch)</td><td>throw</td><td>Should never happen in a correct build; the stack trace is the point</td></tr>
+    <tr><td>Anticipated business outcomes (not found, invalid input)</td><td>return union</td><td>Callers <em>should</em> handle it — put it in the signature so they must</td></tr>
+    <tr><td>Catastrophic environment failure</td><td>throw</td><td>No local recovery exists; let the top level log and crash</td></tr>
+  </tbody>
+</table>
+
+<p><strong>What we learn:</strong> the union style dominates in libraries and API layers where callers branch on outcomes; plain throws dominate inside application cores where failures cross layer boundaries. Mixing is normal — the rule is that anticipated outcomes are <em>typed</em>, not hidden.</p>
+
+<h2 id="runtime-validation-at-the-boundary">Runtime validation at the boundary</h2>
+
+<p>Here is the pattern that catches most beginners: a type annotation is a <em>claim</em>, not a <em>check</em>. Cast an untyped API response with <code>as User</code> and the compiler believes you — nothing at runtime verifies a single field. This is why the boundary needs a validator: a function that checks the real data and reports the real type.</p>
+
+<h3 id="from-any-to-typed-parse-dont-cast">From any to typed: parse, don't cast</h3>
+
+<p><strong>Purpose of the example:</strong> implement the "parse, don't validate" pattern with nothing but the standard library, so the mechanism is visible before introducing a validation library.</p>
+
+<pre><code class="language-typescript">interface Article { id: string; title: string; views: number }
+
+// Type guard: returns boolean, teaches the checker `value is Article`
+function isArticle(value: unknown): value is Article {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record&lt;string, unknown&gt;;
+  return typeof v.id === "string"
+      && typeof v.title === "string"
+      && typeof v.views === "number";
+}
+
+export function parseArticle(raw: unknown): Article | null {
+  return isArticle(raw) ? raw : null;   // verified data, not asserted data
+}
+
+// At the network boundary:
+const res = await fetch("/api/articles/1");
+const body: unknown = await res.json();      // honest: we know nothing yet
+const article = parseArticle(body);
+if (!article) throw new Error("Malformed article from API");</pre></code>
+
+<p><strong>What you should see:</strong> <code>body</code> is <code>unknown</code> — no field access compiles until the guard runs. After <code>parseArticle</code> succeeds, <code>article</code> is a fully typed <code>Article</code> that <em>actually is</em> one. Compare with <code>await res.json() as Article</code>: zero checks, silent <code>undefined</code> fields, and a crash hours later in unrelated code.</p>
+
+<p><strong>What we learn:</strong> the boundary is where trust begins. Hand-written guards are transparent and dependency-free; in larger projects, schema libraries (Zod, Valibot, and similar) generate both the runtime check and the TypeScript type from one schema definition — same principle, less duplication. The pattern's name is the rule: <em>parse, don't validate</em> — convert untrusted data into trusted types once, at the edge.</p>
+
+<h3 id="narrowing-user-input-a-form-example">Narrowing user input: a form example</h3>
+
+<p><strong>Purpose of the example:</strong> connect validation to state — a form field that is typed by what the user has done, not by what you hope.</p>
+
+<pre><code class="language-typescript">type EmailField =
+  | { state: "empty" }
+  | { state: "invalid"; raw: string }
+  | { state: "valid"; email: string };   // valid carries a verified value
+
+function checkEmail(raw: string): EmailField {
+  if (raw.trim() === "") return { state: "empty" };
+  if (!/^\S+@\S+\.\S+$/.test(raw)) return { state: "invalid", raw };
+  return { state: "valid", email: raw };
+}
+
+// Impossible to submit an unverified value — the types forbid it:
+function submit(field: EmailField): void {
+  if (field.state === "valid") {
+    api.subscribe(field.email);   // only reachable with verified data
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> the invalid-state bug class ("user clicked submit with a half-typed email") is unrepresentable — <code>submit</code> has no way to reach an unverified string. <strong>What we learn:</strong> validation logic and state modeling are the same activity; modeling the states explicitly (as in the types lesson's state machines) makes invalid flows unrepresentable rather than merely discouraged.</p>
+
+<h2 id="practice-errors">Practice: build a typed boundary</h2>
+
+<h3 id="wrap-a-real-api">Wrap a real API</h3>
+
+<p>Take any public JSON endpoint (or a local file). Write a <code>parseX</code> function returning a discriminated union of success and every plausible failure, with zero <code>as</code> casts between <code>fetch</code> and the returned value. <strong>What you should see:</strong> your handler code compiles without a single assertion — every branch is driven by a narrowing check. <strong>What we learn:</strong> a well-modeled boundary makes the rest of the program's types <em>true</em>, which is the entire return on investment of the type system.</p>
+
+<h3 id="audit-for-swallowed-errors">Audit for swallowed errors</h3>
+
+<p>Search a project (yours or an open-source one) for empty <code>catch</code> blocks and <code>catch (e) { return undefined }</code>-style swallows. Rewrite two of them as error unions. <strong>What you should see:</strong> silent failure points become visible, handled branches — and the callers that ignored them become compiler errors you must resolve. That visibility is exactly what production incident reviews demand.</p>
+</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
+<script>window.TOPIC_CONFIG={labId:'tscript',topicId:'errors',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
+<script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

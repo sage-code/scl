@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Inside the TypeScript compiler: checking versus emitting, the compilation pipeline, type erasure, emit control, and ts-ignore versus ts-expect-error.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="typescript compiler, tsc, type erasure, noemit, ts-expect-error">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Inside the TypeScript Compiler</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/tscript/compiler.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+</head>
+<body>
+<div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+
+<h1 id="inside-the-typescript-compiler">Inside the TypeScript Compiler</h1>
+
+<p>The setup lesson made the checker run; this lesson explains what it actually does. The mental model you build here — <em>checking and emitting are two separate jobs</em> — explains behaviors that otherwise look arbitrary: why fast tools skip checking, why some syntax survives to the runtime and some does not, and why <code>--noEmit</code> is the most important flag in real projects.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-compilation-pipeline.svg" class="figure-img img-fluid rounded" alt="Pipeline: TypeScript source parsed to an AST, checked for type errors, then emitted as plain JavaScript; diagnostics branch off the checker" loading="lazy">
+  <figcaption class="figure-caption">Figure 1 — The compiler's pipeline. Parse, check, emit. Errors are produced by the <em>check</em> stage; the JavaScript you run is produced by the <em>emit</em> stage. Nothing forces the two to happen together.</figcaption>
+</figure>
+
+<h2 id="two-jobs-check-and-emit">Two jobs: check and emit</h2>
+
+<p>Every <code>tsc</code> invocation does up to two things: it verifies that your program's types are consistent, and it writes JavaScript output. The insight that took TypeScript years to teach the ecosystem: these jobs are separable, and separating them is what modern toolchains do.</p>
+
+<h3 id="the-two-jobs-are-separable">The two jobs are separable</h3>
+
+<p><strong>Purpose of the example:</strong> show the three ways real projects split the work, and why each exists.</p>
+
+<pre><code class="language-bash"># Job 1 only — verify types, write nothing:
+npx tsc --noEmit
+
+# Job 2 only — transpile fast, check nothing (esbuild example):
+npx esbuild src/index.ts --outfile=dist/index.js
+
+# Both jobs — the classic single-step build:
+npx tsc</pre></code>
+
+<p><strong>What you should see:</strong> all three succeed on valid code, at very different speeds. <code>esbuild</code> (and <code>tsx</code>, Vite, SWC) is often 10–100× faster than <code>tsc</code> precisely because it skips the check entirely. That is the architecture in Figure 2: one tool checks, another runs.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-build-toolchain.svg" class="figure-img img-fluid rounded" alt="Source files feed tsc which only checks, and tsx/esbuild/Vite which only strip types; runtimes and bundles execute plain JavaScript" loading="lazy">
+  <figcaption class="figure-caption">Figure 2 — The production toolchain. The checker is the slow, thorough component that gates CI; the transpiler is the fast component that powers your editor and dev server. Neither substitutes for the other.</figcaption>
+</figure>
+
+<p><strong>What we learn:</strong> "TypeScript is slow" almost always means "type checking is slow" — and checking is optional at dev time as long as it is mandatory in CI. This split is why large TypeScript codebases keep instant dev loops.</p>
+
+<h3 id="type-erasure-the-output-is-plain-javascript">Type erasure: the output is plain JavaScript</h3>
+
+<p>The emit stage does something that surprises developers coming from languages like Java or C#: it <em>removes</em> the type system rather than implementing it. This is called <strong>type erasure</strong>.</p>
+
+<p><strong>Purpose of the example:</strong> prove to yourself that no types exist at runtime — the single most important fact for debugging TypeScript.</p>
+
+<pre><code class="language-typescript">// src/erasure.ts — the file you compile
+interface UserId {          // 1. interface: pure type syntax
+  value: number;
+}
+
+function toLabel(id: UserId): string {   // 2. annotations: pure type syntax
+  return `user-${id.value}`;
+}
+
+const id: UserId = { value: 42 };        // 3. annotation on a variable
+console.log(toLabel(id));</pre></code>
+
+<pre><code class="language-javascript">// dist/erasure.js — what tsc emits (target: ES2022)
+function toLabel(id) {       // annotation gone
+  return `user-${id.value}`;
+}
+const id = { value: 42 };    // annotation gone
+console.log(toLabel(id));
+// the interface never existed — it is not even a comment</pre></code>
+
+<p><strong>What you should see:</strong> functionally identical JavaScript, minus every type construct. Nothing in the emitted file knows <code>UserId</code> ever existed. Contrast this with Java generics, which exist at runtime — in TypeScript, <code>instanceof</code> cannot test an interface, reflection cannot read a generic, and <code>typeof</code> reports JavaScript types only.</p>
+
+<figure class="figure d-block">
+  <img src="/roadmap/tscript/img/ts-type-erasure.svg" class="figure-img img-fluid rounded" alt="Left: TypeScript with annotations, interface, and generic parameter. Right: emitted JavaScript with every type construct removed" loading="lazy">
+  <figcaption class="figure-caption">Figure 3 — Erasure in one picture. Everything red on the left exists only for the checker. If it is not in the emitted JavaScript, the runtime cannot see it — and neither can an attacker, a debugger breakpoint, or <code>console.log</code>.</figcaption>
+</figure>
+
+<h3 id="design-time-versus-runtime-the-key-distinction">Design time versus runtime: the key distinction</h3>
+
+<p>Erasure splits the world in two, and classifying every construct into its side prevents whole categories of confusion:</p>
+
+<table class="table table-dark table-striped">
+  <thead><tr><th>Construct</th><th>Exists at design time</th><th>Exists at runtime</th></tr></thead>
+  <tbody>
+    <tr><td><code>interface</code>, <code>type</code> aliases</td><td>yes</td><td><strong>no</strong></td></tr>
+    <tr><td>annotations (<code>: string</code>) and generics</td><td>yes</td><td><strong>no</strong></td></tr>
+    <tr><td><code>enum</code> (regular)</td><td>yes</td><td>yes — emits an object (transformed syntax)</td></tr>
+    <tr><td><code>namespace</code> with runtime code</td><td>yes</td><td>yes — emits an object</td></tr>
+    <tr><td>classes, functions, plain values</td><td>yes</td><td>yes</td></tr>
+  </tbody>
+</table>
+
+<p><strong>What we learn:</strong> most of the language is pure type syntax that vanishes; a small set of TypeScript-specific constructs (enums, namespaces) is <em>transformed</em> into JavaScript instead of erased. That second category is exactly what Node's native type stripping cannot execute — connecting back to the setup lesson — and why modern style prefers unions of string literals over enums.</p>
+
+<h2 id="control-the-emit-not-just-the-check">Control the emit, not just the check</h2>
+
+<p>Three tsconfig options govern what the emit stage writes. They matter because they change the <em>shape</em> of the JavaScript other tools consume.</p>
+
+<h3 id="target-module-and-moduleresolution">target, module, and moduleResolution</h3>
+
+<ul>
+  <li><code>target</code> — how old the emitted JavaScript may be. <code>ES2022</code> keeps modern syntax as-is; a lower target makes the compiler rewrite newer syntax into older forms (for example, <code>class</code> into a function-plus-prototype when targeting ES5).</li>
+  <li><code>module</code> — the module format of the emit: <code>ESNext</code> keeps <code>import</code>/<code>export</code>; <code>CommonJS</code> rewrites them to <code>require</code>/<code>exports</code>.</li>
+  <li><code>moduleResolution</code> — how import specifiers are resolved to files. <code>"Bundler"</code> matches what Vite/esbuild do and is the modern default for web projects; Node-native projects use <code>"NodeNext"</code>.</li>
+</ul>
+
+<p>Wrong choices here produce code that checks fine but fails at runtime with "Cannot use import statement outside a module" — a config bug, not a type bug.</p>
+
+<h3 id="noemit-and-why-check-only-runs-dominate">noEmit and why check-only runs dominate</h3>
+
+<p>In a Vite/esbuild project, <code>tsc</code> frequently never emits at all: the bundler produces the JavaScript, and <code>tsc --noEmit</code> runs purely as a verifier. This is the standard architecture for React and Next.js projects in 2026 — and it explains a recurring team argument: if the build passes but <code>tsc --noEmit</code> fails, the project is <em>not</em> fine, because the fast build never looked at your types.</p>
+
+<h2 id="when-checking-and-running-disagree">When checking and running disagree</h2>
+
+<p>Sometimes you know something the checker cannot prove — typically data from outside the program. TypeScript provides two suppression comments with different contracts; choosing deliberately is a professionalism marker.</p>
+
+<p><strong>Purpose of the example:</strong> distinguish the "trust me" switch from the "prove me" switch.</p>
+
+<h3 id="ts-expect-error-the-self-deleting-suppression">@ts-expect-error: the self-deleting suppression</h3>
+
+<pre><code class="language-typescript">// @ts-expect-error: asserts THIS LINE has a type error, and fails the build
+// if the error ever disappears (e.g. after a dependency upgrade).
+// Use for: errors you understand but cannot fix locally.
+// @ts-expect-error JSON.parse returns any; the typed parse lands
+// with the runtime-validation work in the next sprint
+const config = loadUntypedConfig();</pre></code>
+
+<h3 id="ts-ignore-and-why-it-almost-never-the-right-choice">@ts-ignore, and why it is almost never the right choice</h3>
+
+<pre><code class="language-typescript">// ts-ignore: suppresses whatever errors appear on the next line, forever,
+// even if they change. Almost never the right choice.
+// @ts-ignore
+const legacy = legacyGlobal.doAnything();</pre></code>
+
+<p><strong>What you should see:</strong> with <code>@ts-expect-error</code>, fixing the underlying error turns the suppression itself into an error ("Unused '@ts-expect-error' directive") — the comment becomes self-deleting, so stale suppressions cannot accumulate. <code>@ts-ignore</code> gives no such guarantee.</p>
+
+<p><strong>What we learn:</strong> suppressions are technical debt with a due date. Prefer designs the checker can verify; use <code>@ts-expect-error</code> with an explanatory comment when you must; audit both with a lint rule in CI.</p>
+
+<h2 id="practice-compiler">Practice: interrogate the compiler</h2>
+
+<h3 id="predict-the-emitted-output">Predict the emitted output</h3>
+
+<p>For the file below, write by hand what <code>tsc</code> emits with <code>target: ES2022</code>, then run the compiler to check:</p>
+
+<pre><code class="language-typescript">type Role = "admin" | "viewer";     // 1
+interface Account { role: Role }    // 2
+function describe(a: Account): string { return a.role; }  // 3
+console.log(describe({ role: "admin" }));</pre></code>
+
+<p><strong>What you should see:</strong> all three type constructs erased; only the function body, the object literal, and <code>console.log</code> remain. If your prediction kept <code>type</code> or <code>interface</code>, revisit the erasure table above.</p>
+
+<h3 id="trace-a-type-error-through-the-pipeline">Trace a type error through the pipeline</h3>
+
+<p>Create <code>src/bug.ts</code> with <code>const n: number = "42";</code>, run <code>npx tsc --noEmit</code>, and read the diagnostic: file, line, column, error code, and message. Then run <code>npx tsc</code> and confirm <em>no output file is written</em> — by default the compiler refuses to emit when the check fails, because shipping code that failed verification defeats the point. (The escape hatch exists via <code>noEmitOnError</code>; leave it closed.) This trace is the reflex the rest of the track assumes.</p>
+</main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
+<script>window.TOPIC_CONFIG={labId:'tscript',topicId:'compiler',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
+<script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

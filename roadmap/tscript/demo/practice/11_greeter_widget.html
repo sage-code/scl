@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<!-- 11_greeter_widget.html — PREVIEWABLE demo: open this file directly in a
+     browser and it runs. Its script is the JavaScript that tsc emits from
+     typed source (see foundations/01_type_erasure.ts), so what you interact
+     with is exactly what the compiler produces.
+
+     PURPOSE: connect the type-system lessons to real DOM code you already
+     write. The untyped JS version of handleGreet() is where
+     "Cannot read properties of null" and "input.value is undefined" bugs
+     come from — the typed source below closes both holes.
+
+     WHAT WE LEARN: the null guard narrows the type so `.value` is legal;
+     the union type on the select makes every option's shape explicit. -->
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo 11 — Greeter widget (typed DOM)</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#14161d;color:#dfe3ea;display:grid;place-items:center;height:100vh;margin:0}
+  .card{background:#1e222c;padding:24px 28px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);display:grid;gap:12px;min-width:320px}
+  input,select,button{background:#2a2f3b;color:inherit;border:1px solid #3a4152;border-radius:6px;padding:8px;font-size:1rem}
+  button{cursor:pointer}button:hover{background:#363d4d}
+  #out{min-height:1.4em;color:#8fd3a7;font-weight:600}
+</style>
+</head>
+<body>
+<div class="card">
+  <label>Deployment environment:
+    <!-- Each option maps to one member of the Env union in the TS source -->
+    <select id="env">
+      <option value="dev">dev</option>
+      <option value="staging">staging</option>
+      <option value="prod">prod</option>
+    </select>
+  </label>
+  <label>Your name: <input id="who" placeholder="Ada"></label>
+  <button id="go">Greet</button>
+  <output id="out"></output>
+</div>
+
+<script>
+  "use strict";
+  // TypeScript source of this logic (typed version):
+  //
+  //   type Env = "dev" | "staging" | "prod";
+  //   const deployUrl = (env: Env): string =>
+  //     env === "prod" ? "https://api.sagecode.org" : `https://${env}.api.sagecode.org`;
+  //
+  //   function handleGreet(): void {
+  //     const input = document.querySelector<HTMLInputElement>("#who"); // typed as HTMLInputElement | null
+  //     if (input === null) return;            // ← narrowing: without this guard, `.value` is a compile error
+  //     const envSel = document.querySelector<HTMLSelectElement>("#env");
+  //     const env = envSel?.value as Env | undefined;
+  //     if (env === undefined) return;         // ← unknown option can never reach deployUrl
+  //     const name = input.value.trim() || "stranger";
+  //     out.textContent = `Hello ${name} — deploying to ${deployUrl(env)}`;
+  //   }
+
+  // ---- emitted JavaScript (what actually runs below) ----
+  var deployUrl = function (env) {
+    return env === "prod" ? "https://api.sagecode.org" : "https://" + env + ".api.sagecode.org";
+  };
+
+  var handleGreet = function () {
+    var input = document.querySelector("#who");
+    if (input === null) return;            // the guard the checker demands
+    var envSel = document.querySelector("#env");
+    var env = envSel && envSel.value;
+    if (!env) return;
+    var name = input.value.trim() || "stranger";
+    var out = document.querySelector("#out");
+    if (out) out.textContent = "Hello " + name + " \u2014 deploying to " + deployUrl(env);
+  };
+
+  document.querySelector("#go").addEventListener("click", handleGreet);
+  document.querySelector("#who").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") handleGreet();
+  });
+</script>
+</body>
+</html>

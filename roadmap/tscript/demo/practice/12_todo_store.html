@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!-- 12_todo_store.html — PREVIEWABLE demo: open this file directly in a
+     browser and it runs.
+
+     PURPOSE: show a tiny unidirectional store whose actions are a
+     discriminated union (types/04) and whose reducer is exhaustive
+     (compiler lesson). Click fast, add empty todos, toggle — the state can
+     never be inconsistent, because addEmpty/todo states are impossible
+     shapes in the union.
+
+     WHAT WE LEARN: the same FetchState/Result patterns from the terminal
+     demos drive UI state management — this is Redux/Zustand-style
+     architecture, with the union of actions being the entire API. -->
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo 12 — Todo store (discriminated-union state)</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#14161d;color:#dfe3ea;display:grid;place-items:center;height:100vh;margin:0}
+  .card{background:#1e222c;padding:24px 28px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);display:grid;gap:10px;min-width:340px}
+  input,button{background:#2a2f3b;color:inherit;border:1px solid #3a4152;border-radius:6px;padding:8px;font-size:1rem}
+  button{cursor:pointer}button:hover{background:#363d4d}
+  ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  li{display:flex;gap:8px;align-items:center;background:#262b37;border-radius:6px;padding:6px 10px}
+  li.done span{text-decoration:line-through;color:#7c8598}
+  li span{flex:1}
+  .del{color:#e08a8a;border:none;background:none;font-size:1rem;cursor:pointer}
+  #count{color:#8fd3a7;font-weight:600;min-height:1.2em}
+</style>
+</head>
+<body>
+<div class="card">
+  <form id="add"><input id="label" placeholder="What needs doing?"><button type="submit">Add</button></form>
+  <ul id="list"></ul>
+  <div id="count"></div>
+</div>
+
+<script>
+  "use strict";
+  // TypeScript source (typed version) — the store's entire API is this union:
+  //
+  //   type Todo = { id: number; label: string; done: boolean };
+  //   type State = { todos: Todo[] };
+  //
+  //   type Action =
+  //     | { type: "add"; label: string }      // label guaranteed non-empty (guard below)
+  //     | { type: "toggle"; id: number }
+  //     | { type: "remove"; id: number };
+  //
+  //   function reduce(state: State, action: Action): State {
+  //     switch (action.type) {
+  //       case "add":   // action.label exists ONLY in this branch
+  //         return { todos: [...state.todos, { id: nextId++, label: action.label, done: false }] };
+  //       case "toggle":
+  //         return { todos: state.todos.map(t => t.id === action.id ? { ...t, done: !t.done } : t) };
+  //       case "remove":
+  //         return { todos: state.todos.filter(t => t.id !== action.id) };
+  //       default: { const _never: never = action; return state; } // exhaustiveness
+  //     }
+  //   }
+
+  // ---- emitted JavaScript (what actually runs below) ----
+  var nextId = 1;
+  var state = { todos: [] };
+
+  function reduce(s, action) {
+    switch (action.type) {
+      case "add":
+        return { todos: s.todos.concat([{ id: nextId++, label: action.label, done: false }]) };
+      case "toggle":
+        return { todos: s.todos.map(function (t) {
+          return t.id === action.id ? { id: t.id, label: t.label, done: !t.done } : t; }) };
+      case "remove":
+        return { todos: s.todos.filter(function (t) { return t.id !== action.id; }) };
+    }
+  }
+
+  function dispatch(action) {
+    state = reduce(state, action);
+    render();
+  }
+
+  function render() {
+    var list = document.querySelector("#list");
+    var count = document.querySelector("#count");
+    list.replaceChildren();
+    for (var _i = 0, _a = state.todos; _i < _a.length; _i++) {
+      var t = _a[_i];
+      var li = document.createElement("li");
+      if (t.done) li.className = "done";
+      var span = document.createElement("span");
+      span.textContent = t.label;
+      var del = document.createElement("button");
+      del.className = "del";
+      del.textContent = "\u00D7";
+      del.addEventListener("click", function (id) { return function () { return dispatch({ type: "remove", id: id }); }; }(t.id));
+      li.append(span, del);
+      li.addEventListener("click", function (id) { return function () { return dispatch({ type: "toggle", id: id }); }; }(t.id));
+      list.append(li);
+    }
+    var open = state.todos.filter(function (t) { return !t.done; }).length;
+    count.textContent = state.todos.length === 0 ? "nothing yet \u2014 add a todo"
+      : open + " open of " + state.todos.length;
+  }
+
+  document.querySelector("#add").addEventListener("submit", function (e) {
+    e.preventDefault(); // do not reload the page
+    var input = document.querySelector("#label");
+    var label = input.value.trim();
+    if (label === "") return; // the empty-label action is UNREPRESENTABLE in the union
+    dispatch({ type: "add", label: label });
+    input.value = "";
+  });
+  render();
+</script>
+</body>
+</html>

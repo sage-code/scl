@@ -2,46 +2,201 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="Decorators and metadata in TypeScript enterprise projects.">
+  <meta name="description" content="TypeScript decorators for JavaScript developers: the TC39 standard syntax since TS 5.0 versus the legacy experimental implementation, factories, and when decorators earn their complexity.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript decorators, metadata, enterprise">
+  <meta name="keywords" content="typescript decorators, tc39 decorators, experimentaldecorators, decorator factories, metadata">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Decorators and Metadata</title>
+  <title>TypeScript Decorators: Standard vs Legacy</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/decorators.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="decorators-metadata">Decorators and Metadata</h2>
-<div class="alert alert-secondary shadow-sm">Decorators are powerful but easy to misuse. Enterprise teams should evaluate readability, tooling support, and long-term maintenance before adopting them widely.</div>
+<h1 id="typescript-decorators-standard-vs-legacy">TypeScript Decorators: Standard vs Legacy</h1>
 
-<h2 id="decorator-basics">Decorator basics</h2>
-<p>Decorators attach metadata or behavior to classes, methods, or fields. They reduce repetition in some frameworks, but can hide control flow.</p>
+<div class="alert alert-secondary shadow-sm">Decorators are the one TypeScript topic where history actively confuses beginners: two incompatible implementations share the same syntax. Since TypeScript 5.0, the standard (Stage 3 / TC39) decorators are supported <em>without any flag</em>; the old <code>experimentalDecorators</code> implementation still exists for legacy frameworks. Knowing which one you are using — and why — is the whole lesson.</div>
 
-<h2 id="good-use-cases">Good use cases</h2>
+<h2 id="why-decorators-exist">Why decorators exist</h2>
+
+<p>A decorator attaches behavior or metadata to a class declaration or its members by annotating them with <code>@expression</code>. The problem they solve is <em>cross-cutting concern injection</em>: logging, validation, caching, dependency registration — code that is not the method's business logic but must run around it anyway.</p>
+
+<h3 id="the-problem-same-boilerplate-everywhere">The problem: the same boilerplate everywhere</h3>
+
+<p><strong>Purpose of the example:</strong> show the boilerplate decorators replace, so you can judge whether they earn their cost.</p>
+
+<pre><code class="language-typescript">// Explicit wrapper style — what you write without decorators:
+class OrdersService {
+  // Every method repeats the same three concerns: timing, errors, audit.
+  async create(input: CreateOrder): Promise&lt;Order&gt; {
+    logger.info("OrdersService.create called");       // cross-cutting: logging
+    try {
+      const order = await this.repo.insert(input);
+      audit.record("order.created", order.id);         // cross-cutting: audit
+      return order;
+    } catch (err) {
+      logger.error("OrdersService.create failed", err);
+      throw err;
+    }
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> nothing — that is the point. The business logic (<code>repo.insert</code>) is buried in infrastructure. Every new method copies the ritual, and forgetting one line silently drops a concern.</p>
+
+<h3 id="the-decorator-version-what-changes">The decorator version: what changes</h3>
+
+<p><strong>Purpose of the example:</strong> the same behavior, declared once and attached with annotations.</p>
+
+<pre><code class="language-typescript">class OrdersService {
+  @logged                    // attached: wraps the method with timing + errors
+  @audited("order.created")  // attached: records the domain event on success
+  async create(input: CreateOrder): Promise&lt;Order&gt; {
+    return this.repo.insert(input);   // only the business logic remains
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> the method body now states its single responsibility; the cross-cutting policies are declarative. The trade is explicit for the reader — but the behavior now lives outside the file's main flow, which is exactly the "risk zones" discussion later in this lesson.</p>
+
+<h2 id="standard-versus-legacy-two-implementations">Standard versus legacy: two implementations</h2>
+
+<p>This is the fork in the road. The syntax is identical; the semantics and the required configuration are not.</p>
+
+<h3 id="how-the-two-differ">How the two differ</h3>
+
+<table class="table table-dark table-striped">
+  <thead><tr><th></th><th>Standard (TC39 Stage 3)</th><th>Legacy experimental</th></tr></thead>
+  <tbody>
+    <tr><td>Available since</td><td>TypeScript 5.0 (2023)</td><td>TypeScript 1.5</td></tr>
+    <tr><td>Configuration</td><td>none — on by default</td><td><code>"experimentalDecorators": true</code></td></tr>
+    <tr><td>Can replace methods?</td><td>yes — via a <em>return value</em></td><td>yes — via mutating a passed descriptor</td></tr>
+    <tr><td>Signature style</td><td>wraps and replaces (function in, function out)</td><td>mutates <code>target</code> / <code>PropertyDescriptor</code> in place</td></tr>
+    <tr><td>Metadata (<code>emitDecoratorMetadata</code>)</td><td>not supported</td><td>supported (Angular, NestJS ecosystems)</td></tr>
+    <tr><td>JavaScript future</td><td>is the JavaScript standard</td><td>none — never standardized</td></tr>
+  </tbody>
+</table>
+
+<p><strong>What we learn:</strong> the two are not interchangeable. New code should target the standard implementation; you only reach for <code>experimentalDecorators</code> when a framework mandates it. Check <code>tsconfig.json</code>: if <code>experimentalDecorators</code> is present, you are writing legacy decorators.</p>
+
+<h3 id="writing-a-standard-decorator">Writing a standard decorator</h3>
+
+<p><strong>Purpose of the example:</strong> a complete, runnable standard decorator — a method logger — showing the wrap-and-replace shape.</p>
+
+<pre><code class="language-typescript">// A standard method decorator: receives (method, context), may return a
+// replacement. No flag needed — TypeScript 5.0+ understands this natively.
+function logged&lt;This, Args extends any[], Return&gt;(
+  method: (this: This, ...args: Args) => Promise&lt;Return&gt;,
+  context: ClassMethodDecoratorContext&lt;
+    This, (this: This, ...args: Args) => Promise&lt;Return&gt;
+  &gt;
+) {
+  const name = String(context.name);          // method name from the context
+  return async function (this: This, ...args: Args): Promise&lt;Return&gt; {
+    const start = performance.now();
+    try {
+      return await method.apply(this, args);  // call the original method
+    } finally {
+      const ms = (performance.now() - start).toFixed(1);
+      console.log(`[perf] ${name} took ${ms}ms`);
+    }
+  };
+}
+
+class ReportService {
+  @logged
+  async generate(id: string): Promise&lt;string&gt; {
+    await new Promise(r => setTimeout(r, 120)); // simulate work
+    return `report-${id}`;
+  }
+}
+
+new ReportService().generate("a1");</pre></code>
+
+<p><strong>What you should see:</strong> <code>[perf] generate took 121.4ms</code> — the wrapper ran around the original without the class knowing. Note the types are precise: generics preserve <code>this</code>, argument types, and the return type, so the decorated method still checks perfectly at every call site. Legacy decorators cannot express this without <code>any</code>.</p>
+
+<h3 id="decorator-factories-decorators-with-options">Decorator factories: decorators with options</h3>
+
+<p><code>@logged</code> takes no arguments; <code>@audited("order.created")</code> does. The pattern is a <strong>decorator factory</strong>: a function that receives the options and returns the actual decorator.</p>
+
+<p><strong>Purpose of the example:</strong> parameterized decorators — the form frameworks like Angular and NestJS use everywhere.</p>
+
+<pre><code class="language-typescript">// Factory: captures the event name, returns the real decorator.
+function audited(event: string) {
+  return function decorated&lt;This, Args extends any[], Return&gt;(
+    method: (this: This, ...args: Args) => Return,
+    context: ClassMethodDecoratorContext&lt;This, typeof method&gt;
+  ) {
+    return function (this: This, ...args: Args): Return {
+      const result = method.apply(this, args);
+      audit.record(event, { args });     // runs on every call
+      return result;
+    };
+  };
+}
+
+class InvoiceService {
+  @audited("invoice.sent")   // note the parentheses: factory invoked first
+  send(id: string): boolean {
+    return true;
+  }
+}</pre></code>
+
+<p><strong>What you should see:</strong> identical behavior to a plain decorator, but configurable per usage site. Reading rule for code review: <code>@audited("x")</code> is <em>two</em> calls — the factory runs once at class-definition time, the returned decorator wraps the method.</p>
+
+<h3 id="the-legacy-trap-reading-framework-code">The legacy trap: reading framework code</h3>
+
+<p>Older codebases and Angular/NestJS material show the legacy shape — a function receiving <code>target</code> and mutating it:</p>
+
+<pre><code class="language-typescript">// LEGACY (experimentalDecorators) — recognize it, do not copy it:
+function cached(target: any, key: string, descriptor: PropertyDescriptor) {
+  const original = descriptor.value;          // mutate the descriptor in place
+  descriptor.value = function (...args: any[]) {
+    return original.apply(this, args);
+  };
+}</pre></code>
+
+<p><strong>What you should see:</strong> three positional parameters and descriptor mutation — the fingerprint of the legacy implementation. It only runs when <code>experimentalDecorators</code> is enabled, and its types are necessarily loose (<code>any</code>). When a framework hands you decorators like <code>@Injectable()</code>, that is the legacy world plus <code>emitDecoratorMetadata</code>; use them as provided, but write your <em>own</em> decorators in the standard style.</p>
+
+<h2 id="where-decorators-earn-their-cost">Where decorators earn their cost</h2>
+
+<p>Decorators trade explicitness for declaration. That trade is good when the annotation names a stable, well-understood policy — and harmful when it hides nontrivial control flow.</p>
+
+<h3 id="good-use-cases-1">Good use cases</h3>
+
 <ul>
-  <li>Dependency injection bindings.</li>
-  <li>Validation and serialization metadata.</li>
-  <li>Cross-cutting policies such as audit annotations.</li>
+  <li><strong>Framework integration</strong> — route registration (<code>@Get("/users")</code>), dependency injection (<code>@Inject()</code>), where the decorator is the framework's public API.</li>
+  <li><strong>Uniform cross-cutting policies</strong> — timing, retry, caching, audit: concerns applied identically across dozens of methods.</li>
+  <li><strong>Declarative metadata</strong> — marking fields as required for validation or serialization, consumed by a library at runtime.</li>
 </ul>
 
-<h2 id="risk-zones">Risk zones</h2>
+<h3 id="risk-zones-1">Risk zones</h3>
+
 <ol>
-  <li>Implicit behavior that new developers cannot trace.</li>
-  <li>Framework lock-in around metadata conventions.</li>
-  <li>Debugging complexity when decorators chain behavior.</li>
+  <li><strong>Hidden control flow.</strong> Three stacked decorators execute bottom-up; an ordering bug is invisible at the call site. Keep stacks shallow and document order.</li>
+  <li><strong>Framework lock-in.</strong> Legacy decorators + metadata bind your classes to one ecosystem's runtime conventions.</li>
+  <li><strong>Debugging opacity.</strong> A wrapped method no longer appears verbatim in a stack trace-friendly form. The <code>logged</code> example above preserves names deliberately; naive wrappers do not.</li>
 </ol>
 
-<h2 id="adoption-policy">Adoption policy</h2>
-<p>Adopt decorators in a controlled module first. Measure readability and debugging cost before expanding usage.</p>
+<h3 id="adoption-policy-1">Adoption policy</h3>
 
-<h2 id="practice-decorators">Practice</h2>
-<p>Implement a single validation decorator and compare it with an explicit helper function version.</p>
+<p>Adopt in a controlled module first: standard decorators only, a lint rule against mixing legacy signatures, and a team rule that every custom decorator has a doc comment stating where it runs (definition time vs call time). Measure readability with a newcomer before expanding usage.</p>
+
+<h2 id="practice-decorators-1">Practice: two implementations of one policy</h2>
+
+<h3 id="build-a-retry-decorator">Build a retry decorator</h3>
+
+<p>Write a standard decorator factory <code>@retry(3)</code> that re-runs a failing async method with a short delay, using the <code>logged</code> example as the skeleton. <strong>What you should see:</strong> a method annotated <code>@retry(3)</code> succeeding on its second attempt while the caller writes no retry logic. Verify the types: the decorated method must still be callable with its original signature.</p>
+
+<h3 id="compare-with-an-explicit-wrapper">Compare with an explicit wrapper</h3>
+
+<p>Rewrite the same policy as a plain function <code>withRetry(fn, 3)</code> and call <code>const send = withRetry(service.send, 3)</code>. <strong>What you should see:</strong> the same behavior with zero annotations — and the explicit version is arguably clearer at a single call site. The decorator wins when the policy applies to <em>many</em> methods uniformly; that judgment — annotation vs explicit wrapper — is exactly the design muscle this lesson builds.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'decorators',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

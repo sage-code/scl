@@ -2,87 +2,173 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="TypeScript setup workflow from zero to enterprise-ready configuration.">
+  <meta name="description" content="TypeScript setup for JavaScript developers: install, a strict tsconfig you can grow with, and the three ways to run TypeScript (tsc, tsx, Node type stripping).">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="typescript setup, tsconfig, strict, build pipeline">
+  <meta name="keywords" content="typescript setup, tsconfig, strict mode, tsx, node type stripping">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>TypeScript Setup and Compiler Workflow</title>
+  <title>TypeScript Setup for JavaScript Developers</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/tscript/setup.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/prism.css"><script src="/assets/prism.js">></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container"><header id="dynamic-header" class="container-fluid pb-2"></header><div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="setup-workflow">Setup and Compiler Workflow</h2>
-<div class="alert alert-secondary shadow-sm">Professional TypeScript starts with deterministic setup. If compiler settings vary per developer, bugs multiply.</div>
+<h1 id="typescript-setup-for-javascript-developers">TypeScript Setup for JavaScript Developers</h1>
 
-<h2 id="install-toolchain">1. Install toolchain</h2>
-<pre><code class="language-bash">npm init -y
+<div class="alert alert-secondary shadow-sm">Professional TypeScript starts with a deterministic setup. If compiler settings vary per developer, the checker disagrees with itself across machines and every "works on my machine" argument becomes unfalsifiable. This lesson installs TypeScript the way production teams do: local to the project, strict from the first commit, and with a verified feedback loop.</div>
+
+<h2 id="why-installation-is-a-design-decision">Why installation is a design decision</h2>
+
+<p>Two decisions dominate everything else in this lesson: <em>where the compiler lives</em> and <em>where the configuration lives</em>. Get both right and the rest of the track runs identically on every machine that clones the repo.</p>
+
+<h3 id="the-compiler-is-an-npm-package-not-a-global-tool">The compiler is an npm package, not a global tool</h3>
+
+<p>Installing <code>typescript</code> globally (<code>npm install -g typescript</code>) is the classic beginner mistake. A global compiler means every project on your machine uses whichever version you last installed — but different projects need different compiler versions, because the checker's behavior changes between releases. Version skew between teammates is then invisible and unreproducible.</p>
+
+<p>The fix: TypeScript is a dev dependency, pinned per project like any other tool. <code>npx tsc</code> then resolves the project-local binary, and CI uses exactly the same one.</p>
+
+<h3 id="one-tsconfig-per-repository-not-per-developer">One tsconfig per repository, not per developer</h3>
+
+<p>The <code>tsconfig.json</code> file is the project's contract with the checker: which files compile, how strictly, and what JavaScript comes out. It is committed to version control. Personal settings belong in your editor, never in the config that CI reads. A teammate's IDE warnings are irrelevant; <code>tsc --noEmit</code> in the pipeline is the single source of truth.</p>
+
+<h2 id="your-first-strict-project">Your first strict project</h2>
+
+<p>Time to build one. The example below walks through the exact commands and configuration used by every later lesson in this track.</p>
+
+<h3 id="install-and-initialize">Install and initialize</h3>
+
+<p><strong>Purpose of the example:</strong> create a minimal project with a pinned compiler and a generated starter config, so the checker runs from the very first file.</p>
+
+<pre><code class="language-bash"># Create the project and enter it
+mkdir ts-lab && cd ts-lab && npm init -y
+
+# TypeScript is a dev dependency: pinned in package.json, never global
 npm install --save-dev typescript
-npx tsc --init</code></pre>
-<p>For web projects, TypeScript usually runs alongside a bundler (Vite, Webpack, or similar), but <code>tsc</code> remains your source of type truth.</p>
 
-<h2 id="tsconfig-foundation">2. Build a strict tsconfig foundation</h2>
+# Generate a starter tsconfig.json to edit
+npx tsc --init
+
+# Verify the project-local compiler answers
+npx tsc --version</pre></code>
+
+<p><strong>What you should see:</strong> a version number like <code>Version 5.9.2</code> — the exact version in your <code>devDependencies</code>, not whatever is installed globally. If <code>npx tsc</code> prints a different version than your <code>package.json</code> pins, something upstream is shadowing it.</p>
+
+<h3 id="a-tsconfig-you-can-grow-with">A tsconfig you can grow with</h3>
+
+<p><code>tsc --init</code> generates hundreds of commented options — useful as a reference, overwhelming as a starting point. Replace it with this deliberately small configuration, which is the baseline for this entire track:</p>
+
+<p><strong>Purpose of the example:</strong> a strict-but-pragmatic config: the full <code>strict</code> family, plus three extra flags that close the most common remaining loopholes.</p>
+
 <pre><code class="language-json">{
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
-    "useDefineForClassFields": true,
-    "skipLibCheck": true
+    "target": "ES2022",            // emit modern JS; no point transpiling to 2016
+    "module": "ESNext",            // emit import/export; bundlers and Node handle it
+    "moduleResolution": "Bundler", // resolution rules matching Vite/esbuild
+    "strict": true,                // the whole strict family, non-negotiable
+    "noUncheckedIndexedAccess": true,  // arr[i] can be undefined — index with care
+    "exactOptionalPropertyTypes": true, // {a?: string} ≠ {a: string | undefined}
+    "noImplicitOverride": true,    // overrides must say `override`
+    "skipLibCheck": true           // don't type-check node_modules' .d.ts files
   },
   "include": ["src"]
-}</code></pre>
+}</pre></code>
 
-<h2 id="compiler-flags-explained">3. Compiler flags explained</h2>
+<p><strong>What you should see:</strong> <code>tsc --noEmit</code> on an empty <code>src/</code> exits silently with code 0. Silence is success — the compiler reports only problems.</p>
+
+<h3 id="the-flags-that-matter-explained">The flags that matter, explained</h3>
+
+<p>Each flag exists because a specific category of JavaScript bug escaped every previous check:</p>
+
 <ul>
-  <li><code>strict</code>: turns on the complete strict family.</li>
-  <li><code>noUncheckedIndexedAccess</code>: prevents unsafe array/object indexing assumptions.</li>
-  <li><code>exactOptionalPropertyTypes</code>: distinguishes absent fields from <code>undefined</code> values.</li>
-  <li><code>noImplicitOverride</code>: enforces explicit override declarations in subclasses.</li>
+  <li><code>strict</code> enables the family at once: <code>noImplicitAny</code>, <code>strictNullChecks</code>, <code>strictFunctionTypes</code>, <code>strictBindCallApply</code>, <code>strictPropertyInitialization</code>, <code>noImplicitThis</code>, <code>useUnknownInCatchVariables</code> and <code>alwaysStrict</code>. The two you will feel daily are <code>noImplicitAny</code> (no value silently becomes "anything goes") and <code>strictNullChecks</code> (<code>null</code>/<code>undefined</code> are no longer assignable to every type — the single biggest bug class it eliminates).</li>
+  <li><code>noUncheckedIndexedAccess</code> makes array indexing honest: <code>items[i]</code> has type <code>T | undefined</code>, because at runtime it genuinely might be.</li>
+  <li><code>exactOptionalPropertyTypes</code> distinguishes "property absent" from "property present with value <code>undefined</code>" — a distinction JavaScript conflates and APIs care about.</li>
+  <li><code>noImplicitOverride</code> requires <code>override</code> on subclass methods that replace a base method, catching renamed-base-method typos.</li>
+  <li><code>skipLibCheck</code> skips re-checking dependency declaration files — a build-time decision, not a safety compromise in <em>your</em> code.</li>
 </ul>
 
-<h2 id="project-layout">4. Project layout for growth</h2>
-<pre><code class="language-text">src/
-  app/
-  domain/
-  api/
-  ui/
-  shared/
+<h2 id="running-typescript-three-ways">Running TypeScript three ways</h2>
 
-tsconfig.json
-package.json</code></pre>
+<p>Checking and running are separate concerns, and you have three practical options. Choosing correctly saves you from both slow loops and missing checks.</p>
 
-<h2 id="build-commands">5. Build and check commands</h2>
-<pre><code class="language-bash">npx tsc --noEmit
-npx tsc --watch
-npx tsc --project tsconfig.json</code></pre>
+<h3 id="tsc-check-and-emit">tsc: check and emit</h3>
 
-<h2 id="ide-setup">6. IDE setup expectations</h2>
-<p>Use one workspace TypeScript version and one lint config. Avoid per-user hidden settings that change diagnostics.</p>
+<p><strong>Purpose of the example:</strong> the canonical loop — check everything, emit JavaScript only when the check passes.</p>
 
-<h2 id="ci-integration">7. CI integration</h2>
-<p>Minimum quality gate: lint, type-check, and tests must pass before merge.</p>
+<pre><code class="language-bash">npx tsc              # read tsconfig.json, check src/, emit JS
+npx tsc --noEmit     # check only — the CI command
+npx tsc --watch      # re-check on every save: your inner loop</pre></code>
 
-<h2 id="step-by-step-setup">8. Step-by-step setup checklist</h2>
-<ol>
-  <li>Initialize project and install TypeScript.</li>
-  <li>Create strict tsconfig.</li>
-  <li>Add <code>typecheck</code> script in package.json.</li>
-  <li>Run <code>tsc --noEmit</code> and resolve all issues.</li>
-  <li>Add the same command to CI.</li>
-</ol>
+<p><strong>What you should see:</strong> with an error present, a diagnostic like <code>src/index.ts:3:7 - error TS2322: Type 'string' is not assignable to type 'number'.</code> Note the exit code is non-zero — that is what makes the CI gate work.</p>
 
-<h2 id="practice-setup">9. Practice</h2>
-<p>Create a fresh project, enforce strict mode, and document every compiler warning you fix and why.</p>
+<h3 id="tsx-run-directly-with-full-support">tsx: run directly, with full support</h3>
+
+<p><code>tsx</code> executes TypeScript directly, including features that plain type stripping cannot handle (enums, namespaces, parameter properties, decorators) and tsconfig paths:</p>
+
+<pre><code class="language-bash">npm install --save-dev tsx
+npx tsx src/index.ts      # run it now — no emit step</pre></code>
+
+<p><strong>What you should see:</strong> your program's output immediately. Note what you do <em>not</em> see: type errors. <code>tsx</code> strips types without checking — running does not replace checking, which is exactly why <code>tsc --noEmit</code> exists.</p>
+
+<h3 id="nodes-native-type-stripping">Node's native type stripping</h3>
+
+<p>Recent Node.js versions run type-stripped TypeScript natively: type stripping arrived in v22.6.0, is enabled by default since v22.18.0/v23.6.0, and is stable since v24.12.0/v25.2.0. No <code>tsx</code>, no emit step — Node itself removes the annotations before execution.</p>
+
+<p><strong>Purpose of the example:</strong> know when Node's built-in support is enough and when it is not.</p>
+
+<pre><code class="language-typescript">// strip-demo.ts — runs on Node ≥ 22.18 with zero tooling:
+//   node strip-demo.ts
+interface Greeting {            // erased — interfaces are pure type syntax
+  name: string;
+}
+
+const greet = (g: Greeting): string => `Hello, ${g.name}`;
+
+console.log(greet({ name: "Ada" }));</pre></code>
+
+<p><strong>What you should see:</strong> <code>Hello, Ada</code>. Now swap the interface for an <code>enum</code> or a namespace containing runtime code — Node fails with <code>ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX</code>, because stripping only <em>removes</em> types; features that need <em>transformation</em> are out of scope. Use <code>tsx</code> for those. Two more Node rules to remember: type-only imports must use the <code>type</code> keyword (<code>import type { Greeting } from …</code>), and Node does not read <code>tsconfig.json</code> — it never checks, and <code>paths</code> aliases do not work.</p>
+
+<h3 id="watch-mode-and-the-editor-feedback-loop">Watch mode and the editor feedback loop</h3>
+
+<p>Your real feedback loop is the editor: VS Code's TypeScript language server runs the same checker continuously, so errors appear as you type. The discipline to build: treat editor squiggles and <code>tsc --noEmit</code> as one system — the editor for instant feedback, the CLI for the authoritative pass. Keep <code>tsc --watch</code> in a second terminal when working across files, because the editor only re-checks what you have open.</p>
+
+<h2 id="the-ci-gate">The CI gate</h2>
+
+<p>Setup is only professional once automation enforces it. The pipeline needs exactly one new script:</p>
+
+<h3 id="one-script-is-the-whole-gate">One script is the whole gate</h3>
+
+<p><strong>Purpose of the example:</strong> wire the checker into <code>package.json</code> so CI and humans run the identical command.</p>
+
+<pre><code class="language-json">{
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "node --test"
+  }
+}</pre></code>
+
+<h3 id="why-ci-and-not-just-the-ide">Why CI, and not just the IDE</h3>
+
+<p><strong>What you should see:</strong> <code>npm run typecheck</code> passing in CI on every pull request. If the type check is not in CI, the config is a suggestion, not a contract — contributors with differently configured editors will silently erode it.</p>
+
+<h2 id="practice-setup">Practice: make the setup prove itself</h2>
+
+<h3 id="break-it-on-purpose">Break it on purpose</h3>
+
+<p>Add <code>strict: false</code> (or delete it), then reintroduce the runtime bug from the <a href="why-typescript.html">why lesson</a>: read a property that does not exist on a plain object. <strong>What you should see:</strong> with strict mode off, the checker is silent; restore <code>strict: true</code> and the same line errors immediately. You have now personally verified that the flag list above is not ceremony.</p>
+
+<h3 id="setup-checklist">Setup checklist</h3>
+
+<p>Before the next lesson, confirm every box: the compiler is in <code>devDependencies</code>; <code>tsconfig.json</code> is committed with <code>strict</code> plus the four extra flags; <code>npm run typecheck</code> exits 0; a deliberately broken line produces a non-zero exit; and the CI pipeline runs the same script. With the loop verified, the <a href="compiler.html">compiler lesson</a> explains what <code>tsc</code> actually did during those silent passes.</p>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'tscript',topicId:'setup',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
