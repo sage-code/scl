@@ -31,6 +31,10 @@ Before editing content at scale, verify these generated outputs after build:
 - All shell commands run in a POSIX shell (Git Bash on Windows / GitHub terminal), never PowerShell (`pwsh`) or `cmd`.
 - Spool temporary/intermediate files to the repo-local `.temp/` directory (git-ignored; `mkdir -p .temp` first); never use `/tmp`.
 - Run long commands in the background and redirect output to `.temp/` (e.g. `npm run build > .temp/build.log 2>&1`); page results with `grep`/`head`/`tail` and use `git --no-pager`.
+- Run every command through `scripts/tools/trace.sh` (status + duration to `.temp/trace.log`); diagnose failures with `trace.sh report` / `trace.sh tail [N]`, never blind retries.
+- Prefer the `run.sh` maintenance CLI (`./run.sh --help`) over raw npm scripts: `clean | build | rebuild | test | check | audit | commit | publish`.
+- Validation gate, in order: `npm run test` → `npm run build` → `npm run check`.
+- Full terminal reference: [.github/instructions/terminal.instructions.md](instructions/terminal.instructions.md).
 
 Before creating or updating roadmap topic pages, verify sidebar navigation shape:
 
