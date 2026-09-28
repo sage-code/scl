@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="How to implement a compiler or interpreter for the Eve programming language: architecture, recommended languages and a staged student project.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, EveLang, compiler, interpreter, lexer, parser, virtual machine">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Compiler</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="compiler">Compiler Implementation</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Eve is an open language standard, not a single product. It is designed to have many compilers and interpreters, written by different people in different languages. This page explains how an Eve implementation is structured, which languages suit the job, and how a student can build one in stages and prove it works.
+</div>
+
+<h2 id="standard">Open Standard</h2>
+
+<p>A language is defined by its specification, not by one program that happens to run it. Eve keeps the two apart on purpose: the specification describes what every Eve program means, and any implementation that follows it is a valid Eve compiler.</p>
+
+<h3 id="many-compilers">One Language, Many Compilers</h3>
+
+<p>Several independent implementations make a language stronger. Each one finds unclear rules in the specification, and fixing those rules helps every other implementation. For a student, writing a compiler for a language that already has a specification and a test suite is a demanding exercise: it covers lexing, parsing, type systems, code generation and testing in one project.</p>
+
+<ul>
+  <li>An implementation may be an interpreter, a bytecode virtual machine, a transpiler or a native compiler.</li>
+  <li>It must state which specification version it implements, for example "Eve 0.1".</li>
+  <li>It must state the conformance level it passes (see below).</li>
+</ul>
+
+<h3 id="specification">Specification First</h3>
+
+<p>The Eve specification is written in the <a href="https://github.com/elucian/eve-lang" target="_blank" rel="noopener noreferrer nofollow">eve-lang repository</a>, in the <code>spec/</code> folder. It uses Markdown for rules and explanations, and JSON for the tables a compiler loads directly:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>File</th><th>Contents</th><th>Used by</th></tr>
+</thead>
+<tbody>
+<tr><td><code>lexical/keywords.json</code></td><td>Reserved words and their category</td><td>Lexer</td></tr>
+<tr><td><code>lexical/operators.json</code></td><td>Symbols, precedence, associativity</td><td>Lexer, expression parser</td></tr>
+<tr><td><code>syntax/grammar.md</code></td><td>Complete grammar in EBNF</td><td>Parser</td></tr>
+<tr><td><code>semantics/types.json</code></td><td>Types, default values, coercion rules</td><td>Type checker</td></tr>
+<tr><td><code>library/builtins.json</code></td><td>Built-in functions and signatures</td><td>Runtime</td></tr>
+</tbody>
+</table>
+
+<p>The specification is a work in progress (version 0.1-draft). Where it is not complete yet, this tutorial is the reference. When the two disagree, the specification wins.</p>
+
+<h3 id="conformance">Conformance Levels</h3>
+
+<p>The <code>test/</code> folder of the repository holds acceptance tests in three levels. Every test is an Eve driver, so it runs as a standalone program.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Level</th><th>File names</th><th>What it proves</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td><code>a01-feature.eve</code></td><td>Basic syntax: one script per test, one feature per script</td></tr>
+<tr><td>2</td><td><code>b01-feature.eve</code></td><td>Automation drivers with aspects: several related tests per driver</td></tr>
+<tr><td>3</td><td><code>c01-feature.eve</code></td><td>Advanced features: files, databases, network, libraries</td></tr>
+</tbody>
+</table>
+
+<h2 id="architecture">Compiler Architecture</h2>
+
+<p>Every Eve implementation follows the same front end. The back end is where implementations differ.</p>
+
+<h3 id="pipeline">Pipeline</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Stage</th><th>Input</th><th>Output</th></tr>
+</thead>
+<tbody>
+<tr><td>1. Lexical analysis</td><td>Source text (UTF-8)</td><td>Token stream</td></tr>
+<tr><td>2. Parsing</td><td>Tokens</td><td>Abstract syntax tree (AST)</td></tr>
+<tr><td>3. Semantic analysis</td><td>AST</td><td>AST with resolved names and types</td></tr>
+<tr><td>4. Lowering</td><td>Typed AST</td><td>Intermediate representation (bytecode, IR or target source)</td></tr>
+<tr><td>5. Execution or emission</td><td>IR</td><td>Program output, or an executable file</td></tr>
+</tbody>
+</table>
+
+<p>Keep the stages separate, even in a small project. A clean AST lets you add a second back end later without touching the parser.</p>
+
+<h3 id="lexer">Lexical Analysis</h3>
+
+<p>The lexer turns characters into tokens. For Eve, the difficult part is comments, because each comment marker starts with a character that is also an operator (see <a href="/projects/eve/syntax.html#delimiters">Delimiters</a>):</p>
+
+<ul>
+  <li><code>--</code> starts an end-of-line comment, while <code>-</code> is subtraction and negation.</li>
+  <li><code>**</code> starts a subtitle comment line.</li>
+  <li><code>/* ... */</code> is a block comment, while <code>/</code> is division.</li>
+  <li><code>+---- ... ----+</code> is a boxed comment, while <code>+</code> is addition.</li>
+</ul>
+
+<p>Check comment markers before operators, and follow the longest-match rule. Load keywords and operators from the JSON files instead of hard-coding them, so your lexer follows the specification when it changes. Record the line and column of every token: good error messages depend on it.</p>
+
+<p>For the classic hello world driver, a lexer produces a token stream like this:</p>
+
+<pre><code class="language-eve"># Traditional hello world demo
+driver hello_world:
+
+** every driver must have a process
+process
+    print ("Hello World!");
+return;
+</code></pre>
+
+<pre><code>COMMENT   "# Traditional hello world demo"
+KEYWORD   driver
+NAME      hello_world
+COLON     :
+COMMENT   "** every driver must have a process"
+KEYWORD   process
+KEYWORD   print
+LPAREN    (
+STRING    "Hello World!"
+RPAREN    )
+SEMICOLON ;
+KEYWORD   return
+SEMICOLON ;
+EOF
+</code></pre>
+
+<h3 id="parser">Parsing</h3>
+
+<p>Eve has an explicit, keyword-driven syntax: scripts are divided into regions (<code>driver</code>, <code>import</code>, <code>global</code>, <code>process</code>, <code>return</code>) and blocks close with <code>end</code> keywords. This makes a hand-written recursive descent parser a good fit:</p>
+
+<ul>
+  <li>Write one parsing function per grammar rule; the grammar in <code>spec/syntax/grammar.md</code> maps directly to these functions.</li>
+  <li>Parse expressions with precedence climbing (Pratt parsing), driven by the precedence table in <code>operators.json</code>.</li>
+  <li>On a syntax error, report it, skip to the next <code>;</code> or region keyword, and continue, so one run reports several errors.</li>
+</ul>
+
+<p>Parser generators (ANTLR, Lark) also work, and they are useful to check the grammar itself. Writing the parser by hand, however, teaches more and gives better error messages.</p>
+
+<h3 id="semantic">Semantic Analysis</h3>
+
+<p>This stage gives the program its meaning. For Eve it covers:</p>
+
+<ul>
+  <li><b>Scopes</b>: global and local names, the <code>@</code> and <code>$</code> sigils, and system variables (see <a href="/projects/eve/syntax.html#identifiers">Identifiers</a>).</li>
+  <li><b>Types</b>: static checking with type inference, gradual typing, default values and coercion rules (see <a href="/projects/eve/types.html">Data Types</a>).</li>
+  <li><b>Program topology</b>: drivers, aspects and modules, and how imports resolve (see <a href="/projects/eve/topology.html">Topology</a>).</li>
+  <li><b>Numeric precision</b>: comparisons that depend on <code>$epsilon</code>, and exact rational results such as <code>10/3</code>.</li>
+</ul>
+
+<h3 id="backend">Execution Strategies</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Strategy</th><th>How it works</th><th>Trade-off</th></tr>
+</thead>
+<tbody>
+<tr><td>Tree-walking interpreter</td><td>Evaluate the AST directly</td><td>Quickest to build; slowest to run</td></tr>
+<tr><td>Bytecode virtual machine</td><td>Compile to compact instructions, run them in a loop</td><td>Good speed; you design the instruction set</td></tr>
+<tr><td>Transpiler</td><td>Emit source code in another language (Go, C, Python)</td><td>Reuses a mature toolchain; errors surface in the target language</td></tr>
+<tr><td>Native compiler</td><td>Emit machine code through LLVM, QBE or Cranelift</td><td>Fastest programs; the most work</td></tr>
+</tbody>
+</table>
+
+<p>Start with a tree-walking interpreter to validate your front end against the tests. Replace the back end later; the tests stay the same.</p>
+
+<h2 id="languages">Recommended Languages</h2>
+
+<p>Any general-purpose language can implement Eve. These are the ones we recommend for students, with the reasons.</p>
+
+<h3 id="comparison">Comparison</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Language</th><th>Why it fits</th><th>Natural back end</th><th>Effort</th></tr>
+</thead>
+<tbody>
+<tr><td>Python</td><td>Short code; <code>match</code> statements and dataclasses model an AST well</td><td>Tree-walking interpreter</td><td>Low</td></tr>
+<tr><td>Go</td><td>Small language, fast builds, one static binary, garbage collected, strong testing tools</td><td>Bytecode VM, transpiler</td><td>Medium</td></tr>
+<tr><td>Java / Kotlin</td><td>ANTLR support; the JVM as a ready-made target</td><td>JVM bytecode</td><td>Medium</td></tr>
+<tr><td>OCaml</td><td>Algebraic data types and pattern matching make compiler passes short; used by many real compilers</td><td>Native, via C or LLVM</td><td>Medium to high</td></tr>
+<tr><td>Rust</td><td>Enums and pattern matching for ASTs; memory safety without a garbage collector; Cranelift and LLVM bindings</td><td>Bytecode VM, native</td><td>High</td></tr>
+<tr><td>C</td><td>Full control over memory and instruction layout; the traditional way to build a VM</td><td>Bytecode VM</td><td>High</td></tr>
+</tbody>
+</table>
+
+<h3 id="choosing">Choosing by Goal</h3>
+
+<ul>
+  <li><b>First compiler, learn the concepts:</b> Python or Go. You spend your time on the language, not on the tools.</li>
+  <li><b>Performance and systems skills:</b> Rust or C, with a bytecode VM or native code.</li>
+  <li><b>Compiler theory:</b> OCaml. Its type system catches many compiler bugs before they run.</li>
+  <li><b>Interoperability with existing libraries:</b> Java or Kotlin on the JVM, or a Go transpiler.</li>
+</ul>
+
+<p>Pick a language you already know well. A compiler is a large program; learning a new language at the same time doubles the difficulty.</p>
+
+<h3 id="tools">Tools and References</h3>
+
+<ul>
+  <li><a href="https://craftinginterpreters.com/" target="_blank" rel="noopener noreferrer nofollow">Crafting Interpreters</a>: a free book that builds a tree-walking interpreter and a bytecode VM step by step.</li>
+  <li><a href="https://www.antlr.org/" target="_blank" rel="noopener noreferrer nofollow">ANTLR</a>: a parser generator for Java, Python, Go and other languages.</li>
+  <li><a href="https://github.com/lark-parser/lark" target="_blank" rel="noopener noreferrer nofollow">Lark</a>: a Python parser library that reads EBNF grammars; useful to check the Eve grammar.</li>
+  <li><a href="https://tree-sitter.github.io/tree-sitter/" target="_blank" rel="noopener noreferrer nofollow">Tree-sitter</a>: incremental parsing for syntax highlighting and editor support.</li>
+  <li><a href="https://llvm.org/" target="_blank" rel="noopener noreferrer nofollow">LLVM</a> and <a href="https://c9x.me/compile/" target="_blank" rel="noopener noreferrer nofollow">QBE</a>: back ends for native code.</li>
+</ul>
+
+<h2 id="project">Student Project</h2>
+
+<p>Build the implementation in milestones. Each milestone ends with a set of programs your implementation handles correctly, so you always have working software.</p>
+
+<h3 id="milestones">Milestones</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Milestone</th><th>Goal</th><th>Done when</th></tr>
+</thead>
+<tbody>
+<tr><td>M1 Lexer</td><td>Tokens with line and column, all comment forms</td><td>Every file in <code>demo/</code> and <code>test/level1/</code> tokenizes without errors</td></tr>
+<tr><td>M2 Parser</td><td>AST for regions, statements and expressions</td><td>Every demo parses; an AST printer shows the structure</td></tr>
+<tr><td>M3 Core runtime</td><td>Drivers, <code>process</code>, variables, expressions, <code>print</code> and <code>write</code></td><td><code>hello_world.eve</code> and the first level 1 tests run</td></tr>
+<tr><td>M4 Types</td><td>Type checking, inference, coercion, default values</td><td>Type errors are reported with line and column</td></tr>
+<tr><td>M5 Control and functions</td><td>Conditionals, loops, functions, lambdas, routines</td><td>All level 1 tests pass</td></tr>
+<tr><td>M6 Data</td><td>Collections, strings, classes and objects</td><td>The collection and class demos give the expected output</td></tr>
+<tr><td>M7 Topology</td><td>Modules, aspects, imports, error recovery</td><td>Level 2 tests pass</td></tr>
+</tbody>
+</table>
+
+<p>After M7, choose your direction: a faster back end, level 3 features (files, databases, network), or tooling such as a formatter or a language server.</p>
+
+<h3 id="pitfalls">Common Pitfalls</h3>
+
+<ul>
+  <li><b>Parsing before lexing is solid.</b> Most parser bugs are lexer bugs. Print the token stream first and test it on every demo.</li>
+  <li><b>Hard-coded keyword lists.</b> The specification will add and change keywords. Load them from <code>keywords.json</code>.</li>
+  <li><b>Line endings.</b> Source files may use CRLF or LF. Treat both as one line break, and keep line numbers correct.</li>
+  <li><b>Floating point equality.</b> Eve compares numbers with a precision setting. Do not use the host language <code>==</code> on floats.</li>
+  <li><b>No tests of your own.</b> Keep every program that once broke your implementation as a regression test.</li>
+</ul>
+
+<h3 id="publishing">Publishing Your Compiler</h3>
+
+<ol>
+  <li>Publish the source code in a public repository with an open source license.</li>
+  <li>State the specification version and the conformance level your implementation passes.</li>
+  <li>Include the test results: the list of tests that pass and fail.</li>
+  <li>Announce the implementation to the Sage-Code community. Compilers verified by the community will be listed in the specification repository.</li>
+</ol>
+
+<p>The approval process for community-verified compilers is not yet defined; it is planned together with the conformance suite.</p>
+
+<!-- work in progress-->
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/index.html#lang-index">Eve Tutorial</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>
