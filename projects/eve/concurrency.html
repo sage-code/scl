@@ -56,7 +56,7 @@ Eve can execute one or more routines in synchronous or asynchronous mode. We wil
 
 <pre class="line-numbers"><code class="language-eve">
 # define a routine
-routine name(parameter_list):
+routine name(parameter_list) is
     ** routine statements
     ...
 return;
@@ -68,10 +68,10 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 # demonstrate two routines
-driver process_demo:
+driver process_demo is
 
 ** foo has no parameters
-routine foo:
+routine foo is
   print "I have no arguments";
 return;
 
@@ -83,13 +83,13 @@ routine bar(param1:Integer,
   let result = param1 + param2;                    
 return;
 
-process:
-  foo; -- call routine without arguments
-  new output:=0; -- prepare a variable to receive output
+process
+  foo; ** call routine without arguments
+  new output:=0; ** prepare a variable to receive output
 
   ** execute routine with 2 arguments and receiver
   bar(1,2,output);
-  expect output == 3; -- the value of output should be 3.
+  expect output == 3; ** the value of output should be 3.
   print ("outout=", output);
 return;
 </code></pre>
@@ -112,21 +112,21 @@ return;
 
 <p>Next routine: "add_numbers" has side effects:</p>
 <pre class="line-numbers"><code class="language-eve">
-driver side_effect:
+driver side_effect is
   set test   :Integer;
   set p1, p2 :Integer;
 
 ** routine with side effects
-routine add_numbers:
-  let test := p1 + p2; -- first side-effect
-  print test;          -- second side-effect
+routine add_numbers is
+  let test := p1 + p2; ** first side-effect
+  print test;          ** second side-effect
 return;
 
 ** define main process
-process:
+process
   let p1 := 10;
   let p2 := 20;
-  add_numbers; --  routine call without arguments
+  add_numbers; **  routine call without arguments
   expect test == 30;
 return;
 </code></pre>
@@ -175,14 +175,14 @@ return;
 <p>Next driver can have a list of arguments. The arguments have no names, so it will just print all the arguments it has received. Drivers receive argument values from command line or REPL console using "start" command.</p>
 
 <pre class="line-numbers"><code class="language-eve"># print all arguments
-driver test(*args: ()String):
+driver test(*args: ()String) is
 
 ** list all arguments
-process:
-  cycle:
+process
+  loop
     new arg :String;
-  for arg in args loop
-    print arg;  -- expect 1,2,3
+  for arg in args cycle
+    print arg;  ** expect 1,2,3
   repeat;
 return;
 </code></pre>
@@ -196,22 +196,22 @@ eve:>start test.eve 1 2 3
 
 <pre class="line-numbers"><code class="language-eve">
 #demo output parameters
-aspect output_params:
+aspect output_params is
 
 ** private subroutine
-routine add(p1 = 0, p2 = 1: Integer, @op: Integer):
+routine add(p1 = 0, p2 = 1: Integer, @op: Integer) is
   let op := p1 + p2;
 return;
 
-process:
+process
   new result: Integer;
 
   ** inpur/output argument require a variable
   add(1,2, op:result);
-  print result;  -- expected value 3
+  print result;  ** expected value 3
 
   ** negative test, will fail
-  add(1,2,4); -- error, "op" parameter require a variable
+  add(1,2,4); ** error, "op" parameter require a variable
 return;
 </code></pre>
  
@@ -240,32 +240,33 @@ return;
 <p>In next example we demonstrate a thread that can generate a a bunch of numbers every time the main thred is yielding for it. When the buffer is full, you can routine the batch and then yield for a new.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-driver shoulder_thread:
+driver shoulder_thread is
 
 ** coroutine producer, make 100 numbers
-routine generator(cap:Integer, @result:()Float):
+routine generator(cap:Integer, @result:()Float) is
   new count := 0;
   loop
-    for i in (1..100) loop
+  cycle
+    for i in (1..100) cycle
       let result += (0..1).random();
     repeat;
-    suspend; -- continue the main thread    
+    suspend; ** continue the main thread    
     let count += 1;
   repeat if count &lt; cap;
 return;
 
-routine:
+routine is
   new batch :()Float;
   new total :Real;
   ** initialize the generator and produce first batch
   start generator(1000, result:batch):
-  while batch.count() > 0 loop
+  while batch.count() > 0 cycle
     ** routine current batch
-    for x in batch loop
+    for x in batch cycle
        let total += x; 
     repeat;
     ** read the next batch
-    resume generator; -- resume generator
+    resume generator; ** resume generator
   repeat;
 return;
 </code></pre>
@@ -279,19 +280,20 @@ return;
 <h4>Example</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-routine producer(@pipeline: ()Integer, count = 1000: Integer):
-  for i in (1..count) loop
+routine producer(@pipeline: ()Integer, count = 1000: Integer) is
+  for i in (1..count) cycle
     let pipeline += random(100);
-    if (i % 100) == 0 then
+    if (i % 100) == 0 do
       resume consumer;
       suspend;
     done;
   repeat;
 return;
 
-routine consumer(@pipeline, @partials: ()Integer):
+routine consumer(@pipeline, @partials: ()Integer) is
   loop
-    for element in pipeline loop
+  cycle
+    for element in pipeline cycle
       let pipeline := pipeline -> element;
       wait 10ms;
       let partials += element; 
@@ -301,17 +303,17 @@ routine consumer(@pipeline, @partials: ()Integer):
   repeat if pipeline.count() > 0;
 return;
 
-process:
+process
   new pipeline: ()Integer;
   new partials: ()Integer; 
 
   start producer(pipeline, 10000);
-  for i in (1..32) loop
+  for i in (1..32) cycle
     start consumer(pipeline, partials);
     wait 3ms;
   repeat;
 
-  wait all;  -- Wait for all routines to finish
+  wait all;  ** Wait for all routines to finish
   
   ** prepare the final result from partials
   new result := sum(partials);

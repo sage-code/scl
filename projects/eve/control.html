@@ -62,39 +62,57 @@
 <div class="alert alert-secondary shadow-sm">
 Most languages have similar flow control statements. These are block statements that can execute or no depending on one or more conditions. A control flow statement can be a decision statement a repetitive statement or a selection statement.</div>
 
-<h2 id="job">The job</h2>
+<h2>General Pattern</h2>
+
+<p>Most control statements have a block structure with data scope, specific keyword pairs for declaration region, execution region start and end of block. We diverge from classic begin...end or {}, to create a more verbose and relevant syntax. </p>
+
+<pre class="line-numbers"><code class="language-eve">
+label: &lt;control_type&gt;
+    ** Declarations & local scope initializations
+&lt;transition_keyword&gt;
+    ** Executable statements
+[optional clauses: error, check, clean, else, then, etc.]
+&lt;terminator&gt;
+</code></pre>
+
+<h2 id="job">Sequential job</h2>
 
 <p>Job block is one of most powerful Eve feature. It enable creation of protected blocks that can handle exceptions. This block can be used in processes, routines, functions or methods to avoid runtime errors.</p>
 
 <h4>Syntax pattern</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-**job description or notes 
-  job job_name try
+**job description or notes
+  job_name: job
+    ** some declarations in local scope
+    ...
+  do
     ** some job statements or test use-case
+    raise "error" if condition; ** intrerupt job with error
     ...
-    raise "error" if condition; -- intrerupt job with error
+    stop if condition; ** intrerupt job without error
     ...
-    break if condition; -- intrerupt job without error
-    ...
-  catch error1:
+  error error1
     ** handle error
-  catch error2:
+  error (error2, error3 ...)
     ** handle error
-  catch other:
+  other error
     ** handle all errors
-  resolve:
+  check
+    let job.status = "pass" if condition; ** job status
+    ** execute if succesfuly fuinished, include abort
+    ....
+  clean
     ** close resources, tear-down test cases, other things
     ...
-    let job_name.status = "pass" if condition; -- job status 
-  done [name]; -- you can't use if after done
+  done job [name]; ** you can't use if after done
 </code></pre>
 
-<p><b>Notes:</b>Job statement also use keywords: {raise, catch, other, break and done}, but it can use also: {expect, exit, over, panic} to intrerupt a program prematurly. A job can fail but the program will continue with next job if failure is handled properly. A job status is recorded for reporting. Job status is handled automaticly by the system. If a job raise an error, automaticly is considered failed. </p>
+<p><b>Notes:</b>Job statement also use keywords: {raise, error, other, check, clean, stop and done}, but it can use also: {expect, exit, over, panic} to intrerupt a program prematurly. A job can fail but the program will continue with next job if failure is handled properly. A job status is recorded for reporting. Job status is handled automaticly by the system. If a job raise an error, automaticly is considered failed. </p>
 
-<p>Job block is similar with try block in java, except it does not have a final clause instead we use "resolve" that is more relevant for purpose of a job. A job can be rezolved in a flexible way. The most common is to set-up job "status". A job is an object in Eve, so the job has methods and properties. We reffer to current job by it's name.</p>
+<p>Job block is similar with try block in java, except it does not have a final clause instead we use "clean" that is more relevant for purpose of a job. A job can be finalized in a flexible way in check region. The most common is to set-up job "status". A job is an object in Eve, so the job has methods and properties. We reffer to current job by it's name.</p>
 
-<h2 id="if">Conditional</h2>
+<h2 id="if">Conditional If</h2>
 
 <p>Keyword "if" establish a conditional statement. Also it can be used in expressions. A conditional statement can be a simple statement or a block statement. You can also use "if" after a simple statement or before a block statement.</p>
 
@@ -113,7 +131,7 @@ statement if boolean_expression;
 
 <pre class="line-numbers"><code class="language-eve"># conditional print
 print "a is even" if (a % 2  = 0);
-print "a is odd"  if (a % 2 != 0);
+print "a is odd"  if (a % 2 &lt;&gt; 0);
 </code></pre>
 
 <p><b>Note:</b> The "if" is restricted for some statements. It can't be used after expect, done or next, but it can be used sometimes after "repeat" to terminate a loop. We will explain syntax for each block statement.</p>
@@ -123,19 +141,19 @@ print "a is odd"  if (a % 2 != 0);
 <p>In next pattern we use "if/else" keywords to create a decision branch/fork.</p>
 
 <div class="text-center">
-  <img src="/images/decision.svg" alt="decision" 
+  <img src="/images/decision.svg" alt="decision"
   width="520" class="img-fluid protect rounded shadow border" >
   <p>decision diagram</p>
 </div>
 
 <pre class="line-numbers"><code class="language-eve"># dual path decision
-if expression then
+if expression do
   ** true branch
   ...
 else
   ** false branch
   ...
-done; -- you can't use if after done
+done; ** you can't use if after done
 </code></pre>
 
 <h4>Notes:</h4>
@@ -151,7 +169,7 @@ done; -- you can't use if after done
 <p>A ladder is a conditional multi-path selector based on exclusive conditions. Only one branch is executed. If no condition is satisfied the alternative branch is executed. Alternative branch is optional.</p>
 
 <div class="text-center">
-  <img src="/images/ladder.svg" alt="decision" 
+  <img src="/images/ladder.svg" alt="decision"
   width="640" class="img-fluid protect rounded shadow border" >
   <p>decision ladder</p>
 </div>
@@ -159,19 +177,19 @@ done; -- you can't use if after done
 <h4>Example:</h4>
 
 <pre class="line-numbers"><code class="language-eve">#selection ladder
-if condition_1 then
+if condition_1 do
   ** first branch
   ...
-else if condition_2 then
+else if condition_2 do
   ** second branch
   ...
-else if condition_3 then
+else if condition_3 do
   ** third branch
   ...
 [else]
   ** alternative branch
   ...
-done; -- you can't use if after done
+done; ** you can't use if after done
 </code></pre>
 
 <p><b>Notes:&nbsp;</b>Previous pattern show a complex situation having several conditions in cascade. Cases should be exclusive and most probable case should be evaluated first. Last block, after else is optional. Also, the local scope is optional.</p>
@@ -195,22 +213,25 @@ This is a multi-path selector similar to switch also named: jump table. It two v
 class Type = {V1, V2, V3, V4} &lt;&#58; Ordinal;
 ...
 process
-  new s := V1; 
+  new s := V1;
 
   ** create match selector
-  match s [all | one] [Type]:
+  label: match s [one | all]
     ** declare locals
     ...
-  when V1 then
+  when V1 do
     ** first path
     ...
-  when V1, V2 then
+  when V1, V2 do
     ** second path
     ...
-  when [any | other] then
+  when [any | other] do
     ** V3 or V4 found
     ...
-  done; -- you can't use if after done
+  then
+    ** execute after block is done
+    ...
+  done match [label]; ** you can't use if after done
 return;
 </code></pre>
 
@@ -218,7 +239,7 @@ return;
 <ul>
 <li>options: all or one are exclusive (one) is the default;</li>
 <li>default block (last) uses optional: "any" or "other";</li>
-<li>match statement do not have a [label] and is anonymous;</li>
+<li>match statement can have a label, used by <code>done match [label]</code>;</li>
 <li>match statement have a local scope (before when).</li>
 </ul>
 
@@ -226,7 +247,7 @@ return;
 
 <h2 id="loop">Unconditional Loop</h2>
 
-<p>This is a repetitive block statement. The loop is executed until a "stop" statement is encounter. The stop can be conditioned by "if" or "match". This is called an "interruption". You can use keyword "skip" with conditional "if" to restart the loop early. This is called a "shortcut" statement.</p>
+<p>This is a repetitive block statement. The loop is executed until a "break" statement is encounter. The break can be conditioned by "if" or "match". This is called an "interruption". You can use keyword "next" with conditional "if" to restart the loop early. This is called a "shortcut" statement.</p>
 
 <div class="text-center">
   <img src="/projects/eve/img/loop.svg" alt="loop"
@@ -237,17 +258,19 @@ return;
 <h4>Syntax:</h4>
 
 <pre class="line-numbers"><code class="language-eve">#infinite loop
-cycle [label]:
+[label:] loop
   ** declare control variable
   ...
-loop
+cycle
   ** loop shortcut
-  skip [label] [if condition];
+  next [label] [if condition];
   ...
   ** early interruption
-  stop [label] [if condition];
+  break [label] [if condition];
   ...
-repeat [label] [if condition];
+then
+  ** what happen after loop stop
+repeat [label];
 </code></pre>
 
 <h4>Notes:</h4>
@@ -256,7 +279,7 @@ repeat [label] [if condition];
 <li>Unconditional loop is executed at least one time;</li>
 <li>The label is optional, that's why is in square brackets;</li>
 <li>The label is used, for nested loops otherwise is not necessary.</li>
-<li>Some other languages use {break & continue} we use {stop & skip}</li>
+<li>Some other languages use {break & continue} we use {break & next}</li>
 </ul>
 
 <h2 id="while">While Loop</h2>
@@ -270,48 +293,55 @@ repeat [label] [if condition];
 
 <h4>Syntax:</h4>
 <pre class="line-numbers"><code class="language-eve">#conditional loop
-cycle [label]:
+label: loop
   ** declare control variables
   ...
-while condition loop
+while condition cycle
   ** shortcut iteration
-  skip if condition;
+  next if condition;
   ...
   ** early interruption
-  stop if condition;
+  break if condition;
   ...
 else
   ** alternative path
   ...
-repeat [label]; -- you can't use "if" here
+then
+  ** after when is done
+  ...
+repeat [label]; ** you can't use "if" here
 </code></pre>
 
 <h4>Example:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-/** This driver demonstrate
-    how to visit members of a List */
-driver while_demo:
+/* This driver demonstrate
+    how to visit members of a List
+    iusing an anonymous cycle
+*/
+driver while_demo is
 **  create a shared list
     set this := ("a","b","c","d","e");
 process
   ** start unlabeled cycle
-  cycle: 
+  loop
     ** volatile variables
-    new i := 0 : Integer; 
-    new e : Symbol;       
-  while i &lt; this.length() loop
+    new i := 0 : Integer;
+    new e : Symbol;
+  while i &lt; this.length() cycle
     let e := this[i];
     let i += 1;
-    if e  &gt;= "c" then
+    if e  &gt;= "c" do
         write e;
         write ',' if e is not this.tail;
     done;
   else
-    panic; -- in canse of length() == 0
-  repeat; 
+    panic; ** in canse of length() == 0
+  then
+    print "succesfully done:",i, " iterations";
+  repeat;
   ** flush the write buffer
-  print; -- "c","d","e"
+  print; ** "c","d","e"
 return;
 </code></pre>
 
@@ -334,18 +364,18 @@ i = 5
 <h4>Pattern:</h4>
 
 <pre class="line-numbers"><code class="language-eve">#for loop syntax
-cycle [label]:
-    new var := 0;
-for var in (min..max) loop
+[label:] for var in (min..max) cycle
     ** block statements;
     ...
     ** next iteration
     next if condition;
     ...
     ** early interruption
-    stop if condition;
+    break if condition;
+then
+    ** what happen after the loop
     ...
-repeat [label]; -- you can't use "if" here
+repeat [label]; ** you can't use "if" here
 </code></pre>
 
 <h4>Notes:</h4>
@@ -357,9 +387,9 @@ repeat [label]; -- you can't use "if" here
 
 <p>Example of range iteration using step ratio 2:</p>
 <pre class="line-numbers"><code class="language-eve">#example of range iteration
-cycle: 
+label: loop
     new i :Integer;
-for i in (1..10:2) loop
+for i in (1..10:2) cycle
     ** write only odd numbers
     write i;
     write ',' if (i &lt; 9);
@@ -395,5 +425,3 @@ print;
 <script src="/common/sidebar.js" defer></script>
 </body>
 </html>
-
-
