@@ -661,6 +661,19 @@ function resolveContentRouteSourceDir(publicRoute) {
   return null;
 }
 
+// Sidebar JSONs live either beside the topic page (legacy) or in a sibling
+// "data/" folder (current architecture, see migrate_to_data_architecture.py).
+// topic-loader.js fetches from data/ at runtime, so the build must resolve the
+// same location or it silently skips sidebar injection and runtime scripts.
+function resolveExistingSidebarJson(jsonPath) {
+  if (fs.existsSync(jsonPath)) {
+    return jsonPath;
+  }
+
+  const dataJsonPath = path.join(path.dirname(jsonPath), "data", path.basename(jsonPath));
+  return fs.existsSync(dataJsonPath) ? dataJsonPath : null;
+}
+
 function resolveSidebarJsonPath(publicHtmlPath) {
   const relativePath = path.relative(PUBLIC_DIR, publicHtmlPath);
   if (!relativePath || relativePath.startsWith("..")) {
@@ -675,8 +688,7 @@ function resolveSidebarJsonPath(publicHtmlPath) {
 
     const projectDir = path.join(PROJECTS_DIR, publicPathParts[1]);
     const relativeJsonPath = publicPathParts.slice(2).join(path.sep).replace(/\.html$/i, ".json");
-    const jsonPath = path.join(projectDir, relativeJsonPath);
-    return fs.existsSync(jsonPath) ? jsonPath : null;
+    return resolveExistingSidebarJson(path.join(projectDir, relativeJsonPath));
   }
 
   if (publicPathParts.length < 2) {
@@ -696,8 +708,7 @@ function resolveSidebarJsonPath(publicHtmlPath) {
   }
 
   const relativeJsonPath = publicPathParts.slice(contentRootOffset + 1).join(path.sep).replace(/\.html$/i, ".json");
-  const jsonPath = path.join(contentRouteDir, relativeJsonPath);
-  return fs.existsSync(jsonPath) ? jsonPath : null;
+  return resolveExistingSidebarJson(path.join(contentRouteDir, relativeJsonPath));
 }
 
 function resolveRoadmapTopicContext(publicHtmlPath) {
@@ -1755,11 +1766,21 @@ function publishChangedSourceFile(sourcePath, optimizedHtmlTargets) {
     return;
   }
 
-  if (sourcePath.toLowerCase().endsWith(".json") && isPathInside(sourcePath, ROADMAP_DIR)) {
+  if (sourcePath.toLowerCase().endsWith(".json") && (isPathInside(sourcePath, ROADMAP_DIR) || isPathInside(sourcePath, PROJECTS_DIR))) {
+    // Sidebar JSONs may sit beside the topic page or in a sibling "data/"
+    // folder; re-optimize the matching published HTML so the injected sidebar
+    // reflects the edited JSON.
     const siblingHtmlSource = sourcePath.replace(/\.json$/i, ".html");
-    const siblingPublishedPath = sourcePathToPublishedPath(siblingHtmlSource);
-    if (siblingPublishedPath && fs.existsSync(siblingPublishedPath)) {
-      optimizedHtmlTargets.add(siblingPublishedPath);
+    const candidates = [siblingHtmlSource];
+    if (path.basename(path.dirname(sourcePath)).toLowerCase() === "data") {
+      candidates.push(path.join(path.dirname(path.dirname(sourcePath)), path.basename(siblingHtmlSource)));
+    }
+
+    for (const candidate of candidates) {
+      const siblingPublishedPath = sourcePathToPublishedPath(candidate);
+      if (siblingPublishedPath && fs.existsSync(siblingPublishedPath)) {
+        optimizedHtmlTargets.add(siblingPublishedPath);
+      }
     }
   }
 }
