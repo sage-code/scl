@@ -75,27 +75,30 @@
 
 <pre class="line-numbers"><code class="language-eve">
 # define process with jobs
-process | initialize:
+process | initialize
   ** local declarations
   ....
   ** preconditions (end prematurly the  process)
   ** silent stop process and do not execute finalization or recovery
   abort if condition;
 
-  ** description of c1 job 
-  job c1 try
+  ** description of c1 job
+  c1: job
+  do
     ...
-  done c1;
+  done job c1;
 
   ** description of c2 job
-  job c2 try
+  c2: job
+  do
     ...
-  done c2;
+  done job c2;
 
   ** description of c3 job
-  job c3 try
+  c3: job
+  do
     ...
-  done c3;
+  done job c3;
 
   ** other statements after jobs are succesfully executed
   ** post condition checks for the entire process
@@ -104,11 +107,11 @@ process | initialize:
 
 recover
   ** decide what to do next in case of error
-  [exit] | [raise] | [panic]; 
+  [exit] | [raise] | [panic];
 finalize
     ** close resources or channels
     ...
-    ** print debug messages 
+    ** print debug messages
     ...
     ** report the errors (or not)
     ...
@@ -142,18 +145,18 @@ return;
 
 <h2 id="execution">Aspect execution</h2>
 
-<p>An aspect is executed using "run" command with aspect name and list of arguments. For one single argument, or no argument the parentheses are not required in the aspect call. For a list of arguments you should use parenthesis;</p>
+<p>An aspect is executed using "apply" command with aspect name and list of arguments. For one single argument, or no argument the parentheses are not required in the aspect call. For a list of arguments you should use parenthesis;</p>
 
 <h4>Examples:</h4>
 
 <pre class="line-numbers"><code class="language-eve">#these are all valid process calls
-run aspect_name; -- call process without arguments
-run aspect_name argument_value;      -- call with single argument
-run aspect_name (value, value, ...); -- call with a list of arguments
-run aspect_name (param:value,...);   -- call with a argument by name
-run aspect_name (value, value, param:value); -- mix position with names
-run aspect_name (value, *list_args);         -- use spreading operator
-run aspect_name (param:value, *map_args);    -- mix names with hashmap
+apply aspect_name; ** call process without arguments
+apply aspect_name to argument_value;      ** call with single argument
+apply aspect_name to (value, value, ...); ** call with a list of arguments
+apply aspect_name to (param:value,...);   ** call with a argument by name
+apply aspect_name to (value, value, param:value); ** mix position with names
+apply aspect_name to (value, *list_args);         ** use spreading operator
+apply aspect_name to (param:value, *map_args);    ** mix names with hashmap
 </code></pre>
 
 <h3 id="process-interruption">Process interruption</h3>
@@ -161,24 +164,24 @@ run aspect_name (param:value, *map_args);    -- mix names with hashmap
 <p>A process normal ends with keyword return. When aspect process is terminated, program execution will continue with the next statement in the main process. Interruption keywords (exit, over, panic) can be used to interrupt a process. The <em>exit</em> or <em>raise</em> trigger the finalization region while "over" and "panic" skip the finalization region.</p>
 
 
-<h4>Example:</h4> 
+<h4>Example:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
 # simple aspect with one parameter
-aspect print_this(p:String):
-process:
+aspect print_this(p:String) is
+process
   print p;
 return;
 </code></pre>
 
 <pre class="line-numbers"><code class="language-eve"># driver with parameters
-driver process_call(*args ()String):
-process:
+driver process_call(*args ()String) is
+process
   ** number of arguments received:
-  cycle:
+  loop
     new arg: String;
-  for arg in args loop;
-    run print_this(arg);
+  for arg in args cycle;
+    apply print_this to arg;
   repeat;
 return;
 </code></pre>
@@ -187,17 +190,17 @@ return;
 
 <p>One aspect is executed from a driver. You can not execute an aspect from itself. Recursive aspects are not supported. The compiler will detect a recursive aspect and will fail at runtime.</p>
 
-<p>Aspects can be executed in serial mode one after another. Let's consider we have 3 aspects: {one, two, three}. Main process can execute each aspect using keyword: "run" and can block the main process waiting for each aspect to finish. This will interrupt the driver main process and will execute aspect process one by one:</p>
+<p>Aspects can be executed in serial mode one after another. Let's consider we have 3 aspects: {one, two, three}. Main process can execute each aspect using keyword: "apply" and can block the main process waiting for each aspect to finish. This will interrupt the driver main process and will execute aspect process one by one:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-driver test_apply:
+driver test_apply is
 
 # synchronous call
-process:
+process
   ** apply each aspect
-  run [folder/]aspect_one(arguments);
-  run [folder/]aspect_two(arguments);
-  run [folder/]aspect_three(arguments);
+  apply [folder/]aspect_one to (arguments);
+  apply [folder/]aspect_two to (arguments);
+  apply [folder/]aspect_three to (arguments);
   ...
 return;
 </code></pre>
@@ -220,24 +223,24 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 # asynchronous call demo
-driver async_demo:
-process:
-  ** main process is a series of sequential groups 
+driver async_demo is
+process
+  ** main process is a series of sequential groups
 
-  begin group1:
+  group1: parallel
     ** local variables for group1
-  split:
-    run aspect1;
-    run aspect2;
+  fork
+    begin aspect1;
+    begin aspect2;
   join group1;
 
   ** group1 is now complete, group2 starts
 
-  begin group2:
+  group2: parallel
     ** local variables for group2
-  split:
-    run aspect3;
-    run aspect4;
+  fork
+    begin aspect3;
+    begin aspect4;
   join group2;
 
   ** Both groups are now complete
@@ -257,14 +260,14 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 ## create parallel processes
-driver async_loop:
-process:
+driver async_loop is
+process
   ** enqueue same aspect 4 times
-  begin demo:
+  demo: parallel
     new i: Integer;
-  split
-    for i in (1..4) loop
-      run demo(i); -- start demo aspect asynchronously
+  fork
+    for i in (1..4) cycle
+      begin demo(i); ** start demo aspect asynchronously
     repeat;
   join demo;
   ** all demo processes have finished
@@ -277,23 +280,23 @@ return;
 
 <h2 id="exceptions">Exception Handlers</h2>
 
-<p>An exception is an object that has methods. The EVE system defines several system variables and system objects used to handle exceptions. In Eve, all exceptions are considered errors. We can monitor jobs using a log and record exceptions in this log. Exceptions from one aspect process can propagate to the main process.</p> 
+<p>An exception is an object that has methods. The EVE system defines several system variables and system objects used to handle exceptions. In Eve, all exceptions are considered errors. We can monitor jobs using a log and record exceptions in this log. Exceptions from one aspect process can propagate to the main process.</p>
 
-<p>The "$error" is a variable of type Exception.Error that is created when an exception is raised. It alwais point to last error of a process. The system variable $trace contains several elements that are errors. These are filled in by the Eve program when an exception is raised. If an error is raised from a recover region it will propagate in the main process.</p> 
+<p>The "$error" is a variable of type Exception.Error that is created when an exception is raised. It alwais point to last error of a process. The system variable $trace contains several elements that are errors. These are filled in by the Eve program when an exception is raised. If an error is raised from a recover region it will propagate in the main process.</p>
 
 <p>Error handling in Eve is done at the job level or process level. A process can be interrupted by a system exception or it can create user-defined exceptions. We use special keywords to signal an exception from inside a job: {raise, expect}.</p>
 
 <h4>Pseudocode</h4>
 
-<p>The Exception module is not yet created. We have the intention to use Eve to create this module. Next is a prototype that explain the structure of future Exception module. It define class .Error that is public and several metods.</p> 
+<p>The Exception module is not yet created. We have the intention to use Eve to create this module. Next is a prototype that explain the structure of future Exception module. It define class .Error that is public and several metods.</p>
 
 <pre class="line-numbers"><code class="language-eve">** system exception type
-module Exception:
+module Exception is
 
 class .Error: {
-  code: Integer, 
-  message: String, 
-  module: String, 
+  code: Integer,
+  message: String,
+  module: String,
   line:Integer
 } &lt;&#58; Object;
 
@@ -307,20 +310,20 @@ class Call = {line:String, method:String} => (@self:Call):
   let self.method := method;
 return;
 
-** system variables 
+** system variables
 global
-  set $error: Error;   -- last error
+  set $error: Error;   ** last error
 
   ** system objects;
-  set $stack: ()Call;  -- list of calls
-  set $trace: ()Error; -- list of errors
+  set $stack: ()Call;  ** list of calls
+  set $trace: ()Error; ** list of errors
 
 ** methods for Exceptions
 method (@self:Error) .raise(...);
 method (@self:Error) .expect(...);
 method (@self:Error) .pass(...);
 method (@self:Error) .fail(...);
-  
+
 return;
 </code></pre>
 
@@ -373,7 +376,7 @@ expect condition2, "user defined message";
 
 <h4>Example:</h4>
 <pre class="line-numbers"><code class="language-eve">#using recover
-driver recover_demo:
+driver recover_demo is
   set a = 0.00;
 process
   let a := 1/0;
