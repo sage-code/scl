@@ -1,5 +1,35 @@
 # Roadmap Content Progress TODO
 
+## ✅ cse — Reviewed, bug-fixed, and content redistributed (2026-09-29)
+All 18 CSE topic pages had a broken sidebar — 10 with no wiring at all, and (previously
+uncounted) 8 more wired to a nonexistent `/common/topic-loader.js` path with the wrong
+`labId`. Fixed all 18; deleted the legacy `topic.html` redirect; fixed widespread mojibake
+(double/triple-corrupted UTF-8) across 15 pages; fixed two dead `/roadmap/script/` links.
+Per the explicit ask, CSE's job is now "fundamentals only, with a pointer to the deep-dive
+track" — seven pages had their detailed content migrated out to the sibling engineering
+track that owns that topic, and were trimmed to a short survey + link:
+- `paradigms.html` → `pgp/{linear,structured,object-oriented,functional}.html` (4 new pages,
+  **completing `pgp` — 0 → 4 of 4 real**);
+- `structures.html` → `dsa/data-structures.html` (1 of 10 `dsa` lessons now real);
+- `version.html` → `osd/git-workflow.html`; `testing.html` → `osd/testing.html` (osd now 3 of
+  8 real);
+- `cloud.html` → `tek/cloud-operations.html` + `tek/containers-virtualization.html`;
+  `cybersec.html` → `tek/security-hardening.html`; `platforms.html` → `tek/linux-systems.html`
+  (tek now 4 of 12 real).
+New page `cse/references.html`: every other engineering roadmap, honestly labeled
+Ready/Growing, with a suggested study order.
+
+**Same-day follow-up:** `paradigms.html` and `structures.html` were deleted outright (not
+just trimmed) once their content was confirmed fully landed in `pgp`/`dsa` — a leftover CSE
+copy of content that now lives in its own roadmap is a spoiler, not a service. `index.html`
+reorganized so `prompt-engineering` and `references.html` both sit in PHASE 1, letting a
+reader jump to DSA/PGP/another roadmap immediately instead of only after finishing all four
+phases; 17 topics remain, renumbered 01–17. Two links to the deleted pages were fixed
+(`cse/tools.html`'s "Next topic" footer, `scala/classes.html`'s paradigms pointer).
+Full details, and what's left in `dsa`/`osd`/`tek`, are in `tracking/ENGINEERING_PLAN.md`
+(updated alongside this entry). `generate_roadmaps_status.py` still classifies both `cse` and
+`pgp` as `converted`.
+
 ## ✅ Navigation Standard Migration (completed)
 All 42 roadmap indexes implement the roadmap index standard:
 - Progress bar (`#roadmap-progress`) driven by `assets/js/roadmap.js`.
@@ -88,13 +118,68 @@ When complete, remove this entry and mark the track done under the completed lis
 - Caveat: the Odin toolchain is not installed in this environment, so the 17 demo programs were written against verified syntax but not executed.
 - Follow-up fix (2026-09-14): the six pages authored in phases 6-8 shipped with a non-standard page shell (`class="study-sidebar"` instead of `id="study-sidebar"`, `inject-layout.js`, no `#open-sidebar`, no `inlineContent`), which rendered a second empty sidebar. Normalised with `scripts/tools/fix_topic_shell_tail.py` (shell only, content byte-identical) and guarded in `scripts/test/test_sources.py` so a loader-driven topic page without `#study-sidebar` now warns under `npm run test`.
 
+## ✅ scala + plsql — Reviewed, bug-fixed, and expanded (2026-09-29)
+Both tracks had the same duplicated sidebar-wrapper bug (empty sidebar — one broken `<ul
+id="bookmark-list">`, one working, from unclosed leftover markup) across every topic page;
+fixed in all 19 pages (8 scala + 11 plsql). Also fixed: no Prism.js grammar existed for Scala
+at all (added a standalone grammar to `assets/prism.js`), stray `>` after every
+`<script src="/assets/prism.js">` tag, missing `content-code.css`/`content-tables.css`,
+several broken/unclosed `<a>` tags, real bugs in demo scripts (Oracle double-quoted string
+literals, `#notfound` instead of `%notfound`, a function assigning to its own name instead of
+`RETURN`ing).
+- `scala`: 8 → 16 topics (added `overview`, `setup`, `strings`, `errors`, `concurrency`,
+  `testing`, `demo_examples`, `references`); 20 numbered demo files in `demo/`.
+- `plsql`: 11 → 17 topics (added `cursors`, `exceptions`, `collections`, `triggers`,
+  `demo_examples`, `references`; rewrote `transform.html`, previously a 9-line stub despite
+  `index.html` promising ETL coverage); 20 numbered demo files in `demo/` (`.sql`/`.pks`/
+  `.pkb`/`.pkc`), renumbered from a mix of orphaned/buggy legacy files.
+- Also fixed sitewide: `sitemap.xml`'s `<changefreq>quarterly</changefreq>` (not a valid
+  sitemap-protocol value — Google Search Console was rejecting it) → `monthly`, fixed at the
+  source in `scripts/tools/sitemap.py` (17 occurrences) and regenerated with `python
+  scripts/tools/sitemap.py` (full mode) + `npm run build:full` to republish `public/`.
+
+## Engineering Tracks — plan drafted, not yet executed (2026-09-29)
+The 9 `"kind": "engineering"` tracks (`cse`, `dba`, `dsa`, `dsl`, `hpc`, `osd`, `pgp`, `sml`,
+`tek`) were reviewed track by track; **full findings and a prioritized execution plan live in
+`tracking/ENGINEERING_PLAN.md`** — read that file before picking up any engineering-track
+work. Headline finding: several tracks that `roadmaps-status.json` previously called
+"converted" were actually near-empty — `dsa` and `tek` are 100% templated placeholder content
+despite having correct sidebar wiring and a professional phase-organized `index.html`; `sml`
+and `hpc` have substantial real content but **zero** pages include `topic-loader.js`, so their
+sidebars never render (the same failure a reader sees as "empty sidebar" — mechanically
+different from the scala/plsql bug above, same symptom). The status generator itself was
+blind to both of these until this pass (see below).
+
+## generate_roadmaps_status.py — classifier fixes (2026-09-29)
+The script had two blind spots that produced false "converted" verdicts:
+1. Its `WIP` regex didn't match several placeholder phrasings actually used in the repo
+   (`"This lesson is a placeholder"`, `"Dummy topic page"`, `"is intentionally empty"`,
+   `"Add the learning objectives"`, etc.) — added, and verified against every track site-wide
+   for false positives (none found; the size-gate `< 6000 bytes` already protects large real
+   pages that happen to contain a `<!-- work in progress-->` authoring comment).
+2. It never checked whether a topic page actually includes `topic-loader.js` — a page can
+   have a perfect `data/<topic>.json` sidecar and still render an empty or absent sidebar if
+   the shell/script wiring is missing. Added `unwired_sidebar_pages`/`unwired_sidebar_ratio`
+   to `collect_metrics()`, factored into `classify()` and `build_issues()`.
+Re-running after both fixes moved the summary from `40 converted / 2 not_updated / 0
+not_implemented` to `32 converted / 5 not_updated / 5 not_implemented` — the difference is
+almost entirely the engineering tracks documented above, plus `svelte` (unwired, language
+track, not covered by `ENGINEERING_PLAN.md` — worth a look separately) and `cpp`'s existing
+known-WIP `modern.html` (already tracked below, now also caught automatically).
+**Trust `tracking/roadmaps-status.json` over any older prose summary in this file** — the
+classifier is now materially more accurate than when the entries below it were written.
+
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py)
-- [x] `assembly/` — rebuilt as a full 17-topic track (x86-64 NASM primary; ARM64, RISC-V, WebAssembly in the Flavors lesson), 20 demo programs, hierarchical sidebars, references page.
+- [ ] Engineering tracks — see `tracking/ENGINEERING_PLAN.md` (new, 2026-09-29); this is now
+  the largest body of remaining work on the site by page count.
 - [ ] `swift/` — 13 topic pages are "Work in progress!" ~3.6 KB placeholder shells.
-- [x] `odin/` — COMPLETE (8 phases, 21 lessons + 17 demos + 3 study projects + references); see the ✅ section above.
 - [ ] `ada/` — real topic pages but only `data/topic.json` (per-topic sidebar JSONs missing).
-- [ ] `cse/` — legacy `topic.html` meta-refresh redirect remains; `data/topic.json` missing (topic pages + JSONs exist otherwise).
 - [ ] `go/` — legacy `topic.html` meta-refresh redirect remains; `data/topic.json` missing (topic pages + JSONs exist otherwise).
+- [ ] `svelte/` — newly surfaced by the classifier fix above: topic pages never include
+  `topic-loader.js` (same failure mode as `sml`/`hpc` in `ENGINEERING_PLAN.md`); not
+  investigated further since it's a language track — worth its own quick pass.
+- [ ] `cpp/` — one lingering placeholder, `modern.html` (already known — see the 🚧 entry
+  above); rest of the track is real.
 
 ## Language Data Cleanup (stale notes removed — covered by the status generator above)
 Status truth is `tracking/roadmaps-status.json`; regenerate with:

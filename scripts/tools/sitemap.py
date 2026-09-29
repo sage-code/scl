@@ -66,10 +66,10 @@ URL_PATTERNS = {
     "/roadmap/dsa/": {"priority": 0.9, "changefreq": "monthly"},
     "/roadmap/dba/": {"priority": 0.9, "changefreq": "monthly"},
     "/roadmap/dsl/": {"priority": 0.9, "changefreq": "monthly"},
-    "/roadmap/hpc/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/tek/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/sml/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/osd/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/hpc/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmap/tek/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmap/sml/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmap/osd/": {"priority": 0.8, "changefreq": "monthly"},
     
     # Popular programming languages (topics)
     "/roadmap/python/": {"priority": 0.85, "changefreq": "monthly"},
@@ -77,11 +77,11 @@ URL_PATTERNS = {
     "/roadmap/svelte/": {"priority": 0.85, "changefreq": "monthly"},
     "/roadmap/react/": {"priority": 0.85, "changefreq": "monthly"},
     "/roadmap/typescript/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/rust/": {"priority": 0.85, "changefreq": "quarterly"},
-    "/roadmap/go/": {"priority": 0.85, "changefreq": "quarterly"},
-    "/roadmap/java/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/cpp/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/csharp/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/rust/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/go/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/java/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmap/cpp/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmap/csharp/": {"priority": 0.8, "changefreq": "monthly"},
     
     # Core CSE topics
     "/roadmap/cse/": {"priority": 0.9, "changefreq": "monthly"},
@@ -90,15 +90,15 @@ URL_PATTERNS = {
     "/roadmap/dsa/": {"priority": 0.9, "changefreq": "monthly"},
     
     # Database and infrastructure topics
-    "/roadmap/dba/": {"priority": 0.85, "changefreq": "quarterly"},
-    "/roadmap/hpc/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/osd/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/dba/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmap/hpc/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmap/osd/": {"priority": 0.8, "changefreq": "monthly"},
     
     # Topic index pages - medium-high priority
     "/roadmap/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/html/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/css/": {"priority": 0.8, "changefreq": "quarterly"},
-    "/roadmap/script/": {"priority": 0.8, "changefreq": "quarterly"},
+    "/roadmap/html/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmap/css/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmap/script/": {"priority": 0.8, "changefreq": "monthly"},
     
     # Projects - medium priority
     "/projects/": {"priority": 0.8, "changefreq": "monthly"},
@@ -171,7 +171,7 @@ def should_exclude(file_path, relative_path, url):
 def get_priority_and_freq(url_path):
     """Determine priority and changefreq based on URL patterns"""
     default_priority = 0.6
-    default_freq = "quarterly"
+    default_freq = "monthly"
     
     # Check for exact and pattern matches (longer patterns first for specificity)
     sorted_patterns = sorted(URL_PATTERNS.keys(), key=len, reverse=True)
@@ -323,7 +323,7 @@ def parse_existing_sitemap(output_file):
             continue
         urls[loc] = {
             "lastmod": url_el.findtext(f"{{{SITEMAP_NS}}}lastmod") or datetime.now().strftime("%Y-%m-%d"),
-            "changefreq": url_el.findtext(f"{{{SITEMAP_NS}}}changefreq") or "quarterly",
+            "changefreq": url_el.findtext(f"{{{SITEMAP_NS}}}changefreq") or "monthly",
             "priority": url_el.findtext(f"{{{SITEMAP_NS}}}priority") or "0.6",
         }
     return urls

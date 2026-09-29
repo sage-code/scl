@@ -811,7 +811,7 @@ function renderSidebarItems(items, state = { index: 0 }, level = 0) {
     const isTitle = item.role === "title";
     const expanded = hasChildren && isSidebarLevelExpanded(level);
     const icon = hasChildren
-      ? `<button type="button" class="nav-tree-toggle" data-node-id="${nodeId}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${expanded ? "Collapse topic folder" : "Expand topic folder"}"><i class="bi ${expanded ? "bi-folder2-open" : "bi-folder2"}" aria-hidden="true"></i></button>`
+      ? `<button type="button" class="nav-tree-toggle" data-node-id="${nodeId}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${expanded ? "Collapse topic folder" : "Expand topic folder"}"><i class="bi ${expanded ? "bi-folder2-open" : "bi-folder-fill"}" aria-hidden="true"></i></button>`
       : isTitle
         ? TITLE_ICON
         : '<span class="nav-file-icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>';

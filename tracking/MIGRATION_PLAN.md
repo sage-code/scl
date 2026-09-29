@@ -24,5 +24,15 @@ For languages with empty `data/` folders:
 3.  Ensure links and structure match the expected layout.
 
 ## Current Priorities
-- Resolve urgent missing JSON issues (cse, go).
-- Iterate through language cleanup (ada, csharp, french, etc.).
+- **Engineering tracks** (`cse`, `dba`, `dsa`, `dsl`, `hpc`, `osd`, `pgp`, `sml`, `tek`) —
+  see `tracking/ENGINEERING_PLAN.md` for the current, verified per-track plan. Several of
+  these need more than a JSON fix: entire tracks (`dsa`, `tek`) are wired correctly but every
+  lesson is still templated placeholder text, and others (`sml`, `hpc`, part of `cse`) have
+  real content sitting behind a sidebar that never renders because the page never includes
+  `topic-loader.js` — a failure mode this document's three numbered steps don't cover, since
+  they assume the JSON sidecar is the only missing piece. Read `ENGINEERING_PLAN.md`'s
+  "three failure modes" section before starting a track from this list.
+- Resolve urgent missing JSON issues (go — cse's `topic.html`/`data/topic.json` gap is folded
+  into the engineering plan above, since cse needs more than that fix).
+- Iterate through language cleanup (`ada`, `swift`, `svelte` — see `tracking/TODO.md`'s "Next
+  Priorities" for current detail on each).
