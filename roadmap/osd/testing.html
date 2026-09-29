@@ -2,22 +2,167 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="OSD topic placeholder: Testing Strategy.">
+  <meta name="description" content="Testing strategy for open source projects: test layers, functional testing anatomy, continuous integration, and test-driven development.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="software testing, unit testing, functional testing, continuous integration, tdd, open source">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>OSD: Testing Strategy</title>
-  <link rel="canonical" href="https://sagecode.org/roadmap/osd/testing/">
+  <link rel="canonical" href="https://sagecode.org/roadmap/osd/testing.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <h1 id="testing-strategy">Testing Strategy</h1>
-  <p class="alert alert-secondary">Dummy topic page. Planned content: test layers, automation gates, and flaky-test reduction.</p>
-  <p><a href="/roadmap/osd/">Return to OSD Roadmap</a></p>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="software-testing">Testing Strategy</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Software testing is the activity of finding defects before they reach production &mdash; where they could mean accidents, data loss, or reputational damage instead of just a failed test run. It has its own vocabulary and techniques, covered here at the level a project maintainer needs: what to test, how to organize the tests, and how to gate a merge on them passing.
+        </div>
+
+        <p>See <a href="/roadmap/cse/testing.html">Software Testing</a> in the CSE fundamentals track for the plain definitions of "error" and "bug" this page assumes.</p>
+
+        <h2 id="management">Test Management</h2>
+        <p>A test management tool organizes your tests — some support only manual test runs; others (like Jenkins) automate the whole suite. Starting a test manually doesn't make it "manual testing" if the test case itself runs unattended once triggered.</p>
+
+        <p class="text-center"><img src="/images/Test-Manager.svg" alt="Test Manager" class="img-fluid protect" width="500"></p>
+
+        <h2 id="paradigms">Testing Paradigms</h2>
+
+        <p><strong>Manual testing</strong> is the simplest and most direct method — and the most expensive. It's reliable with good testers; some teams have people who do nothing but test, while Agile teams often have developers test their own work. Manual testing is usually guided by a written test plan.</p>
+
+        <p><strong>Automatic testing</strong> is less common but far more efficient. A scheduling tool runs jobs at regular intervals; each job represents one or more test cases, driven by a known input or initial state. Once the actions run, the result is evaluated automatically — an unexpected result means a defect was found.</p>
+
+        <h3 id="negative-test">Positive and Negative Tests</h3>
+        <p>A test plan should cover both kinds of case. A <strong>positive</strong> test feeds the system good data and expects a good result. A <strong>negative</strong> test feeds it bad data and expects the system to detect the problem gracefully — reporting the error and continuing — rather than crashing. If the system doesn't catch the bad input, that itself is a bug.</p>
+
+        <h3 id="unit-testing">Unit Testing</h3>
+        <p>A unit test case is a piece of code that verifies another piece of code behaves as expected. Getting there quickly needs a test framework for your language — JUnit for Java, for example.</p>
+        <p>A unit test is defined by a known input and an expected output, prepared before the test runs: the input exercises a <em>precondition</em>, the expected output verifies a <em>post-condition</em>.</p>
+        <p>Every feature needs at least two unit tests — one positive, one negative. If a feature has sub-features, each sub-feature needs the same pair.</p>
+        <div class="alert alert-danger">Developers typically run unit tests from the IDE, repeatedly, while building a feature. Once the feature is done, those same tests stay in the codebase and get invoked by an automated test script once the application is wired for test automation.</div>
+        <p>Whether a failing unit test should stop the whole run depends on how critical the feature is: report and continue for a non-critical feature, stop immediately for a critical one, to shorten the feedback loop.</p>
+
+        <h3 id="e2e-testing">End-to-End Testing</h3>
+        <p>Individual components are usually tested in isolation, but they also need to work <em>together</em>. A larger test suite that simulates a full workflow start to finish — also called an integration test — verifies there's no communication problem between components.</p>
+
+        <h2 id="functional">Functional Testing</h2>
+        <p>Functional testing focuses on the application's actual behavior: does the user interface do the right thing for every user action? This is harder to automate than unit testing, and often still needs a human in the loop.</p>
+        <p>Testing well takes real skill — different skill than writing the feature in the first place. Here's the anatomy of a test project:</p>
+
+        <div class="text-center">
+          <img src="/images/Smoke-Test.svg" alt="Smoke Test" class="img-fluid protect rounded shadow border" width="640">
+          <p>Functional Test / Components</p>
+        </div>
+
+        <h3 id="data-fixture">Data Fixture</h3>
+        <p>A fixture is the initial state or dataset a test needs before it can run — for example, a database backed up before the test starts. You run the test cases, keep the logs, and leave that database available for developers to inspect. Next run, you create a fresh database from the same fixture and diff the two.</p>
+
+        <h3 id="test-case">Test Case</h3>
+        <p>A predefined sequence of actions performed against the system — a workflow, or "use-case" — is what a test case actually tests: one specific way the system is meant to be used.</p>
+
+        <h3 id="test-scripts">Test Scripts</h3>
+        <p>A test script is an ordered sequence of test cases, run once or repeatedly, with a name and description — so every developer and tester can refer to the same set of use-cases by name.</p>
+
+        <h3 id="test-suite">Test Suite</h3>
+        <p>Multiple test scripts, run in a particular order, form a test suite. A good suite aims to cover as many test cases as possible.</p>
+
+        <h3 id="test-coverage">Test Coverage</h3>
+        <p>If a program has 100 functions and a suite exercises all 100, that suite has 100% test coverage. Coverage silently drops whenever new functionality ships without matching tests — it has to be actively maintained, not just measured once.</p>
+
+        <h3 id="test-results">Test Results</h3>
+        <p>Every test run should record: the suite name or code, start and end time, whether it completed normally or crashed, and how many cases passed versus failed.</p>
+
+        <h3 id="test-logs">Test Logs</h3>
+        <p>Without precise logs per use-case, tracing a failure back to its exact cause is nearly impossible. Record: how long each case took, which exact case failed, how severe the failure was (error, warning, fatal), and any other locating detail — program name, line number, and similar.</p>
+
+        <h3 id="saving-results">Saving Test Results</h3>
+        <p>Save logs and results in an organized system, sometimes for a month or longer. Historical results let you spot a recurring failure, and trace exactly when a bug first appeared and when it was fixed — a form of data mining over your own test history.</p>
+
+        <h2 id="integration">Continuous Integration</h2>
+        <p>Continuous integration (CI) is automatic testing triggered the moment a developer's change lands — usually on a dedicated CI server, running one or more jobs per check-in. Jenkins is a common choice for organizing multiple test suites and scheduling these jobs, but there are many alternatives. See <a href="/roadmap/osd/ci-cd.html">CI/CD Basics</a> for how this fits into the larger delivery pipeline.</p>
+
+        <h3 id="dry-runs">Dry Runs</h3>
+        <p>Borrowed from car testing: start the engine and listen — if it sounds right and there's no smoke, you continue to the drive test. A software dry run starts the system with no data and no users connected (an empty database, say) and exercises a handful of relevant use-cases. The program should not crash simply because there's nothing to process yet.</p>
+
+        <h3 id="smoke-test">Smoke Test</h3>
+        <p>Named the same way — if you smell smoke, you stop. A smoke test is a fast dry run with a little real data (a record or two per table), run often as part of continuous integration precisely because it's cheap to run on every check-in.</p>
+
+        <h3 id="nightly-test">Nightly Test</h3>
+        <p>Run once a day, typically overnight when no one is committing — sometimes doubling as a stress test with a realistic data volume, to measure performance. The next day's results become the baseline for fixing whatever regressed.</p>
+
+        <h2 id="tdd">Test-Driven Development</h2>
+
+        <p>Test-driven development (TDD) is a short, repeated development cycle: write a failing automated test that defines the desired behavior, write the minimum code to pass it, then refactor that code to an acceptable standard.</p>
+
+        <h3 id="tdd-process">Process</h3>
+        <ol>
+          <li>Write a failing test that defines the desired behavior of the new feature.</li>
+          <li>Run the test and confirm it fails — this proves the test itself works.</li>
+          <li>Write the minimum code needed to pass the test — as simple as it can be.</li>
+          <li>Run the test again and confirm it passes — this proves the code is correct.</li>
+          <li>Refactor the code for readability and maintainability.</li>
+          <li>Repeat steps 2&ndash;5 until every desired feature is implemented.</li>
+        </ol>
+
+        <h3 id="tdd-advantages">Advantages</h3>
+        <ul>
+          <li><strong>Improved code quality</strong> &mdash; writing testable code tends to be well-designed code, which helps prevent bugs and eases maintenance.</li>
+          <li><strong>Reduced risk</strong> &mdash; writing the test first gives you confidence the code works as intended before you add the next feature.</li>
+          <li><strong>Increased productivity</strong> &mdash; catching bugs immediately costs far less time than debugging them later.</li>
+          <li><strong>Improved communication</strong> &mdash; a test communicates intent to reviewers and testers directly, reducing misunderstandings.</li>
+        </ul>
+
+        <h3 id="tdd-disadvantages">Disadvantages</h3>
+        <p>TDD has a real learning curve, and writing tests for every new feature takes time. It can also make some kinds of change to existing code more awkward, since the existing tests constrain the refactor.</p>
+
+        <h3 id="tdd-conclusion">Conclusion</h3>
+        <p>TDD is a valuable practice once the trade-offs are understood — weigh the up-front cost against the debugging time it saves. It's often described as a form of extreme programming (XP), but plenty of teams that don't follow XP as a whole still use TDD; it's widely adopted across Agile teams specifically for the tight feedback loop it creates.</p>
+
+      </main>
+    </div>
+  </div>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<script src="/sage.js" defer></script>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'osd',
+    topicId: 'testing',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
 </body>
 </html>

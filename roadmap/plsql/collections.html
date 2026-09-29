@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="PL/SQL collections: associative arrays, nested tables, and VARRAYs.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="plsql, collections, associative array, nested table, varray, index by">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>PL/SQL Collections</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <!-- custom css -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  </head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h2 id="plsql-collections">PL/SQL Collections</h2>
+
+<div class="alert alert-secondary shadow-sm">
+A collection is an ordered group of elements, all of the same type &mdash; PL/SQL's answer to an array or a list. There are three kinds, and choosing the right one comes down to two questions: does it need to be stored in a database column, and does it need a fixed maximum size?
+</div>
+
+<table class="table table-bordered table-striped table-dark">
+<thead><tr><th>Kind</th><th>Indexed by</th><th>Size</th><th>Stored in a column?</th></tr></thead>
+<tbody>
+<tr><td>Associative array</td><td><code>PLS_INTEGER</code> or <code>VARCHAR2</code>, any values, need not be contiguous</td><td>Unbounded</td><td>No &mdash; PL/SQL memory only</td></tr>
+<tr><td>Nested table</td><td>Sequential integers starting at 1</td><td>Unbounded</td><td>Yes</td></tr>
+<tr><td>VARRAY</td><td>Sequential integers starting at 1</td><td>Fixed maximum, set at declaration</td><td>Yes</td></tr>
+</tbody>
+</table>
+
+<h2 id="associative-arrays">Associative Arrays</h2>
+
+<p>Also called an "index-by table". It behaves like a hash map: any key maps directly to a value, with no need to <code>EXTEND</code> or pre-size it. It exists only for the life of the PL/SQL block or session &mdash; it cannot be a column type.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-plsql line-numbers">declare
+  type t_scores is table of number index by pls_integer;
+  scores t_scores;
+  idx pls_integer;
+begin
+  scores(1)   := 90;
+  scores(100) := 60; -- keys need not be contiguous
+
+  idx := scores.first;
+  while idx is not null loop
+    dbms_output.put_line('scores(' || idx || ') = ' || scores(idx));
+    idx := scores.next(idx);
+  end loop;
+end;
+/
+</code></pre>
+
+<h2 id="nested-tables">Nested Tables</h2>
+
+<p>An unbounded, ordered collection that <em>can</em> be a column type or a table type on its own. It starts uninitialized (<code>NULL</code>) until you call its constructor, and grows one slot at a time with <code>EXTEND</code>.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-plsql line-numbers">declare
+  type t_names is table of varchar2(20);
+  names t_names := t_names(); -- constructor call, now it is an empty table
+begin
+  names.extend(2);
+  names(1) := 'Ana';
+  names(2) := 'Bob';
+
+  for i in 1 .. names.count loop
+    dbms_output.put_line('names(' || i || ') = ' || names(i));
+  end loop;
+end;
+/
+</code></pre>
+
+<h2 id="varrays">VARRAYs</h2>
+
+<p>A "variable-size array" &mdash; same idea as a nested table, but with a maximum capacity fixed at declaration. Use it when the upper bound is a known, small, business-meaningful number (a calendar's 12 months, a podium's top 3).</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-plsql line-numbers">declare
+  type t_top3 is varray(3) of varchar2(20);
+  top3 t_top3 := t_top3();
+begin
+  top3.extend(3);
+  top3(1) := 'Gold';
+  top3(2) := 'Silver';
+  top3(3) := 'Bronze';
+  -- top3.extend(1) here would raise ORA-06532: subscript outside limit
+
+  for i in 1 .. top3.count loop
+    dbms_output.put_line('top3(' || i || ') = ' || top3(i));
+  end loop;
+end;
+/
+</code></pre>
+
+<h2 id="collection-methods">Collection Methods</h2>
+
+<table class="table table-bordered table-striped table-dark">
+<thead><tr><th>Method</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>.COUNT</code></td><td>Number of elements currently in the collection.</td></tr>
+<tr><td><code>.FIRST</code> / <code>.LAST</code></td><td>Lowest / highest index in use.</td></tr>
+<tr><td><code>.NEXT(n)</code> / <code>.PRIOR(n)</code></td><td>Next / previous index after/before <code>n</code> &mdash; essential for sparse associative arrays.</td></tr>
+<tr><td><code>.EXISTS(n)</code></td><td>True if index <code>n</code> has a value.</td></tr>
+<tr><td><code>.EXTEND(n)</code></td><td>Grow a nested table or VARRAY by <code>n</code> slots (default 1).</td></tr>
+<tr><td><code>.DELETE(n)</code></td><td>Remove the element at index <code>n</code> (or every element, with no argument).</td></tr>
+</tbody>
+</table>
+
+<p>See it in a full demo: <a href="/roadmap/plsql/demo_examples.html">Demo 14 — Collections</a>.</p>
+
+</main>
+    </div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'plsql',
+    topicId: 'collections',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

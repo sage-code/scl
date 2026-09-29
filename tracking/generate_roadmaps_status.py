@@ -26,7 +26,13 @@ SKIP_PAGES = {
 
 WIP = re.compile(
     r"To be replaced|Work In Progress|Work in progress|"
-    r"under construction|template page you should not find",
+    r"under construction|template page you should not find|"
+    r"Dummy topic page|Placeholder page|"
+    r"will be authored later|paradigm placeholder|"
+    r"is a placeholder|intentionally empty|"
+    r"Add the learning objectives|Replace placeholder text|"
+    r"Content planned for this lesson|"
+    r"Lab instructions will be added in a future update",
     re.I,
 )
 
@@ -83,6 +89,7 @@ def collect_metrics(track):
 
     sizes = []
     wip_pages = []
+    unwired_pages = []
     for page in topics:
         path = os.path.join(track_dir, page)
         size = os.path.getsize(path)
@@ -90,6 +97,14 @@ def collect_metrics(track):
         text = open(path, encoding="utf-8", errors="ignore").read()
         if size < 6000 and WIP.search(text):
             wip_pages.append(page)
+        # A topic page's sidebar is only ever populated by topic-loader.js
+        # reading window.TOPIC_CONFIG; a page missing this script renders a
+        # permanently empty (or entirely absent) sidebar even when its
+        # data/<topic>.json sidecar exists and is well-formed. This class of
+        # bug is invisible to the JSON-presence checks below — see the
+        # sml/osd/hpc/pgp/cse findings in tracking/ENGINEERING_PLAN.md.
+        if "topic-loader.js" not in text:
+            unwired_pages.append(page)
 
     missing_jsons = sorted(
         page.replace(".html", ".json")
@@ -110,6 +125,8 @@ def collect_metrics(track):
         "has_data_topic_json": "topic.json" in data_files,
         "empty_data_dir": len(data_files) == 0,
         "has_legacy_topic_html": os.path.exists(os.path.join(track_dir, "topic.html")),
+        "unwired_sidebar_pages": unwired_pages,
+        "unwired_sidebar_ratio": round(len(unwired_pages) / len(topics), 2) if topics else 0.0,
     }
 
 
@@ -118,7 +135,11 @@ def classify(track, metrics):
         return "not_implemented"
     if metrics["placeholder_ratio"] >= 0.5 and metrics["median_topic_kb"] < 5.0:
         return "not_implemented"
-    if metrics["has_legacy_topic_html"] or metrics["missing_sidebar_jsons"]:
+    if (
+        metrics["has_legacy_topic_html"]
+        or metrics["missing_sidebar_jsons"]
+        or metrics["unwired_sidebar_pages"]
+    ):
         return "not_updated"
     return "converted"
 
@@ -222,6 +243,17 @@ def build_issues(track, metrics, status):
             issues.append(
                 "{} topic page(s) still carry WIP/placeholder markers "
                 "({}).".format(len(metrics["wip_pages"]), sample)
+            )
+        if metrics["unwired_sidebar_pages"]:
+            sample = ", ".join(metrics["unwired_sidebar_pages"][:6])
+            issues.append(
+                "{} of {} topic page(s) never include topic-loader.js, so "
+                "their sidebar stays empty or absent at runtime even where "
+                "a data/<topic>.json sidecar exists ({}).".format(
+                    len(metrics["unwired_sidebar_pages"]),
+                    metrics["topic_pages"],
+                    sample,
+                )
             )
     return issues
 

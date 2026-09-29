@@ -111,8 +111,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         'sh': 'bash',
         'css': 'css',
         'html': 'html',
+        'xml': 'xml',
         'json': 'json',
         'dart': 'dart',
+        // Programming Paradigms roadmap (roadmap/pgp/demo/) — representative
+        // languages, one or two per paradigm. Grammars bundled in prism.js.
+        'bas': 'basic',
+        'pas': 'pascal',
+        'hs': 'haskell',
+        'lisp': 'lisp',
+        'lsp': 'lisp',
+        // Prolog and Smalltalk — standalone grammars bundled in prism.js,
+        // written for the pgp Logic / Object-Oriented lessons.
+        'pl': 'prolog',
+        'st': 'smalltalk',
+        // AspectJ extends Java syntax with aspect/pointcut/advice keywords;
+        // the bundled 'java' grammar renders it correctly apart from those
+        // few extra keywords, which is close enough for a short demo.
+        'aj': 'java',
         // Ada — grammar is bundled in assets/prism.js (see its download header)
         'adb': 'ada',
         'ads': 'ada',
@@ -122,6 +138,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         'jl': 'julia',
         // Java — corpus grammar is bundled in assets/prism.js (see its download header)
         'java': 'java',
+        // Scala — grammar bundled in assets/prism.js (standalone, not java-derived)
+        'scala': 'scala',
+        'sc': 'scala',
+        // PL/SQL — the 'plsql' grammar ships with core Prism; Oracle's package
+        // file extensions (spec/body/test) all use the same PL/SQL syntax
+        'sql': 'sql',
+        'pls': 'plsql',
+        'pks': 'plsql',   // package specification
+        'pkb': 'plsql',   // package body
+        'pkc': 'plsql',   // package test/client script (project convention)
         'cs': 'csharp',
         'csharp': 'csharp',
         'c': 'c',

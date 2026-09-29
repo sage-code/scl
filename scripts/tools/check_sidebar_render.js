@@ -38,9 +38,14 @@ const MIME = {
 // Routes exercise every shape the template allows.
 const DEFAULT_ROUTES = [
   '/roadmap/csharp/control.html',        // template: root folder + chapters + sections
+  '/roadmap/scala/syntax.html',          // single-root: page title + chapters + sections
   '/roadmap/julia/control.html',         // template, second track (no track is special)
   '/roadmap/dart/demo_examples.html',    // leaf chapters: h2 categories with no h3 level
   '/roadmap/python/classes.html',        // legacy flat sidebar (page has no <h1> yet)
+  '/roadmap/plsql/control.html',         // legacy flat sidebar, second track, has h3 children
+  '/roadmap/cse/testing.html',           // single-root; was unwired (wrong script path) until fixed
+  '/roadmap/pgp/functional.html',        // single-root; migrated from cse/paradigms.html content
+  '/roadmap/tek/linux-systems.html',     // single-root; migrated from cse/platforms.html content
 ];
 
 function readSidecar(route) {

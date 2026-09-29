@@ -18,13 +18,13 @@
         object method shell return
         session update insert commit from use
         new let set scrub delete
-        expect break halt next alter make store start yield run call wait exit stop
-        print write read over panic pass skip fail raise retry suspend resume
-        synchronise rollback`);
-    define("operator", "in is as or eq and not");
+        expect break halt next alter make store start yield call wait exit stop
+        print write read over panic pass fail raise retry resume abort suspend
+        apply to synchronise rollback`);
+    define("operator", "in is as or eq and not xor");
     define("control", `
-        cycle repeat when job try catch resolve case on loop while for task miss
-        match if then else done begin split join`);
+        job do cycle repeat when case on loop while for match if then else done
+        parallel fork begin join`);
     define("type", `
         Byte Short Integer Natural Real Float Rational String Logic Table Symbol
         Record Ordinal Variant Date Time Array List Object Class Lambda Function
@@ -37,21 +37,22 @@
         recover finalize trait constructor function routine release`.trim().split(/\s+/));
 
     const TOKEN = new RegExp([
-        /(--.*)/,                                   // 1: end-of-line comment
+        /(\(\*\*.*?(?:\*\*\)|$)|\*\*.*)/,           // 1: (** expression **) or ** end-of-line comment
         /(""")/,                                    // 2: triple-quoted string
         /("(?:[^"\\]|\\.)*"?)/,                     // 3: double-quoted string
         /('(?:[^'\\]|\\.)*')/,                      // 4: single-quoted literal
-        /([A-Za-z_]\w*)/,                           // 5: word
-        /(\.\.\.?|\.[&|+]\.|::|:=|==|!=|=>|:>|<:|<-|->|<\+|\+>|<=|>=|<<|>>|&&|\|\||[-+*\/^%&]=|[=<>+\-*\/%^&|:;?#@$])/, // 6: operator
+        /(\$?[A-Za-z_]\w*)/,                        // 5: word or $system variable
+        /(\.\.\.?|\.[&|+]\.|::|:=|==|<>|=>|:>|<:|<-|->|<\+|\+>|<=|>=|<<|>>|&&|\|\||[-+*\/^%&]=|[=<>+\-*\/%^&|:;?#@$!])/, // 6: operator
         /(\s+|\d+(?:\.\d+)?|.)/                     // 7: anything else
     ].map(r => r.source).join("|"), "y");
 
-    const BLOCK_END = /\*\/|-\+/;
+    const BLOCK_END = /\*\//;
+    const EXPR_END = /\*\*\)/;
     const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
     const escape = s => s.replace(/[&<>]/g, c => ESCAPES[c]);
     const wrap = (cls, s) => `<span class="${cls}">${escape(s)}</span>`;
 
-    const PLAIN = 0, BLOCK_COMMENT = 1, TRIPLE_STRING = 2;
+    const PLAIN = 0, BLOCK_COMMENT = 1, TRIPLE_STRING = 2, EXPR_COMMENT = 3;
 
     // highlight Eve source text; returns one "<span class="line">" HTML string per line
     function highlightLines(source) {
@@ -70,6 +71,11 @@
                 const text = m[0];
                 if (m[1]) {
                     html += wrap("comment", text);
+                    if (text.startsWith("(**") && !EXPR_END.test(text.slice(3))) {
+                        state = EXPR_COMMENT; // expression comment spans lines
+                        break;
+                    }
+                    if (text.startsWith("(**")) continue;
                     break;
                 } else if (m[2]) {
                     const end = line.indexOf('"""', TOKEN.lastIndex);
@@ -83,7 +89,9 @@
                 } else if (m[3] || m[4]) {
                     html += wrap("string", text);
                 } else if (m[5]) {
-                    const cls = first && DECLARATIONS.has(text) ? "keyword"
+                    const cls = text[0] === "$" ? "builtin"
+                              : line[m.index - 1] === "." ? null // member: $error.job
+                              : first && DECLARATIONS.has(text) ? "keyword"
                               : text === "_" ? "operator"
                               : WORDS.get(text);
                     html += cls ? `<span class="${cls}">${text}</span>` : text;
@@ -104,6 +112,12 @@
                 if (BLOCK_END.test(line)) state = PLAIN;
                 return wrap("comment", line);
             }
+            if (state === EXPR_COMMENT) {
+                const end = line.search(EXPR_END);
+                if (end < 0) return wrap("comment", line);
+                state = PLAIN;
+                return wrap("comment", line.slice(0, end + 3)) + tokens(line, end + 3);
+            }
             if (state === TRIPLE_STRING) {
                 const end = line.indexOf('"""');
                 if (end < 0) return wrap("string", line);
@@ -113,8 +127,7 @@
             const lead = line.trimStart();
             if (lead.startsWith("#")) return wrap("title", line);
             if (lead.startsWith("**")) return wrap("subtitle", line);
-            if (lead.startsWith("--")) return wrap("comment", line);
-            if (lead.startsWith("/*") || lead.startsWith("+-")) {
+            if (lead.startsWith("/*")) {
                 if (!BLOCK_END.test(lead.slice(2))) state = BLOCK_COMMENT;
                 return wrap("comment", line);
             }

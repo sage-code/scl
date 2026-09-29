@@ -71,46 +71,38 @@ label: &lt;control_type&gt;
     ** Declarations & local scope initializations
 &lt;transition_keyword&gt;
     ** Executable statements
-[optional clauses: error, check, clean, else, then, etc.]
+[optional clauses: else, then, etc.]
 &lt;terminator&gt;
 </code></pre>
 
 <h2 id="job">Sequential job</h2>
 
-<p>Job block is one of most powerful Eve feature. It enable creation of protected blocks that can handle exceptions. This block can be used in processes, routines, functions or methods to avoid runtime errors.</p>
+<p>A job is a labeled block of statements in a process. It has no error handlers: write the job so that it does not fail. If it fails anyway, the error is handled at process level, in the <a href="/projects/eve/processing/#recover-from-exception">recover</a> region, which can run the job again, continue after it, or abort the process.</p>
 
 <h4>Syntax pattern</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-**job description or notes
-  job_name: job
-    ** some declarations in local scope
-    ...
-  do
-    ** some job statements or test use-case
-    raise "error" if condition; ** intrerupt job with error
-    ...
-    stop if condition; ** intrerupt job without error
-    ...
-  error error1
-    ** handle error
-  error (error2, error3 ...)
-    ** handle error
-  other error
-    ** handle all errors
-  check
-    let job.status = "pass" if condition; ** job status
-    ** execute if succesfuly fuinished, include abort
-    ....
-  clean
-    ** close resources, tear-down test cases, other things
-    ...
-  done job [name]; ** you can't use if after done
+** job description or notes
+job_name: job
+  ** local declarations
+  ...
+do
+  ** job statements
+  ...
+  stop if condition; ** leave the job without error
+  ...
+  raise "message" if condition; ** fail the job: go to recover
+  ...
+done job [job_name];
 </code></pre>
 
-<p><b>Notes:</b>Job statement also use keywords: {raise, error, other, check, clean, stop and done}, but it can use also: {expect, exit, over, panic} to intrerupt a program prematurly. A job can fail but the program will continue with next job if failure is handled properly. A job status is recorded for reporting. Job status is handled automaticly by the system. If a job raise an error, automaticly is considered failed. </p>
-
-<p>Job block is similar with try block in java, except it does not have a final clause instead we use "clean" that is more relevant for purpose of a job. A job can be finalized in a flexible way in check region. The most common is to set-up job "status". A job is an object in Eve, so the job has methods and properties. We reffer to current job by it's name.</p>
+<p><b>Notes:</b></p>
+<ul>
+  <li>Jobs are used only in a process (driver or aspect), at the top level. Jobs can't be nested; routines, functions and methods do not have jobs.</li>
+  <li>The label is required. The recover region reads it in <code>$error.job</code> to know which job failed.</li>
+  <li>A job passes when it reaches <code>done</code> or <code>stop</code>. It fails when an error is raised inside it, including errors from the routines and methods it calls. The job status is recorded automatically for reporting.</li>
+  <li>When a job fails, the process jumps to its recover region: see <a href="/projects/eve/processing/#recover-from-exception">Recover from exception</a>.</li>
+</ul>
 
 <h2 id="if">Conditional If</h2>
 

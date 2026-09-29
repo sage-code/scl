@@ -55,18 +55,17 @@
 
 <h2 id="main-process">Process Structure</h2>
 
-<p>A process can do one or more jobs. Each job is a try block. Jobs are sequential. Any job can pass or fail. User can force a job to pass or fail. Also user can decide if process can continue with next job. When an exception is raised a process is interrupted.</p>
+<p>A process can do one or more jobs. Jobs are sequential. A job has no error handlers: it passes or it fails. When an error is raised, in a job or anywhere else in the process, the process is interrupted and the workflow jumps into the recover region.</p>
 
-<p>In case of exception, the workflow jumps into recover region. If none of the cases is handling the error, the finalization region is executed and the process terminates. Errors can propagate to main process if they are not properly handled.</p>
+<p>In the recover region you use normal control statements on the <code>$error</code> variable to decide what to do: <code>retry</code> the failed job, <code>resume</code> the process after it, or <code>abort</code> the process. Then the finalize region runs. An aborted error propagates to the calling process.</p>
 
-
-<p>Jobs can be dependent. If first job fail, maybe does not make any sense to continue with next job. In recover region, user can detect what job is the current job that failed. So user can do different error handling for different job or group of jobs.</p>
+<p>Jobs can be dependent. If the first job fails, it may not make sense to continue with the next job. In the recover region, <code>$error.job</code> is the label of the job that failed, so you can handle errors differently for each job or group of jobs.</p>
 
 
 <div class="text-center">
   <img src="/projects/eve/img/eve-try.svg" alt="try blocks"
   width="500" class="img-fluid protect rounded shadow border" >
-  <p>job ... try</p>
+  <p>job ... recover</p>
 </div>
 
 <h4>Pattern:</h4>
@@ -75,12 +74,13 @@
 
 <pre class="line-numbers"><code class="language-eve">
 # define process with jobs
-process | initialize
+process
   ** local declarations
-  ....
-  ** preconditions (end prematurly the  process)
-  ** silent stop process and do not execute finalization or recovery
-  abort if condition;
+  new tries := 0;
+  ...
+  ** preconditions: end the process prematurely
+  ** over skips the recover and finalize regions
+  over 1 if condition;
 
   ** description of c1 job
   c1: job
@@ -107,7 +107,15 @@ process | initialize
 
 recover
   ** decide what to do next in case of error
-  [exit] | [raise] | [panic];
+  if $error.job == "c1" and tries &lt; 3 do
+    let tries := tries + 1;
+    retry;  ** run job c1 again
+  else if $error.job == "c2" do
+    print $error.message;
+    resume; ** c2 failed, continue with c3
+  else
+    abort;  ** end the process with this error
+  done;
 finalize
     ** close resources or channels
     ...
@@ -121,8 +129,8 @@ return;
 <p><b>Notes:</b>For this design pattern we have demonstrate a sequential process that is more likely used by an aspect. We think this process structure provides a robust framework for error handling and flow control. It allows for:</p>
 
 <ul>
-  <li>Fine-grained error handling within each job</li>
-  <li>Process-level error recovery</li>
+  <li>Simple jobs, written so that they do not fail</li>
+  <li>Error handling in one place: the recover region decides per job</li>
   <li>Guaranteed execution of cleanup code</li>
   <li>Clear separation of concerns between different jobs in the process</li>
 </ul>
@@ -135,7 +143,7 @@ return;
 <li>Any driver or aspect, can and must implement one single process;</li>
 <li>A process create a local scope, but also has access to a global context;</li>
 <li>Before first job there is a region for preparation/preconditions</li>
-<li>Preconditions can abort the process and do not trigger finalization region</li>
+<li>Preconditions can end the process with <code>over</code>, which skips the recover and finalize regions</li>
 <li>Jobs can't be nested, they are all on same level with the process</li>
 <li>All jobs of a single process are execute sequential from top down;</li>
 <li>When the project finish the local variables are released from memory;</li>
@@ -284,7 +292,7 @@ return;
 
 <p>The "$error" is a variable of type Exception.Error that is created when an exception is raised. It alwais point to last error of a process. The system variable $trace contains several elements that are errors. These are filled in by the Eve program when an exception is raised. If an error is raised from a recover region it will propagate in the main process.</p>
 
-<p>Error handling in Eve is done at the job level or process level. A process can be interrupted by a system exception or it can create user-defined exceptions. We use special keywords to signal an exception from inside a job: {raise, expect}.</p>
+<p>Error handling in Eve is done at process level, in the recover region. A process can be interrupted by a system exception or it can create user-defined exceptions. We use special keywords to signal an exception from inside a job: {raise, expect}.</p>
 
 <h4>Pseudocode</h4>
 
@@ -367,11 +375,30 @@ expect condition2, "user defined message";
 
 <h3 id="recover-from-exception">Recover from exception</h3>
 
-<p>Jobs can handle exceptions. Jobs can be used in routines, methods, functions or processes. This enable developers to create robust code and handle the errors immediatly, close to the point where they are created. If exceptions/errors are not handled in jobs, they propagate automaticly to the process.</p>
+<p>Jobs do not handle exceptions. An error raised in a process, inside a job, in a routine or method it calls, or between jobs, interrupts the process, and the workflow jumps into the <b>recover</b> region.</p>
 
-<p>The <b>recover</b> region define an "exception handling region" for a processes. Recover region is a optional/backup. If this region do not exist in a process, all exceptions propagate into the main process. If the driver main process to not have a recover region, exception can stop/crash the application.</p>
+<p>In the recover region the developer uses normal control statements (<code>if</code>, <code>match</code>) and the <code>$error</code> system variable to decide what to do next, and ends with one of these statements:</p>
 
-<p>In recover region developer can decide using the control statements and $error system variable what to do next. He can abort the program, print a message, raise anothe error, propagate current error or silently exit the process. Aspect processes should handle as much as possible to keep the concerns local. Main process can handle the general case just in case but can also just not have a recover or finalize region.</p>
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Statement</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>retry</code></td><td>run the failed job again, from the start of its declarations</td></tr>
+<tr><td><code>resume</code></td><td>the error is handled: the job stays failed and the process continues after its <code>done</code></td></tr>
+<tr><td><code>abort</code></td><td>end the process: the finalize region runs, then the error propagates to the calling process</td></tr>
+</tbody>
+</table>
+
+<ul>
+<li>If the recover region ends without one of these, the error is handled: the finalize region runs and the process ends normally.</li>
+<li><code>retry</code> and <code>resume</code> need a failed job. An error raised outside any job can only be aborted.</li>
+<li>Raising another error in the recover region aborts with the new error.</li>
+<li>A process without a recover region aborts on every error. If the driver aborts, the application ends with an error exit code.</li>
+<li><code>retry</code> can repeat forever: count the attempts in a local variable.</li>
+</ul>
+
+<p>Aspect processes should handle as much as possible to keep the concerns local. Main process can handle the general case just in case but can also just not have a recover or finalize region.</p>
 
 
 <h4>Example:</h4>
@@ -391,7 +418,7 @@ return;
 
 <h3 id="finalize">Finalize</h3>
 
-<p>The finalize region is optional. It will be executed for almost all cases with the exception of {abort | over}. The {exit, raise, expect} will cause process intreruption but will execute the fialization region before control is given back to parent process.</p>
+<p>The finalize region is optional. It runs once, when the process ends: after <code>return</code> or <code>exit</code>, or after the recover region has aborted. It is skipped by <code>over</code> and <code>panic</code>. After <code>retry</code> or <code>resume</code> the process continues, so finalize runs later, when the process ends.</p>
 
 <p>In finalization region developer can close resources, tear down data of test cases, archive the logs, send signals, prepare output parameters or just print debug messages. Whatever is required after all code is execute just before process termination.</p>
 

@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Introduction to SQL.">
+  <meta name="description" content="SQL data transformation: JOIN, GROUP BY, subqueries, CTEs (WITH), views, UNION, and MERGE.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="SQL, language, syntax, programming, tutorial, website, developer">
+  <meta name="keywords" content="sql, join, group by, subquery, cte, with clause, view, union, merge, etl">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
   <!-- Website title -->
-  <title>SQL Tutorial</title>  
+  <title>SQL Transform</title>
 
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -16,9 +16,11 @@
   <link rel="icon" type="image/png"  href="/images/favicon.ico">  
   <!-- Prism Highlighter -->
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <!-- custom css -->
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
   </head>
 <body>
 
@@ -26,20 +28,6 @@
 
   <header id="dynamic-header" class="container-fluid pb-2"></header>
 
-  <div class="container-fluid px-0">
-    <div class="row g-0">
-      <aside class="side-bar col-lg-3 col-12">
-        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Lab Topics</h5>
-          </div>
-          <hr>
-          <ul id="bookmark-list" class="list-unstyled">
-          </ul>
-        </div>
-      </aside>
-
-      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
 <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -54,18 +42,138 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h2 id="sql-tutorial">SQL Tutorial</h2>
+<h2 id="sql-transform">SQL Transform</h2>
 
 <div class="alert alert-secondary shadow-sm">
-SQL = Structured Query Language
+Once data is stored (<a href="/roadmap/plsql/build.html">Build</a>) and reachable one row at a time (<a href="/roadmap/plsql/operate.html">Operate</a>), the next skill is <em>reshaping</em> it: combining tables, summarizing rows into totals, and packaging a query so it can be reused like a table. This is what most real reporting and ETL work actually is.
 </div>
 
-<pre><code class="language-sql">
-select "hello world" from dual;
+<p>The examples below build on a small three-table schema (<code>customer</code>, <code>customer_order</code>, <code>order_item</code>) created by <a href="/roadmap/plsql/demo_examples.html">Demo 19</a> and queried by <a href="/roadmap/plsql/demo_examples.html">Demo 20</a>.</p>
+
+<h2 id="join">JOIN</h2>
+
+<p>A <code>JOIN</code> combines rows from two tables into one result, matched on a condition &mdash; almost always a foreign key equal to the primary key it references.</p>
+
+<table class="table table-bordered table-striped table-dark">
+<thead><tr><th>Join type</th><th>Keeps</th></tr></thead>
+<tbody>
+<tr><td><code>INNER JOIN</code> (plain <code>JOIN</code>)</td><td>Only rows that match on both sides.</td></tr>
+<tr><td><code>LEFT JOIN</code></td><td>Every row from the left table, matched columns from the right or <code>NULL</code>.</td></tr>
+<tr><td><code>RIGHT JOIN</code></td><td>Every row from the right table, matched columns from the left or <code>NULL</code>.</td></tr>
+<tr><td><code>FULL JOIN</code></td><td>Every row from either side, <code>NULL</code> on whichever side has no match.</td></tr>
+</tbody>
+</table>
+
+<h4>Example:</h4>
+
+<pre><code class="language-sql line-numbers">select c.name, o.id as order_id, o.status
+  from customer c
+  join customer_order o on o.customer_id = c.id
+ order by c.name, o.id;
 </code></pre>
 
-<hr>
+<h2 id="group-by">GROUP BY and Aggregates</h2>
 
+<p><code>GROUP BY</code> collapses many rows into one summary row per group. Every column in the <code>SELECT</code> list must either be in the <code>GROUP BY</code> or wrapped in an aggregate function (<code>COUNT</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code>). <code>HAVING</code> filters groups after aggregation &mdash; <code>WHERE</code> filters rows before it.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-sql line-numbers">select o.customer_id,
+       count(*) as order_count,
+       sum(i.quantity * i.unit_price) as total_spent
+  from customer_order o
+  join order_item i on i.order_id = o.id
+ group by o.customer_id
+having sum(i.quantity * i.unit_price) &gt; 20
+ order by total_spent desc;
+</code></pre>
+
+<h2 id="subqueries">Subqueries</h2>
+
+<p>A subquery is a <code>SELECT</code> nested inside another statement &mdash; in the <code>FROM</code> clause (an inline view), in the <code>WHERE</code> clause (a filter built from another query), or as a scalar value in the <code>SELECT</code> list.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-sql line-numbers">-- a subquery in WHERE: customers who have placed at least one order
+select name from customer
+ where id in (select customer_id from customer_order);
+</code></pre>
+
+<h2 id="cte">CTEs: the WITH Clause</h2>
+
+<p>A Common Table Expression names a subquery up front with <code>WITH</code>, so the main query reads top to bottom instead of nesting parentheses inside parentheses. It is the same subquery, just given a name and pulled out where it is easier to read &mdash; and it can be referenced more than once.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-sql line-numbers">with order_totals as (
+  select o.id as order_id, o.customer_id,
+         sum(i.quantity * i.unit_price) as order_total
+    from customer_order o
+    join order_item i on i.order_id = o.id
+   group by o.id, o.customer_id
+)
+select c.name, ot.order_id, ot.order_total
+  from order_totals ot
+  join customer c on c.id = ot.customer_id
+ order by ot.order_total desc;
+</code></pre>
+
+<h2 id="views">Views</h2>
+
+<p>A <code>VIEW</code> saves a query under a name, so it can be queried as if it were a table &mdash; the query itself runs fresh every time. Use a view to hide a complex join behind a simple name, or to give a team read access to a shape of the data without exposing the underlying tables directly.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-sql line-numbers">create or replace view customer_order_totals as
+  select c.id as customer_id, c.name,
+         count(o.id) as order_count,
+         nvl(sum(i.quantity * i.unit_price), 0) as total_spent
+    from customer c
+    left join customer_order o on o.customer_id = c.id
+    left join order_item i     on i.order_id = o.id
+   group by c.id, c.name;
+
+select * from customer_order_totals order by total_spent desc;
+</code></pre>
+
+<h2 id="union">UNION and UNION ALL</h2>
+
+<p><code>UNION</code> stacks the results of two compatible <code>SELECT</code>s into one result set and removes duplicate rows. <code>UNION ALL</code> does the same but keeps duplicates &mdash; and is faster, because it skips the duplicate-elimination pass. Prefer <code>UNION ALL</code> whenever you already know the two sides cannot overlap.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-sql line-numbers">select name, 'customer' as kind from customer
+union all
+select product, 'product' as kind from order_item;
+</code></pre>
+
+<h2 id="merge">MERGE</h2>
+
+<p><code>MERGE</code> (also called "upsert") compares a source row set against a target <em>table</em> and, in one statement, updates matching rows and inserts new ones. It replaces the older, more error-prone pattern of a manual "does it exist? then UPDATE else INSERT". Note the target must be a real table &mdash; not an aggregate view like the one above, which Oracle will not let you write to directly.</p>
+
+<h4>Example:</h4>
+
+<pre><code class="language-sql line-numbers">-- a plain summary table, refreshed on demand by the MERGE below
+create table customer_order_summary (
+  customer_id  number primary key,
+  order_count  number,
+  total_spent  number(12, 2)
+);
+
+merge into customer_order_summary t
+using (select o.customer_id, count(*) as order_count,
+              sum(i.quantity * i.unit_price) as total_spent
+         from customer_order o join order_item i on i.order_id = o.id
+        group by o.customer_id) s
+   on (t.customer_id = s.customer_id)
+ when matched then
+   update set t.order_count = s.order_count, t.total_spent = s.total_spent
+ when not matched then
+   insert (customer_id, order_count, total_spent)
+   values (s.customer_id, s.order_count, s.total_spent);
+</code></pre>
+
+<p>See it in a full demo: <a href="/roadmap/plsql/demo_examples.html">Demo 20 &mdash; Transform / ETL</a>.</p>
 
 
 </main>

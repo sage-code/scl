@@ -59,10 +59,10 @@ class TopicLoader {
   // Legacy title leaf glyph — kept only for un-migrated tracks whose sidebar JSON
   // still leads with a childless `role: "title"` entry (an anchor, not a folder).
   // The single-root model never reaches this path: there the `<h1>` is an ordinary
-  // collapsible folder wearing the standard green `bi-folder2` toggle, so the title
-  // drops the special glyph below and folds like any chapter. The glyph itself is a
-  // stroked outline folder with a slash in its front panel — distinct from both the
-  // `bi-folder2` toggles and the `bi-file-earmark-text` section icon.
+  // collapsible folder wearing the standard folder toggle, so the title drops the
+  // special glyph below and folds like any chapter. The glyph itself is a stroked
+  // outline folder with a slash in its front panel — distinct from both the folder
+  // toggles and the `bi-file-earmark-text` section icon.
   // Two paths only.
   createTitleIcon() {
     const titleIcon = document.createElement('span');
@@ -81,6 +81,13 @@ class TopicLoader {
     return expanded ? 'Collapse topic folder' : 'Expand topic folder';
   }
 
+  // Closed folders are solid, open folders are an outline with the lid tipped open,
+  // so the two states read apart at the 20px toggle size (the outline pair
+  // `bi-folder2` / `bi-folder2-open` was nearly indistinguishable there).
+  folderIconClass(expanded) {
+    return `bi ${expanded ? 'bi-folder2-open' : 'bi-folder-fill'}`;
+  }
+
   createToggleButton(nodeId, expanded) {
     const toggle = document.createElement('button');
     toggle.type = 'button';
@@ -88,7 +95,7 @@ class TopicLoader {
     toggle.dataset.nodeId = nodeId;
     toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     toggle.setAttribute('aria-label', expanded ? 'Collapse topic folder' : 'Expand topic folder');
-    toggle.innerHTML = `<i class="bi ${expanded ? 'bi-folder2-open' : 'bi-folder2'}" aria-hidden="true"></i>`;
+    toggle.innerHTML = `<i class="${this.folderIconClass(expanded)}" aria-hidden="true"></i>`;
     return toggle;
   }
 
@@ -328,7 +335,7 @@ class TopicLoader {
           toggle.setAttribute('aria-label', this.toggleLabel(expanded));
           const icon = toggle.querySelector('i');
           if (icon) {
-            icon.className = `bi ${expanded ? 'bi-folder2-open' : 'bi-folder2'}`;
+            icon.className = this.folderIconClass(expanded);
           }
         }
       } else {
@@ -542,7 +549,7 @@ class TopicLoader {
 
     const icon = node.toggle.querySelector('i');
     if (icon) {
-      icon.className = `bi ${nextExpanded ? 'bi-folder2-open' : 'bi-folder2'}`;
+      icon.className = this.folderIconClass(nextExpanded);
     }
 
     if (!nextExpanded && this.activeSectionId) {
