@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Erlang: a language of lightweight processes that communicate only by messages, built for systems that never stop.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="erlang, programming language, concurrent, programming paradigms, sage-code">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Erlang Overview</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/pgp/erlang.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="erlang"><a href="#erlang">Erlang</a></h1>
+
+        <div class="alert alert-secondary shadow-sm">Erlang was created at Ericsson in the 1980s to run telephone switches that must never go down. Its answer is a very simple concurrency model: a program is thousands or millions of tiny isolated processes that share nothing and talk only by sending messages.</div>
+
+        <p class="small text-secondary">Paradigm: <a href="/roadmap/pgp/concurrent.html">Concurrent and Actor Programming</a></p>
+
+        <h2 id="what-is-special">What Makes Erlang Special</h2>
+        <ul>
+          <li><strong>Processes are cheap.</strong> An Erlang process needs about 300 words of memory, so a node can run millions. They are not operating system threads and are scheduled by the runtime (the BEAM).</li>
+          <li><strong>Share nothing.</strong> Each process has its own heap. Data is copied in messages and immutable, so there are no locks and no data races.</li>
+          <li><strong>Message passing.</strong> <code>Pid ! Message</code> sends and <code>receive ... end</code> picks a message from the mailbox with pattern matching.</li>
+          <li><strong>Let it crash.</strong> Instead of defensive code everywhere, a failing process dies, and a <em>supervisor</em> process restarts it. Fault tolerance is structural.</li>
+          <li><strong>Hot code loading and distribution.</strong> Code can be replaced in a running system, and sending a message to a process on another machine uses the same syntax.</li>
+        </ul>
+
+        <h2 id="example">Example: A counter process</h2>
+        <pre><code class="language-erlang">-module(counter).
+-export([start/0, increment/1, value/1]).
+
+start() -&gt; spawn(fun() -&gt; loop(0) end).
+
+increment(Pid) -&gt;
+    Pid ! increment,
+    ok.
+
+value(Pid) -&gt;
+    Pid ! {value, self()},
+    receive
+        {count, N} -&gt; N
+    end.
+
+loop(N) -&gt;
+    receive
+        increment -&gt;
+            loop(N + 1);
+        {value, From} -&gt;
+            From ! {count, N},
+            loop(N)
+    end.</code></pre>
+
+        <h3 id="how-it-works">How It Works</h3>
+        <ul>
+          <li><code>spawn</code> starts a new process running <code>loop(0)</code> and returns its process id. The state <code>N</code> lives only in the arguments of the loop.</li>
+          <li><code>loop</code> receives one message, handles it and calls itself (a tail call), so state is kept without variables being changed.</li>
+          <li><code>value/1</code> sends its own pid with the request and waits for the reply. The reply is matched by pattern, <code>{count, N}</code>.</li>
+          <li>In the shell: <code>P = counter:start(), counter:increment(P), counter:increment(P), counter:value(P).</code> returns <code>2</code>.</li>
+        </ul>
+
+        <h2 id="where-used">History and Where It Is Used</h2>
+        <p>Erlang runs WhatsApp's servers, RabbitMQ, parts of Ericsson's telecom network, and Riak and CouchDB. It is famous for "nine nines" availability claims. The BEAM virtual machine also hosts <a href="/roadmap/pgp/elixir.html">Elixir</a> and Gleam, and Erlang's OTP library provides the supervision patterns.</p>
+
+        <h2 id="learn-more">Learn More</h2>
+        <ul>
+          <li><a href="https://www.erlang.org/docs" target="_blank" rel="noopener noreferrer">Erlang documentation</a></li>
+          <li><a href="https://learnyousomeerlang.com/" target="_blank" rel="noopener noreferrer">Learn You Some Erlang</a></li>
+          <li>Back to <a href="/roadmap/pgp/concurrent.html">Concurrent and Actor Programming</a> or the <a href="/roadmap/pgp/index.html">PGP roadmap</a>.</li>
+        </ul>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'pgp',
+    topicId: 'erlang',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

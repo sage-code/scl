@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Rust: a systems language with ownership-based memory safety, traits, algebraic data types and functional idioms.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="rust, programming language, systems multi-paradigm, programming paradigms, sage-code">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Rust Overview</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/pgp/rust.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="rust"><a href="#rust">Rust</a></h1>
+
+        <div class="alert alert-secondary shadow-sm">Rust began as a personal project of Graydon Hoare in 2006, was sponsored by Mozilla, and reached version 1.0 in 2015. It aims at the speed and control of <a href="/roadmap/pgp/c.html">C</a> and <a href="/roadmap/pgp/cpp.html">C++</a> while making memory errors impossible in safe code, with no garbage collector.</div>
+
+        <p class="small text-secondary">Paradigm: <a href="/roadmap/pgp/hybrid-systems.html">Systems Multi-Paradigm Languages</a></p>
+
+        <h2 id="what-is-special">What Makes Rust Special</h2>
+        <ul>
+          <li><strong>Ownership.</strong> Every value has one owner. When the owner goes out of scope the value is freed, and assigning it elsewhere <em>moves</em> it. The compiler checks this, so use-after-free and double-free cannot happen.</li>
+          <li><strong>Borrowing and lifetimes.</strong> You can lend a value as <code>&amp;T</code> (shared, read-only) or <code>&amp;mut T</code> (exclusive, writable), never both at once. This rule also prevents data races between threads.</li>
+          <li><strong>Traits instead of inheritance.</strong> A trait describes behaviour a type can have. Types implement traits, and generic code asks for them as bounds. There are no classes and no inheritance of data.</li>
+          <li><strong>Enums and pattern matching.</strong> An <code>enum</code> can carry data in each variant (an algebraic data type), and <code>match</code> must cover every case. <code>Option</code> and <code>Result</code> replace null and exceptions.</li>
+          <li><strong>Functional idioms.</strong> Closures and iterator chains (<code>map</code>, <code>filter</code>, <code>sum</code>) compile down to loops with no overhead. Values are immutable unless declared <code>mut</code>.</li>
+          <li><strong>Fearless concurrency.</strong> The same ownership rules are checked across threads, so many races become compile errors.</li>
+        </ul>
+
+        <h2 id="example">Example: Enums, traits, iterators and ownership</h2>
+        <pre><code class="language-rust">use std::f64::consts::PI;
+
+#[derive(Debug)]
+enum Shape {
+    Circle(f64),
+    Rect { w: f64, h: f64 },
+}
+
+trait Area {
+    fn area(&amp;self) -&gt; f64;
+}
+
+impl Area for Shape {
+    fn area(&amp;self) -&gt; f64 {
+        match self {
+            Shape::Circle(r) =&gt; PI * r * r,
+            Shape::Rect { w, h } =&gt; w * h,
+        }
+    }
+}
+
+fn main() {
+    let shapes = vec![Shape::Circle(1.0), Shape::Rect { w: 2.0, h: 3.0 }];
+
+    // functional: an iterator chain
+    let total: f64 = shapes.iter().map(|s| s.area()).sum();
+    println!("{:.2}", total);                       // 9.14
+
+    // Option instead of null
+    match shapes.iter().find(|s| s.area() &gt; 5.0) {
+        Some(s) =&gt; println!("{:?}", s),              // Rect { w: 2.0, h: 3.0 }
+        None =&gt; println!("none"),
+    }
+
+    // ownership: a move
+    let name = String::from("rust");
+    let moved = name;
+    // println!("{}", name);   // error: borrow of moved value
+    println!("{}", moved);                          // rust
+}</code></pre>
+
+        <h3 id="how-it-works">How It Works</h3>
+        <ul>
+          <li><code>Shape</code> is an enum whose variants hold different data. <code>match</code> in <code>area</code> handles each variant, and omitting one would be a compile error.</li>
+          <li><code>Area</code> is a trait, and <code>impl Area for Shape</code> attaches the behaviour. Any generic function can now accept <code>T: Area</code>.</li>
+          <li><code>shapes.iter().map(...).sum()</code> is an iterator pipeline. It is compiled into a plain loop with no allocation.</li>
+          <li><code>find</code> returns <code>Option</code>, so the code must handle the case where nothing matches.</li>
+          <li><code>let moved = name</code> moves the string. Using <code>name</code> afterwards is rejected by the compiler, which is how Rust avoids double frees.</li>
+        </ul>
+
+        <h2 id="where-used">History and Where It Is Used</h2>
+        <p>Rust is used for browsers (parts of Firefox), operating system components, command-line tools, embedded systems, WebAssembly, network services and cryptography. Support for Rust drivers was added to the Linux kernel in version 6.1. The toolchain includes <code>cargo</code>, a build tool and package manager, and the crates.io registry. The main cost is a steeper learning curve while you learn to satisfy the borrow checker. See also the full <a href="/roadmap/rust/">Rust roadmap</a> on this site.</p>
+
+        <h2 id="learn-more">Learn More</h2>
+        <ul>
+          <li><a href="https://doc.rust-lang.org/book/" target="_blank" rel="noopener noreferrer">The Rust Programming Language</a></li>
+          <li><a href="https://doc.rust-lang.org/rust-by-example/" target="_blank" rel="noopener noreferrer">Rust by Example</a></li>
+          <li><a href="https://www.rust-lang.org/" target="_blank" rel="noopener noreferrer">Rust website</a></li>
+          <li>Back to <a href="/roadmap/pgp/hybrid-systems.html">Systems Multi-Paradigm Languages</a> or the <a href="/roadmap/pgp/index.html">PGP roadmap</a>.</li>
+        </ul>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'pgp',
+    topicId: 'rust',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

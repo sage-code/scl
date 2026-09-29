@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Racket: a Scheme descendant designed for building languages, with functional, object-oriented, logic and typed styles as libraries.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="racket, programming language, hybrid, programming paradigms, sage-code">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Racket Overview</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/pgp/racket.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <!-- Prism grammars not included in the common bundle (racket extends scheme) -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-scheme.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-racket.min.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="racket"><a href="#racket">Racket</a></h1>
+
+        <div class="alert alert-secondary shadow-sm">Racket grew out of Scheme. It began as PLT Scheme in 1995 and was renamed Racket in 2010. Its hybrid nature is deliberate: paradigms are libraries, and you can even define a new language and use it with <code>#lang</code>.</div>
+
+        <p class="small text-secondary">Paradigm: <a href="/roadmap/pgp/hybrid.html">Popular Hybrid Languages</a></p>
+
+        <h2 id="what-is-special">What Makes Racket Special</h2>
+        <ul>
+          <li><strong>A language for making languages.</strong> Every file starts with <code>#lang</code>, which selects the language of that module. Racket, Typed Racket, Scribble and Datalog are all <code>#lang</code>s.</li>
+          <li><strong>Powerful macros.</strong> <code>define-syntax-rule</code> adds new syntax, and hygiene stops macros from capturing your variables by accident. See <a href="/roadmap/pgp/lisp.html">Lisp</a> for the origin of the idea.</li>
+          <li><strong>Functional core.</strong> Functions are first-class, lists are the main data structure, and tail calls do not grow the stack, as in <a href="/roadmap/pgp/scheme.html">Scheme</a>.</li>
+          <li><strong>Objects when you want them.</strong> The <code>racket/class</code> library gives classes, interfaces and mixins, built with macros rather than added to the core.</li>
+          <li><strong>Pattern matching and contracts.</strong> <code>match</code> destructures data, and contracts check function arguments and results at run time.</li>
+          <li><strong>Typed Racket.</strong> A separate <code>#lang typed/racket</code> adds static types to code that is otherwise the same, so you can migrate gradually.</li>
+        </ul>
+
+        <h2 id="example">Example: Functions, objects, pattern matching and a new macro</h2>
+        <pre><code class="language-racket">#lang racket
+
+;; functional
+(define (square x) (* x x))
+(map square '(1 2 3 4))                 ; '(1 4 9 16)
+
+;; object-oriented
+(define counter%
+  (class object%
+    (init-field [n 0])
+    (super-new)
+    (define/public (next!) (set! n (add1 n)) n)))
+(define c (new counter%))
+(send c next!)                          ; 1
+(send c next!)                          ; 2
+
+;; pattern matching
+(define (describe v)
+  (match v
+    [(list 'point x y) (format "point at ~a,~a" x y)]
+    [(? number? n)     (format "number ~a" n)]
+    [_                 "unknown"]))
+(describe '(point 3 4))                 ; "point at 3,4"
+
+;; a new piece of syntax
+(define-syntax-rule (swap! a b)
+  (let ([t a]) (set! a b) (set! b t)))
+(define x 1)
+(define y 2)
+(swap! x y)
+(list x y)                              ; '(2 1)</code></pre>
+
+        <h3 id="how-it-works">How It Works</h3>
+        <ul>
+          <li><code>#lang racket</code> loads the full language. In a module, each top-level expression prints its value, which is what the comments show.</li>
+          <li><code>counter%</code> is a class. <code>send</code> calls a method, and the object keeps its own <code>n</code>.</li>
+          <li><code>match</code> tries each pattern in order, binding <code>x</code> and <code>y</code> when the list has the shape <code>(point x y)</code>.</li>
+          <li><code>swap!</code> is not a function. The macro rewrites <code>(swap! x y)</code> into the <code>let</code> form before the program runs, so it can assign to <code>x</code> and <code>y</code>, which a function could not do.</li>
+        </ul>
+
+        <h2 id="where-used">History and Where It Is Used</h2>
+        <p>Racket is used in teaching (the <em>How to Design Programs</em> curriculum), programming language research, and to implement domain-specific languages. Scribble, the documentation language, and the DrRacket editor are written in Racket. It is a good language for learning how languages work.</p>
+
+        <h2 id="learn-more">Learn More</h2>
+        <ul>
+          <li><a href="https://docs.racket-lang.org/guide/" target="_blank" rel="noopener noreferrer">Racket Guide</a></li>
+          <li><a href="https://htdp.org/" target="_blank" rel="noopener noreferrer">How to Design Programs</a></li>
+          <li><a href="https://racket-lang.org/" target="_blank" rel="noopener noreferrer">racket-lang.org</a></li>
+          <li>Back to <a href="/roadmap/pgp/hybrid.html">Popular Hybrid Languages</a> or the <a href="/roadmap/pgp/index.html">PGP roadmap</a>.</li>
+        </ul>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'pgp',
+    topicId: 'racket',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

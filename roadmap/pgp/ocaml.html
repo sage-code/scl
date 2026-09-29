@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="OCaml: a practical functional language of the ML family, with strong type inference, pattern matching, modules and optional imperative and object features.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="ocaml, programming language, functional, programming paradigms, sage-code">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>OCaml Overview</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/pgp/ocaml.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="ocaml"><a href="#ocaml">OCaml</a></h1>
+
+        <div class="alert alert-secondary shadow-sm">OCaml is a member of the ML family, developed at INRIA in France. Caml appeared in the 1980s, and Objective Caml (later OCaml) added objects in 1996. It is functional first, but it also has mutable state, loops and objects, and it compiles to fast native code. Its type system finds many errors before the program runs, while inferring nearly all types for you.</div>
+
+        <p class="small text-secondary">Paradigm: <a href="/roadmap/pgp/functional.html">Functional Programming</a></p>
+
+        <h2 id="what-is-special">What Makes OCaml Special</h2>
+        <ul>
+          <li><strong>Type inference.</strong> The compiler works out the type of every function and value from how they are used. You rarely write a type, yet the program is fully statically typed.</li>
+          <li><strong>Variants and pattern matching.</strong> A <code>type</code> can list its cases, each with data. <code>match</code> takes values apart, and the compiler warns when a case is missing.</li>
+          <li><strong>Modules and functors.</strong> A module groups types and functions behind a signature. A <em>functor</em> is a function from modules to modules, so whole components can be parameterized.</li>
+          <li><strong>Functional first, imperative when useful.</strong> Data is immutable by default, but <code>ref</code> cells, arrays, <code>for</code> loops and exceptions are there when they are the simplest tool.</li>
+          <li><strong>Options instead of null.</strong> A value that may be missing has type <code>option</code>, and you must handle <code>None</code> before you can use it.</li>
+          <li><strong>Fast and predictable.</strong> The native compiler produces efficient code, and evaluation is strict (not lazy), so performance is easier to reason about than in <a href="/roadmap/pgp/haskell.html">Haskell</a>.</li>
+          <li><strong>Multicore since OCaml 5.</strong> Version 5 (2022) added domains for parallelism and effect handlers for concurrency.</li>
+        </ul>
+
+        <h2 id="example">Example: Variants, pipelines, partial application and an option</h2>
+        <pre><code class="language-ocaml">type shape =
+  | Circle of float
+  | Rect of float * float
+
+let area = function
+  | Circle r -&gt; Float.pi *. r *. r
+  | Rect (w, h) -&gt; w *. h
+
+let shapes = [ Circle 1.0; Rect (2.0, 3.0) ]
+
+(* a pipeline: each step feeds the next *)
+let total = shapes |&gt; List.map area |&gt; List.fold_left ( +. ) 0.0
+let () = Printf.printf "%.2f\n" total                (* 9.14 *)
+
+(* partial application: add 5 is a new function *)
+let add x y = x + y
+let add5 = add 5
+let () =
+  List.iter (fun n -&gt; Printf.printf "%d " (add5 n)) [ 1; 2; 3 ];
+  print_newline ()                                     (* 6 7 8 *)
+
+(* option instead of null *)
+let rec find_first p = function
+  | [] -&gt; None
+  | x :: rest -&gt; if p x then Some x else find_first p rest
+
+let () =
+  match find_first (fun n -&gt; n &gt; 2) [ 1; 2; 3; 4 ] with
+  | Some n -&gt; Printf.printf "found %d\n" n             (* found 3 *)
+  | None -&gt; print_endline "none"
+
+(* imperative style, when it is simplest *)
+let counter = ref 0
+let () =
+  for i = 1 to 3 do counter := !counter + i done;
+  Printf.printf "%d\n" !counter                       (* 6 *)</code></pre>
+
+        <h3 id="how-it-works">How It Works</h3>
+        <ul>
+          <li><code>area</code> is defined with <code>function</code>, which is a <code>match</code> on its argument. Its type, <code>shape -&gt; float</code>, is inferred. Note the dotted operators <code>*.</code> and <code>+.</code> for floats, since OCaml never converts numbers silently.</li>
+          <li><code>|&gt;</code> passes the value on its left as the last argument to the function on its right, so the pipeline reads in the order it runs.</li>
+          <li><code>add 5</code> gives back a function that waits for <code>y</code>. Every OCaml function takes one argument at a time (it is curried).</li>
+          <li><code>find_first</code> returns <code>Some x</code> or <code>None</code>. The caller must match on both, so a forgotten check is a warning, not a crash.</li>
+          <li>The last block shows that OCaml also allows mutation: <code>ref</code> creates a cell, <code>!</code> reads it and <code>:=</code> writes it.</li>
+        </ul>
+
+        <h2 id="where-used">History and Where It Is Used</h2>
+        <p>OCaml is used for compilers and language tools, theorem provers (Coq, now Rocq, is written in it), static analyzers (Flow and Infer from Facebook), and in finance, notably at Jane Street. It is also common in teaching programming languages. The standard tools are <code>dune</code> (build) and <code>opam</code> (packages). The ML family also includes <a href="/roadmap/pgp/fsharp.html">F#</a>, which brings much of the OCaml style to .NET.</p>
+
+        <h2 id="learn-more">Learn More</h2>
+        <ul>
+          <li><a href="https://ocaml.org/" target="_blank" rel="noopener noreferrer">OCaml.org</a></li>
+          <li><a href="https://cs3110.github.io/textbook/cover.html" target="_blank" rel="noopener noreferrer">OCaml Programming: Correct + Efficient + Beautiful</a></li>
+          <li><a href="https://dev.realworldocaml.org/" target="_blank" rel="noopener noreferrer">Real World OCaml</a></li>
+          <li>Back to <a href="/roadmap/pgp/functional.html">Functional Programming</a> or the <a href="/roadmap/pgp/index.html">PGP roadmap</a>.</li>
+        </ul>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'pgp',
+    topicId: 'ocaml',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

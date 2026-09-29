@@ -23,3 +23,6 @@ Tool-name mapping for this environment:
 ## BULK & GENERATOR SCRIPTS (interplay with 03-execution-protocol)
 - Deterministic Python scripts in `scripts/tools/` may fully write ONLY newly created files.
 - Any update to an existing file from a script must go through the same SEARCH/REPLACE discipline; recovery/generator scripts must never silently overwrite existing tracked content.
+
+## `bee-ed` (preferred when on PATH)
+`bee-ed` (`ed-tool` project) provides atomic, line-ending-preserving edits: `edit <file> <old> <new>`, `apply <patch>`, `append`, `sed`, `search`, `balance`. Use `--dry-run` before `sed`/`apply`, and `bee-ed balance <file>` after editing HTML/Markdown. See `CLAUDE.md`.

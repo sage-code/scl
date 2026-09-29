@@ -16,12 +16,14 @@ Syntax failures exit 1. Generated output in public/ is verified by
 """
 from __future__ import annotations
 
+import contextlib
 import py_compile
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+OUTPUT_DIR = ROOT / ".temp" / "output"
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from validation_lib import H1_RE, H2_RE, read_text, sidebar_issues, validate_json_syntax  # noqa: E402
@@ -85,7 +87,8 @@ def check_html(path: Path) -> None:
         and parts[0] == "roadmap"
         and parts[2] != "index.html"
     )
-    if is_topic_page:
+    # Redirect stubs (meta refresh) carry no content, so the heading standard does not apply.
+    if is_topic_page and 'http-equiv="refresh"' not in text:
         h1_count = len(H1_RE.findall(text))
         if h1_count < 1:
             warn(f"{rel}: roadmap topic page should have at least one <h1> (found {h1_count})")
@@ -134,5 +137,26 @@ def main() -> int:
     return 0
 
 
+class _Tee:
+    """Mirror writes to several streams (console + result file)."""
+
+    def __init__(self, *streams) -> None:
+        self.streams = streams
+
+    def write(self, data: str) -> int:
+        for s in self.streams:
+            s.write(data)
+        return len(data)
+
+    def flush(self) -> None:
+        for s in self.streams:
+            s.flush()
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    # Results go to the console and to .temp/output/test_sources.log (git-ignored).
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_DIR / "test_sources.log", "w", encoding="utf-8") as log:
+        with contextlib.redirect_stdout(_Tee(sys.stdout, log)):
+            code = main()
+    sys.exit(code)
