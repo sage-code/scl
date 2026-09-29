@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="OSGi: the dynamic module system for Java, where bundles publish services and can be installed, updated and removed while the application runs.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="osgi, programming language, component-oriented, programming paradigms, sage-code">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>OSGi Overview</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/pgp/osgi.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="osgi"><a href="#osgi">OSGi</a></h1>
+
+        <div class="alert alert-secondary shadow-sm">OSGi (Open Services Gateway initiative) is a component platform for Java. An application is a set of <em>bundles</em>, each with a versioned manifest declaring which packages it exports and imports. Bundles find each other through a service registry and can be replaced at runtime without a restart.</div>
+
+        <p class="small text-secondary">Paradigm: <a href="/roadmap/pgp/component-oriented.html">Component-Oriented Programming</a></p>
+
+        <h2 id="what-is-special">What Makes OSGi Special</h2>
+        <ul>
+          <li><strong>Bundles are components.</strong> A bundle is a JAR with extra manifest headers: <code>Bundle-SymbolicName</code>, <code>Export-Package</code> and <code>Import-Package</code> with version ranges.</li>
+          <li><strong>Strict encapsulation.</strong> Only exported packages are visible to other bundles. Everything else is private, which is enforced by class loaders, not by convention.</li>
+          <li><strong>A dynamic service registry.</strong> Bundles publish objects under an interface and others look them up. Services can appear and disappear while the system is running.</li>
+          <li><strong>Full lifecycle.</strong> Bundles are installed, resolved, started, stopped, updated and uninstalled independently, with several versions of one library side by side.</li>
+          <li><strong>Declarative Services.</strong> Annotations such as <code>@Component</code> and <code>@Reference</code> let you wire components without touching the registry API.</li>
+        </ul>
+
+        <h2 id="example">Example: A service and a consumer in two components</h2>
+        <pre><code class="language-java">// Bundle A exports com.example.greeter.api (Export-Package header)
+package com.example.greeter.api;
+
+public interface Greeter {
+    String greet(String name);
+}
+
+// Bundle B provides the service
+package com.example.greeter.impl;
+
+import com.example.greeter.api.Greeter;
+import org.osgi.service.component.annotations.Component;
+
+@Component(service = Greeter.class)
+public class FriendlyGreeter implements Greeter {
+    public String greet(String name) { return "Hello, " + name; }
+}
+
+// Bundle C consumes it, knowing only the interface
+package com.example.console;
+
+import com.example.greeter.api.Greeter;
+import org.osgi.service.component.annotations.*;
+
+@Component
+public class Console {
+    @Reference Greeter greeter;
+
+    @Activate
+    void start() { System.out.println(greeter.greet("OSGi")); }
+}</code></pre>
+
+        <h3 id="how-it-works">How It Works</h3>
+        <ul>
+          <li>The interface package is exported by one bundle. The implementation package is not exported, so no other bundle can depend on <code>FriendlyGreeter</code> directly.</li>
+          <li><code>@Component(service = Greeter.class)</code> tells the runtime to register the class in the service registry under that interface.</li>
+          <li><code>Console</code> declares a <code>@Reference</code> and is activated only when a <code>Greeter</code> is available. If the provider is stopped, <code>Console</code> is deactivated.</li>
+          <li>Replacing <code>FriendlyGreeter</code> with another implementation, even at runtime, changes the output without recompiling or restarting the consumer.</li>
+        </ul>
+
+        <h2 id="where-used">History and Where It Is Used</h2>
+        <p>OSGi is the foundation of the Eclipse IDE, Apache Felix and Karaf, Adobe Experience Manager and many embedded and automotive systems. Modern Java projects often reach for the simpler Java module system (JPMS) or microservices, but OSGi remains the choice when modules must change at runtime.</p>
+
+        <h2 id="learn-more">Learn More</h2>
+        <ul>
+          <li><a href="https://www.osgi.org/" target="_blank" rel="noopener noreferrer">OSGi Alliance</a></li>
+          <li><a href="https://en.wikipedia.org/wiki/OSGi" target="_blank" rel="noopener noreferrer">OSGi (Wikipedia)</a></li>
+          <li>Back to <a href="/roadmap/pgp/component-oriented.html">Component-Oriented Programming</a> or the <a href="/roadmap/pgp/index.html">PGP roadmap</a>.</li>
+        </ul>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'pgp',
+    topicId: 'osgi',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
