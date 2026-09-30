@@ -81,6 +81,20 @@ label: &lt;control_type&gt;
 
 <h4>Syntax pattern</h4>
 
+<p>A job without a label starts with <code>job</code> and ends with a naked <code>done;</code>:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+job
+  ** local declarations
+  ...
+do
+  ** job statements
+  ...
+done;
+</code></pre>
+
+<p>A labeled job starts with <code>label: job</code> and ends with <code>done job [label];</code>:</p>
+
 <pre class="line-numbers"><code class="language-eve">
 ** job description or notes
 job_name: job
@@ -99,10 +113,13 @@ done job [job_name];
 <p><b>Notes:</b></p>
 <ul>
   <li>Jobs are used only in a process (driver or aspect), at the top level. Jobs can't be nested; functions and methods do not have jobs.</li>
-  <li>The label is required. The recover region reads it in <code>$error.job</code> to know which job failed.</li>
-  <li>A job passes when it reaches <code>done</code> or <code>stop</code>. It fails when an error is raised inside it, including errors from the methods it calls. The job status is recorded automatically for reporting.</li>
+  <li>The label is optional. A job without a label has the implicit name <code>job24</code>, where 24 is the line number of the <code>job</code> keyword. When the job has a label, the keyword <code>job</code> is required after <code>done</code>; the label after it is optional. A naked <code>done;</code> closes only a job that has no label, and <code>job</code> is its first keyword.</li>
+  <li>A job passes when it reaches <code>done</code> or <code>stop</code>. It fails when an error is raised inside it, including errors from the methods it calls. The job status is recorded automatically: <code>"none"</code> for a job that was never executed, <code>"pass"</code> or <code>"fail"</code>.</li>
+  <li>The status belongs to the process, in the map <code>jobs</code>: <code>jobs["name"].status</code>, <code>jobs["name"].error</code> and <code>jobs["name"].line</code>. The recover region reads <code>$error.job</code> (a string) to know which job failed.</li>
+  <li>Nothing is reported automatically. The process reads the job states and writes its own report in the <code>finalize</code> region.</li>
   <li>When a job fails, the process jumps to its recover region: see <a href="/projects/eve/processing/#recover-from-exception">Recover from exception</a>.</li>
 </ul>
+
 
 <h2 id="if">Conditional If</h2>
 
@@ -122,18 +139,21 @@ statement if boolean_expression;
 <p>Next examples show how we can use conditional to print something when expression is fulfilled.</p>
 
 <pre class="line-numbers"><code class="language-eve"># conditional print
-print "a is even" if (a % 2  = 0);
+print "a is even" if (a % 2 == 0);
+
 print "a is odd"  if (a % 2 &lt;&gt; 0);
 </code></pre>
 
-<p><b>Note:</b> The "if" is restricted for some statements. It can't be used after expect, done or next, but it can be used sometimes after "repeat" to terminate a loop. We will explain syntax for each block statement.</p>
+<p><b>Note:</b> The "if" is restricted for some statements. It can't be used after expect, done or repeat. A loop that repeats only while a condition is true ends with <code>repeat while condition;</code>. We will explain syntax for each block statement.
+</p>
 
 <h2 id="else">Decision block</h2>
 
 <p>In next pattern we use "if/else" keywords to create a decision branch/fork.</p>
 
 <div class="text-center">
-  <img src="/images/decision.svg" alt="decision"
+  <img src="/projects/eve/img/decision.svg" alt="decision"
+
   width="520" class="img-fluid protect rounded shadow border" >
   <p>decision diagram</p>
 </div>
@@ -150,10 +170,11 @@ done; ** you can't use if after done
 
 <h4>Notes:</h4>
 <ol>
-    <li>The if block dont have a name;</li>
-    <li>The if block dont have a local scope;</li>
-    <li>The if block if closed with "done;";</li>
-    <li>The else branch is optionall;</li>
+    <li>The if block does not have a name;</li>
+    <li>The if block does not open a scope: a variable created in a branch belongs to the parent scope;</li>
+    <li>The if block is closed with "done;";</li>
+    <li>The else branch is optional;</li>
+
 </ol>
 
 <h2 id="ladder">Ladder</h2>
@@ -161,7 +182,8 @@ done; ** you can't use if after done
 <p>A ladder is a conditional multi-path selector based on exclusive conditions. Only one branch is executed. If no condition is satisfied the alternative branch is executed. Alternative branch is optional.</p>
 
 <div class="text-center">
-  <img src="/images/ladder.svg" alt="decision"
+  <img src="/projects/eve/img/ladder.svg" alt="ladder"
+
   width="640" class="img-fluid protect rounded shadow border" >
   <p>decision ladder</p>
 </div>
@@ -184,12 +206,14 @@ else if condition_3 do
 done; ** you can't use if after done
 </code></pre>
 
-<p><b>Notes:&nbsp;</b>Previous pattern show a complex situation having several conditions in cascade. Cases should be exclusive and most probable case should be evaluated first. Last block, after else is optional. Also, the local scope is optional.</p>
+<p><b>Notes:&nbsp;</b>Previous pattern show a complex situation having several conditions in cascade. Cases should be exclusive and most probable case should be evaluated first. Last block, after else is optional. Like the if block, the ladder does not open a scope.</p>
+
 
 <h2 id="match">Match Selector</h2>
 
 <p>
-This is a multi-path selector similar to switch also named: jump table. It two variants: "all" or "one". That is optional keyword. If used, ALL will evaluate all values it may be matching multiple cases. If "one" is used (this is the default), only first case that has a matching value will be executed and the rest are ignored, even if a second match exist. The second match should not be present though and is probably a mistake!
+This is a multi-path selector similar to switch also named: jump table. It has two variants: "all" or "one". That is an optional keyword.
+ If used, ALL will evaluate all values it may be matching multiple cases. If "one" is used (this is the default), only first case that has a matching value will be executed and the rest are ignored, even if a second match exist. The second match should not be present though and is probably a mistake!
 </p>
 
 <div class="text-center">
@@ -214,14 +238,14 @@ process
   when V1 do
     ** first path
     ...
-  when V1, V2 do
+  when V2, V3 do
     ** second path
     ...
-  when [any | other] do
-    ** V3 or V4 found
+  when other do
+    ** no other path matched: V4 found
     ...
   then
-    ** execute after block is done
+    ** execute after the match is done, whatever path was taken
     ...
   done match [label]; ** you can't use if after done
 return;
@@ -230,16 +254,36 @@ return;
 <h4>Notes:</h4>
 <ul>
 <li>options: all or one are exclusive (one) is the default;</li>
-<li>default block (last) uses optional: "any" or "other";</li>
+<li>the default block (last) is <code>when other</code>: it is executed only if no <code>when</code> matched;</li>
+<li>the <code>then</code> clause is executed after the match, for any path, including <code>other</code>;</li>
+<li>a <code>when</code> can test a value, several values or a range;</li>
 <li>match statement can have a label, used by <code>done match [label]</code>;</li>
-<li>match statement have a local scope (before when).</li>
+<li>match statement has a local scope (before the first when).</li>
 </ul>
 
-<p>The compiler will generate a warning message if not all cases are covered when you do not create the default block. It may be an error but not necesarly. Is better to have information to prevent wrong doing.</p>
+<h4>Example with ranges:</h4>
+
+<pre class="line-numbers"><code class="language-eve">#match with ranges
+process
+  new n := 7;
+  match n
+  when (1..5) do
+    print "low";
+  when (6..10) do
+    print "high";
+  when other do
+    print "out of range";
+  done match;
+return;
+</code></pre>
+
+<p>The compiler will generate a warning message if not all cases are covered when you do not create the default block. It may be an error but not necessarily. Is better to have information to prevent wrong doing.</p>
+
 
 <h2 id="loop">Unconditional Loop</h2>
 
-<p>This is a repetitive block statement. The loop is executed until a "break" statement is encountered. The break can be conditioned by "if" or "match". This is called an "interruption". You can use keyword "next" with conditional "if" to restart the loop early. This is called a "shortcut" statement.</p>
+<p>This is a repetitive block statement. The loop is executed until a "break" statement is encountered, or until <code>repeat while condition;</code> finds the condition false. The break can be conditioned by "if" or "match". This is called an "interruption". You can use keyword "next" with conditional "if" to start the next iteration early. This is called a "shortcut" statement.</p>
+
 
 <div class="text-center">
   <img src="/projects/eve/img/loop.svg" alt="loop"
@@ -251,7 +295,7 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">#infinite loop
 [label:] loop
-  ** declare control variable
+  ** declare variables that survive all iterations
   ...
 cycle
   ** loop shortcut
@@ -261,8 +305,8 @@ cycle
   break [label] [if condition];
   ...
 then
-  ** what happen after loop stop
-repeat [label];
+  ** what happen after loop stop, also after break
+repeat [label] [while condition];
 </code></pre>
 
 <h4>Notes:</h4>
@@ -272,23 +316,31 @@ repeat [label];
 <li>The label is optional, that's why is in square brackets;</li>
 <li>The label is used, for nested loops otherwise is not necessary.</li>
 <li>Some other languages use {break & continue} we use {break & next}</li>
+<li><code>repeat while condition;</code> starts another iteration only while the condition is true. The form <code>repeat if condition;</code> does not exist;</li>
+<li>The <code>loop</code> header is optional. It holds the declarations of the loop. These variables live in the loop scope, survive all iterations and are available in the <code>then</code> region. Without a header, the <code>cycle</code> has no private scope: it uses the parent scope;</li>
+<li>The <code>cycle</code> starts the executable region. A variable created there with <code>new</code> is created on the stack at every iteration. Declare in the header what must survive until <code>then</code>;</li>
+<li>The <code>then</code> clause is executed when the loop ends, also after <code>break</code>. <code>stop</code> is used only for jobs and <code>break</code> only for loops.</li>
 </ul>
 
+
 <h2 id="while">While Loop</h2>
-<p>Execute a block of code as long as one condition is true. When the condition become false the repetitive block ends. If the condition is never true only the "else" block is executed. If the condition was true for a while, the else block is not executed.</p>
+<p>Execute a block of code as long as one condition is true. When the condition become false the repetitive block ends. If the condition is false the first time, only the "else" block is executed. If the condition was true at least once, the else block is not executed. The "then" block is executed every time the loop ends, also after a <code>break</code>.</p>
+
 
 <div class="text-center">
-  <img src="/images/while.svg" alt="while-loop"
+  <img src="/projects/eve/img/while.svg" alt="while-loop"
+
   width="520" class="img-fluid protect rounded shadow border" >
   <p>while loop</p>
 </div>
 
 <h4>Syntax:</h4>
 <pre class="line-numbers"><code class="language-eve">#conditional loop
-label: loop
-  ** declare control variables
+[label:] loop
+  ** declare control variables (optional header)
   ...
 while condition cycle
+
   ** shortcut iteration
   next if condition;
   ...
@@ -299,53 +351,52 @@ else
   ** alternative path
   ...
 then
-  ** after when is done
+  ** executed every time the loop ends, also after break
   ...
-repeat [label]; ** you can't use "if" here
+repeat [label]; ** you can't use "if" or "while" here
+
 </code></pre>
 
 <h4>Example:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-/* This driver demonstrate
-    how to visit members of a List
-    iusing an anonymous cycle
-*/
+# Visit the members of a list using an unlabeled loop
 driver while_demo is
-**  create a shared list
-    set this := ("a","b","c","d","e");
+** create a shared list
+  set letters = ("a","b","c","d","e");
 process
-  ** start unlabeled cycle
+  ** start an unlabeled loop: i survives until then
   loop
-    ** volatile variables
-    new i := 0 : Integer;
-    new e : Symbol;
-  while i &lt; this.length() cycle
-    let e := this[i];
+    new i = 1 :Integer;
+  while i &lt;= letters.length() cycle
+    ** e is created again at every iteration
+    new e = letters[i] :String;
     let i += 1;
-    if e  &gt;= "c" do
-        write e;
-        write ',' if e is not this.tail;
+    if e &gt;= "c" do
+      write e;
+      write "," if i &lt;= letters.length();
     done;
   else
-    panic; ** in canse of length() == 0
+    panic; ** the list is empty
   then
-    print "succesfully done:",i, " iterations";
+    ** flush the write buffer
+    print;
+    print ("iterations", i - 1, separator: " ");
   repeat;
-  ** flush the write buffer
-  print; ** "c","d","e"
 return;
 </code></pre>
 
 <h4>Output:</h4>
 <pre class="output">
-"c","d","e"
-i = 5
+c,d,e
+iterations 5
 </pre>
 
 
+
 <h2 id="for">For Loop</h2>
-<p>This statement use one control variables to visit elements in a collection or domain. First use-case of this is to iterate over a range of numbers. In Eve the range is represented as (min..nax).</p>
+<p>This statement use one control variables to visit elements in a collection or domain. First use-case of this is to iterate over a range of numbers. In Eve the range is represented as (min..max).</p>
+
 
 <div class="text-center">
   <img src="/projects/eve/img/for-loop.svg" alt="for-loop"
@@ -372,10 +423,13 @@ repeat [label]; ** you can't use "if" here
 
 <h4>Notes:</h4>
 <ul>
-<li>Control variable is auto-incremented at end of loop;</li>
-<li>Control variable must be declared in local scope;</li>
-<li>Control variable is not available after the loop;</li>
+<li>Control variable is auto-incremented at end of each iteration;</li>
+<li>Control variable is declared in the <code>loop</code> header. If the loop has no header, the <code>for</code> statement creates an implicit scope for it; if the header exists, <code>for</code> uses that scope and creates none;</li>
+<li>Control variable is available in the <code>then</code> region, but not after <code>repeat</code>;</li>
+<li><code>break</code> leaves the loop (or the outer loop, when a label is used) and <code>then</code> is still executed;</li>
+<li>Inside a loop that is inside a job, <code>stop</code> ends the job and <code>break</code> ends only the loop.</li>
 </ul>
+
 
 <p>Example of range iteration using step ratio 2:</p>
 <pre class="line-numbers"><code class="language-eve">#example of range iteration
@@ -395,6 +449,53 @@ print;
 <pre class="output">
 1,3,5,7,9
 </pre>
+
+<p>Same loop without a header: the <code>for</code> statement creates the scope of <code>i</code>:</p>
+
+<pre class="line-numbers"><code class="language-eve">#anonymous scope
+for i in (1..5) cycle
+    write i;
+    write "," if (i &lt; 5);
+then
+    print;
+    print ("last index", i, separator: " ");
+repeat;
+</code></pre>
+
+<h4>Output:</h4>
+
+<pre class="output">
+1,2,3,4,5
+last index 5
+</pre>
+
+<h2 id="summary">Block summary</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr>
+<th>Block</th>
+<th>Opener</th>
+<th>Middle keywords</th>
+<th>Closer</th>
+<th>Label</th>
+<th>Opens scope</th>
+<th>Condition after closer</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>job</td><td><code>[name:] job</code></td><td><code>do</code></td><td><code>done;</code> or <code>done job [name];</code></td><td>optional</td><td>yes (declarations)</td><td>no</td></tr>
+<tr><td>if</td><td><code>if c do</code></td><td><code>else if c do</code>, <code>else</code></td><td><code>done;</code></td><td>no</td><td>no</td><td>no</td></tr>
+<tr><td>match</td><td><code>[label:] match s</code></td><td><code>when v do</code>, <code>when other do</code>, <code>then</code></td><td><code>done match [label];</code></td><td>optional</td><td>yes (before first when)</td><td>no</td></tr>
+<tr><td>loop</td><td><code>[label:] loop</code></td><td><code>cycle</code>, <code>then</code></td><td><code>repeat [label] [while c];</code></td><td>optional</td><td>yes (header)</td><td><code>while c</code> only</td></tr>
+<tr><td>while</td><td><code>[label:] loop</code> (optional)</td><td><code>while c cycle</code>, <code>else</code>, <code>then</code></td><td><code>repeat [label];</code></td><td>optional</td><td>header, or the parent scope</td><td>no</td></tr>
+<tr><td>for</td><td><code>[label:] loop</code> (optional)</td><td><code>for x in r cycle</code>, <code>then</code></td><td><code>repeat [label];</code></td><td>optional</td><td>header, or an implicit scope</td><td>no</td></tr>
+<tr><td>parallel</td><td><code>name: parallel</code></td><td><code>fork</code></td><td><code>join name;</code></td><td>required</td><td>yes (declarations)</td><td>no</td></tr>
+</tbody>
+</table>
+
+<p>Interruptions: <code>next</code> starts the next iteration, <code>break</code> leaves a loop, <code>stop</code> ends a job without error.</p>
+
 
 
 <hr>
