@@ -42,7 +42,7 @@ Areas for improvement and suggestions:
 
 13. Extensibility: Provide clear extension points for developers to add support for additional database types or custom functionality.
 
-14. Validation: Include a validation layer for data before its sent to the database, helping to ensure data integrity.
+14. Validation: Include a validation layer for data before it's sent to the database, helping to ensure data integrity.
 
 15. Events and hooks: Implement an event system or hooks that allow developers to inject custom logic at various points in the database operations (before save, after load, etc.).
 
@@ -92,7 +92,7 @@ Based on the information provided about Eve's database capabilities, here are so
 10. Configuration Management:
     Develop a configuration system that allows easy setup of multiple database connections and their properties.
 
-Regarding the use of PL/SQL, while its a powerful language for Oracle databases, its specific to Oracle. For a more vendor-neutral approach, you might consider:
+Regarding the use of PL/SQL, while it's a powerful language for Oracle databases, it's specific to Oracle. For a more vendor-neutral approach, you might consider:
 
 1. Implementing a subset of SQL that works across different databases.
 3. Using a common intermediate language that can be translated to various database-specific languages.
