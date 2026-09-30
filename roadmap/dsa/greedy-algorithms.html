@@ -1,25 +1,38 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA Greedy Algorithms placeholder page.">
+  <meta name="description" content="Greedy algorithms in Go: the greedy-choice property, exchange arguments, activity selection, interval partitioning, coin change and knapsack counterexamples, scheduling with Smith&#x27;s rule and earliest deadline first, deadline scheduling with union-find, and Huffman coding, each checked against brute force.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, greedy-algorithms">
+  <meta name="keywords" content="dsa, go, golang, greedy algorithm, greedy choice property, exchange argument, activity selection, interval scheduling, interval partitioning, coin change, fractional knapsack, smith&#x27;s rule, earliest deadline first, huffman coding, prefix code">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DSA Greedy Algorithms</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/greedy-algorithms.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -31,38 +44,275 @@
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DSA Greedy Algorithms</h1>
+        <h1 id="greedy-algorithms">Greedy Algorithms</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Placeholder page ready for content authoring.
+        <div class="alert alert-secondary shadow-sm">
+          Phase 4 opens with the simplest strategy for optimization problems: at every step take the choice that looks best right now, and never go back. Greedy algorithms are short and fast, usually a sort followed by one scan. The difficulty is that most greedy rules that sound reasonable are wrong. This lesson teaches you to find the right rule, to prove it with an exchange argument, and to catch a wrong rule quickly by testing it against brute force. You have already used two greedy algorithms: Dijkstra and the MST algorithms of Phase 3.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>Add the learning objectives, key concepts, and practical examples for this topic.</p>
+        <h2 id="greedy-idea">The Greedy Strategy</h2>
+        <p>An optimization problem asks for the best answer among many valid ones: the most meetings in one room, the fewest coins, the shortest encoding. A greedy algorithm builds the answer piece by piece. Each piece is chosen by a fixed rule and is never reconsidered.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Replace placeholder text with structured lessons, code snippets, and exercises.</p>
+        <h3 id="greedy-template">The Usual Shape</h3>
+        <p>Almost every greedy algorithm in this lesson follows the same pattern: sort by a key, then scan once and take each item that still fits.</p>
+        <pre><code class="language-go line-numbers">sort items by KEY
+for each item in that order {
+	if item is compatible with what was already chosen {
+		choose it // final: it is never removed later
+	}
+}</code></pre>
+        <p>The cost is O(n log n) for the sort plus O(n) for the scan. Some greedy algorithms replace the sort with a heap because the best next choice changes as the algorithm runs, as in Dijkstra, Prim, and Huffman coding. Everything depends on the choice of <code>KEY</code>.</p>
+
+        <h3 id="greedy-properties">When Greedy Is Correct</h3>
+        <p>A greedy algorithm is correct when the problem has two properties:</p>
+        <ul>
+          <li><strong>Greedy-choice property:</strong> some optimal solution contains the first greedy choice. Taking it never rules out the best answer.</li>
+          <li><strong>Optimal substructure:</strong> after the choice, what remains is a smaller instance of the same problem, and an optimal answer to it combines with the choice into an optimal answer overall.</li>
+        </ul>
+        <p>Optimal substructure is shared with dynamic programming, the next lesson. The difference is the first property. Dynamic programming tries every choice and keeps the best; greedy commits to one choice because it has proved that one is safe.</p>
+
+        <h3 id="exchange-argument">Proving It: the Exchange Argument</h3>
+        <p>The standard proof technique works like this:</p>
+        <ol>
+          <li>Take any optimal solution that differs from the greedy one.</li>
+          <li>Find the first place where they differ.</li>
+          <li>Show that replacing the optimal solution's choice there with the greedy choice keeps it valid and makes it no worse.</li>
+          <li>Repeat. The optimal solution turns into the greedy solution step by step without getting worse, so the greedy solution is optimal too.</li>
+        </ol>
+        <p>A related technique, <strong>greedy stays ahead</strong>, shows that after every step the greedy partial answer is at least as good as any other partial answer of the same size. Both are used below.</p>
+
+        <h3 id="test-before-trust">Testing a Greedy Rule</h3>
+        <p>A proof is the real guarantee, but a brute-force check is the fastest way to reject a wrong idea. Every demo in this lesson compares its greedy answer with an exhaustive search on thousands of small random inputs. A wrong rule usually fails within seconds. A rule that passes thousands of tests is worth trying to prove.</p>
+        <hr>
+
+        <h2 id="intervals">Interval Problems</h2>
+        <p>Intervals are the classic training ground for greedy thinking, because several natural rules compete and only one of them works for each problem. Demo with four interval problems, each checked against brute force: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/46_interval_scheduling.go">46_interval_scheduling.go</a>.</p>
+
+        <h3 id="activity-selection">Activity Selection</h3>
+        <p>Given meetings with start and end times, schedule as many as possible in one room. Times are half-open, <code>[start, end)</code>, so a meeting that ends at 4 does not clash with one that starts at 4. The correct rule is <strong>earliest end first</strong>: it leaves the most room for everything after it.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-activity-selection.svg" alt="Eleven meetings drawn as bars on a timeline from 0 to 16, sorted by end time. The meetings [1,4), [5,7), [8,11), and [12,16) are taken; the other seven overlap a taken meeting and are skipped" width="680" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Scanning by end time: each taken meeting (green) ends as early as possible, so the next one can start as early as possible.</p>
+        </div>
+
+        <pre><code class="language-go line-numbers">func maxActivities(iv []Interval) []Interval {
+	sorted := slices.Clone(iv)
+	slices.SortFunc(sorted, func(a, b Interval) int { return cmp.Compare(a.e, b.e) })
+	var chosen []Interval
+	lastEnd := -1 &lt;&lt; 62
+	for _, x := range sorted {
+		if x.s &gt;= lastEnd { // starts after (or exactly when) the last one ends
+			chosen = append(chosen, x)
+			lastEnd = x.e
+		}
+	}
+	return chosen
+}</code></pre>
+        <p><strong>Proof by exchange.</strong> Let <em>f</em> be the meeting that ends first. Take any optimal schedule and replace its first meeting with <em>f</em>. Since <em>f</em> ends no later, it cannot clash with anything the replaced meeting did not clash with. The schedule stays valid and has the same size, so some optimal schedule starts with <em>f</em>. The rest of the problem is the same problem on the meetings that start after <em>f</em> ends.</p>
+
+        <h3 id="wrong-rules">Three Wrong Rules</h3>
+        <p>Each of these rules sounds reasonable. The demo shows a small input that defeats each one, and counts how often it fails on 3,000 random inputs:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Rule</th><th>Why it fails</th><th>Wrong on random inputs</th></tr></thead>
+            <tbody>
+              <tr><td>earliest start first</td><td>one long early meeting blocks several short ones</td><td>842 of 3,000</td></tr>
+              <tr><td>shortest meeting first</td><td>a short meeting can sit across two long compatible ones</td><td>66 of 3,000</td></tr>
+              <tr><td>fewest clashes first</td><td>a meeting with few clashes can still block two meetings of the optimal schedule</td><td>2 of 3,000</td></tr>
+              <tr><td>earliest end first</td><td>correct</td><td>0 of 3,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Look at the third row. "Fewest clashes" is wrong only twice in 3,000 random tests, and its counterexample needs eleven carefully arranged meetings. A few hand-made examples would never find it. This is why a proof matters, and why random tests should run in the thousands.</p>
+
+        <h3 id="interval-partitioning">Interval Partitioning</h3>
+        <p>Now every meeting must happen: use the fewest rooms. Process meetings by <strong>start time</strong>, and keep a min-heap of the end times of the rooms in use. If the room that frees up first is free already, reuse it; otherwise open a new room.</p>
+        <pre><code class="language-go line-numbers">for _, i := range order {
+	if h.Len() &gt; 0 &amp;&amp; (*h)[0].end &lt;= iv[i].s {
+		r := heap.Pop(h).(roomEnd) // the earliest-free room is free now
+		room[i] = r.room
+	} else {
+		room[i] = rooms // every room is busy: open a new one
+		rooms++
+	}
+	heap.Push(h, roomEnd{iv[i].e, room[i]})
+}</code></pre>
+        <p>The proof uses a <strong>lower bound</strong>. If <em>d</em> meetings run at the same moment, no schedule can use fewer than <em>d</em> rooms. The greedy opens a new room only when every open room is busy at that start time, so it never opens more than <em>d</em>. Matching a lower bound is a second common way to prove a greedy algorithm optimal. The demo checks the room count against the maximum overlap and checks that no room hosts two overlapping meetings.</p>
+
+        <h3 id="merge-stab">Merging and Stabbing Intervals</h3>
+        <p>Two more problems follow the same pattern with a different key:</p>
+        <ul>
+          <li><strong>Merge overlapping intervals</strong>: sort by start. Extend the current block while the next interval starts inside it; otherwise start a new block. The demo checks the result by painting every covered point on a grid.</li>
+          <li><strong>Fewest points that hit every interval</strong> (the "burst the balloons with arrows" puzzle): sort by end, and place a point at the end of the first interval that has not been hit. Any point further left would hit nothing more, and any point further right would miss this interval.</li>
+        </ul>
+        <hr>
+
+        <h2 id="greedy-fails">When Greedy Fails</h2>
+        <p>The same greedy rule can be optimal for one family of inputs and wrong for a family that looks almost identical. Demo that measures both cases against exact answers: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/47_when_greedy_fails.go">47_when_greedy_fails.go</a>.</p>
+
+        <h3 id="coin-change">Coin Change</h3>
+        <p>To pay an amount with the fewest coins, a cashier takes as many of the largest coin as fit, then the next largest, and so on:</p>
+        <pre><code class="language-go line-numbers">func greedyCoins(coins []int, amount int) int {
+	n := 0
+	for _, c := range coins {
+		n += amount / c
+		amount %= c
+	}
+	if amount != 0 {
+		return -1 // stuck: greedy used coins that left an unpayable rest
+	}
+	return n
+}</code></pre>
+        <p>This is optimal for US and euro coins; the demo checks every amount up to 1,000. Change the coins and it breaks:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Coins</th><th>First bad amount</th><th>Greedy</th><th>Optimal</th></tr></thead>
+            <tbody>
+              <tr><td>25, 10, 5, 1</td><td>none</td><td></td><td></td></tr>
+              <tr><td>4, 3, 1</td><td>6</td><td>4 + 1 + 1</td><td>3 + 3</td></tr>
+              <tr><td>30, 24, 12, 6, 3, 1 (pre-decimal UK)</td><td>48</td><td>30 + 12 + 6</td><td>24 + 24</td></tr>
+              <tr><td>5, 3</td><td>6</td><td>no answer (5, then 1 is left)</td><td>3 + 3</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The exact answers come from a table of the best answer for every smaller amount. That table is dynamic programming, the subject of the next lesson.</p>
+
+        <h3 id="knapsack">Fractional vs 0/1 Knapsack</h3>
+        <p>A bag holds 10 kg. Which items give the most value? The natural rule is <strong>best value per kilo first</strong>.</p>
+        <ul>
+          <li>If items can be <strong>cut</strong> (flour, fuel, bandwidth), this rule is optimal. Any kilo of a lower-value item can be exchanged for a kilo of a higher-value one without losing anything.</li>
+          <li>If each item is taken <strong>whole or not at all</strong> (the 0/1 knapsack), the rule fails. In the demo, a camera (6 kg, 30) has the best value per kilo, but once it is in the bag the tent and the stove (5 kg, 20 each) no longer fit, and together they are worth 40. Greedy gets 35.</li>
+        </ul>
+        <p>On 3,000 random 0/1 instances, "best value per kilo first" is wrong 638 times, "most valuable first" 481 times, and "lightest first" 1,811 times. The exchange argument breaks because whole items cannot be traded kilo for kilo. The 0/1 knapsack is solved exactly by dynamic programming in the next lesson.</p>
+
+        <h3 id="approximation">Greedy as an Approximation</h3>
+        <p>When no exact greedy exists, a greedy answer with a <strong>guarantee</strong> is often good enough. For the 0/1 knapsack, take the better of two answers: the density greedy, and the single most valuable item that fits. This is never below half the optimum. In the demo, the worst case over 3,000 random instances reached 63% of the optimum. Many hard problems in practice, such as scheduling, routing, and set cover, are handled with greedy algorithms whose worst case is proved.</p>
+        <hr>
+
+        <h2 id="scheduling">Scheduling and the Exchange Argument</h2>
+        <p>One machine runs jobs one after another, and the order decides the cost. These problems show the exchange argument at its clearest. Demo with every rule checked against all orderings: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/48_scheduling_exchange.go">48_scheduling_exchange.go</a>.</p>
+
+        <h3 id="adjacent-swaps">Adjacent Swaps</h3>
+        <p>For ordering problems, the exchange argument compares two <strong>adjacent</strong> jobs. Swapping two neighbours does not change when any other job starts or ends, so only the pair's own cost changes. If swapping every "wrongly ordered" neighbouring pair never makes the cost worse, then sorting by the rule is optimal, since bubble sort reaches the sorted order through exactly such swaps. The demo does this step by step, starting from a bad order:</p>
+        <pre><code class="language-text">  ABCD  cost 53
+  BACD  cost 48   (swapped A and B)
+  BCAD  cost 40   (swapped A and C)
+  BCDA  cost 39   (swapped A and D)
+Smith order cost: 39  best of all 24 orders: 39</code></pre>
+
+        <h3 id="smith-rule">Weighted Completion Time: Smith's Rule</h3>
+        <p>Each job has a processing time <em>t</em> and a weight <em>w</em> (how much each unit of waiting costs). Minimize the sum of weight times finishing time. For two neighbours <em>a</em> then <em>b</em>, the swap changes the cost by <code>a.t·b.w − b.t·a.w</code>, so <em>a</em> should go first exactly when <code>a.t / a.w ≤ b.t / b.w</code>. Sort by that ratio, comparing by cross-multiplication to avoid floating point:</p>
+        <pre><code class="language-go">func smithCmp(a, b Job) int { return cmp.Compare(a.time*b.weight, b.time*a.weight) }</code></pre>
+        <p>With all weights equal, this becomes <strong>shortest job first</strong>, which minimizes the total waiting time of a queue. That is why a supermarket express lane helps everyone's average wait.</p>
+
+        <h3 id="edf">Maximum Lateness: Earliest Deadline First</h3>
+        <p>Each job has a due time, and the goal is to make the worst lateness as small as possible. Shortest job first is now wrong: in the demo it leaves the report 6 units late. Sorting by <strong>earliest deadline</strong> achieves the optimum of 1. In an adjacent pair, the second job finishes at the same moment whichever job goes second, so the job with the later deadline should take that slot.</p>
+        <p>Among 1,000 random job sets, each rule matched the best of all orderings for its own objective in every case. Used for the other objective, shortest job first was wrong 730 times for weighted completion and 734 times for lateness. A greedy rule is tied to one objective.</p>
+
+        <h3 id="deadlines-profits">Unit Jobs with Deadlines and Profits</h3>
+        <p>Every job takes one time slot and pays its profit only if it finishes by its deadline. Take jobs from the most profitable down. Put each one in the <strong>latest</strong> free slot on or before its deadline, which keeps earlier slots open for jobs with tighter deadlines, and skip it if no slot is free. Searching backwards for a free slot costs O(n) per job. Union-find from <a href="/roadmap/dsa/graphs.html#union-find">Graph Traversal</a> makes it nearly O(1): each slot points to the latest free slot at or before it, and a used slot is linked to the one before it.</p>
+        <pre><code class="language-go line-numbers">slot = make([]int, len(offers)) // 0 = not scheduled
+for _, i := range order {
+	s := find(offers[i].due) // latest free slot on or before the deadline
+	if s &gt; 0 {
+		slot[i] = s
+		profit += offers[i].profit
+		parent[s] = s - 1 // slot s is taken: next time look further left
+	}
+}</code></pre>
+        <p>The demo checks the profit against every subset of jobs. A subset can be scheduled exactly when, sorted by deadline, its <em>k</em>-th job has a deadline of at least <em>k</em>.</p>
+        <hr>
+
+        <h2 id="huffman">Huffman Coding</h2>
+        <p>Huffman coding is a greedy algorithm that builds a tree instead of choosing items. It is part of the DEFLATE format used by zip, gzip, and PNG, and of JPEG. Demo that builds the code, encodes and decodes a text, and checks optimality: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/49_huffman.go">49_huffman.go</a>.</p>
+
+        <h3 id="prefix-codes">Prefix-Free Codes</h3>
+        <p>Give each symbol a binary code so that frequent symbols get short codes. The codes must be <strong>prefix-free</strong>: no code may be the start of another. Otherwise decoding is ambiguous. With <code>a = 0</code> and <code>b = 01</code>, the bits <code>01</code> could be <em>b</em>, or <em>a</em> followed by something else. A prefix-free code is exactly a binary tree with the symbols at the leaves: the path from the root spells the code, with 0 for left and 1 for right. Decoding walks down from the root and restarts there at every leaf.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-huffman.svg" alt="Huffman tree for abracadabra. Frequencies a 5, b 2, r 2, c 1, d 1. c and d merge into 2, b and that into 4, r and 4 into 6, a and 6 into the root 11. Codes: a 0, r 10, b 110, c 1110, d 1111" width="680" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">"abracadabra" in 23 bits instead of 33 with a fixed 3-bit code. The most frequent symbol has a 1-bit code.</p>
+        </div>
+
+        <h3 id="huffman-build">Building the Tree</h3>
+        <p>The greedy rule: <strong>repeatedly merge the two least frequent trees</strong> into one whose weight is their sum. A min-heap from <a href="/roadmap/dsa/heaps.html#heapify">Heaps</a> gives each merge in O(log n), so the whole tree takes O(n log n) for n distinct symbols.</p>
+        <pre><code class="language-go line-numbers">func buildTree(freq map[rune]int) *Node {
+	h := &amp;nodeHeap{}
+	for s, f := range freq {
+		*h = append(*h, &amp;Node{weight: f, sym: s, minSym: s})
+	}
+	heap.Init(h) // O(n) bottom-up build (see Heaps, Phase 2)
+	if h.Len() == 1 {
+		// One distinct symbol: give it a parent so its code is "0", not "".
+		only := heap.Pop(h).(*Node)
+		return &amp;Node{weight: only.weight, left: only, minSym: only.sym}
+	}
+	for h.Len() &gt; 1 {
+		a := heap.Pop(h).(*Node) // the two least frequent trees
+		b := heap.Pop(h).(*Node)
+		heap.Push(h, &amp;Node{weight: a.weight + b.weight, left: a, right: b, minSym: min(a.minSym, b.minSym)})
+	}
+	return heap.Pop(h).(*Node)
+}</code></pre>
+        <p>The <code>minSym</code> field breaks ties between equal weights, so the demo prints the same codes on every run. Without it, codes depend on Go's random map iteration order. They would still be optimal, but they would differ from run to run.</p>
+
+        <h3 id="huffman-optimal">Why It Is Optimal</h3>
+        <p>In some optimal tree, the two rarest symbols are siblings at the deepest level. If a rarer symbol sat higher than a more frequent one, swapping them would not increase the total length. So merging the two rarest symbols first is safe. After the merge, they behave like one symbol whose weight is their sum, which is the same problem with one fewer symbol.</p>
+        <p>The demo's oracle does not use this idea at all. <strong>Kraft's inequality</strong> says code lengths l₁, …, lₙ can be realised by a prefix-free code exactly when the sum of 2<sup>−lᵢ</sup> is at most 1. The oracle tries every such set of lengths for alphabets of up to 7 symbols, and Huffman matches the minimum in all 1,500 tests. For comparison, the older top-down method (Shannon-Fano coding, which splits the symbols into two halves of nearly equal weight) is prefix-free but longer than optimal in 43 of 1,500 tests.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Greedy bugs rarely crash. They return a valid answer that is slightly worse than the best one, which is easy to miss.</p>
+
+        <h3 id="pitfall-unproven">Trusting an Unproven Rule</h3>
+        <p>A rule that works on every example you tried can still be wrong, as the "fewest clashes" rule shows. Before you ship a greedy algorithm, either write down the exchange argument or compare it with brute force on thousands of small random inputs.</p>
+
+        <h3 id="pitfall-key">Sorting by the Wrong Key or Comparing Ratios Badly</h3>
+        <p>Start time or end time, value or value per kilo: the key <em>is</em> the algorithm. When the key is a ratio, compare <code>a.t*b.w</code> with <code>b.t*a.w</code> instead of dividing. Floating-point ratios can make equal ratios compare as different, and integer division rounds them. Watch for overflow in the products, as with the <code>a - b</code> comparator bug in <a href="/roadmap/dsa/sorting.html#sorting-in-go">Sorting</a>.</p>
+
+        <h3 id="pitfall-endpoints">Open and Closed Endpoints</h3>
+        <p>Decide whether touching intervals overlap before writing the comparison. Meetings <code>[1, 4)</code> and <code>[4, 6)</code> are compatible, and the test is <code>x.s &gt;= lastEnd</code>. Closed intervals <code>[1, 4]</code> and <code>[4, 6]</code> share the point 4, so the test becomes <code>x.s &gt; lastEnd</code>. A wrong <code>&gt;</code> versus <code>&gt;=</code> passes most tests and fails at the boundary.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>For each exercise, state your greedy rule first, then try to break it with a small counterexample before you write code.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/46_interval_scheduling.go">46_interval_scheduling.go</a>, sort by start time instead of end time in <code>maxActivities</code>. How many random inputs now disagree with brute force?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/47_when_greedy_fails.go">47_when_greedy_fails.go</a>, add a 20-cent coin to the US system. What is the first amount the cashier's rule now gets wrong?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/48_scheduling_exchange.go">48_scheduling_exchange.go</a>, sort the offers in <code>maxProfit</code> by deadline instead of profit. Why does the check fail?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/49_huffman.go">49_huffman.go</a>, make <code>Less</code> prefer the <em>heavier</em> tree. The codes stay prefix-free and the round trip still works. What fails, and why?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Jump game.</strong> Each array cell says how far you may jump forward from it. Decide whether the last cell is reachable, in one pass, by tracking the farthest reachable index.</li>
+          <li><strong>Gas station.</strong> Stations on a circular road give fuel and cost fuel to reach the next one. Find the starting station for a full lap in O(n). Prove that if the tank goes negative after station <em>i</em>, no station from the start up to <em>i</em> can be the answer.</li>
+          <li><strong>Minimum platforms.</strong> Given train arrival and departure times, find how many platforms a station needs. Solve it with the room heap, then with two sorted arrays and two pointers.</li>
+          <li><strong>Break the rule.</strong> For "fewest clashes first" in activity selection, write a program that searches random inputs for the smallest counterexample. How many intervals does it need?</li>
+        </ol>
+        <p>Continue with <a href="/roadmap/dsa/dynamic-programming.html">Dynamic Programming</a>, which solves the problems where greedy fails.</p>
+
       </main>
     </div>
   </div>
-
+  <hr>
   <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'dsa',
-    topicId: 'greedy-algorithms',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "dsa",
+    topicId: "greedy-algorithms",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>

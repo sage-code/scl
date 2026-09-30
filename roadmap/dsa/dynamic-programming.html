@@ -1,25 +1,38 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA Dynamic Programming placeholder page.">
+  <meta name="description" content="Dynamic programming in Go: overlapping subproblems, state and recurrence design, memoization vs tabulation, knapsack and coin change, LIS, LCS, edit distance and diff, interval and partition DP, bitmask DP for travelling salesman, and state machines, each checked against brute force.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, dynamic-programming">
+  <meta name="keywords" content="dsa, go, golang, dynamic programming, memoization, tabulation, recurrence, state design, knapsack, coin change, subset sum, longest common subsequence, longest increasing subsequence, edit distance, matrix chain, bitmask dp, travelling salesman, state machine">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DSA Dynamic Programming</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/dynamic-programming.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -31,38 +44,432 @@
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DSA Dynamic Programming</h1>
+        <h1 id="dynamic-programming">Dynamic Programming</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Placeholder page ready for content authoring.
+        <div class="alert alert-secondary shadow-sm">
+          Greedy algorithms commit to one choice and never look back. Dynamic programming (DP) is the safer relative: it considers every choice, but it solves each subproblem only once and remembers the answer. That turns many exponential searches into loops over a table. DP has a reputation for being hard, but almost all of the difficulty is in one skill: describing a subproblem with a few numbers, the <strong>state</strong>. This lesson teaches that skill with small problems first and then larger families. Every demo checks its table against a brute force that uses no DP at all.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>Add the learning objectives, key concepts, and practical examples for this topic.</p>
+        <h2 id="dp-idea">The Idea</h2>
+        <p>Dynamic programming applies when a problem can be answered by combining answers to smaller versions of itself, and when those smaller versions repeat.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Replace placeholder text with structured lessons, code snippets, and exercises.</p>
+        <h3 id="overlapping">Overlapping Subproblems</h3>
+        <p>Plain recursion on Fibonacci computes <code>fib(n-2)</code> twice: once directly, and once inside <code>fib(n-1)</code>. Those two calls each repeat their own work, and the repetition multiplies. The number of calls grows as fast as the answer itself. Demo of four versions of the same recurrence with call counts: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/50_memo_tabulation.go">50_memo_tabulation.go</a>.</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>n</th><th>calls without memory</th><th>calls with a cache</th><th>distinct subproblems</th></tr></thead>
+            <tbody>
+              <tr><td>10</td><td>177</td><td>19</td><td>9</td></tr>
+              <tr><td>20</td><td>21,891</td><td>39</td><td>19</td></tr>
+              <tr><td>30</td><td>2,692,537</td><td>59</td><td>29</td></tr>
+              <tr><td>35</td><td>29,860,703</td><td>69</td><td>34</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The number of <strong>distinct subproblems</strong> is only n − 1, but the plain recursion solves them millions of times. If you can count the distinct subproblems and each one is cheap to solve from smaller ones, you can count the cost of DP: <em>number of states × work per state</em>. This is the same "recursion tree with repeated nodes" that the <a href="/roadmap/dsa/recursion.html#pitfall-exponential">Recursion</a> lesson warned about, now with the fix.</p>
+
+        <h3 id="recipe">The Five-Step Recipe</h3>
+        <p>Every DP in this lesson is designed with the same five questions. Write the answers down before any code:</p>
+        <ol>
+          <li><strong>State.</strong> What few numbers describe one subproblem completely? ("the first i items and capacity w")</li>
+          <li><strong>Meaning.</strong> Say in one sentence what the table entry means. ("best[i][w] is the most value using only the first i items with capacity w")</li>
+          <li><strong>Recurrence.</strong> How does a state's answer follow from smaller states? (take the item, or leave it)</li>
+          <li><strong>Base cases.</strong> Which states have an obvious answer that needs no recurrence? (no items: value 0)</li>
+          <li><strong>Order and answer.</strong> In which order can states be filled so that every dependency is ready, and which state holds the final answer?</li>
+        </ol>
+        <p>Most wrong DPs fail at step 2: the entry means two slightly different things in two places. A precise sentence prevents that.</p>
+
+        <h3 id="top-down-bottom-up">Top-Down or Bottom-Up</h3>
+        <p>The same recurrence can be run in two ways:</p>
+        <pre><code class="language-go line-numbers">// Top-down (memoization): keep the recursion, add a cache.
+func fibMemo(n int, memo map[int]int) int {
+	if n &lt; 2 {
+		return n
+	}
+	if v, ok := memo[n]; ok {
+		return v // already solved: no recursion
+	}
+	v := fibMemo(n-1, memo) + fibMemo(n-2, memo)
+	memo[n] = v
+	return v
+}
+
+// Bottom-up (tabulation): fill the table in an order that has every
+// dependency ready.
+func fibTable(n int) int {
+	if n &lt; 2 {
+		return n
+	}
+	f := make([]int, n+1)
+	f[1] = 1
+	for i := 2; i &lt;= n; i++ {
+		f[i] = f[i-1] + f[i-2]
+	}
+	return f[n]
+}</code></pre>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th></th><th>Top-down (memoization)</th><th>Bottom-up (tabulation)</th></tr></thead>
+            <tbody>
+              <tr><td>Writing it</td><td>almost a copy of the recurrence; no order to work out</td><td>you must find a valid filling order</td></tr>
+              <tr><td>Work done</td><td>only states that are actually needed</td><td>every state in the table</td></tr>
+              <tr><td>Overhead</td><td>function calls and a map; deep recursion can be a problem</td><td>plain loops, fast, easy to shrink memory</td></tr>
+              <tr><td>Best for</td><td>first version; sparse or awkward state spaces</td><td>final version; dense tables</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A good workflow: write the plain recursion and get it correct on small inputs, add a cache, and only then convert to a table if speed or memory needs it.</p>
+
+        <h3 id="rolling">Shrinking the Table</h3>
+        <p>When a state reads only the last few entries, the rest can be thrown away. <code>fibRolling</code> keeps two variables instead of a slice. Two-dimensional tables often keep one row (the 0/1 knapsack below) or two rows. This matters when the table is large, but only after the version with the full table is correct, because the full table is also what you walk backward to recover the choices.</p>
+        <hr>
+
+        <h2 id="warm-up">Warm-Up Problems</h2>
+        <p>Four short problems, each with a state you can guess from the wording. All are in <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/50_memo_tabulation.go">50_memo_tabulation.go</a>.</p>
+
+        <h3 id="grid-paths">Counting Paths in a Grid</h3>
+        <p>Move only right or down from the top-left cell to the bottom-right cell, avoiding walls. The state is a cell. There are two natural meanings, and both are correct:</p>
+        <ul>
+          <li><em>Top-down:</em> <code>pathsFrom(r, c)</code> is the number of paths from this cell to the goal.</li>
+          <li><em>Bottom-up:</em> <code>ways[r][c]</code> is the number of paths from the start to this cell, so <code>ways[r][c] = ways[r-1][c] + ways[r][c-1]</code>, and a wall has 0 ways.</li>
+        </ul>
+        <p>On a 12 × 12 grid with no walls there are 705,432 paths. Plain recursion makes 3,997,447 calls; with a cache it makes 287 calls for 144 cells. The demo checks both directions against each other and against plain recursion on 2,000 random grids.</p>
+
+        <h3 id="cheapest-path">Cheapest Path, and Recovering the Route</h3>
+        <p>Give each cell a cost, and find the cheapest path. The recurrence is <code>best[r][c] = cost[r][c] + min(best[r-1][c], best[r][c-1])</code>. The table answers <em>how much</em>. To answer <em>which route</em>, walk backward from the goal: at each cell step to the neighbour with the smaller total. Every DP in this lesson recovers its choices this way, by re-reading the table instead of storing extra data.</p>
+        <pre><code class="language-go line-numbers">r, c := rows-1, cols-1
+for {
+	route = append(route, [2]int{r, c})
+	if r == 0 &amp;&amp; c == 0 {
+		break
+	}
+	if r == 0 || (c &gt; 0 &amp;&amp; best[r][c-1] &lt;= best[r-1][c]) {
+		c--
+	} else {
+		r--
+	}
+}</code></pre>
+
+        <h3 id="house-robber">House Robber: a State That Needs Two Numbers</h3>
+        <p>Choose houses to rob, never two neighbours. Let <code>take[i]</code> be the best loot using only the first i houses. House i is either skipped (<code>take[i-1]</code>) or robbed, which forces skipping house i − 1 (<code>take[i-2] + loot</code>):</p>
+        <pre><code class="language-go line-numbers">func robber(loot []int) int {
+	prev2, prev1 := 0, 0 // best for i-2 and i-1 houses
+	for _, v := range loot {
+		prev2, prev1 = prev1, max(prev1, prev2+v)
+	}
+	return prev1
+}</code></pre>
+        <p>Only the last two answers are ever read, so the table has shrunk to two variables. The demo compares it with all 2<sup>n</sup> subsets on 3,000 random inputs.</p>
+        <hr>
+
+        <h2 id="knapsack">The Knapsack Family</h2>
+        <p>Knapsack, coin change, and subset sum are one DP in three disguises. The state is "how much capacity (amount, sum) is left", and at each item there is a choice. They solve exactly the cases where greedy failed in <a href="/roadmap/dsa/greedy-algorithms.html#greedy-fails">Greedy Algorithms</a>. Demo with every variant checked against brute force: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/51_knapsack_family.go">51_knapsack_family.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-knapsack-table.svg" alt="Knapsack table with rows for no items, tent, stove, camera, and books and columns for capacity 0 to 10. The best value at capacity 10 is 40. Walking back from the corner shows the tent and the stove are taken" width="680" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The same items as the greedy counterexample. Walking back from the corner finds the tent and the stove: value 40, where greedy by value per kilo reached 35.</p>
+        </div>
+
+        <h3 id="knapsack-01">0/1 Knapsack</h3>
+        <p>Each item can be taken once. State: <code>best[i][w]</code>, the most value using only the first i items with capacity w. For each item there are two choices, and the answer is the larger:</p>
+        <ul>
+          <li><strong>leave it:</strong> <code>best[i-1][w]</code></li>
+          <li><strong>take it</strong> (if it fits): <code>best[i-1][w - weight] + value</code></li>
+        </ul>
+        <pre><code class="language-go line-numbers">for i := 1; i &lt;= n; i++ {
+	it := items[i-1]
+	for w := 0; w &lt;= capacity; w++ {
+		best[i][w] = best[i-1][w] // leave it
+		if it.weight &lt;= w {
+			best[i][w] = max(best[i][w], best[i-1][w-it.weight]+it.value) // or take it
+		}
+	}
+}</code></pre>
+        <p>The table costs O(n · capacity) time and memory. To find <em>which</em> items were taken, walk back from <code>best[n][capacity]</code>: if the value differs from the row above, that item was taken, and you continue with the smaller capacity. The demo checks the value, the rolling version below, and that the reported items fit and add up, on 3,000 random instances.</p>
+
+        <h3 id="loop-direction">Loop Direction Decides the Problem</h3>
+        <p>Row i only reads row i − 1, so one row is enough, if you update capacities from <strong>high to low</strong>:</p>
+        <pre><code class="language-go line-numbers">func knapsackRolling(items []Item, capacity int) int {
+	best := make([]int, capacity+1)
+	for _, it := range items {
+		for w := capacity; w &gt;= it.weight; w-- { // downward: each item once
+			best[w] = max(best[w], best[w-it.weight]+it.value)
+		}
+	}
+	return best[capacity]
+}</code></pre>
+        <p>Going down guarantees that <code>best[w - weight]</code> has not been touched yet by the current item, so it still means "without this item". Flip the loop to go up and <code>best[w - weight]</code> may already include the item, so the item can be taken again and again. That is the <strong>unbounded knapsack</strong>, a different problem. With one item (weight 3, value 10) and capacity 9, the downward loop gives 10 and the upward loop gives 30. Both loops are correct for their own problem; the bug is using the wrong one.</p>
+
+        <h3 id="coin-change">Coin Change</h3>
+        <p>The fewest coins that pay an amount (unlimited coins of each value) is an unbounded problem over amounts. State: <code>fewest[a]</code>. The last coin is some coin c, so <code>fewest[a] = 1 + min(fewest[a - c])</code> over coins c ≤ a. For coins {4, 3, 1} and amount 6 the answer is 2 (3 + 3), where greedy needed 3 coins. For coins {5, 3} and amount 7 the table reports that no payment exists, with the value -1 in the demo.</p>
+
+        <h3 id="counting-order">Counting: Combinations or Sequences?</h3>
+        <p>To <em>count</em> the ways to pay an amount, the order of the two loops decides what is counted:</p>
+        <pre><code class="language-go line-numbers">// combinations: coins in the OUTER loop
+for _, c := range coins {
+	for a := c; a &lt;= amount; a++ {
+		ways[a] += ways[a-c]
+	}
+}
+
+// sequences: amount in the OUTER loop
+for a := 1; a &lt;= amount; a++ {
+	for _, c := range coins {
+		if c &lt;= a {
+			ways[a] += ways[a-c]
+		}
+	}
+}</code></pre>
+        <p>With coins in the outer loop, each coin is fully decided before the next is considered, so 1 + 2 and 2 + 1 are the same set. With the amount in the outer loop, every coin is a candidate for the last step at every amount, so different orders count separately. For amount 4 and coins {1, 2, 3} the first counts 4 combinations and the second counts 7 sequences. Nothing else changes between the two loops, which makes it an easy mistake.</p>
+
+        <h3 id="subset-sum">Subset Sum</h3>
+        <p>Can some of the numbers add up to exactly the target? State: <code>reachable[s]</code>, a boolean. It is the 0/1 knapsack with booleans, and the same downward loop applies. <em>Can this list be split into two groups with equal sums?</em> is subset sum with target total / 2.</p>
+
+        <h3 id="pseudo-polynomial">Pseudo-Polynomial Time</h3>
+        <p>The table has n · capacity cells. Doubling the capacity doubles the work, but adding one digit to the number multiplies it by ten. So the time is polynomial in the <em>value</em> of the capacity, not in the size of its representation: this is called <strong>pseudo-polynomial</strong>. It is fine for a capacity of ten thousand and hopeless for a capacity of 10<sup>18</sup>. The knapsack problem is NP-hard in general, and this DP is not a contradiction: it is fast only when the numbers are small.</p>
+        <hr>
+
+        <h2 id="sequences">Sequence Problems</h2>
+        <p>When the input is one or two sequences, the state is usually a <strong>prefix</strong> (or a pair of prefixes): "the answer for the first i elements". Each table is also walked backward to recover the answer itself. Demo with brute-force oracles for all of them: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/52_sequence_dp.go">52_sequence_dp.go</a>.</p>
+
+        <h3 id="subsequence">Subsequence vs Substring</h3>
+        <p>A <strong>subsequence</strong> keeps the order but may skip elements: "ace" is a subsequence of "abcde". A <strong>substring</strong> must be contiguous. The problems below are about subsequences, which is what makes them exponential to brute-force: a sequence of n items has 2<sup>n</sup> subsequences.</p>
+
+        <h3 id="lis">Longest Increasing Subsequence</h3>
+        <p>State: <code>length[i]</code>, the longest strictly increasing subsequence that <em>ends at</em> index i. It extends the best earlier subsequence whose last element is smaller: <code>length[i] = 1 + max(length[j])</code> over j &lt; i with <code>a[j] &lt; a[i]</code>. That is O(n²). The state "ends at i" is a common trick: it makes the recurrence easy to write, and the final answer is the maximum over all i.</p>
+        <p>The O(n log n) version keeps <code>tails[k]</code>, the <em>smallest</em> possible last element of an increasing subsequence of length k + 1. The slice is always sorted, so the place for the next element is found by binary search, exactly as in <a href="/roadmap/dsa/searching.html">Searching</a>:</p>
+        <pre><code class="language-go line-numbers">func lisFast(a []int) int {
+	var tails []int
+	for _, x := range a {
+		pos, _ := slices.BinarySearch(tails, x) // first tail &gt;= x
+		if pos == len(tails) {
+			tails = append(tails, x)
+		} else {
+			tails[pos] = x
+		}
+	}
+	return len(tails)
+}</code></pre>
+        <p>Note that <code>tails</code> is not itself the subsequence; only its length is the answer. The demo checks both versions and the reconstructed sequence against all subsets.</p>
+
+        <h3 id="lcs">Longest Common Subsequence</h3>
+        <p>State: <code>l[i][j]</code>, the LCS length of the first i items of one sequence and the first j of the other. If the last items are equal, use them; otherwise one of them is not needed:</p>
+        <pre><code class="language-go line-numbers">for i := 1; i &lt;= len(a); i++ {
+	for j := 1; j &lt;= len(b); j++ {
+		if a[i-1] == b[j-1] {
+			l[i][j] = l[i-1][j-1] + 1
+		} else {
+			l[i][j] = max(l[i-1][j], l[i][j-1])
+		}
+	}
+}</code></pre>
+        <p>For "ABCBDAB" and "BDCABA" the answer is "BCBA". Walking back from the corner (match: take it and go diagonally; otherwise go toward the larger neighbour) recovers the subsequence itself. A longest <em>palindromic</em> subsequence is the LCS of a string and its reverse: "character" gives "carac".</p>
+
+        <h3 id="diff">Application: diff</h3>
+        <p>A file comparison tool is an LCS over lines. The lines in the LCS are unchanged; everything else was removed from the old file or added to the new one. The demo's <code>diff</code> function walks the LCS table and prints the familiar output:</p>
+        <pre><code class="language-text">  package main
++
++ import "fmt"
+
+  func main() {
+-     println("hi")
++     fmt.Println("hi")
+  }</code></pre>
+        <p>The check rebuilds the new file from the "kept" and "added" lines and confirms the kept lines are exactly an LCS. Real tools add heuristics for speed on huge files, but the core is this table.</p>
+
+        <h3 id="edit-distance">Edit Distance</h3>
+        <p>The fewest single-character insertions, deletions, and substitutions that turn one string into another. It powers spell checkers, fuzzy search, and DNA alignment. State: <code>d[i][j]</code> = edits to turn the first i letters of one string into the first j of the other. The three edits are the three neighbours:</p>
+        <pre><code class="language-go line-numbers">if a[i-1] == b[j-1] {
+	d[i][j] = d[i-1][j-1]
+} else {
+	d[i][j] = 1 + min(d[i-1][j-1], d[i-1][j], d[i][j-1])
+}</code></pre>
+        <p>The base cases are <code>d[i][0] = i</code> (delete everything) and <code>d[0][j] = j</code> (insert everything).</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-edit-distance.svg" alt="Table of edit distances between prefixes of kitten and sitting, with the cheapest path highlighted: substitute k with s, keep i, t, t, substitute e with i, keep n, insert g. The distance is 3" width="620" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The table for "kitten" and "sitting". The green path is the edit script; the value in the corner is the distance.</p>
+        </div>
+
+        <p>The path in the picture is the edit script: <code>sub k→s, keep i, keep t, keep t, sub e→i, keep n, ins g</code>. The demo applies the script to the first string and checks that it produces the second, that its cost equals the table value, and that the value matches plain recursion on 3,000 random pairs.</p>
+        <hr>
+
+        <h2 id="intervals">Intervals and Partitions</h2>
+        <p>Some problems ask for the best way to <em>cut</em> a sequence into pieces or to combine neighbours in the best order. Two state shapes cover most of them. Demo with four problems checked against plain recursion: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/53_interval_partition_dp.go">53_interval_partition_dp.go</a>.</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>State shape</th><th>Meaning</th><th>Recurrence tries</th><th>Examples</th></tr></thead>
+            <tbody>
+              <tr><td>prefix</td><td><code>best[i]</code>: the first i elements</td><td>every start j of the last piece</td><td>word break, palindrome cuts</td></tr>
+              <tr><td>interval</td><td><code>best[l][r]</code>: elements between l and r</td><td>every split point k inside</td><td>matrix chain, burst balloons</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="interval-order">Fill Short Intervals First</h3>
+        <p>A long interval is built from shorter intervals inside it, so the shorter ones must be ready. The outer loop is therefore over the <strong>length</strong>, not over the start. Looping over the start in increasing order reads cells that are not yet filled, and the answer is silently wrong.</p>
+
+        <h3 id="matrix-chain">Matrix Chain Multiplication</h3>
+        <p>Multiplying an (a × b) matrix by a (b × c) matrix costs a·b·c scalar multiplications. The product of a chain is the same for every order of parentheses, but the cost is not. For matrices of size 10×30, 30×5, and 5×60, the order (AB)C costs 4,500 multiplications and A(BC) costs 27,000. State: <code>cost[i][j]</code>, the cheapest way to multiply matrices i to j. Try every last multiplication, splitting after matrix k:</p>
+        <pre><code class="language-go line-numbers">for length := 2; length &lt;= n; length++ { // short intervals first
+	for i := 0; i+length-1 &lt; n; i++ {
+		j := i + length - 1
+		cost[i][j] = 1 &lt;&lt; 60
+		for k := i; k &lt; j; k++ {
+			c := cost[i][k] + cost[k+1][j] + dims[i]*dims[k+1]*dims[j+1]
+			if c &lt; cost[i][j] {
+				cost[i][j], split[i][j] = c, k
+			}
+		}
+	}
+}</code></pre>
+        <p>Storing the best split point, <code>split[i][j]</code>, lets a short recursive function print the parenthesization. The cost is O(n³): n² states with n choices each.</p>
+
+        <h3 id="last-action">Think About the Last Action</h3>
+        <p><strong>Burst balloons:</strong> bursting balloon k earns <code>nums[left] · nums[k] · nums[right]</code> for its <em>current</em> neighbours, and the goal is the maximum total for bursting all of them. Asking "which balloon do I burst first?" is a trap: bursting it changes the neighbours of the others, so the two sides depend on each other.</p>
+        <p>Ask instead: "which balloon do I burst <em>last</em> in this interval?" When k is last, its neighbours are the fixed edges of the interval, and everything on its two sides was burst independently before. That gives a clean recurrence:</p>
+        <pre><code class="language-go line-numbers">for k := l + 1; k &lt; r; k++ {
+	best[l][r] = max(best[l][r], best[l][k]+best[k][r]+v[l]*v[k]*v[r])
+}</code></pre>
+        <p>Turning a problem around, from "first" to "last" or from "add" to "remove", is one of the most useful moves in DP design. The demo checks the last-balloon table against a brute force that tries every bursting order.</p>
+
+        <h3 id="prefix-partitions">Cutting a Sequence into Pieces</h3>
+        <p><strong>Word break:</strong> in how many ways can a text be cut into dictionary words? The last word is <code>s[j:i]</code> for some j &lt; i, so <code>ways[i]</code> is the sum of <code>ways[j]</code> over all j where <code>s[j:i]</code> is a word. With the dictionary {cat, cats, and, sand, dog}, "catsanddog" has 2 ways ("cats and dog" and "cat sand dog"), and "catsandog" has none. Storing where the last word starts lets you print one segmentation.</p>
+        <p><strong>Palindrome partitioning:</strong> fewest cuts so that every piece is a palindrome. It needs two tables. <code>isPal[i][j]</code> is an interval table (equal ends and a palindrome inside). <code>pieces[i]</code> is a prefix table: 1 + the fewest pieces for a shorter prefix <code>s[:j]</code>, over every j where <code>s[j..i-1]</code> is a palindrome. Combining an interval table with a prefix table is common in harder problems. For "racecarxyz" the answer is 3 cuts: racecar | x | y | z.</p>
+        <hr>
+
+        <h2 id="states">Sets and Modes</h2>
+        <p>Two more state designs appear constantly. Demo with both, checked against permutations and against every sequence of actions: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/54_bitmask_state_dp.go">54_bitmask_state_dp.go</a>.</p>
+
+        <h3 id="bitmask">Bitmask DP: The State Is a Set</h3>
+        <p>When the choices are "which subset of n items have I used?", store the subset in one integer: bit i is 1 when item i is used. There are 2<sup>n</sup> subsets, so it works up to n around 20, but it is vastly better than trying all n! orders.</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Operation</th><th>Go</th></tr></thead>
+            <tbody>
+              <tr><td>is item i in the set?</td><td><code>mask&gt;&gt;i&amp;1 == 1</code></td></tr>
+              <tr><td>add item i</td><td><code>mask | 1&lt;&lt;i</code></td></tr>
+              <tr><td>remove item i</td><td><code>mask &amp;^ (1&lt;&lt;i)</code></td></tr>
+              <tr><td>number of items</td><td><code>bits.OnesCount(uint(mask))</code></td></tr>
+              <tr><td>the full set of n items</td><td><code>1&lt;&lt;n - 1</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Travelling salesman</strong> (Held-Karp): visit every city once and return to city 0 by the shortest tour. State: <code>best[mask][last]</code>, the cheapest way to start at city 0, visit exactly the cities in <code>mask</code>, and stand at city <code>last</code>. From there, move to any city not in the mask:</p>
+        <pre><code class="language-go line-numbers">for mask := 1; mask &lt;= full; mask++ {
+	for last := 0; last &lt; n; last++ {
+		if best[mask][last] == inf {
+			continue
+		}
+		for next := 0; next &lt; n; next++ {
+			if mask&gt;&gt;next&amp;1 == 1 {
+				continue // already visited
+			}
+			m2 := mask | 1&lt;&lt;next
+			if c := best[mask][last] + d[last][next]; c &lt; best[m2][next] {
+				best[m2][next], from[m2][next] = c, last
+			}
+		}
+	}
+}</code></pre>
+        <p>The cost is O(2<sup>n</sup> · n²), against (n − 1)! for permutations. For 16 cities the DP handles about a million states in tens of milliseconds, while trying all orders would mean about 1.3 × 10<sup>12</sup> tours. The demo confirms both the length and the reported tour against every permutation for up to 8 cities. The <strong>assignment problem</strong> (one job per worker at minimum cost) shows a useful shortcut: the number of workers already placed is <code>bits.OnesCount(mask)</code>, so the next worker's index need not be stored in the state.</p>
+
+        <h3 id="state-machine">State Machines: The State Is a Mode</h3>
+        <p>Sometimes the state is the position <em>plus</em> a small mode. Buying and selling a stock, one share at a time, has modes <code>hold</code>, <code>sold</code>, and <code>rest</code>. Draw the modes as boxes and the allowed moves as arrows, and each day's recurrence follows the arrows into each box. With a one-day cooldown after selling (you cannot buy on the day after a sale):</p>
+        <pre><code class="language-go line-numbers">for _, p := range prices {
+	newHold := max(hold, rest-p) // keep holding, or buy today from "rest"
+	newSold := hold + p          // sell today what we were holding
+	newRest := max(rest, sold)   // idle; a sale yesterday ends its cooldown
+	hold, sold, rest = newHold, newSold, newRest
+}
+return max(sold, rest) // never end while holding: that share is unsold</code></pre>
+        <p>Buying comes only from <code>rest</code>, not from <code>sold</code>, and that one arrow is the whole cooldown rule. A variant with at most k transactions adds a counter to the mode. The demo checks both against a brute force that tries every assignment of "nothing, buy, sell" to every day and keeps the valid ones. State machines like these also parse text, model game turns, and validate protocols.</p>
+        <hr>
+
+        <h2 id="design">Designing a DP</h2>
+        <p>The recipe from the start of the lesson, applied to a new problem, has a few habits that help.</p>
+
+        <h3 id="find-state">Finding the State</h3>
+        <ul>
+          <li><strong>Start from the brute force.</strong> Write the recursion that tries everything. The arguments that change between calls are the candidate state.</li>
+          <li><strong>Keep only what the future needs.</strong> If a value is never read by later choices, remove it from the state. If a later choice depends on something, the state must contain it.</li>
+          <li><strong>Prefer prefixes, intervals, and "ends at i".</strong> These three shapes cover most sequence problems.</li>
+          <li><strong>Count the states.</strong> If the table is too big, look for a smaller state (as with the worker index in the assignment problem) or a different problem shape.</li>
+        </ul>
+
+        <h3 id="which-technique">DP, Greedy, or Backtracking?</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Question</th><th>Technique</th></tr></thead>
+            <tbody>
+              <tr><td>A local rule provably never hurts (you can write the exchange argument)</td><td>greedy: fastest and simplest</td></tr>
+              <tr><td>Choices interact, but the number of distinct subproblems is small</td><td>dynamic programming</td></tr>
+              <tr><td>You must list or count every solution, or the constraints prune a lot</td><td>backtracking (next lesson)</td></tr>
+              <tr><td>Subproblems do not repeat</td><td>plain recursion or divide and conquer; a cache would never be hit</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="debugging">Debugging a DP</h3>
+        <p>Write the brute force first, on inputs small enough to enumerate, and compare on thousands of random inputs, exactly as every demo here does. When they disagree, print the table for a tiny failing input and check each cell by hand against the sentence that defines it. The bug is nearly always a base case, a loop direction, or an entry with two meanings.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>DP bugs give plausible numbers, so compare with a slow oracle.</p>
+
+        <h3 id="pitfall-direction">Loop Direction and Loop Order</h3>
+        <p>In a one-row knapsack, high-to-low means "each item once" and low-to-high means "unlimited". When counting ways, coins in the outer loop count sets and amounts in the outer loop count sequences. In interval DP, length must be the outer loop. Check these three every time you write a nested loop.</p>
+
+        <h3 id="pitfall-base">Wrong or Missing Base Cases</h3>
+        <p>An empty prefix, a single element, and an amount of zero each need an explicit answer. For "ways" it is usually 1 (the empty choice); for "minimum" it is 0; for "impossible" it is a large sentinel. Adding to a sentinel such as <code>math.MaxInt</code> overflows, as in <a href="/roadmap/dsa/graph-algorithms.html#pitfall-infinity">Shortest Paths</a>; use a value like <code>1 &lt;&lt; 30</code> and test for it before adding.</p>
+
+        <h3 id="pitfall-state">A State That Forgets Something</h3>
+        <p>If two subproblems with the same state can have different answers, the state is missing information. A memoized recursion then returns a cached answer that belongs to a different situation. The fix is to add the missing value to the state, or to change the problem definition.</p>
+
+        <h3 id="pitfall-memory">Memory and Overflow</h3>
+        <p>A table of n × m integers is 8·n·m bytes: 10,000 × 10,000 is 800 MB. Reduce to a rolling row once the full table works, and remember that walking back to recover choices needs the full table (or a stored choice). Counting DPs grow fast: the number of paths in a 40 × 40 grid no longer fits in 64 bits, so ask for the answer modulo a number if the problem allows it.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>For each exercise, write the state and its one-sentence meaning first. Then write the brute force, then the DP.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/50_memo_tabulation.go">50_memo_tabulation.go</a>, replace <code>max(prev1, prev2+v)</code> by <code>prev2+v</code> in <code>robber</code>, so the current house is always robbed. Which check fails, and for what kind of loot?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/51_knapsack_family.go">51_knapsack_family.go</a>, make the loop in <code>knapsackRolling</code> go upward (<code>for w := it.weight; w &lt;= capacity; w++</code>). Which check fails, and which problem does the changed loop solve instead?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/52_sequence_dp.go">52_sequence_dp.go</a>, remove <code>d[i-1][j]</code> from the <code>min</code> in <code>editTable</code>. Which operation can no longer be used, and which strings fail?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/53_interval_partition_dp.go">53_interval_partition_dp.go</a>, replace the length loops in <code>matrixChain</code> by <code>for i := 0; i &lt; n; i++</code> and <code>for j := i + 1; j &lt; n; j++</code>. Which cells are read before they are filled?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/54_bitmask_state_dp.go">54_bitmask_state_dp.go</a>, let <code>newHold</code> also come from <code>sold - p</code>. Which stock rule have you broken?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Climbing stairs with forbidden steps.</strong> You climb 1 or 2 steps at a time and some steps are broken. Count the ways to reach the top, then shrink the table to two variables.</li>
+          <li><strong>Maximum subarray.</strong> Find the contiguous subarray with the largest sum. Use the state "the best sum of a subarray that ends at i", and note how it relates to the house robber.</li>
+          <li><strong>Longest palindromic substring.</strong> Use an interval table like <code>isPal</code>, and return the substring itself. Compare with expanding around each centre in O(n²) time and O(1) memory.</li>
+          <li><strong>Unique paths with a budget.</strong> Cells have costs, and you may spend at most B in total. What must the state contain now? How large is the table?</li>
+          <li><strong>Turn a recursion into a DP.</strong> Write the plain recursion for the number of ways to tile a 2 × n strip with 2 × 1 dominoes (laid either way). Count its calls, add a cache, then write the table.</li>
+        </ol>
+        <p>Continue with <a href="/roadmap/dsa/backtracking.html">Backtracking</a>, for the problems where you must list solutions instead of counting them.</p>
+
       </main>
     </div>
   </div>
-
+  <hr>
   <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'dsa',
-    topicId: 'dynamic-programming',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "dsa",
+    topicId: "dynamic-programming",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>

@@ -1,25 +1,38 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA Searching placeholder page.">
+  <meta name="description" content="Searching in Go: linear search, binary search with a loop invariant, lower and upper bounds, sort.Search and slices.BinarySearch, rotated arrays, peak finding, and binary search on the answer.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, searching">
+  <meta name="keywords" content="dsa, go, golang, searching, linear search, binary search, lower bound, upper bound, sort.Search, slices.BinarySearch, binary search on the answer">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DSA Searching</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/searching.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -31,38 +44,240 @@
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DSA Searching</h1>
+        <h1 id="searching">Searching</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Placeholder page ready for content authoring.
+        <div class="alert alert-secondary shadow-sm">
+          Phase 3 turns the data structures of Phase 2 into algorithms. Searching comes first because it is the simplest place to learn the most useful habit in algorithm design: state an <strong>invariant</strong>, then write a loop that keeps it true. Binary search is only a few lines long, yet off-by-one mistakes in those lines are among the most common bugs in practice. This lesson derives every boundary from an invariant, then extends the same template to bounds, rotated arrays, and optimization problems where there is no array at all.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>Add the learning objectives, key concepts, and practical examples for this topic.</p>
+        <h2 id="linear-search">Linear Search</h2>
+        <p>Linear search checks each element in turn until it finds the target or runs out of elements. It needs no preparation and works on any slice, sorted or not, so it is the baseline every other method must beat.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Replace placeholder text with structured lessons, code snippets, and exercises.</p>
+        <h3 id="linear-scan">The Scan</h3>
+        <pre><code class="language-go line-numbers">// linearSearch returns the index of target or -1. comparisons counts the
+// work so it can be compared with binary search.
+func linearSearch(a []int, target int) (idx, comparisons int) {
+	for i, v := range a {
+		comparisons++
+		if v == target {
+			return i, comparisons
+		}
+	}
+	return -1, comparisons
+}</code></pre>
+        <p>The worst case, an absent target, costs n comparisons: O(n). In Go, <code>slices.Index</code> and <code>slices.Contains</code> are linear searches.</p>
+
+        <h3 id="when-linear">When Linear Search Is the Right Choice</h3>
+        <p>Linear search wins when the data is small (a few dozen elements fit in cache and scan very fast), when it is searched only once, or when it changes constantly, so it cannot be kept sorted. It is also the only option when the question is not about order, for example "find the first user whose email is unverified". If you search the same data many times, sort it once, which costs O(n log n), or put it in a map, which costs O(n) to build.</p>
+        <hr>
+
+        <h2 id="binary-search">Binary Search</h2>
+        <p>If the slice is sorted, one comparison with the middle element tells you which half cannot contain the target. Discarding half of the range each step gives O(log n): one million elements need at most 20 comparisons, one billion at most 30. Full demo with a step-by-step trace, random cross-checks, and timings: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/29_binary_search.go">29_binary_search.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-binary-search.svg" alt="Binary search for 40 in ten sorted values: the range shrinks from ten cells to four, two, one, and then becomes empty" width="720" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Searching for 40. Each step compares the middle element (orange) and discards the half that cannot hold the target (grey). When the range is empty, the target is absent.</p>
+        </div>
+
+        <h3 id="invariant">Start from the Invariant</h3>
+        <p>Choose a half-open range <code>[lo, hi)</code> and write down what must stay true: <em>if the target is present, its index is in <code>[lo, hi)</code></em>. Every line of the loop follows from that sentence:</p>
+        <ul>
+          <li>Start with <code>lo = 0, hi = len(a)</code>: the whole slice.</li>
+          <li>Loop while <code>lo &lt; hi</code>: the range is not empty.</li>
+          <li>If <code>a[mid] &lt; target</code>, everything up to <code>mid</code> is too small, so <code>lo = mid + 1</code>.</li>
+          <li>If <code>a[mid] &gt; target</code>, everything from <code>mid</code> on is too large, so <code>hi = mid</code>. Because the range is half-open, <code>mid</code> is excluded.</li>
+        </ul>
+        <pre><code class="language-go line-numbers">// binarySearch uses the half-open range [lo, hi).
+func binarySearch(a []int, target int) (idx, comparisons int) {
+	lo, hi := 0, len(a) // invariant: target, if present, is in a[lo:hi]
+	for lo &lt; hi {       // the range is not empty
+		mid := lo + (hi-lo)/2 // same as (lo+hi)/2 but cannot overflow
+		comparisons++
+		switch {
+		case a[mid] &lt; target:
+			lo = mid + 1 // a[lo..mid] are all too small: discard them
+		case a[mid] &gt; target:
+			hi = mid // a[mid..hi) are all too large: discard them
+		default:
+			return mid, comparisons
+		}
+	}
+	return -1, comparisons
+}</code></pre>
+
+        <h3 id="termination">Why the Loop Terminates</h3>
+        <p>A loop is correct only if it also finishes. While <code>lo &lt; hi</code>, <code>mid</code> satisfies <code>lo ≤ mid &lt; hi</code>, so both <code>lo = mid + 1</code> and <code>hi = mid</code> make the range strictly smaller. Write <code>lo = mid</code> instead and a two-element range can stop shrinking, and the loop never ends. Computing <code>mid</code> as <code>lo + (hi-lo)/2</code> avoids the overflow that <code>(lo+hi)/2</code> can cause when indices are near the maximum integer, a bug that went unnoticed for years in several standard libraries.</p>
+
+        <h3 id="search-cost">Linear versus Binary in Numbers</h3>
+        <p>The demo measures both methods for an absent target:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>n</th><th>linear comparisons</th><th>binary comparisons</th></tr></thead>
+            <tbody>
+              <tr><td>1,000</td><td>1,000</td><td>9</td></tr>
+              <tr><td>100,000</td><td>100,000</td><td>16</td></tr>
+              <tr><td>1,000,000</td><td>1,000,000</td><td>19</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Binary search needs sorted input. Sorting first costs O(n log n), so it pays off only if you search the same data more than about log n times.</p>
+        <hr>
+
+        <h2 id="bounds">Lower and Upper Bounds</h2>
+        <p>Most real questions are about positions, not presence: where would this value be inserted, how many values fall in a range, which is the first timestamp after noon. All of these reduce to one template. Demo with randomized checks against linear definitions: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/30_search_bounds.go">30_search_bounds.go</a>.</p>
+
+        <h3 id="first-true">The First-True Template</h3>
+        <p>Suppose a predicate over the indices is <strong>monotone</strong>: false, false, …, false, then true for every later index. Binary search finds the first true index in O(log n). The invariant is that the predicate is false before <code>lo</code> and true from <code>hi</code> onwards.</p>
+        <pre><code class="language-go line-numbers">// firstTrue returns the smallest i in [0, n) with pred(i) true, or n if
+// there is none. pred must be monotone: once true, true for every larger i.
+func firstTrue(n int, pred func(int) bool) int {
+	lo, hi := 0, n // invariant: pred is false before lo, true from hi on
+	for lo &lt; hi {
+		mid := lo + (hi-lo)/2
+		if pred(mid) {
+			hi = mid // mid could be the answer: keep it in range
+		} else {
+			lo = mid + 1 // mid is false: the answer is to its right
+		}
+	}
+	return lo // lo == hi: the boundary
+}</code></pre>
+
+        <h3 id="lower-upper">lowerBound and upperBound</h3>
+        <p>With the template, both bounds are one line each, and counting a value or a range becomes a subtraction:</p>
+        <pre><code class="language-go line-numbers">func lowerBound(a []int, x int) int { // first index with a[i] &gt;= x
+	return firstTrue(len(a), func(i int) bool { return a[i] &gt;= x })
+}
+
+func upperBound(a []int, x int) int { // first index with a[i] &gt; x
+	return firstTrue(len(a), func(i int) bool { return a[i] &gt; x })
+}
+
+// a = [1 3 3 3 5 8 8 13]
+// lowerBound(a, 3) = 1, upperBound(a, 3) = 4  -&gt; 3 copies of 3
+// lowerBound(a, 4) = 4 = upperBound(a, 4)     -&gt; 4 is absent; insert at 4</code></pre>
+        <p><code>lowerBound</code> is also where a value should be inserted to keep a slice sorted: <code>slices.Insert(a, lowerBound(a, x), x)</code>.</p>
+
+        <h3 id="stdlib-search">sort.Search and slices.BinarySearch</h3>
+        <p>Go's standard library provides both forms. <code>sort.Search(n, pred)</code> is exactly <code>firstTrue</code>. <code>slices.BinarySearch(s, x)</code> returns the lower bound together with a flag that reports whether <code>x</code> is present, and <code>slices.BinarySearchFunc</code> does the same with a custom comparison. Prefer them in production code. Write the template yourself when the predicate is not a comparison with a slice element, as in the last section of this lesson.</p>
+        <hr>
+
+        <h2 id="beyond-sorted">Beyond Sorted Arrays</h2>
+        <p>Binary search does not require fully sorted data. It requires a test on the middle element that tells you which half to discard.</p>
+
+        <h3 id="rotated">Rotated Sorted Arrays</h3>
+        <p>A sorted slice rotated at an unknown point, such as <code>[15 18 22 3 7 9]</code>, still has one sorted half at every step. Check whether the target lies inside the sorted half's range; if not, it must be in the other half.</p>
+        <pre><code class="language-go line-numbers">if a[lo] &lt;= a[mid] { // left half is sorted
+	if a[lo] &lt;= target &amp;&amp; target &lt; a[mid] {
+		hi = mid - 1
+	} else {
+		lo = mid + 1
+	}
+} else { // right half is sorted
+	if a[mid] &lt; target &amp;&amp; target &lt;= a[hi] {
+		lo = mid + 1
+	} else {
+		hi = mid - 1
+	}
+}</code></pre>
+        <p>This version uses a <em>closed</em> range <code>[lo, hi]</code> because it compares with <code>a[hi]</code>. Pick one convention per function and derive every boundary from it.</p>
+
+        <h3 id="peak">Finding a Peak</h3>
+        <p>A peak is an element larger than both of its neighbours. In unsorted data you can still find one in O(log n): if <code>a[mid] &lt; a[mid+1]</code>, the values rise to the right, so they must either fall later or reach the end, and either way a peak exists on that side. The demo reuses <code>firstTrue</code> with the predicate <code>a[i] &gt; a[i+1]</code>.</p>
+        <hr>
+
+        <h2 id="search-answer">Binary Search on the Answer</h2>
+        <p>The most powerful use of binary search does not involve an array at all. Many optimization problems ask for the <em>smallest</em> value that works: the smallest ship capacity, the lowest speed, the shortest time. If "value x works" implies "every larger value works too", the candidate answers form a monotone false…true sequence, and you can binary search over them. Demo with a brute-force oracle: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/31_search_the_answer.go">31_search_the_answer.go</a>.</p>
+
+        <h3 id="answer-recipe">The Recipe</h3>
+        <ol>
+          <li><strong>Bound the answer:</strong> find a <code>lo</code> that is surely too small (or exactly minimal) and a <code>hi</code> that surely works.</li>
+          <li><strong>Write <code>feasible(x)</code>:</strong> usually a simple greedy pass in O(n).</li>
+          <li><strong>Binary search</strong> for the first feasible value: O(n · log(hi − lo)).</li>
+        </ol>
+
+        <h3 id="ship-packages">Example: Shipping Capacity</h3>
+        <p>Packages must ship in order within a given number of days. What is the smallest ship capacity that makes it? For a fixed capacity, a greedy pass counts the days needed. A larger ship never needs more days, so feasibility is monotone.</p>
+        <pre><code class="language-go line-numbers">func shipWithinDays(weights []int, days int) int {
+	lo := slices.Max(weights) // the heaviest package must fit
+	hi := 0
+	for _, w := range weights {
+		hi += w // one day for everything always works
+	}
+	return firstFeasible(lo, hi, func(capacity int) bool {
+		return daysNeeded(weights, capacity) &lt;= days
+	})
+}
+
+// daysNeeded is the greedy feasibility check: load each day until the next
+// package does not fit. O(n).
+func daysNeeded(weights []int, capacity int) int {
+	d, load := 1, 0
+	for _, w := range weights {
+		if load+w &gt; capacity {
+			d++ // start a new day
+			load = 0
+		}
+		load += w
+	}
+	return d
+}</code></pre>
+        <p>A brute-force solution tries every capacity. For a range of 10<sup>9</sup> that is up to a billion feasibility checks; binary search needs 30.</p>
+
+        <h3 id="real-answers">Real-Valued Answers</h3>
+        <p>When the answer is a real number (a cube root, a time, a rate), there is no "next integer". Run a fixed number of halvings instead: 100 iterations shrink any <code>float64</code> range below its precision. Avoid a loop that runs <code>while hi-lo &gt; epsilon</code>: for large values, floating-point rounding can keep the difference above epsilon forever.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Almost every binary search bug is a boundary that does not match the invariant.</p>
+
+        <h3 id="pitfall-mixed">Mixing Half-Open and Closed Ranges</h3>
+        <p><code>hi = len(a)</code> with <code>lo &lt;= hi</code> reads past the end; <code>hi = len(a)-1</code> with <code>lo &lt; hi</code> never examines the last element. Decide whether <code>hi</code> is inside or outside the range, write it in a comment, and check each update against it.</p>
+
+        <h3 id="pitfall-no-progress">Updates That Do Not Shrink the Range</h3>
+        <p>If an update can leave <code>lo</code> and <code>hi</code> unchanged, the loop spins forever on a two-element range. With <code>mid = lo + (hi-lo)/2</code>, assign <code>lo = mid + 1</code>, never <code>lo = mid</code>.</p>
+
+        <h3 id="pitfall-unsorted">Searching Unsorted or Non-Monotone Data</h3>
+        <p>Binary search on unsorted data compiles, runs, and returns wrong answers without any error. The same happens on the answer side when feasibility is not truly monotone. When in doubt, compare with a linear scan on random inputs, as every demo in this lesson does.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>For each problem, write the invariant or the monotone predicate before writing any code.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/29_binary_search.go">29_binary_search.go</a>, change <code>hi = mid</code> to <code>hi = mid - 1</code> in <code>binarySearch</code>. Which invariant breaks, and how many random cross-checks fail?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/30_search_bounds.go">30_search_bounds.go</a>, make the same change in <code>firstTrue</code> and watch the bound checks fail.</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/31_search_the_answer.go">31_search_the_answer.go</a>, start <code>shipWithinDays</code> at <code>lo := 1</code> instead of the heaviest package. Why does the oracle disagree? (Hint: what does <code>daysNeeded</code> do with a package heavier than the ship?)</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>First and last position.</strong> Return the first and last index of a value in a sorted slice with duplicates, in O(log n).</li>
+          <li><strong>Search a sorted matrix.</strong> Each row and column of a matrix is sorted. Find a value in O(rows + cols) by starting at the top-right corner. Why does that corner work?</li>
+          <li><strong>Minimum in a rotated array.</strong> Find the smallest element of a rotated sorted slice with distinct values in O(log n).</li>
+          <li><strong>Split array.</strong> Split a slice of positive integers into k contiguous parts that minimize the largest part sum. Write <code>feasible(limit)</code> and binary search on the limit.</li>
+        </ol>
+        <p>Next: <a href="/roadmap/dsa/sorting.html">Sorting</a>, which prepares data so binary search can be used.</p>
+
       </main>
     </div>
   </div>
-
+  <hr>
   <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'dsa',
-    topicId: 'searching',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "dsa",
+    topicId: "searching",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>

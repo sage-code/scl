@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA Complexity Analysis placeholder page.">
+  <meta name="description" content="Complexity analysis with Go: Big O, Omega and Theta, complexity classes, reading cost from code, space and amortized cost, and measuring growth with doubling experiments and benchmarks.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, complexity-analysis">
+  <meta name="keywords" content="dsa, complexity analysis, big o, time complexity, space complexity, amortized, go benchmark, doubling experiment">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DSA Complexity Analysis</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/complexity-analysis.html">
@@ -14,7 +14,11 @@
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
@@ -33,17 +37,205 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DSA Complexity Analysis</h1>
+        <h1 id="complexity">Complexity Analysis</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Placeholder page ready for content authoring.
+        <div class="alert alert-secondary shadow-sm">
+          Complexity analysis predicts how an algorithm's cost grows as its input grows. It lets you reject a design on paper, before writing it, and explains why a program that is instant on test data stalls in production. This lesson teaches the notation, how to read cost directly from Go code, and how to confirm predictions with measurements.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>Add the learning objectives, key concepts, and practical examples for this topic.</p>
+        <h2 id="why-measure">Why Analyze Cost</h2>
+        <p>Two correct solutions can differ by hours of run time on the same input. You need a way to compare them that does not depend on which laptop you own, which compiler version you use, or how busy the machine is at the moment.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Replace placeholder text with structured lessons, code snippets, and exercises.</p>
+        <h3 id="machine-independent">Counting Steps, Not Seconds</h3>
+        <p>Seconds depend on hardware; the <em>number of basic steps</em> does not. A basic step is any operation whose cost does not depend on the input size: an arithmetic operation, a comparison, reading <code>nums[i]</code>, assigning a variable. We count how many such steps an algorithm performs as a function of the input size, and ignore how long each individual step takes.</p>
+
+        <h3 id="input-size">What "n" Means</h3>
+        <p><em>n</em> is the size of the input measured in the unit that drives the work: the number of elements in a slice, the number of characters in a string, the number of vertices in a graph. When there are several independent sizes, give each its own letter — a graph has <em>V</em> vertices and <em>E</em> edges, a text of length <em>n</em> is searched for a pattern of length <em>m</em>.</p>
+        <hr>
+
+        <h2 id="big-o">Big O Notation</h2>
+        <p>Big O describes the <strong>upper bound of the growth rate</strong>. It answers "at most how fast does the cost grow?" and deliberately throws away details that do not change the answer for large inputs.</p>
+
+        <h3 id="big-o-definition">Definition</h3>
+        <p>A cost function f(n) is <strong>O(g(n))</strong> if there exist constants <em>c</em> &gt; 0 and <em>n₀</em> such that f(n) ≤ c · g(n) for every n ≥ n₀. In words: beyond some input size, f never grows faster than a constant multiple of g. For example, f(n) = 3n + 5 is O(n), because 3n + 5 ≤ 4n whenever n ≥ 5 (c = 4, n₀ = 5).</p>
+
+        <h3 id="drop-constants">Drop Constants and Lower Terms</h3>
+        <p>Two simplification rules follow from the definition:</p>
+        <ul>
+          <li><strong>Constant factors disappear:</strong> 5n and n/2 are both O(n). Constants depend on hardware and implementation; growth does not.</li>
+          <li><strong>Only the dominant term remains:</strong> n² + 100n + 7 is O(n²). For n = 10,000 the n² term contributes 100,000,000 steps, the 100n term only 1,000,000.</li>
+        </ul>
+        <p>This is why an O(n) algorithm with a large constant eventually beats an O(n²) algorithm with a tiny one — "eventually" being the n₀ in the definition.</p>
+
+        <h3 id="omega-theta">Big Omega and Big Theta</h3>
+        <p>Big O is an upper bound, and two related notations complete the picture:</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Notation</th><th>Meaning</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td>O(g)</td><td>grows <strong>at most</strong> like g</td><td>Linear search is O(n)</td></tr>
+            <tr><td>Ω(g)</td><td>grows <strong>at least</strong> like g</td><td>Any comparison sort is Ω(n log n) in the worst case</td></tr>
+            <tr><td>Θ(g)</td><td>grows <strong>exactly</strong> like g (both bounds)</td><td>Summing a slice is Θ(n)</td></tr>
+          </tbody>
+        </table>
+        <p>In everyday engineering "O" is used loosely to mean the tight bound. When precision matters — proving a lower bound, for example — use Ω and Θ.</p>
+
+        <h3 id="best-worst-average">Best, Worst, and Average Case</h3>
+        <p>The same algorithm can cost different amounts on inputs of the same size. Linear search finds the target at index 0 in one step (best case) but scans all <em>n</em> elements when it is absent (worst case). Unless stated otherwise, a complexity refers to the <strong>worst case</strong>, because it is a guarantee. The <strong>average case</strong> needs an assumption about input distribution; hash maps are the standard example — O(1) on average, O(n) in the worst case when all keys collide.</p>
+        <hr>
+
+        <h2 id="classes">Common Complexity Classes</h2>
+        <p>A handful of growth rates cover almost every algorithm you will meet. The chart shows how quickly they separate: by n = 20, the exponential curve has left the chart while the logarithmic one has barely moved.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-growth-rates.svg" alt="Chart of operations versus n for O(1), O(log n), O(n), O(n log n), O(n squared) and O(2 to the n)" width="620" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Growth of the common classes for n from 0 to 20. The vertical axis is capped at 100 operations; O(2ⁿ) crosses it just before n = 7 and O(n²) reaches it at n = 10.</p>
+        </div>
+
+        <h3 id="class-table">Growth Table</h3>
+        <p>The table turns the chart into numbers. Assuming roughly 10⁸ simple operations per second (a rough figure for compiled code on modern hardware), it shows which classes remain practical as n grows.</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Class</th><th>Name</th><th>n = 10</th><th>n = 1,000</th><th>n = 1,000,000</th><th>Typical example</th></tr></thead>
+          <tbody>
+            <tr><td>O(1)</td><td>constant</td><td>1</td><td>1</td><td>1</td><td>index a slice, map lookup (avg)</td></tr>
+            <tr><td>O(log n)</td><td>logarithmic</td><td>3</td><td>10</td><td>20</td><td>binary search</td></tr>
+            <tr><td>O(n)</td><td>linear</td><td>10</td><td>1,000</td><td>10⁶</td><td>scan a slice</td></tr>
+            <tr><td>O(n log n)</td><td>linearithmic</td><td>33</td><td>~10⁴</td><td>~2·10⁷</td><td>merge sort, <code>slices.Sort</code></td></tr>
+            <tr><td>O(n²)</td><td>quadratic</td><td>100</td><td>10⁶</td><td>10¹² (hours)</td><td>compare all pairs</td></tr>
+            <tr><td>O(2ⁿ)</td><td>exponential</td><td>1,024</td><td>~10³⁰¹</td><td>impossible</td><td>try every subset</td></tr>
+          </tbody>
+        </table>
+        <p>Run <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/03_growth_rates.go">03_growth_rates.go</a> to see these counts produced by real loops.</p>
+
+        <h3 id="reading-loops">Reading Complexity from Code</h3>
+        <p>Most of the time you can read the complexity directly from the shape of the loops. Three rules cover the common cases: sequential blocks <strong>add</strong>, nested loops <strong>multiply</strong>, and a loop that <strong>halves</strong> its range runs log n times.</p>
+        <pre><code class="language-go line-numbers">// Sequential blocks ADD: O(n) + O(n) = O(2n) = O(n)
+for i := 0; i &lt; n; i++ { /* O(1) work */ }
+for i := 0; i &lt; n; i++ { /* O(1) work */ }
+
+// Nested loops MULTIPLY: O(n) * O(n) = O(n^2)
+for i := 0; i &lt; n; i++ {
+	for j := 0; j &lt; n; j++ { /* O(1) work */ }
+}
+
+// Triangular nesting is still O(n^2): 0+1+...+(n-1) = n(n-1)/2
+for i := 0; i &lt; n; i++ {
+	for j := 0; j &lt; i; j++ { /* O(1) work */ }
+}
+
+// Halving the range each step: log2(n) iterations -&gt; O(log n)
+for size := n; size &gt; 1; size /= 2 { /* O(1) work */ }
+
+// Hidden loops count too: slices.Contains scans the slice,
+// so this "single" loop is really O(n * m)
+for _, x := range queries {       // m iterations
+	if slices.Contains(data, x) { // O(n) each
+		hits++
+	}
+}</code></pre>
+
+        <h3 id="multiple-inputs">Multiple Inputs</h3>
+        <p>When a function receives two independent inputs, keep both sizes in the result. Iterating over <code>a</code> and then over <code>b</code> is O(n + m); iterating over <code>b</code> for every element of <code>a</code> is O(n · m). Writing O(n²) for the second case would be wrong when one input is much smaller than the other — searching a 10-character pattern in a 1 GB log is very different from comparing two 1 GB files.</p>
+        <hr>
+
+        <h2 id="space">Space Complexity</h2>
+        <p>Memory is a cost too, and it often decides between two algorithms with the same time complexity. The Two Sum map version is faster than the brute-force version precisely because it spends O(n) memory.</p>
+
+        <h3 id="aux-space">Auxiliary Space</h3>
+        <p><em>Auxiliary space</em> is the extra memory an algorithm allocates beyond its input. Finding a maximum needs O(1) auxiliary space (one variable); detecting duplicates with a map needs O(n); building an n × n distance table needs O(n²). When people say "in-place", they mean O(1) auxiliary space.</p>
+
+        <h3 id="recursion-space">Recursion Uses Stack Space</h3>
+        <p>Every active recursive call holds a stack frame, so recursion depth counts as space. A recursive sum over n elements uses O(n) stack space even though it allocates nothing explicitly. The <a href="/roadmap/dsa/recursion.html">Recursion</a> lesson shows the call stack in detail.</p>
+        <hr>
+
+        <h2 id="amortized">Amortized Cost</h2>
+        <p>Some operations are usually cheap but occasionally expensive. Amortized analysis averages the cost over a long sequence of operations, giving a guarantee for the whole sequence even when individual operations vary.</p>
+
+        <h3 id="append-amortized">Slice append</h3>
+        <p>A Go slice has a fixed capacity. When <code>append</code> finds it full, the runtime allocates a larger backing array and copies every element — an O(n) step. Because capacity grows by a <em>factor</em> (about 2× for small slices, tapering toward 1.25× for large ones), these expensive copies become rarer as the slice grows.</p>
+        <p>With pure doubling, appending n elements triggers copies of 1, 2, 4, …, n/2 elements, and that geometric series sums to less than n. Total work for n appends is therefore under 2n, so each append costs <strong>O(1) amortized</strong>. Any constant growth factor above 1 gives the same result; growing by a fixed amount (say +10 each time) would not, and would make n appends O(n²).</p>
+        <pre><code class="language-go line-numbers">// Pre-sizing avoids the repeated copies entirely when n is known.
+out := make([]int, 0, n) // len 0, capacity n: one allocation
+for i := 0; i &lt; n; i++ {
+	out = append(out, i*i) // never reallocates
+}</code></pre>
+        <hr>
+
+        <h2 id="measuring">Measuring in Go</h2>
+        <p>Analysis predicts; measurement confirms. Use both: an analysis without measurement can miss a hidden cost, and a measurement without analysis cannot be extrapolated to larger inputs.</p>
+
+        <h3 id="doubling">Doubling Experiment</h3>
+        <p>Run the code on n, 2n, 4n, … and compute the ratio between consecutive times. A ratio near 2 indicates linear growth, near 4 quadratic, near 8 cubic. The ratio cancels out the machine's speed, which is exactly the property Big O relies on. Once you know the growth law you can predict the cost of inputs too large to test.</p>
+        <p>Full experiment comparing an O(n²) and an O(n) duplicate detector, with a prediction for n = 4,000,000: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/04_doubling_experiment.go">04_doubling_experiment.go</a>.</p>
+
+        <h3 id="benchmarks">Benchmarks with testing.B</h3>
+        <p>For precise measurements, Go's <code>testing</code> package runs a function enough times to get a stable result and reports nanoseconds per operation. Put benchmarks in a <code>_test.go</code> file and run <code>go test -bench=.</code>.</p>
+        <pre><code class="language-go line-numbers">// dup_test.go — run with: go test -bench=. -benchmem
+package main
+
+import (
+	"fmt"
+	"testing"
+)
+
+func BenchmarkHasDupSet(b *testing.B) {
+	for _, n := range []int{1_000, 10_000, 100_000} {
+		input := distinct(n) // setup is outside the timed loop
+		// sub-benchmarks report one line per input size
+		b.Run(fmt.Sprint(n), func(b *testing.B) {
+			// b.Loop (Go 1.24+) repeats the body until timing is stable;
+			// on older versions use: for i := 0; i &lt; b.N; i++
+			for b.Loop() {
+				hasDupSet(input)
+			}
+		})
+	}
+}</code></pre>
+        <p>The <code>-benchmem</code> flag adds allocations per operation, which makes space costs visible too.</p>
+
+        <h3 id="constraints">From Constraints to Target Complexity</h3>
+        <p>Problem constraints tell you which complexity is required before you design anything. Using the rough budget of 10⁸ simple operations per second:</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Input size n</th><th>Acceptable complexity</th><th>Typical technique</th></tr></thead>
+          <tbody>
+            <tr><td>≤ 20</td><td>O(2ⁿ), O(n!)</td><td>backtracking, brute-force subsets</td></tr>
+            <tr><td>≤ 500</td><td>O(n³)</td><td>triple loops, Floyd–Warshall</td></tr>
+            <tr><td>≤ 5,000</td><td>O(n²)</td><td>all pairs, simple DP tables</td></tr>
+            <tr><td>≤ 10⁶</td><td>O(n log n)</td><td>sorting, heaps, divide and conquer</td></tr>
+            <tr><td>≤ 10⁸</td><td>O(n)</td><td>single pass, hashing, two pointers</td></tr>
+            <tr><td>larger</td><td>O(log n), O(1)</td><td>binary search, math formula</td></tr>
+          </tbody>
+        </table>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Complexity errors rarely come from misapplying the definition; they come from costs that are not visible in the code.</p>
+
+        <h3 id="pitfall-hidden">Hidden Loops</h3>
+        <p>Library calls have their own complexity. <code>slices.Contains</code>, <code>strings.Index</code>, and <code>slices.Insert</code> are all O(n). Building a string with <code>s += part</code> inside a loop copies the whole string each time — O(n²) in total — because Go strings are immutable. Use <code>strings.Builder</code>, whose appends are amortized O(1).</p>
+
+        <h3 id="pitfall-constants">Constants Still Matter</h3>
+        <p>Big O describes growth, not speed at a particular size. For small inputs an O(n²) insertion sort often beats O(n log n) algorithms because it has tiny constants and good cache behavior — which is why Go's own sort switches to insertion sort for short sub-slices. Measure when n is small and the code is hot.</p>
+
+        <h3 id="pitfall-average">Average Is Not a Guarantee</h3>
+        <p>Map operations are O(1) on average, not in the worst case. Go randomizes its hash seed per map, which protects against inputs crafted to collide, but a real-time system with hard deadlines should still reason about worst cases, and prefer structures with guaranteed bounds (balanced trees, sorted slices) where they matter.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Build the reflex of estimating cost before running code, then checking the estimate.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>Run <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/03_growth_rates.go">03_growth_rates.go</a>. Add an O(n³) column (three nested loops) and predict its value at n = 64 before running.</li>
+          <li>Run <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/04_doubling_experiment.go">04_doubling_experiment.go</a> on your machine. Your absolute times will differ from anyone else's; check whether the ratios match.</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li>Give the complexity of: a loop from 1 to n where the counter doubles (<code>i *= 2</code>) and the body loops from 0 to i.  <em>Hint: sum the geometric series.</em></li>
+          <li>Rewrite a loop that builds a comma-separated string with <code>+=</code> to use <code>strings.Builder</code>, and use a doubling experiment to show the change from quadratic to linear.</li>
+          <li>A problem states n ≤ 200,000. Which of O(n²), O(n log n), and O(n) are acceptable? Explain with the operations budget.</li>
+        </ol>
+        <p>Next lesson: <a href="/roadmap/dsa/recursion.html">Recursion &amp; the Call Stack</a>.</p>
       </main>
     </div>
   </div>

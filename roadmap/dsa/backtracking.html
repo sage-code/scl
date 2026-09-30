@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Backtracking in Go: the choose, explore, un-choose template, listing subsets, permutations and combinations with duplicates, pruning, N-Queens and Sudoku with bitmasks, word search with prefix pruning, palindrome partitions, walking every cell, graph colouring, and branch and bound for knapsack, all checked against brute force.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="dsa, go, golang, backtracking, choose explore unchoose, subsets, permutations, combination sum, pruning, n queens, sudoku, constraint satisfaction, word search, graph coloring, branch and bound, symmetry breaking, search tree">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DSA Backtracking</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsa/backtracking.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="backtracking">Backtracking</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Dynamic programming counts and optimizes, but some problems ask you to <em>list</em> the solutions, or to find one that satisfies many constraints at once: place eight queens, fill a Sudoku, spell a word through a grid. Backtracking is the tool for those. It builds a solution one decision at a time, and when a decision leads nowhere it undoes it and tries the next. It is a depth-first search over the tree of partial solutions. The search can be exponential, so most of this lesson is about cutting the tree: pruning dead branches early, choosing which decision to make next, and using bounds to skip branches that cannot win. Every demo checks its results against an independent brute force.
+        </div>
+
+        <h2 id="idea">The Idea</h2>
+        <p>Think of a solution as a sequence of decisions: include this element or not, put a queen in this column, use this digit. The set of all partial solutions forms a tree. The root is "nothing decided yet", each edge is one decision, and each leaf is a complete candidate. Backtracking walks this tree depth-first, and it <strong>abandons a branch as soon as it can tell that no complete solution lies below it</strong>.</p>
+
+        <h3 id="template">The Template</h3>
+        <p>Nearly every backtracking function has the same shape. Learn it once and write it from memory:</p>
+        <pre><code class="language-text">func explore(state) {
+	if state is a complete solution {
+		record a COPY of it
+		return
+	}
+	for each choice available now {
+		if the choice is not allowed {
+			continue // PRUNE early
+		}
+		choose it           // change the state
+		explore(new state)
+		un-choose it        // restore the state exactly
+	}
+}</code></pre>
+        <p>The demo <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/55_backtracking_template.go">55_backtracking_template.go</a> applies this template to subsets, permutations, combinations, and parentheses. The three lines <em>choose</em>, <em>explore</em>, <em>un-choose</em> are the heart of the method. The recursion itself is the same divide-and-conquer stack you saw in <a href="/roadmap/dsa/recursion.html#call-stack">Recursion</a>; backtracking adds the undo step.</p>
+
+        <h3 id="undo">What Must Be Undone</h3>
+        <p>Whatever <em>choose</em> changes, <em>un-choose</em> must change back. A partial solution may live in several places: a path slice, a "used" array, a visited mark in a grid, a set of taken columns. If you update three things when you choose, you restore three things when you undo. Forgetting one is the most common backtracking bug, and it produces results that look plausible but are wrong: extra solutions, missing solutions, or a search that quietly stops working after the first branch.</p>
+
+        <h3 id="list-or-count">List, Count, or Optimize?</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>The question</th><th>Technique</th></tr></thead>
+            <tbody>
+              <tr><td>List every solution, or find one that meets many constraints</td><td>backtracking</td></tr>
+              <tr><td>Count solutions, or find the best value, and subproblems repeat</td><td><a href="/roadmap/dsa/dynamic-programming.html">dynamic programming</a></td></tr>
+              <tr><td>The best value, and a provable local rule exists</td><td><a href="/roadmap/dsa/greedy-algorithms.html">greedy</a></td></tr>
+              <tr><td>The best value, no repeating subproblems, but good bounds exist</td><td>branch and bound (below)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The lesson repeats one check: when a problem can be solved both ways, the demos compare the two. The lists produced by backtracking have the same size as the count from the DP, and a walk through a grid is checked against a bitmask table.</p>
+        <hr>
+
+        <h2 id="enumeration">Listing All Solutions</h2>
+        <p>The first five problems all list their answers. Each shows one new idea. All are in <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/55_backtracking_template.go">55_backtracking_template.go</a>.</p>
+
+        <h3 id="subsets">Subsets</h3>
+        <p>For each element there are two choices: leave it out or put it in. A leaf appears after every element has been decided, so a set of n elements has 2<sup>n</sup> subsets.</p>
+        <pre><code class="language-go line-numbers">func subsets(nums []int) [][]int {
+	var result [][]int
+	var path []int
+	var explore func(i int)
+	explore = func(i int) {
+		if i == len(nums) {
+			result = append(result, slices.Clone(path)) // a COPY: path changes later
+			return
+		}
+		explore(i + 1) // choice 1: leave nums[i] out
+		path = append(path, nums[i])
+		explore(i + 1)            // choice 2: put nums[i] in
+		path = path[:len(path)-1] // un-choose: remove it again
+	}
+	explore(0)
+	return result
+}</code></pre>
+
+        <h3 id="aliasing">Record a Copy</h3>
+        <p><code>path</code> is one slice that keeps changing during the search. Storing <code>path</code> itself stores a slice header that shares the same backing array, so later changes rewrite the stored answers. The demo runs the same code without <code>slices.Clone</code> and prints:</p>
+        <pre><code class="language-text">correct:  [[] [3] [2] [2 3] [1] [1 3] [1 2] [1 2 3]]
+no copy:  [[] [1] [1] [1 2] [1] [1 2] [1 2] [1 2 3]]</code></pre>
+        <p>The second list has eight entries, but the wrong ones. Always copy when you record. For a string built from a byte slice, <code>string(path)</code> already copies.</p>
+
+        <h3 id="permutations">Permutations</h3>
+        <p>At each position, choose any element that is not used yet. Now there are two things to restore: the path and the <code>used</code> flag.</p>
+        <pre><code class="language-go line-numbers">for i := range nums {
+	if used[i] {
+		continue // already in the path: prune
+	}
+	used[i] = true // choose
+	path = append(path, nums[i])
+	explore()
+	path = path[:len(path)-1] // un-choose: BOTH changes must be undone
+	used[i] = false
+}</code></pre>
+        <p>There are n! results: 6 for three elements, 5,040 for seven. The demo checks that each n from 0 to 7 gives n! distinct lists, each using every number once.</p>
+
+        <h3 id="duplicates">Inputs with Duplicates</h3>
+        <p>For <code>{1, 2, 2}</code> the plain algorithms produce eight subsets, because the two 2s are treated as different elements. Sort the input first. Then at each level of the tree, skip a value equal to the one just tried at the <em>same</em> level: choosing the same value in the same position again only repeats a branch.</p>
+        <pre><code class="language-go">for i := start; i &lt; len(nums); i++ {
+	if i &gt; start &amp;&amp; nums[i] == nums[i-1] {
+		continue // same value already tried at this level
+	}
+	// choose, explore, un-choose as usual
+}</code></pre>
+        <p>The result is <code>[] [1] [1 2] [1 2 2] [2] [2 2]</code>. Note the condition <code>i &gt; start</code>: skipping is only correct for a value that was already tried at this level, not for the first element after descending. For permutations the rule is different: use an equal value only after its equal predecessor is in the path (<code>!used[i-1]</code> means skip), which forces equal values to appear in their sorted order. The demo compares both with "enumerate everything and remove duplicates" on 400 random inputs with many repeats.</p>
+
+        <h3 id="combination-sum">Combination Sum and Pruning</h3>
+        <p>Find every way to reach a target by adding numbers from a list, using each number any number of times. Combinations, not sequences: <code>{2, 3}</code> and <code>{3, 2}</code> are the same, so the next choice may never go back to an earlier candidate. The loop starts at index <code>from</code>, and passes <code>i</code> (not <code>i + 1</code>) to allow repeats.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-backtracking-tree.svg" alt="Search tree for combination sum with candidates 2, 3 and 5 and target 5. The solutions [2,3] and [5] are green, [2,2] is a dead end, and the branches [2,5], [3,3], [3,5] and [2,2,...] are pruned because the next number exceeds what is still needed" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The search tree for candidates {2, 3, 5} and target 5. Two branches succeed, one dead-ends, and four are never visited.</p>
+        </div>
+
+        <pre><code class="language-go line-numbers">for i := from; i &lt; len(cands); i++ {
+	if prune &amp;&amp; cands[i] &gt; remaining {
+		break // sorted: every later candidate is even larger
+	}
+	path = append(path, cands[i])
+	explore(i, remaining-cands[i]) // i, not i+1: a number may repeat
+	path = path[:len(path)-1]
+}</code></pre>
+        <p><strong>Pruning</strong> is what separates backtracking from brute force. With the candidates sorted, once one number is larger than what is still needed, every later number is too, so the loop stops. The set of solutions is identical; only the number of visited states changes: over 500 random problems the demo visits 24,603 states without the check and 14,723 with it. The number of lists also matches the DP count from <a href="/roadmap/dsa/dynamic-programming.html#counting-order">Dynamic Programming</a>, so the DP acts as an independent check.</p>
+
+        <h3 id="parentheses">Balanced Parentheses</h3>
+        <p>Build a string of n opening and n closing brackets from left to right. Two rules prune the tree so that only valid strings are ever built: add <code>(</code> only while fewer than n have been used, and add <code>)</code> only while it closes something (<code>close &lt; open</code>). The number of results follows the Catalan numbers: <code>1 1 2 5 14 42 132 429 1430 4862 16796</code> for n = 0 to 10. For n up to 6 the demo compares the result with all 2<sup>2n</sup> bracket strings filtered by a validity check. Here the constraint is not tested at the end but built into the choices, which is the best kind of pruning: there are no dead ends at all.</p>
+        <hr>
+
+        <h2 id="pruning">Pruning and Choice Order</h2>
+        <p>Two questions decide whether a search finishes in a millisecond or in a year. <strong>Pruning:</strong> how early can you detect a dead end? <strong>Choice order:</strong> which decision do you make next? Both are shown on two classic puzzles in <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/56_queens_sudoku.go">56_queens_sudoku.go</a>.</p>
+
+        <h3 id="queens">N-Queens</h3>
+        <p>Place n queens on an n × n board so that no two share a row, a column, or a diagonal. Forcing <strong>one queen per row</strong> removes the row constraint entirely: the search decides only the column of each row's queen. A queen at (r, c) attacks along three lines, and each line has a simple number: the column <code>c</code>, the diagonal <code>r − c</code>, and the anti-diagonal <code>r + c</code>. Two queens share a line exactly when they share one of these numbers, so three sets of taken values are the whole state.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-n-queens.svg" alt="An 8 by 8 board with eight queens, one per row and column, in columns 0 4 7 5 2 6 1 3. A side panel lists the column, r minus c and r plus c values, all different" width="680" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">One of the 92 solutions for n = 8. The three lists of numbers on the right are all distinct: that is what "no two queens attack" means.</p>
+        </div>
+
+        <pre><code class="language-go line-numbers">for c := 0; c &lt; n; c++ {
+	d, a := r-c+n-1, r+c
+	if usedCol[c] || usedDiag[d] || usedAnti[a] {
+		continue // attacked: prune before going deeper
+	}
+	nodes++
+	col[r] = c
+	usedCol[c], usedDiag[d], usedAnti[a] = true, true, true // choose
+	place(r + 1)
+	usedCol[c], usedDiag[d], usedAnti[a] = false, false, false // un-choose
+}</code></pre>
+        <p>Three things are chosen and three are undone. The demo prints the count and the number of tried placements for each n and checks them against the known solution table and against all column permutations for n ≤ 8:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>n</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th></tr></thead>
+            <tbody>
+              <tr><td>solutions</td><td>2</td><td>10</td><td>4</td><td>40</td><td>92</td><td>352</td><td>724</td></tr>
+              <tr><td>placements tried</td><td>16</td><td>53</td><td>152</td><td>551</td><td>2,056</td><td>8,393</td><td>35,538</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For n = 8 there are 4,426,165,368 ways to put eight queens on 64 squares. The pruned search tries 2,056 placements.</p>
+
+        <h3 id="queens-bits">Sets as Bit Masks</h3>
+        <p>The three sets can live in three integers. A set bit means "taken", and the diagonal masks shift by one bit per row, because a diagonal moves one column sideways for every row down:</p>
+        <pre><code class="language-go line-numbers">free := all &amp;^ (cols | diag | anti)
+for free != 0 {
+	bit := free &amp; -free // lowest free column
+	free &amp;^= bit
+	count += place(cols|bit, (diag|bit)&lt;&lt;1&amp;all, (anti|bit)&gt;&gt;1)
+}</code></pre>
+        <p>One <code>&amp;^</code> finds all legal columns of a row at once, and there are no arrays to restore: the masks are passed by value, so un-choosing is free. For n = 13 (73,712 solutions) the array version takes about 300 ms and the bitmask version about 40 ms on the test machine. The same idea as the bitmask state in <a href="/roadmap/dsa/dynamic-programming.html#bitmask">Dynamic Programming</a>, used here with recursion instead of a table.</p>
+
+        <h3 id="sudoku">Sudoku</h3>
+        <p>Fill a 9 × 9 grid so every row, column, and 3 × 3 box holds the digits 1 to 9. The state is three arrays of nine bit sets (row, column, box). The candidates for an empty cell are the digits missing from all three:</p>
+        <pre><code class="language-go line-numbers">func (s *solver) candidates(r, c int) uint16 {
+	return ^(s.rows[r] | s.cols[c] | s.box[r/3*3+c/3]) &amp; 0x3FE // bits 1..9
+}</code></pre>
+        <p>Choosing puts the digit into all three sets; un-choosing clears it from all three. After a solution is found, the demo checks every answer against the rules and against the given digits.</p>
+
+        <h3 id="mrv">Fail First: the Most Constrained Cell</h3>
+        <p>Which empty cell should be filled next? The simple answer is "the first one in reading order". A much better answer is <strong>the cell with the fewest candidates</strong>. A cell with one candidate is forced, and a cell with zero candidates proves at once that the current branch is a dead end. Failing early is cheaper than discovering the same dead end after filling a dozen other cells. This is the "minimum remaining values" heuristic, and the results are dramatic:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Puzzle</th><th>first empty cell</th><th>most constrained cell</th></tr></thead>
+            <tbody>
+              <tr><td>a newspaper puzzle</td><td>4,209 states</td><td>52 states</td></tr>
+              <tr><td>a puzzle built to defeat brute force</td><td>gave up after 5,000,000 states</td><td>solved in 58,234 states</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The choice order does not change which solutions exist, only how much of the tree is explored to reach them. For the same reason it pays to decide the most constrained thing first in any search: the queen row with the fewest safe columns, the graph vertex with the most neighbours.</p>
+        <hr>
+
+        <h2 id="grids-strings">Grids and Strings</h2>
+        <p>Grids and strings bring new kinds of state to undo: a visited mark in the grid, a prefix of letters, an end position for the next piece. Demo with five problems, each compared with an independent method: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/57_search_and_paths.go">57_search_and_paths.go</a>.</p>
+
+        <h3 id="word-search">Word Search</h3>
+        <p>Is a word spelled by a path of adjacent cells (up, down, left, right) that never reuses a cell? The visited mark is the state: set it when you choose a cell and clear it when you undo. Writing the mark into the grid itself (a <code>#</code> that matches no letter) needs no extra array:</p>
+        <pre><code class="language-go line-numbers">saved := g[r][c]
+g[r][c] = '#' // choose: this cell is now used
+for _, d := range dirs {
+	if dfs(r+d[0], c+d[1], k+1) {
+		g[r][c] = saved // leave the grid as we found it, even on success
+		return true
+	}
+}
+g[r][c] = saved // un-choose
+return false</code></pre>
+        <p>The line <code>g[r][c] = saved</code> after the loop is easy to forget. Without it, every failed branch leaves a wall of <code>#</code> behind and later searches see a broken grid. The demo compares the result with an oracle that lists every path in the grid and looks the word up in the list, on 1,500 random grids.</p>
+
+        <h3 id="prefix-pruning">Many Words: Prune by Prefix</h3>
+        <p>To find every word from a dictionary in a grid, following every path up to the longest word is wasteful. Keep the set of all <em>prefixes</em> of the dictionary words, and stop the moment the letters so far start no word:</p>
+        <pre><code class="language-go line-numbers">cur += string(grid[r][c])
+nodes++
+if prune &amp;&amp; !prefix[cur] {
+	return // no dictionary word starts with cur: abandon the branch
+}</code></pre>
+        <p>On the small board in the demo, 400 states shrink to 72. Over 300 random boards the search drops from 91,149 states to 15,743, and the found words match the "list every path and filter" oracle every time. A trie stores the prefixes far more compactly, which is the subject of <a href="/roadmap/dsa/advanced-trees.html">Advanced Trees</a>.</p>
+
+        <h3 id="partitions">Letter Combinations and Palindrome Partitions</h3>
+        <p>Two more problems have a simple choice at each step. <strong>Letter combinations of a phone number</strong> chooses one letter for each digit, so the number of results is the product of the letter counts (the demo checks this on random digit strings). <strong>Palindrome partitions</strong> lists every way to cut a string into palindromes. The choice is where the next piece ends, and only palindromic pieces are tried, so bad cuts never grow. "aaba" has three partitions: a|a|b|a, a|aba, and aa|b|a. The demo compares 500 random strings with all 2<sup>n−1</sup> ways of cutting them. Contrast this with the palindrome DP in <a href="/roadmap/dsa/dynamic-programming.html#prefix-partitions">Dynamic Programming</a>, which only counts the fewest cuts and lists nothing.</p>
+
+        <h3 id="walk-every-cell">Walking Every Cell</h3>
+        <p>Given a grid with a start cell, an end cell, and walls, count the routes from start to end that visit every free cell exactly once. The state to undo is the visited mark. There are two prunings: never step on a used cell, and reaching the end before every cell is visited is a dead end.</p>
+        <pre><code class="language-go line-numbers">visited[nr][nc] = true // choose
+dfs(nr, nc, left-1)
+visited[nr][nc] = false // un-choose</code></pre>
+        <p>On a 3 × 4 grid there are 4 such routes, found in 195 states. To check the count without trusting the same method, the demo builds the bitmask DP from <a href="/roadmap/dsa/dynamic-programming.html#bitmask">Dynamic Programming</a> (<code>ways[mask][cell]</code>) and compares both on 400 random grids with walls. Two completely different algorithms agreeing is strong evidence that both are right. The DP is faster on large grids, but it needs 2<sup>cells</sup> memory; backtracking with good pruning can handle cases the table cannot hold.</p>
+        <hr>
+
+        <h2 id="optimization">Optimization: Branch and Bound</h2>
+        <p>To find the <em>best</em> solution, plain backtracking still visits every solution. <strong>Branch and bound</strong> adds one idea: at each state, compute an <em>optimistic bound</em>, the best value this branch could possibly reach, and abandon the branch when even that cannot beat the best solution found so far. Demo with two problems: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/58_branch_and_bound.go">58_branch_and_bound.go</a>.</p>
+
+        <h3 id="bounds">What Makes a Good Bound</h3>
+        <ul>
+          <li><strong>It must be optimistic.</strong> It may never be lower than the true best of the branch, or a branch that contains the best solution gets cut. This is the one rule that must not be broken.</li>
+          <li><strong>A tighter bound prunes more,</strong> but costs more to compute in every state. The best bounds come from a relaxed version of the problem that is easy to solve.</li>
+          <li><strong>Find a good solution early.</strong> The bound can only prune against a solution that already exists, so try the promising choice first.</li>
+        </ul>
+
+        <h3 id="coloring">Graph Colouring and Symmetry</h3>
+        <p>Colour the vertices of a graph with the fewest colours so that neighbours differ. Try 1 colour, then 2, then 3, until a colouring exists. The prune is the constraint itself: skip a colour that a neighbour already has. The new idea is <strong>symmetry breaking</strong>. Colours are interchangeable: swapping "red" and "blue" everywhere gives another valid colouring, and a search that ignores this repeats every failed branch once for each permutation of the colours. So a vertex may reuse a colour that is already in use, or open the <em>next</em> new colour, but never a colour that skips ahead:</p>
+        <pre><code class="language-go line-numbers">limit := m // colours 0..m-1 are allowed
+if symmetry {
+	limit = min(m, used+1) // reuse a colour, or open just the next new one
+}
+for c := 0; c &lt; limit; c++ {</code></pre>
+        <p>The demo runs three variants on five well-known graphs (the chromatic numbers are 5, 3, 2, 3, and 4):</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Graph</th><th>Colours</th><th>plain</th><th>+ symmetry</th><th>+ symmetry, high degree first</th></tr></thead>
+            <tbody>
+              <tr><td>K5 (complete)</td><td>5</td><td>94</td><td>20</td><td>20</td></tr>
+              <tr><td>cycle C5</td><td>3</td><td>17</td><td>13</td><td>13</td></tr>
+              <tr><td>cycle C6</td><td>2</td><td>9</td><td>9</td><td>9</td></tr>
+              <tr><td>Petersen graph</td><td>3</td><td>22</td><td>18</td><td>18</td></tr>
+              <tr><td>Grötzsch graph</td><td>4</td><td>495</td><td>99</td><td>103</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The gap grows with the graph. On 20 random graphs of 14 vertices the total number of states is 140,718 for the plain search, 6,591 with symmetry breaking, and 828 with symmetry breaking and high-degree vertices first: a 170-fold reduction from two small ideas. The demo also checks the colour count against a brute force that tries every possible colouring, on 300 random graphs of up to 7 vertices.</p>
+
+        <h3 id="knapsack-bb">Knapsack with a Bound</h3>
+        <p>For the 0/1 knapsack, the bound comes from the problem's own relaxation: the <strong>fractional knapsack</strong> from <a href="/roadmap/dsa/greedy-algorithms.html#knapsack">Greedy Algorithms</a>. If the remaining items could be cut, greedy by value per weight is optimal, so its value is an upper bound on what the whole branch can reach. Real answers cannot do better, because items cannot really be cut.</p>
+        <pre><code class="language-go line-numbers">bound := func(i, room, value int) float64 {
+	total := float64(value)
+	for ; i &lt; n &amp;&amp; room &gt; 0; i++ {
+		if sorted[i].w &lt;= room {
+			room -= sorted[i].w
+			total += float64(sorted[i].v)
+		} else {
+			total += float64(sorted[i].v) * float64(room) / float64(sorted[i].w)
+			break
+		}
+	}
+	return total
+}</code></pre>
+        <p>The search sorts the items by value per weight, tries "take it" before "leave it", and returns from any state whose bound (rounded down, since real values are whole numbers) does not exceed the best value found so far. The demo compares three modes on 300 random instances against the DP table from <a href="/roadmap/dsa/dynamic-programming.html#knapsack-01">Dynamic Programming</a>:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Mode</th><th>States visited (300 instances)</th></tr></thead>
+            <tbody>
+              <tr><td>plain: try every subset</td><td>1,294,664</td></tr>
+              <tr><td>skip items that no longer fit</td><td>408,129</td></tr>
+              <tr><td>also prune by the fractional bound</td><td>4,655</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The real payoff is where the DP cannot go. With weights up to 10<sup>8</sup> and a capacity of over a billion, the DP table would need 50 billion cells for 45 items. The bounded search solves the instance in 109 states. The demo checks the method against every subset for 22-item instances of the same size, where 2<sup>22</sup> subsets is still feasible. The two techniques complement each other: use the DP when the numbers are small, and the bound when the numbers are large but the structure is friendly. Branch and bound has no guarantee, though: a badly chosen bound or an unlucky instance can still explore an exponential number of states.</p>
+        <hr>
+
+        <h2 id="design">Designing a Backtracking Search</h2>
+
+        <h3 id="checklist">A Checklist</h3>
+        <ol>
+          <li><strong>Decision.</strong> What is decided at each level: an element (include or not), a position (which value), a cell (which digit)?</li>
+          <li><strong>State.</strong> What must be stored so the next level can tell which choices are legal (path, used flags, taken columns, visited marks)?</li>
+          <li><strong>Goal.</strong> When is the state a complete solution, and what is recorded (a copy)?</li>
+          <li><strong>Constraint.</strong> Which choices are illegal? Test them <em>before</em> choosing, not after the branch is complete.</li>
+          <li><strong>Undo.</strong> List every change made by choosing, and reverse each one.</li>
+          <li><strong>Order and bound.</strong> Which decision comes first, and which choice is tried first? Is there a cheap optimistic bound?</li>
+        </ol>
+
+        <h3 id="tree-size">Estimating the Size of the Tree</h3>
+        <p>Before you run a search, estimate its worst case from the shape of the tree. A yes/no decision per element gives 2<sup>n</sup> leaves. Choosing an order of n items gives n!. Choosing one of k values at each of n positions gives k<sup>n</sup>. Backtracking is practical up to roughly n = 20 to 25 for 2<sup>n</sup> and n = 10 to 12 for n! <em>without</em> pruning, and much further when the constraints prune well, as in the queens and Sudoku above. If the pruned tree is still too large, look for a different technique: a DP if subproblems repeat, or a heuristic if a good answer is enough.</p>
+
+        <h3 id="beyond">When Backtracking Is Not Enough</h3>
+        <p>Real constraint-solving tools build on this lesson. SAT solvers add "learn from a dead end" so the same conflict is not met again, constraint solvers propagate each choice through the remaining variables before searching, and metaheuristics such as simulated annealing give up exactness to search vast spaces. The template, the undo step, and the habit of failing early carry over to all of them.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Backtracking bugs rarely crash. They produce lists with a wrong item, a missing item, or a search that is silently too slow.</p>
+
+        <h3 id="pitfall-copy">Storing the Path Instead of a Copy</h3>
+        <p>The recorded solutions all change when <code>path</code> changes, as the demo's aliasing output shows. Clone at the moment of recording.</p>
+
+        <h3 id="pitfall-undo">Forgetting to Undo One Change</h3>
+        <p>If choosing changes a slice, a flag, and a counter, un-choosing must restore all three. Put the choose and un-choose lines next to each other and read them as a pair. A symptom is a search that works on the first branch and then finds too few solutions.</p>
+
+        <h3 id="pitfall-late-prune">Pruning Too Late, or Wrongly</h3>
+        <p>Testing a constraint only at the leaf turns backtracking into brute force. Test it before choosing. Conversely, a prune that is too aggressive, such as a bound that is not optimistic, silently discards valid solutions: the search finishes fast and returns a wrong answer, which is why every demo has an oracle.</p>
+
+        <h3 id="pitfall-duplicates">Duplicates and Ordering</h3>
+        <p>With repeated values or interchangeable choices, the same solution is found many times. Sort and skip repeated values at the same level, or break symmetry as in the colouring above. Test with inputs full of repeats; random inputs with distinct values hide this bug.</p>
+
+        <h3 id="pitfall-depth">Recursion Depth and Shared State</h3>
+        <p>The recursion depth equals the number of decisions, which is small for most puzzles but can be large for a walk through a big grid. Go grows the stack dynamically, so deep recursion is rarely fatal, but each level costs memory. Avoid package-level variables for search state: a closure over local variables, as the demos use, keeps searches independent and makes the undo easier to reason about.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>For each exercise, write down the decision, the state, and the constraint before any code, then decide what the recursion must undo.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/55_backtracking_template.go">55_backtracking_template.go</a>, delete the line <code>used[i] = false</code> in <code>permutations</code>. How many checks fail, and which results are missing?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/56_queens_sudoku.go">56_queens_sudoku.go</a>, change the un-choose line in <code>queens</code> so that <code>usedDiag[d]</code> is never cleared. How many of the ten board sizes now give a wrong count, and why do the smallest sizes survive?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/57_search_and_paths.go">57_search_and_paths.go</a>, delete the line <code>g[r][c] = saved // un-choose</code> after the loop in <code>wordExists</code>. What happens to later words on the same grid?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/58_branch_and_bound.go">58_branch_and_bound.go</a>, replace the fractional term in <code>bound</code> by <code>total += 0</code>. The bound is no longer optimistic. Which checks fail, and why does the search still finish quickly?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Subsets with a target.</strong> List every subset of a set of positive numbers that adds up to a target. Add the pruning "stop when the sum exceeds the target", then a stronger prune using the sum of the numbers that remain. Count the states each version visits.</li>
+          <li><strong>Restore IP addresses.</strong> Cut a string of digits into four numbers from 0 to 255 with no leading zeros. What is the decision at each level, and how small is the tree?</li>
+          <li><strong>Knight's tour.</strong> Move a knight so that it visits every square of a small board exactly once. Try neighbour squares in order of fewest onward moves (Warnsdorff's rule) and compare the number of states with plain order.</li>
+          <li><strong>Sudoku with a second heuristic.</strong> Add "hidden singles" to the solver in demo 56: if a digit fits in only one cell of a row, column or box, place it. How much does it reduce the states on the hard puzzle?</li>
+          <li><strong>Count with both methods.</strong> Count the ways to place n non-attacking rooks on an n × n board with some cells forbidden. Solve it by backtracking, then with a bitmask DP over columns, and compare the results and the running times.</li>
+        </ol>
+        <p>Continue with <a href="/roadmap/dsa/advanced-trees.html">Advanced Trees</a>, where the tree becomes the data structure instead of the search space.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "dsa",
+    topicId: "backtracking",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

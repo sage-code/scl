@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Recursion in Go: base case and reduction, the call stack, divide and conquer, recurrence relations, recursion trees, and converting recursion to iteration with an explicit stack.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="dsa, recursion, call stack, go, golang, divide and conquer, recurrence, tower of hanoi, fast power, explicit stack">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DSA Recursion</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsa/recursion.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="recursion">Recursion &amp; the Call Stack</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Recursion solves a problem by solving smaller instances of the same problem. It is the natural way to express algorithms on trees, graphs, and anything defined in terms of itself, and it is the foundation of divide and conquer, backtracking, and dynamic programming later in this roadmap. This lesson teaches how to design recursive functions, what they cost, and how to replace recursion with a loop when needed.
+        </div>
+
+        <h2 id="thinking">Thinking Recursively</h2>
+        <p>Beginners often try to trace every recursive call in their head and get lost. The productive approach is different: define the problem precisely, handle the smallest case directly, and trust that the recursive call solves the smaller case correctly.</p>
+
+        <h3 id="base-reduction">Base Case and Reduction</h3>
+        <p>Every recursive function answers two questions:</p>
+        <ul>
+          <li><strong>Base case</strong> — which input is small enough to answer without recursion? (an empty slice, n = 0, a nil node)</li>
+          <li><strong>Reduction</strong> — how do I build the answer for this input from the answer for a smaller input?</li>
+        </ul>
+        <p>Every recursive call must move strictly closer to a base case; otherwise the recursion never ends. In the example below the slice shrinks by one element per call until it is empty.</p>
+        <pre><code class="language-go line-numbers">// sum adds all elements of s.
+//   base case: the empty slice sums to 0
+//   reduction: sum(s) = s[0] + sum(rest of s)
+func sum(s []int) int {
+	if len(s) == 0 {
+		return 0
+	}
+	// s[1:] is a view of the same backing array, not a copy,
+	// so each call does O(1) work besides the recursive call.
+	return s[0] + sum(s[1:])
+}</code></pre>
+
+        <h3 id="leap-of-faith">The Recursive Leap of Faith</h3>
+        <p>When writing <code>s[0] + sum(s[1:])</code>, do not ask "how does <code>sum(s[1:])</code> compute its result?". Assume it returns the correct sum of the rest — that is what the function promises — and check only that you combine it correctly. This is mathematical induction applied to code: if the base case is right and each step is right assuming smaller cases are right, the whole function is right.</p>
+        <hr>
+
+        <h2 id="call-stack">The Call Stack</h2>
+        <p>Recursion is not magic: it is ordinary function calls. Each call gets a <strong>stack frame</strong> holding its parameters, local variables, and the place to return to. Frames are pushed when a function is called and popped when it returns, in last-in, first-out order.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-call-stack.svg" alt="Call stack for factorial(3): frames for main, factorial(3), factorial(2), factorial(1), then values returned while unwinding" width="620" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">At the deepest point of <code>factorial(3)</code>, four frames are active. The base case returns 1, and each waiting frame multiplies by its own <code>n</code> as the stack unwinds.</p>
+        </div>
+
+        <h3 id="frames">Frames and Local State</h3>
+        <p>Each frame has its own copy of <code>n</code>. When <code>factorial(3)</code> calls <code>factorial(2)</code>, the variable <code>n = 3</code> is not overwritten; it waits in its own frame until the call returns. The demo prints every call and return, indented by depth, so you can watch the stack grow and shrink.</p>
+        <pre><code class="language-go line-numbers">func factorial(n int) int {
+	if n &lt;= 1 {
+		return 1 // base case
+	}
+	// this frame pauses here, keeping its own n,
+	// until factorial(n-1) returns a value
+	return n * factorial(n-1)
+}</code></pre>
+        <p>Full trace program: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/05_recursion_trace.go">05_recursion_trace.go</a>.</p>
+
+        <h3 id="depth">Depth and Stack Growth in Go</h3>
+        <p>Recursion depth costs memory: one frame per active call. Goroutine stacks in Go start small (a few kilobytes) and grow automatically, so recursion thousands or even millions of levels deep works. The limit is 1 GB per goroutine on 64-bit systems by default (adjustable with <code>runtime/debug.SetMaxStack</code>). Exceeding it — usually because a base case is missing — ends the program with <code>fatal error: stack overflow</code>.</p>
+        <p>Go does not perform tail-call elimination, so writing the recursive call as the last statement does not reduce stack usage. If depth can reach the size of the input and the input can be large, prefer an iterative version.</p>
+        <hr>
+
+        <h2 id="patterns">Recursion Patterns</h2>
+        <p>Recursive algorithms differ mainly in <em>how much</em> they shrink the problem and <em>how many</em> recursive calls each level makes. These two numbers determine the cost.</p>
+
+        <h3 id="linear-recursion">Linear Recursion</h3>
+        <p>One recursive call on an input smaller by a constant. Depth is n, total work is O(n). Examples: sum, factorial, reversing a string, walking a linked list. These are usually clearer as loops in Go, but they are the right first step for learning.</p>
+        <pre><code class="language-go line-numbers">// reverse returns s with its bytes in reverse order (ASCII input).
+// reduction: reverse("abc") = reverse("bc") + "a"
+// Note: string concatenation copies, so this version is O(n^2) —
+// fine for learning, not for long strings.
+func reverse(s string) string {
+	if len(s) &lt;= 1 {
+		return s
+	}
+	return reverse(s[1:]) + s[:1]
+}</code></pre>
+
+        <h3 id="divide-conquer">Divide and Conquer</h3>
+        <p>Split the input into parts of a <em>fraction</em> of the size, solve them, and combine. Cutting the problem in half each time reduces depth from n to log n. Fast exponentiation computes xⁿ with about log₂ n multiplications instead of n:</p>
+        <pre><code class="language-go line-numbers">// pow computes x^n for n &gt;= 0 in O(log n) multiplications.
+func pow(x float64, n int) float64 {
+	if n == 0 {
+		return 1
+	}
+	half := pow(x, n/2) // compute the half ONCE and reuse it
+	if n%2 == 0 {
+		return half * half // x^8 = x^4 * x^4
+	}
+	return half * half * x // x^9 = x^4 * x^4 * x
+}</code></pre>
+        <p>Writing <code>pow(x, n/2) * pow(x, n/2)</code> would make two calls per level and return the cost to O(n). The demo counts calls for both versions and includes the modular form used in cryptography: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/06_fast_power.go">06_fast_power.go</a>.</p>
+
+        <h3 id="multiple-branches">Multiple Branches</h3>
+        <p>When each call makes two or more recursive calls on inputs that shrink by only a constant, the number of calls grows exponentially. The Tower of Hanoi is the classic example: moving n disks requires moving n-1 disks twice, giving 2ⁿ - 1 moves. Here recursion is the clearest way to express the solution, and the exponential cost is inherent to the problem, not a flaw in the code.</p>
+        <p>The demo generates the moves and verifies every rule by replaying them on three stacks: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/07_hanoi.go">07_hanoi.go</a>.</p>
+
+        <h3 id="tree-recursion">Recursion on Trees</h3>
+        <p>Recursive data calls for recursive code. A directory contains files and directories; its size is its own size plus the size of each child. The function mirrors the data definition exactly, which is why tree algorithms (Phase 2) are almost always written recursively.</p>
+        <pre><code class="language-go line-numbers">// Node is a file (no children) or a directory (with children).
+type Node struct {
+	Name     string
+	Size     int
+	Children []*Node
+}
+
+// totalSize visits every node once: O(number of nodes).
+func totalSize(n *Node) int {
+	total := n.Size
+	for _, c := range n.Children {
+		total += totalSize(c) // trust the call for each subtree
+	}
+	return total
+}</code></pre>
+        <hr>
+
+        <h2 id="cost">Analyzing Recursive Cost</h2>
+        <p>Loops can be read by counting iterations. Recursive functions need one more tool: an equation that describes the cost in terms of itself.</p>
+
+        <h3 id="recurrences">Recurrence Relations</h3>
+        <p>Write T(n) for the cost on input size n, and express it through the cost of the recursive calls plus the work done in the call itself. Four recurrences cover most algorithms in this roadmap:</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Recurrence</th><th>Solution</th><th>Pattern</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td>T(n) = T(n-1) + O(1)</td><td>O(n)</td><td>shrink by one, constant work</td><td>sum, factorial</td></tr>
+            <tr><td>T(n) = T(n/2) + O(1)</td><td>O(log n)</td><td>halve, constant work</td><td>fast power, binary search</td></tr>
+            <tr><td>T(n) = 2T(n/2) + O(n)</td><td>O(n log n)</td><td>halve twice, linear combine</td><td>merge sort</td></tr>
+            <tr><td>T(n) = 2T(n-1) + O(1)</td><td>O(2ⁿ)</td><td>two calls, shrink by one</td><td>Tower of Hanoi, naive Fibonacci</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="recursion-tree">Recursion Trees and Repeated Work</h3>
+        <p>Drawing the calls as a tree makes the cost visible: the number of nodes is the number of calls. The naive Fibonacci function <code>fib(n) = fib(n-1) + fib(n-2)</code> produces the tree below.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-recursion-tree.svg" alt="Recursion tree for fib(5) with 15 calls; the second fib(3) and the repeated fib(2) calls are highlighted" width="640" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Naive <code>fib(5)</code> makes 15 calls. Orange nodes repeat work already done elsewhere in the tree: <code>fib(3)</code> is computed twice and <code>fib(2)</code> three times.</p>
+        </div>
+        <p>The repeated subtrees are the "repeated work" from the problem-solving workflow. Storing each result the first time it is computed — <em>memoization</em> — removes them and makes the function linear. This idea is the core of <a href="/roadmap/dsa/dynamic-programming.html">Dynamic Programming</a> in Phase 4.</p>
+        <pre><code class="language-go line-numbers">// fibMemo computes Fibonacci numbers in O(n) time by caching results.
+// memo[k] holds fib(k) once computed; the map is shared by all calls.
+func fibMemo(n int, memo map[int]int) int {
+	if n &lt; 2 {
+		return n // fib(0) = 0, fib(1) = 1
+	}
+	if v, ok := memo[n]; ok {
+		return v // already computed: O(1), no subtree
+	}
+	v := fibMemo(n-1, memo) + fibMemo(n-2, memo)
+	memo[n] = v
+	return v
+}
+
+// usage: fibMemo(90, map[int]int{}) — instant, while naive fib(90)
+// would need about 10^19 calls.</code></pre>
+        <hr>
+
+        <h2 id="iterative">From Recursion to Iteration</h2>
+        <p>Any recursive algorithm can be rewritten as a loop that manages its own stack. The conversion is mechanical once you see that the call stack only stores "what is left to do" and "the state needed to do it".</p>
+
+        <h3 id="explicit-stack">Explicit Stack</h3>
+        <p>Replace the recursive call with a slice used as a stack: push the starting item, then loop while the stack is not empty — pop one item, process it, push its sub-problems. Any state that the recursive version kept in parameters (such as the current path) must be stored in the stack entries.</p>
+        <pre><code class="language-go line-numbers">// totalSizeIter computes the same result as totalSize without recursion.
+func totalSizeIter(root *Node) int {
+	total := 0
+	stack := []*Node{root} // pending work
+	for len(stack) &gt; 0 {
+		n := stack[len(stack)-1]     // take the top item
+		stack = stack[:len(stack)-1] // pop it
+		total += n.Size
+		stack = append(stack, n.Children...) // schedule the children
+	}
+	return total
+}</code></pre>
+        <p>The demo also lists paths in the same depth-first order as recursion and handles a chain one million levels deep: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/08_recursive_to_iterative.go">08_recursive_to_iterative.go</a>.</p>
+
+        <h3 id="when-iterate">When to Prefer Iteration</h3>
+        <ul>
+          <li><strong>Linear recursion</strong> (one call, shrink by one) is almost always clearer and cheaper as a loop in Go.</li>
+          <li><strong>Unbounded depth</strong> — a degenerate tree or a long linked chain — risks exhausting the stack; use an explicit stack.</li>
+          <li><strong>Pause and resume</strong> — iterators that return one element at a time need their state in a data structure, not on the call stack.</li>
+          <li><strong>Balanced trees and divide and conquer</strong> have O(log n) depth; recursion is safe and usually clearer there.</li>
+        </ul>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Recursive bugs tend to be dramatic — infinite loops, stack overflows, exponential slowdowns — but each has a simple cause.</p>
+
+        <h3 id="pitfall-base">Missing or Unreachable Base Case</h3>
+        <p><code>factorial(-1)</code> with the base case <code>n == 0</code> recurses forever: -1, -2, -3, … never reaches 0. Use a base case that covers all small inputs (<code>n &lt;= 1</code>) and reject invalid input explicitly.</p>
+
+        <h3 id="pitfall-exponential">Accidental Exponential Cost</h3>
+        <p>Calling the same function twice on the same argument — as in naive Fibonacci or <code>pow(x, n/2) * pow(x, n/2)</code> — multiplies the work at every level. Compute a sub-result once and store it in a variable or a memo table.</p>
+
+        <h3 id="pitfall-aliasing">Shared Slices Between Calls</h3>
+        <p>Appending to a slice parameter inside recursive calls can overwrite data that another call is still using, because sub-slices share a backing array. When a recursive function builds partial results (paths, subsets), copy the slice before storing it — this becomes essential in <a href="/roadmap/dsa/backtracking.html">Backtracking</a>.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Practice the two design questions (base case, reduction) until they become automatic.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/05_recursion_trace.go">05_recursion_trace.go</a>, add a traced <code>fib</code> and count how many times <code>fib(2)</code> is called for <code>fib(10)</code>.</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/06_fast_power.go">06_fast_power.go</a>, replace <code>half * half</code> with two recursive calls and compare the call counts.</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/08_recursive_to_iterative.go">08_recursive_to_iterative.go</a>, call <code>totalRecursive</code> on the one-million-level chain — it works, because Go grows the stack. Then add <code>debug.SetMaxStack(1 &lt;&lt; 20)</code> (package <code>runtime/debug</code>) at the start of <code>main</code> to cap the stack at 1 MB, run again, and read the <code>fatal error: stack overflow</code> report. The iterative version is unaffected.</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Palindrome.</strong> Write <code>isPalindrome(s string) bool</code> recursively using indices <code>lo, hi</code> instead of slicing. State the base case and the reduction.</li>
+          <li><strong>Count digits.</strong> Write a recursive function that returns the number of decimal digits of a non-negative integer. What is its recurrence?</li>
+          <li><strong>Flatten.</strong> Given <code>type Item struct { Value int; Items []Item }</code>, return all values in depth-first order — first recursively, then with an explicit stack. Check that both produce the same slice.</li>
+        </ol>
+        <p>Next lesson: <a href="/roadmap/dsa/data-structures.html">Data Structures Map</a>.</p>
+      </main>
+    </div>
+  </div>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'dsa',
+    topicId: 'recursion',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

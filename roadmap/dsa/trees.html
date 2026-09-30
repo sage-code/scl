@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Binary trees and binary search trees in Go: terminology, recursive and iterative traversals, level-order BFS, thinking in subtrees, and a generic BST with ordered queries and three-case deletion.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="dsa, go, golang, binary tree, binary search tree, bst, tree traversal, inorder, level order, lowest common ancestor, diameter">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DSA Binary Trees &amp; BST</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsa/trees.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="trees">Binary Trees &amp; BST</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Trees represent hierarchy — file systems, HTML documents, syntax trees in compilers, organization charts — and, in the form of search trees, they keep data sorted while it changes. This lesson teaches the one skill that unlocks nearly every tree problem: thinking in subtrees. It then builds a binary search tree and shows why its shape, not its size, decides its speed.
+        </div>
+
+        <h2 id="terminology">Tree Terminology</h2>
+        <p>A tree is a set of nodes connected by edges, with one node designated the root and no cycles. In a <strong>binary</strong> tree each node has at most two children, called left and right.</p>
+
+        <h3 id="parts">Root, Leaves, Depth, Height</h3>
+        <ul>
+          <li><strong>Root</strong> — the top node, the only node without a parent.</li>
+          <li><strong>Leaf</strong> — a node with no children.</li>
+          <li><strong>Depth</strong> of a node — the number of edges from the root to it (the root has depth 0).</li>
+          <li><strong>Height</strong> of a tree — the number of levels, i.e. the depth of the deepest node plus one. Conventions differ (some count edges); these lessons count levels, so an empty tree has height 0 and a single node height 1.</li>
+          <li><strong>Subtree</strong> — any node together with all of its descendants. Every subtree is itself a tree, which is why recursion fits trees so well.</li>
+        </ul>
+
+        <h3 id="shapes">Tree Shapes</h3>
+        <p>Shape determines cost, because most tree operations walk one path from the root, and the longest path is the height.</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Shape</th><th>Definition</th><th>Height with n nodes</th></tr></thead>
+          <tbody>
+            <tr><td>Complete</td><td>every level full except possibly the last, filled left to right</td><td>⌊log₂ n⌋ + 1</td></tr>
+            <tr><td>Balanced</td><td>subtree heights differ by at most one at every node</td><td>O(log n)</td></tr>
+            <tr><td>Degenerate</td><td>every node has a single child — effectively a linked list</td><td>n</td></tr>
+          </tbody>
+        </table>
+        <hr>
+
+        <h2 id="traversals">Traversals</h2>
+        <p>A traversal visits every node exactly once, so it is O(n). What differs is the order, and each order suits different tasks. The demo runs all of them on the same tree and prints it sideways: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/24_tree_traversals.go">24_tree_traversals.go</a>.</p>
+
+        <h3 id="depth-first">Depth-First Orders</h3>
+        <p>The three depth-first orders are the same three lines of code in a different order. The nil check is the base case: an empty subtree contributes nothing.</p>
+        <pre><code class="language-go line-numbers">type Node struct {
+	Val         int
+	Left, Right *Node
+}
+
+// in-order: left subtree, node, right subtree.
+// On a binary search tree this visits keys in sorted order.
+func inOrder(n *Node, visit func(int)) {
+	if n == nil {
+		return
+	}
+	inOrder(n.Left, visit)
+	visit(n.Val)
+	inOrder(n.Right, visit)
+}
+
+// pre-order  (node, left, right): copy or serialize a tree top-down.
+// post-order (left, right, node): compute answers bottom-up, free a tree.</code></pre>
+
+        <h3 id="iterative-traversal">Iterative Traversal</h3>
+        <p>Converting recursion to an explicit stack (Phase 1) makes the traversal pausable — the basis of iterators over ordered maps. For in-order: descend left as far as possible, pushing each node; when you cannot go further, pop a node, visit it, and continue with its right subtree.</p>
+        <pre><code class="language-go line-numbers">func inOrderIter(root *Node) []int {
+	var out []int
+	var stack []*Node
+	cur := root
+	for cur != nil || len(stack) &gt; 0 {
+		for cur != nil { // go left, remembering the path back
+			stack = append(stack, cur)
+			cur = cur.Left
+		}
+		cur = stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		out = append(out, cur.Val)
+		cur = cur.Right // then the right subtree
+	}
+	return out
+}</code></pre>
+
+        <h3 id="level-order">Level Order</h3>
+        <p>Level-order traversal visits the tree row by row using a FIFO queue — breadth-first search, which Phase 3 generalizes to graphs. Processing the queue in batches of its current length separates the levels.</p>
+        <pre><code class="language-go line-numbers">func levelOrder(root *Node) [][]int {
+	var levels [][]int
+	if root == nil {
+		return levels
+	}
+	queue := []*Node{root}
+	for len(queue) &gt; 0 {
+		width := len(queue) // nodes on this level
+		var level []int
+		for i := 0; i &lt; width; i++ {
+			n := queue[0]
+			queue = queue[1:]
+			level = append(level, n.Val)
+			if n.Left != nil {
+				queue = append(queue, n.Left)
+			}
+			if n.Right != nil {
+				queue = append(queue, n.Right)
+			}
+		}
+		levels = append(levels, level)
+	}
+	return levels
+}</code></pre>
+        <hr>
+
+        <h2 id="subtree-thinking">Thinking in Subtrees</h2>
+        <p>Nearly every binary-tree problem yields to one question: <em>if I already had the answers for the left and right subtrees, how would I combine them into the answer for this node?</em> This is the recursive leap of faith from Phase 1, applied to two sub-problems at once. The demo solves six problems this way: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/26_tree_problems.go">26_tree_problems.go</a>.</p>
+
+        <h3 id="bottom-up">Bottom-Up Answers</h3>
+        <p>Height is the simplest example: <code>height(node) = 1 + max(height(left), height(right))</code>. Some problems need a different value <em>returned</em> than the one <em>asked</em>. The diameter — the longest path between any two nodes — passes through some node and uses the depths of its two subtrees. The function returns depth, which the parent needs, and records the best diameter on the side.</p>
+        <pre><code class="language-go line-numbers">// diameter returns the number of edges on the longest path in the tree.
+func diameter(root *Node) int {
+	best := 0
+	var depth func(n *Node) int
+	depth = func(n *Node) int {
+		if n == nil {
+			return 0
+		}
+		l, r := depth(n.Left), depth(n.Right)
+		best = max(best, l+r) // the longest path that bends at n
+		return 1 + max(l, r)  // what the parent needs
+	}
+	depth(root)
+	return best
+}</code></pre>
+
+        <h3 id="top-down">Top-Down Parameters</h3>
+        <p>Other problems pass information <em>down</em>. To check for a root-to-leaf path with a given sum, subtract each node's value from the target on the way down; at a leaf, the remaining target must be zero. The same pattern checks that a tree is a valid BST by passing down the allowed range of keys.</p>
+
+        <h3 id="lca">Lowest Common Ancestor</h3>
+        <p>The lowest common ancestor of two nodes is the deepest node that has both as descendants. Search both subtrees: if one target is found on each side, the current node is where their paths meet; otherwise the answer is whatever the one successful side returned. The whole tree is visited at most once — O(n).</p>
+        <hr>
+
+        <h2 id="bst">Binary Search Trees</h2>
+        <p>A binary search tree (BST) adds an ordering rule: for every node, all keys in its left subtree are smaller and all keys in its right subtree are larger. Each comparison therefore discards an entire subtree, like binary search on a sorted slice — but the tree also supports fast insertion and deletion.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-bst.svg" alt="BST with root 8; the search for 7 follows 8, 3, 6, 7, going left once and right twice" width="640" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Searching for 7 compares against one node per level: 8 (go left), 3 (go right), 6 (go right), 7 (found). The cost is the height of the tree, not the number of nodes.</p>
+        </div>
+
+        <h3 id="bst-search">Search and Insert</h3>
+        <p>Search walks down one path. Insert searches for the key and, on reaching an empty spot, places a new leaf there. Writing insert as a recursive function that returns the (possibly new) subtree root lets each parent re-attach its child with one assignment, with no special case for an empty tree. <code>cmp.Ordered</code> (Go 1.21) lets the same code handle integers, floats, and strings.</p>
+        <pre><code class="language-go line-numbers">func insert[K cmp.Ordered](n *node[K], k K) *node[K] {
+	if n == nil {
+		return &amp;node[K]{key: k} // empty spot: the new leaf goes here
+	}
+	switch {
+	case k &lt; n.key:
+		n.left = insert(n.left, k)
+	case k &gt; n.key:
+		n.right = insert(n.right, k)
+	} // equal keys: already present, a set stores each key once
+	return n
+}</code></pre>
+
+        <h3 id="bst-delete">Deletion</h3>
+        <p>Deletion has three cases, and the third is the one worth understanding:</p>
+        <ol>
+          <li><strong>Leaf</strong> — remove it.</li>
+          <li><strong>One child</strong> — the child takes the node's place.</li>
+          <li><strong>Two children</strong> — copy the <em>in-order successor</em> (the smallest key in the right subtree) into the node, then delete the successor from the right subtree. The successor has no left child, so that second deletion is case 1 or 2, and the ordering rule still holds because the successor is larger than everything on the left and smaller than everything else on the right.</li>
+        </ol>
+
+        <h3 id="bst-order">Ordered Queries</h3>
+        <p>A hash map finds exact keys faster than a BST, but it knows nothing about order. A BST also answers minimum and maximum, "smallest key ≥ x" (ceiling), range queries, and sorted iteration — each in O(h) or O(h + results). The demo implements all of them, plus a validity check, on a generic ordered set: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/25_binary_search_tree.go">25_binary_search_tree.go</a>.</p>
+
+        <h3 id="bst-shape">Shape Decides Speed</h3>
+        <p>Every BST operation costs O(h). If keys arrive in random order, the expected height is O(log n); in the demo, 2,000 random keys produce a height in the low twenties. If keys arrive <em>sorted</em>, each new key becomes the right child of the previous one and the tree degenerates into a linked list of height 2,000. Self-balancing trees (AVL, red-black) rotate nodes after updates to guarantee O(log n) height; they are covered in <a href="/roadmap/dsa/advanced-trees.html">Advanced Trees</a>.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Tree code is short and recursive, so its mistakes are usually in what is compared or returned.</p>
+
+        <h3 id="pitfall-validate">Validating a BST Locally</h3>
+        <p>Checking only <code>left.key &lt; node.key &lt; right.key</code> at each node is wrong: a grandchild can sit on the wrong side of its grandparent while every parent–child pair looks fine. Pass the allowed <code>(low, high)</code> range down the tree, or check that an in-order traversal is strictly increasing.</p>
+
+        <h3 id="pitfall-return">Discarding the Returned Subtree</h3>
+        <p>With the "return the new subtree root" style, calling <code>insert(n.left, k)</code> without assigning the result to <code>n.left</code> silently loses the new node. Every recursive call that can change the tree must have its result stored.</p>
+
+        <h3 id="pitfall-depth">Recursion Depth on Degenerate Trees</h3>
+        <p>Recursive traversal uses stack space proportional to the height. On a balanced tree that is tiny; on a degenerate tree built from millions of sorted keys it is millions of frames. Balance the tree, or use the iterative traversals.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>For each exercise, first write down what the recursive call returns and how a node combines its children's results.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/25_binary_search_tree.go">25_binary_search_tree.go</a>, insert the 2,000 keys in the order 1000, 500, 1500, 250, 750, … (always the middle of the remaining range). What height do you get, and why is it the best possible?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/26_tree_problems.go">26_tree_problems.go</a>, replace <code>isBalanced</code> with a version that calls <code>maxDepth</code> at every node and count the calls on a degenerate tree of 1,000 nodes.</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Kth smallest.</strong> Return the k-th smallest key of a BST by stopping an in-order traversal early.</li>
+          <li><strong>Build from sorted.</strong> Build a height-balanced BST from a sorted slice by choosing the middle element as the root, recursively.</li>
+          <li><strong>Right side view.</strong> Return the last value of each level (what you see looking at the tree from the right).</li>
+          <li><strong>Rebuild from traversals.</strong> Reconstruct a tree from its pre-order and in-order sequences (values are distinct).</li>
+        </ol>
+        <p>Next lesson: <a href="/roadmap/dsa/heaps.html">Heaps &amp; Priority Queues</a>.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "dsa",
+    topicId: "trees",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

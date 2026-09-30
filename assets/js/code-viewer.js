@@ -114,6 +114,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         'xml': 'xml',
         'json': 'json',
         'dart': 'dart',
+        // Go — grammar is bundled in assets/prism.js (see its download header);
+        // used by the Go track and the DSA roadmap demos (roadmap/dsa/demo/)
+        'go': 'go',
         // Programming Paradigms roadmap (roadmap/pgp/demo/) — representative
         // languages, one or two per paradigm. Grammars bundled in prism.js.
         'bas': 'basic',
