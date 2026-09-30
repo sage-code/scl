@@ -2,27 +2,37 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA String Algorithms: KMP, rolling hash, tries, and suffix arrays in Go. Planned lesson.">
+  <meta name="description" content="String algorithms in Go: KMP and the prefix function, the Z-function, Horspool, Rabin-Karp and rolling hashes, prefix hashes, Manacher&#x27;s palindromes, suffix arrays with LCP, and the Aho-Corasick automaton for many patterns, each checked against brute force.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, go, string-algorithms">
+  <meta name="keywords" content="dsa, go, golang, string algorithms, pattern matching, kmp, prefix function, z function, horspool, rabin karp, rolling hash, polynomial hash, manacher, palindromes, suffix array, lcp, kasai, aho corasick, longest repeated substring">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DSA String Algorithms</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/string-algorithms.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">
   <link rel="stylesheet" href="/assets/css/content-topic.css">
   <link rel="stylesheet" href="/assets/css/content-sidebar.css">
   <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -34,38 +44,491 @@
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">String Algorithms</h1>
+        <h1 id="string-algorithms">String Algorithms</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Planned lesson — authored in a later phase of the DSA roadmap.
+        <div class="alert alert-secondary shadow-sm">
+          Text is the data most programs handle, and the questions asked about it repeat: where does this pattern occur, do these two pieces match, is this a palindrome, which words from a list appear in this document? The obvious answers compare characters one by one and can take O(n × m) time. This lesson shows how each family of questions is answered faster by remembering what earlier comparisons already told you: a table of borders (KMP, Z), a number that stands for a string (hashing), a mirror inside a palindrome (Manacher), a sorted list of suffixes (suffix array), and a trie with fall-back links (Aho-Corasick). Every algorithm is checked against a simple version on thousands of random strings, and against the standard library where one exists.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>This lesson will cover KMP, rolling hash, tries, and suffix arrays in Go, with small inline examples and larger runnable demos in the code viewer.</p>
+        <h2 id="basics">Strings in Go</h2>
+        <p>A Go <code>string</code> is an immutable sequence of <strong>bytes</strong>. <code>s[i]</code> is a byte, <code>len(s)</code> counts bytes, and slicing <code>s[i:j]</code> shares memory and costs O(1). Text in UTF-8 may use several bytes for one character, and <code>for _, r := range s</code> decodes runes. The algorithms in this lesson work on positions, so they treat a string as a sequence of bytes: correct for ASCII and for any byte data. For text with multi-byte characters, convert with <code>[]rune(s)</code> first, run the algorithm on the runes, and remember that positions are then rune positions.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Until this lesson is published, continue with the <a href="/roadmap/dsa/">DSA roadmap index</a>.</p>
+        <h3 id="toolbox">The Toolbox</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Question</th><th>Algorithm</th><th>Time</th><th>Demo</th></tr></thead>
+            <tbody>
+              <tr><td>Every occurrence of one pattern</td><td>KMP, Z, Horspool</td><td>O(n + m); Horspool often sublinear</td><td>64</td></tr>
+              <tr><td>Is this piece equal to that piece? (many times)</td><td>prefix hashes</td><td>O(n) build, O(1) per test</td><td>65</td></tr>
+              <tr><td>Longest repeated or common substring</td><td>hashing plus binary search</td><td>O(n log n)</td><td>65</td></tr>
+              <tr><td>Palindromic substrings</td><td>Manacher</td><td>O(n)</td><td>66</td></tr>
+              <tr><td>Many queries on one text: search, repeats, distinct substrings</td><td>suffix array + LCP</td><td>O(n log² n) build, O(m log n) per search</td><td>67</td></tr>
+              <tr><td>Many patterns at once</td><td>Aho-Corasick</td><td>O(n + total pattern length + matches)</td><td>68</td></tr>
+              <tr><td>Similarity of two strings</td><td>edit distance, LCS (a DP)</td><td>O(n × m)</td><td><a href="/roadmap/dsa/dynamic-programming.html#edit-distance">demo 52</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For everyday use, the standard library's <code>strings.Index</code>, <code>strings.Contains</code> and <code>regexp</code> are the right choice. The algorithms here are what you reach for when the library does not fit: many patterns, streaming input, a text that is queried thousands of times, or a problem that is not a plain search at all. They also teach a technique that recurs everywhere: keep what you already learned and never start over.</p>
+        <hr>
+
+        <h2 id="matching">Pattern Matching</h2>
+        <p>Find every position where a pattern of length m occurs in a text of length n, matches allowed to overlap. The demo <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/64_pattern_matching.go">64_pattern_matching.go</a> implements four methods, counts character comparisons, and checks all of them against <code>strings.Index</code> on 5,000 random inputs.</p>
+
+        <h3 id="naive">The Naive Method</h3>
+        <p>Try every start position, compare from the left, stop at the first mismatch. It is simple and fast on typical text, where a mismatch comes after one or two characters. Its worst case is a text of a repeated letter and a pattern that almost matches: for <code>a^100000</code> and the pattern <code>a^999 b</code> it makes 99,001,000 comparisons, because each start position matches 999 characters before failing, and then everything is compared again from the next position. That waste is what the next algorithms remove.</p>
+
+        <h3 id="prefix-function">The Prefix Function</h3>
+        <p>When a mismatch happens after some characters matched, those characters are a prefix of the pattern. The <strong>prefix function</strong> stores, for every position i, the length of the longest <em>proper</em> prefix of <code>pattern[:i+1]</code> that is also a suffix of it. Such a prefix-and-suffix is called a <em>border</em>. For <code>abcabd</code> the values are 0 0 0 1 2 0: after reading <code>abcab</code> the border is <code>ab</code>, of length 2.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-kmp-shift.svg" alt="The pattern abcabd is aligned with the text abcabcabd. Five characters match and the sixth, d against c, fails. The pattern slides right by three, because the border ab of the matched part is already known to match; only the remaining characters are compared and the pattern matches at position 3" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">After the mismatch the pattern slides by 5 − pi[4] = 3. The text pointer stays where it is.</p>
+        </div>
+
+        <pre><code class="language-go line-numbers">func prefixFunction(p string) []int {
+	pi := make([]int, len(p))
+	k := 0 // length of the border of p[:i] that we are trying to extend
+	for i := 1; i &lt; len(p); i++ {
+		for k &gt; 0 &amp;&amp; p[i] != p[k] {
+			k = pi[k-1] // try the next shorter border
+		}
+		if p[i] == p[k] {
+			k++
+		}
+		pi[i] = k
+	}
+	return pi
+}</code></pre>
+        <p>The function looks like it has a loop inside a loop, but it is O(m): <code>k</code> rises by at most one per character, and every fall-back lowers it, so the total number of fall-backs cannot exceed the total number of increases. This "amortized" argument is the same one that makes a dynamic array's append cheap. The demo prints <code>[0 1 0 1 2 2 3]</code> for <code>aabaaab</code>, and <code>[0 0 0 1 2 3 4 5 6]</code> for <code>abcabcabc</code>.</p>
+
+        <h3 id="kmp">Knuth-Morris-Pratt</h3>
+        <p>KMP scans the text once with the same fall-back loop. <code>k</code> is the number of pattern characters currently matched. On a mismatch, <code>k</code> falls back to the longest border, and the <em>text</em> position does not move. After a full match, the search continues from the border, so overlapping matches are found.</p>
+        <pre><code class="language-go line-numbers">	pi := prefixFunction(pat)
+	k := 0
+	for i := 0; i &lt; len(text); i++ {
+		for k &gt; 0 &amp;&amp; text[i] != pat[k] {
+			*cmps++
+			k = pi[k-1]
+		}
+		*cmps++
+		if text[i] == pat[k] {
+			k++
+		}
+		if k == len(pat) {
+			res = append(res, i-k+1)
+			k = pi[k-1]
+		}
+	}</code></pre>
+        <p>Since the text pointer only moves forward, the scan is O(n), and with the O(m) table the total is O(n + m) for <em>every</em> input. The demo counts <code>*cmps</code> to show the difference: on the worst case above, KMP makes 199,001 comparisons against the naive 99,001,000.</p>
+
+        <h3 id="z-function">The Z-Function</h3>
+        <p>A second table with the same power. <code>z[i]</code> is the length of the longest common prefix of the string and its suffix starting at i. The window <code>[l, r)</code> is the rightmost part already known to match a prefix; inside it, <code>z[i]</code> can be copied from <code>z[i-l]</code> instead of compared again.</p>
+        <pre><code class="language-go line-numbers">func zFunction(s string) []int {
+	z := make([]int, len(s))
+	l, r := 0, 0
+	for i := 1; i &lt; len(s); i++ {
+		if i &lt; r {
+			z[i] = min(r-i, z[i-l])
+		}
+		for i+z[i] &lt; len(s) &amp;&amp; s[z[i]] == s[i+z[i]] {
+			z[i]++
+		}
+		if i+z[i] &gt; r {
+			l, r = i, i+z[i]
+		}
+	}
+	return z
+}</code></pre>
+        <p>To search, compute <code>z</code> for <code>pattern + separator + text</code>. Any position where <code>z</code> equals the pattern length is an occurrence, and the separator (a byte found in neither string) stops a match from running across the seam. For <code>aabxaab</code> the demo prints <code>[0 1 0 0 3 1 0]</code>: the suffix at position 4 shares three characters with the whole string. Prefix function and Z-function are interchangeable for most problems; use whichever one you can write from memory.</p>
+
+        <h3 id="horspool">Horspool: Skipping Text</h3>
+        <p>Both tables above still read every text character. <strong>Horspool</strong> compares the window from its <em>right</em> end and then slides the window by a distance that depends only on the text character under the window's last cell: how far that character is from the end of the pattern, or the full pattern length when it does not occur in the pattern at all.</p>
+        <pre><code class="language-go line-numbers">	var shift [256]int
+	for c := range shift {
+		shift[c] = m
+	}
+	for j := 0; j &lt; m-1; j++ {
+		shift[pat[j]] = m - 1 - j
+	}
+	for i := 0; i+m &lt;= len(text); {
+		j := m - 1
+		for j &gt;= 0 {
+			*cmps++
+			if text[i+j] != pat[j] {
+				break
+			}
+			j--
+		}
+		if j &lt; 0 {
+			res = append(res, i)
+		}
+		i += shift[text[i+m-1]]
+	}</code></pre>
+        <p>On ordinary text most windows end with a letter that is not in the pattern, so the window jumps by m. The result can be <em>fewer than n</em> comparisons, but the worst case is still O(n × m).</p>
+
+        <h3 id="matching-results">What the Demo Measures</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Input (n = 100,000)</th><th>Naive</th><th>KMP</th><th>Horspool</th><th>Matches</th></tr></thead>
+            <tbody>
+              <tr><td>random letters, m = 8</td><td>103,960</td><td>103,814</td><td>15,086</td><td>0</td></tr>
+              <tr><td>two letters, m = 10</td><td>199,892</td><td>145,945</td><td>149,910</td><td>92</td></tr>
+              <tr><td>worst for naive: a<sup>n</sup>, a<sup>999</sup>b</td><td>99,001,000</td><td>199,001</td><td>99,001</td><td>0</td></tr>
+              <tr><td>worst for Horspool: a<sup>n</sup>, ba<sup>99</sup></td><td>99,901</td><td>100,000</td><td>9,990,100</td><td>0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>No method wins everywhere. On random text Horspool reads only 15% of the characters. On the fourth row it is the naive method that is nearly free (the first comparison fails at once) and Horspool that slides one place at a time. KMP is the only one that never exceeds about 2n. Its guarantee is the reason it is taught, and the reason it is used when input can be adversarial.</p>
+
+        <h3 id="periods">Borders Give Periods</h3>
+        <p>A border of length b means the string repeats with a shift of n − b. If that shift divides n, the string is a block repeated n/(n − b) times:</p>
+        <pre><code class="language-go line-numbers">	p := n - prefixFunction(s)[n-1]
+	if n%p == 0 {
+		return p
+	}
+	return n</code></pre>
+        <p>The smallest period of <code>abcabcabc</code> is 3, of <code>abcabca</code> is 7 (the shift 3 does not divide 7, so the string is not a repetition), and of <code>aaaa</code> is 1. The demo compares this with trying every length on 3,000 strings, half of them built to be periodic. Failures: 0.</p>
+        <hr>
+
+        <h2 id="hashing">Hashing Strings</h2>
+        <p>Comparing two strings costs O(length). If you can turn each string into a <em>number</em> in such a way that equal strings give equal numbers, comparisons become O(1). A <strong>polynomial hash</strong> reads the characters as digits of a number in base B, modulo a large M: <code>hash(s) = s[0]·B<sup>m-1</sup> + ... + s[m-1] (mod M)</code>. Two properties make it useful, and one warning goes with it. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/65_rolling_hash.go">65_rolling_hash.go</a>.</p>
+        <ul>
+          <li><strong>Rolling.</strong> Sliding a window one character right costs O(1): subtract the leading character's term, multiply by B, add the new character.</li>
+          <li><strong>Prefix hashes.</strong> With the hash of every prefix stored, the hash of any substring is one subtraction and one multiplication.</li>
+          <li><strong>Warning.</strong> Different strings can have the same hash (a <em>collision</em>). A hash match is evidence, not proof.</li>
+        </ul>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-rolling-hash.svg" alt="The text abcde with letters valued 1 to 5 and base 10. Window abc has hash 123. Removing a times 100 gives 23, multiplying by 10 gives 230 and adding d which is 4 gives 234, the hash of window bcd" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Sliding the window one place: remove, shift, add.</p>
+        </div>
+
+        <h3 id="rabin-karp">Rabin-Karp</h3>
+        <p>Hash the pattern, roll a window of the same length over the text, and compare hashes. Only when hashes are equal, compare the real characters. That verification makes the answer always exact; the hash only decides <em>how often</em> the expensive check runs.</p>
+        <pre><code class="language-go line-numbers">		// roll: drop text[i], shift everything one place, add text[i+m]
+		ht = ((ht+mod-uint64(text[i])*pw%mod)*base + uint64(text[i+m])) % mod</code></pre>
+        <p>The demo counts <em>false hits</em>, hash matches where the text differed, for a random 100,000-letter text and a pattern of 8 letters that occurs once:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Modulus</th><th>Matches found</th><th>False hits</th></tr></thead>
+            <tbody>
+              <tr><td>101</td><td>1 (correct)</td><td>988</td></tr>
+              <tr><td>10,007</td><td>1 (correct)</td><td>9</td></tr>
+              <tr><td>1,000,000,007</td><td>1 (correct)</td><td>0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>With modulus 101 about one window in a hundred collides, so verification runs 988 extra times, yet the result is still right on 3,000 random tests: a weak hash makes the algorithm slower, not wrong.</p>
+
+        <h3 id="mersenne">A Large Modulus Without Overflow</h3>
+        <p>To use prefix hashes for <em>comparison only</em>, with no verification, the modulus must be so large that a collision among the millions of comparisons is practically impossible. A convenient choice is the Mersenne prime 2<sup>61</sup> − 1. Multiplying two numbers below it needs 122 bits, but Go's <code>math/bits.Mul64</code> returns the full product as two 64-bit halves, and because 2<sup>61</sup> is congruent to 1 (mod 2<sup>61</sup> − 1), the high part can simply be <em>added</em> to the low part:</p>
+        <pre><code class="language-go line-numbers">func mulmod(a, b uint64) uint64 {
+	hi, lo := bits.Mul64(a, b)
+	r := (lo &amp; mod) + (lo &gt;&gt; 61) + (hi &lt;&lt; 3)
+	r = (r &amp; mod) + (r &gt;&gt; 61)
+	if r &gt;= mod {
+		r -= mod
+	}
+	return r
+}</code></pre>
+        <p>The demo checks this against <code>math/big</code> on 100,000 random products, including the largest possible operands. Failures: 0. Choose the <strong>base at random</strong> when the program starts: a fixed, well-known base and modulus can be attacked by someone who builds two different strings with the same hash.</p>
+
+        <h3 id="prefix-hash">Substring Hash in O(1)</h3>
+        <pre><code class="language-go line-numbers">	for i := 0; i &lt; len(s); i++ {
+		h.pre[i+1] = addmod(mulmod(h.pre[i], base), uint64(s[i])+1)
+		h.pow[i+1] = mulmod(h.pow[i], base)
+	}</code></pre>
+        <pre><code class="language-go line-numbers">func (h *Hasher) Get(l, r int) uint64 {
+	return submod(h.pre[r], mulmod(h.pre[l], h.pow[r-l]))
+}</code></pre>
+        <p><code>pre[r]</code> is <code>pre[l]</code> shifted left by <code>r-l</code> places plus the hash of <code>s[l:r]</code>, so subtracting the shifted copy leaves the substring's own hash. Note the <code>+1</code> when a character is added: without it, a character with value 0 would be invisible. On a 2,000-character string over a two-letter alphabet, where many substrings are equal, the demo compares 200,000 random pairs of substrings by hash and by real comparison, 33,204 of which are equal, and they disagree 0 times.</p>
+
+        <h3 id="binary-search-length">Binary Search on the Length</h3>
+        <p>"Is there a substring of length L that occurs twice?" is easy with hashes: hash every window, and look for two equal values. It is also <em>monotone</em>: if a substring of length L repeats, its prefix of length L − 1 repeats too. So the longest repeated substring can be found by binary search on L, with O(n) work per step:</p>
+        <pre><code class="language-go line-numbers">	lo, hi, at := 0, len(s)-1, 0 // invariant: length lo works, length hi+1 does not
+	for lo &lt; hi {
+		mid := (lo + hi + 1) / 2
+		if i := repeated(mid); i &gt;= 0 {
+			lo, at = mid, i
+		} else {
+			hi = mid - 1
+		}
+	}
+	return s[at : at+lo]</code></pre>
+        <p>Each equal-hash pair is verified with a real comparison, so a collision cannot produce a wrong answer. The same search finds the longest common substring of two strings: hash the windows of one string and look for them in the other. For <code>banana</code> the answer is <code>ana</code>; for <code>xabcdey</code> and <code>zabcdew</code> it is <code>abcde</code>. Both are compared with a brute force and with an O(n × m) dynamic-programming table on 300 random pairs. Failures: 0. On a random 200,000-letter text over four letters the longest repeated substring has 16 letters.</p>
+
+        <h3 id="hash-palindrome">Palindromes by Hash</h3>
+        <p>A substring is a palindrome when it equals its own reverse, and the reverse of <code>s[l:r]</code> is the substring of <code>reverse(s)</code> at <code>[n-r, n-l)</code>. With prefix hashes of both strings, the test is one comparison:</p>
+        <pre><code class="language-go line-numbers">		if isPal != (fw.Get(l, r) == rv.Get(len(p)-r, len(p)-l)) {</code></pre>
+        <p>That answers "is this range a palindrome?" in O(1) after O(n) preparation. To <em>find</em> palindromes without asking about every range, the next section has a better tool.</p>
+        <hr>
+
+        <h2 id="palindromes">Palindromes and Manacher's Algorithm</h2>
+        <p>A palindrome is defined by its <strong>center</strong>. A string of n characters has 2n − 1 centers: each character (palindromes of odd length) and each gap between two characters (even length). Every palindromic substring grows from exactly one of them, so three questions become one: <em>how far can the palindrome around this center grow?</em> The longest palindromic substring, the number of palindromic substrings, and the longest palindromic prefix all follow from the answers. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/66_palindromes.go">66_palindromes.go</a>.</p>
+
+        <h3 id="expand">Expand Around Each Center</h3>
+        <p>Store two arrays: <code>d1[i]</code>, the number of odd palindromes centered on character i, and <code>d2[i]</code>, the number of even palindromes centered on the gap before character i. A center with radius k owns exactly k palindromes, one of each length up to the longest. For <code>abaabac</code> the arrays are:</p>
+        <pre><code class="language-text">d1 = [1 2 1 1 2 1 1]
+d2 = [0 0 0 3 0 0 0]</code></pre>
+        <p>The gap before index 3 (between the two middle <code>a</code>s) has radius 3, so <code>abaaba</code> is a palindrome; there are 9 + 3 = 12 palindromic substrings in total, and <code>longest</code> picks the biggest radius. Growing every center from scratch costs O(n) per center in the worst case: O(n²), and it is the right choice up to a few thousand characters.</p>
+
+        <h3 id="manacher">Manacher: Reuse the Mirror</h3>
+        <p>Inside a large palindrome the left half is the mirror image of the right half. Suppose <code>[l, r]</code> is the palindrome that reaches furthest right among those found so far, and i is a center inside it. The mirror of i is <code>l + r − i</code>, and any palindrome around the mirror also exists around i, as long as it stays inside <code>[l, r]</code>. So the radius at i can <em>start</em> from the radius at the mirror (capped at the edge) instead of from 1.</p>
+        <pre><code class="language-go line-numbers">	for i, l, r := 0, 0, -1; i &lt; n; i++ {
+		k := 1
+		if i &lt;= r {
+			k = min(d1[l+r-i], r-i+1) // copy from the mirror, capped at the edge
+		}
+		for i-k &gt;= 0 &amp;&amp; i+k &lt; n &amp;&amp; s[i-k] == s[i+k] {
+			cmps++
+			k++
+		}
+		d1[i] = k
+		if i+k-1 &gt; r {
+			l, r = i-k+1, i+k-1
+		}
+	}</code></pre>
+        <p>The <code>for</code> loop that grows the palindrome only ever compares characters at or beyond the right edge <code>r</code>, and every successful comparison moves <code>r</code> to the right. Since <code>r</code> never moves left, the total number of successful comparisons is at most n: the algorithm is O(n). The even-length case (<code>d2</code>) is the same with the indexes shifted by one.</p>
+        <p>The cap <code>r-i+1</code> matters: beyond the edge of the big palindrome nothing is known about the mirror, so the loop must check the characters itself.</p>
+
+        <h3 id="palindrome-results">What the Demo Measures</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Text (n = 20,000)</th><th>Expansion comparisons</th><th>Manacher comparisons</th></tr></thead>
+            <tbody>
+              <tr><td>random letters</td><td>1,555</td><td>1,553</td></tr>
+              <tr><td>random a/b</td><td>39,998</td><td>29,374</td></tr>
+              <tr><td>all the same letter</td><td>199,990,000</td><td>39,997</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>On random letters palindromes are short and there is nothing to reuse. On a run of identical letters, where every center has a huge palindrome, Manacher is 5,000 times cheaper. The results are checked two ways on 4,000 random strings over alphabets of size 1, 2 and 3: the two arrays against the slow expansion, and the answers (longest palindrome, count, shortest palindrome) against an O(n³) brute force. Failures: 0.</p>
+
+        <h3 id="shortest-palindrome">Application: Shortest Palindrome</h3>
+        <p>What is the fewest characters to add <em>in front of</em> a string to make it a palindrome? The longest palindromic <em>prefix</em> can stay as it is; the remaining tail must be mirrored to the front. The prefixes that are palindromes are exactly the palindromes whose left edge is at index 0, which the arrays give directly:</p>
+        <pre><code class="language-go line-numbers">	d1, d2 := manacher(s)
+	p := longestPalPrefix(s, d1, d2)
+	return reverse(s[p:]) + s</code></pre>
+        <p>For <code>aacecaaa</code> the longest palindromic prefix is <code>aacecaa</code> and the answer is <code>aaacecaaa</code>; for <code>abcd</code> only <code>a</code> qualifies and the answer is <code>dcbabcd</code>.</p>
+        <hr>
+
+        <h2 id="suffix-array">Suffix Arrays</h2>
+        <p>The tools so far answer one question about one pattern. Suppose instead a text will be queried many times, with different patterns, or you want to know about repetition inside it. <strong>Sort all the suffixes of the text once</strong>, and many questions become easy. The <em>suffix array</em> lists the start positions of the suffixes in dictionary order. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/67_suffix_array.go">67_suffix_array.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-suffix-array.svg" alt="The six suffixes of banana in sorted order: a at 5, ana at 3, anana at 1, banana at 0, na at 4 and nana at 2, with their lcp values 0, 1, 3, 0, 0 and 2. The two suffixes that start with ana are highlighted as a block; the largest lcp 3 gives the longest repeated substring ana and the sum of lcp 6 gives 15 distinct substrings" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The suffix array and LCP array of <code>banana</code>.</p>
+        </div>
+
+        <p>Two facts make the array powerful. Every substring is a <em>prefix of some suffix</em>, and suffixes that share a prefix are <em>neighbours</em> in sorted order. The <strong>LCP array</strong> stores, for each suffix, how many leading characters it shares with the suffix just before it in the sorted order; this is where repetition shows up.</p>
+
+        <h3 id="sa-build">Building It: Prefix Doubling</h3>
+        <p>Sorting the suffix strings directly can cost O(n) per comparison. Prefix doubling sorts by the first character, then by the first two, then four, eight, and so on. In each round, the order by the first 2k characters is the order of <em>pairs</em> of ranks from the previous round: the rank of the suffix itself and the rank of the suffix k places later (or −1 if it runs out). After at most log<sub>2</sub> n rounds all ranks are distinct.</p>
+        <pre><code class="language-go line-numbers">	for k := 1; ; k &lt;&lt;= 1 {
+		rounds++
+		second := func(i int) int {
+			if i+k &lt; n {
+				return rank[i+k]
+			}
+			return -1
+		}
+		compare := func(a, b int) int {
+			if c := cmp.Compare(rank[a], rank[b]); c != 0 {
+				return c
+			}
+			return cmp.Compare(second(a), second(b))
+		}
+		slices.SortFunc(sa, compare)
+		next[sa[0]] = 0
+		for i := 1; i &lt; n; i++ {
+			next[sa[i]] = next[sa[i-1]]
+			if compare(sa[i-1], sa[i]) != 0 {
+				next[sa[i]]++
+			}
+		}
+		copy(rank, next)
+		if rank[sa[n-1]] == n-1 { // all ranks distinct: fully sorted
+			return sa
+		}
+	}</code></pre>
+        <p>Each round is one sort with O(1) comparisons, so the total is O(n log² n). The number of rounds depends on the text: random four-letter text of 30,000 characters is fully sorted after 4 rounds, because the first few letters already differ; a string of one repeated letter, or <code>ab</code> repeated, needs 15, which is log<sub>2</sub> n rounded up. Linear-time constructions exist but are much longer to write.</p>
+
+        <h3 id="lcp">The LCP Array in O(n)</h3>
+        <p>Comparing each suffix with its neighbour from scratch would cost O(n²) on repetitive text. <strong>Kasai's algorithm</strong> visits the suffixes in <em>text</em> order, not sorted order, and relies on one fact: if suffix i shares h characters with its predecessor in sorted order, then suffix i + 1 shares at least h − 1 with its own predecessor. So h never restarts; it falls by one per step and rises at most 2n times in total.</p>
+        <pre><code class="language-go line-numbers">	for i := 0; i &lt; n; i++ {
+		if rank[i] == 0 {
+			h = 0
+			continue
+		}
+		j := sa[rank[i]-1] // the suffix just before i in sorted order
+		for i+h &lt; n &amp;&amp; j+h &lt; n &amp;&amp; s[i+h] == s[j+h] {
+			h++
+		}
+		lcp[rank[i]] = h
+		if h &gt; 0 {
+			h--
+		}
+	}</code></pre>
+
+        <h3 id="sa-uses">What You Can Ask</h3>
+        <p><strong>Find a pattern.</strong> The suffixes that begin with the pattern form one contiguous block of the sorted array. Two binary searches find its ends: the first suffix that is not smaller than the pattern, and the first that is not smaller and does not start with it. The positions of the pattern are the array values in that block: O(m log n) per query, whatever the number of patterns you ask about.</p>
+        <pre><code class="language-go line-numbers">	lo := sort.Search(len(sa), func(i int) bool { return s[sa[i]:] &gt;= pat })
+	hi := sort.Search(len(sa), func(i int) bool {
+		suffix := s[sa[i]:]
+		return suffix &gt;= pat &amp;&amp; !strings.HasPrefix(suffix, pat)
+	})</code></pre>
+        <p>In <code>banana</code>, <code>ana</code> occurs at [1 3], <code>na</code> at [2 4], and <code>x</code> nowhere.</p>
+        <p><strong>Longest repeated substring.</strong> Two suffixes with a long common prefix are neighbours, so it is the largest LCP value: 3 for <code>banana</code>, the substring <code>ana</code>.</p>
+        <p><strong>Number of distinct substrings.</strong> There are n(n+1)/2 pairs (start, end), and each suffix repeats as many prefixes as its LCP value: subtract them. For <code>banana</code>, 21 − (0+1+3+0+0+2) = 15.</p>
+        <pre><code class="language-go line-numbers">	total := n * (n + 1) / 2
+	for _, l := range lcp {
+		total -= l
+	}
+	return total</code></pre>
+        <p><strong>Longest common substring of two strings.</strong> Build one array for <code>a + separator + b</code>. A common substring is a shared prefix of a suffix from <code>a</code> and one from <code>b</code>, so look at neighbouring pairs that come from different strings and take the largest LCP. The separator occurs once, so no LCP can run across it. For <code>xabcdey</code> and <code>zabcdew</code> the answer is <code>abcde</code>.</p>
+        <p>The demo checks the array and the LCP array against sorting the suffix strings, and every answer above against brute force (all substrings in a set, a DP table for the common substring) on 3,000 random strings over alphabets of size 1, 2 and 3. Failures: 0.</p>
+        <hr>
+
+        <h2 id="aho-corasick">Many Patterns: Aho-Corasick</h2>
+        <p>KMP finds one pattern in O(n + m). With k patterns, running it k times costs O(k × n): 500 patterns in a 200,000-letter text means 100,000,000 steps. The <strong>Aho-Corasick automaton</strong> finds all patterns in a single pass, and it is built from two things you already know: the trie (<a href="/roadmap/dsa/advanced-trees.html#trie">Advanced Trees</a>) and the KMP fall-back. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/68_aho_corasick.go">68_aho_corasick.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-aho-corasick.svg" alt="A trie for the patterns he, she, his and hers. Nodes ending a pattern (he, hers, his, she) have an orange ring. A table lists the fail link of each state; for example hers and his fall back to s, sh falls back to h, and she falls back to he, so the state she reports both she and he" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The trie of four patterns, with each state's fail link.</p>
+        </div>
+
+        <h3 id="fail-links">Fail Links</h3>
+        <p>Each node of the trie gets a <strong>fail link</strong>: the state for the longest <em>proper suffix</em> of the node's string that is also a prefix of some pattern. It is the border of KMP, generalized from one pattern to a whole trie. If the search is in the state for <code>she</code> and the next character does not continue any pattern, the automaton does not restart: it falls back to the state for <code>he</code>, the longest suffix of <code>she</code> that could still lead to a match, and tries again.</p>
+        <p>The links are computed level by level, breadth-first, so a node's fail link always points to a state that is already finished. Missing transitions are filled with the transition of the fail state. The result is a <em>full</em> automaton: the scan does exactly one table lookup per text character and never loops.</p>
+        <pre><code class="language-go line-numbers">	for len(queue) &gt; 0 {
+		u := queue[0]
+		queue = queue[1:]
+		for c := 0; c &lt; 26; c++ {
+			v := a.next[u][c]
+			if v == 0 {
+				a.next[u][c] = a.next[a.fail[u]][c] // no child: borrow the fail state's move
+				continue
+			}
+			a.fail[v] = a.next[a.fail[u]][c] // the longest suffix that can still be extended by c
+			if len(a.ends[a.fail[v]]) &gt; 0 {
+				a.out[v] = a.fail[v]
+			} else {
+				a.out[v] = a.out[a.fail[v]]
+			}
+			queue = append(queue, v)
+		}
+	}</code></pre>
+
+        <h3 id="output-links">Output Links: Nested Patterns</h3>
+        <p>Patterns can be suffixes of each other: <code>he</code> is a suffix of <code>she</code>, so when the text reads <code>she</code>, <em>two</em> patterns end at the same character. The <strong>output link</strong> of a state points along its fail chain to the nearest state that ends a pattern, so the search reports every match without walking through states that report nothing:</p>
+        <pre><code class="language-go line-numbers">		*steps++
+		s = a.next[s][c-'a']
+		t := s // report the patterns ending here, then those ending in shorter suffixes
+		if len(a.ends[t]) == 0 {
+			t = a.out[t]
+		}
+		for ; t != 0; t = a.out[t] {
+			for _, id := range a.ends[t] {
+				res = append(res, Match{i, id})
+			}
+		}</code></pre>
+        <p>In the demo, the text <code>ushers</code> gives <code>she</code> at 1..3, <code>he</code> at 2..3 and <code>hers</code> at 2..5 from four patterns and 10 states. A practical use is censoring: with the patterns <code>bad</code> and <code>dad</code>, the text <code>this is a bad example of badge and dad</code> becomes <code>this is a *** example of ***ge and ***</code>. Note that <code>badge</code> is also affected, because this is substring matching: a real filter also needs word boundaries.</p>
+
+        <h3 id="aho-results">What the Demo Measures</h3>
+        <ul>
+          <li><strong>Correctness.</strong> On 4,000 random inputs with patterns that may be empty, repeated, or nested inside each other, the sorted list of matches equals the one produced by calling <code>strings.Index</code> for each pattern. Failures: 0.</li>
+          <li><strong>One pass.</strong> 500 random patterns of 4 letters in 200,000 letters of text use an automaton of 1,378 states and 218 matches. It makes 200,000 table lookups, where one scan per pattern would need at least 100,000,000.</li>
+          <li><strong>Output size.</strong> The patterns <code>a</code>, <code>aa</code>, ..., <code>a<sup>30</sup></code> in a text of 1,000 letters <code>a</code> produce 29,565 matches from just 1,000 lookups; the matches themselves are the output, and their number can exceed the text length. The list equals the one from <code>strings.Index</code>.</li>
+        </ul>
+        <hr>
+
+        <h2 id="choosing">Choosing an Algorithm</h2>
+
+        <h3 id="choose-table">By Situation</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Situation</th><th>Use</th></tr></thead>
+            <tbody>
+              <tr><td>One search in ordinary text</td><td><code>strings.Index</code>, which is already tuned</td></tr>
+              <tr><td>One pattern, adversarial or streaming input, guaranteed linear time</td><td>KMP or Z-function</td></tr>
+              <tr><td>Long patterns in large ordinary text, speed matters</td><td>Horspool-style skipping</td></tr>
+              <tr><td>Many equality tests between substrings</td><td>prefix hashes with a large random modulus</td></tr>
+              <tr><td>"Longest ... that occurs twice", with a monotone length</td><td>hashing plus binary search on the length</td></tr>
+              <tr><td>Palindromes</td><td>Manacher (or expansion when n is small)</td></tr>
+              <tr><td>The same text queried many times, repeats, distinct substrings</td><td>suffix array + LCP</td></tr>
+              <tr><td>A list of patterns or banned words</td><td>Aho-Corasick</td></tr>
+              <tr><td>Prefix questions on a dictionary</td><td>a trie</td></tr>
+              <tr><td>Approximate matching, similarity</td><td>edit distance (dynamic programming)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="choose-simple">When Simple Is Enough</h3>
+        <p>The naive search is O(n × m) only in unlucky cases, and for a pattern of a few characters in a short text it is the fastest of all: no tables to build. Reach for the algorithms above when the input is large, when it can be adversarial, or when the same text is examined again and again. A good habit, used in every demo of this lesson, is to keep the simple version and use it as the oracle in your tests.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="pitfall-runes">Bytes, Runes, and Positions</h3>
+        <p>Indexes returned by these algorithms are <em>byte</em> positions. For text with multi-byte characters, a byte position may fall inside a character, and a palindrome check on bytes can accept a sequence that is not valid text. Convert to <code>[]rune</code> first when the input is not ASCII. The Aho-Corasick demo accepts only lowercase a-z and resets the automaton on any other byte; a table indexed by a byte would otherwise panic.</p>
+
+        <h3 id="pitfall-verify">Trusting a Hash</h3>
+        <p>A hash match is not a proof. Either verify the characters (Rabin-Karp, the repeated-substring search), or use a modulus so large, and a base so unpredictable, that a collision among all the comparisons you make is not a realistic concern. With a small modulus and no verification the results are simply wrong, as the lab shows. Do not use a hash with a known fixed base and modulus on input controlled by someone else.</p>
+
+        <h3 id="pitfall-separator">The Separator</h3>
+        <p>Gluing strings with a separator (<code>pattern + "\x00" + text</code>, or two strings for a suffix array) works only if the separator occurs in neither string. If it does, matches can span the seam, or the wrong string is credited with a suffix.</p>
+
+        <h3 id="pitfall-overlap">Overlapping Matches and Empty Patterns</h3>
+        <p>Decide up front whether matches may overlap (<code>aba</code> in <code>abababa</code> occurs at 0, 2 and 4) and what an empty pattern means. After a full match KMP falls back to the border and continues; restarting from zero would silently lose overlapping matches. The demos define an empty pattern to have no occurrences.</p>
+
+        <h3 id="pitfall-concat">Building Strings in a Loop</h3>
+        <p>Since strings are immutable, <code>s += x</code> in a loop copies the whole string each time: O(n²) for n appends. Use <code>strings.Builder</code>, or fill a <code>[]byte</code>, as the demos do. And remember that <code>s[i:j]</code> is cheap because it shares memory, but that also keeps the whole original string alive.</p>
+
+        <h3 id="pitfall-indexes">Half-Open Ranges</h3>
+        <p>Most bugs in these algorithms are off-by-one errors in ranges. The demos use half-open ranges <code>[l, r)</code> for substrings and prefix hashes (as Go slices do) and closed indexes for an end position of a match; write down which one each variable uses before coding.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Each exercise breaks one detail. Predict what will fail, run the demo, and explain why that check catches it.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/64_pattern_matching.go">64_pattern_matching.go</a>, in <code>kmp</code>, replace <code>k = pi[k-1]</code> after a full match by <code>k = 0</code>. Which matches are lost, and which row of the comparison table reports a mismatch?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/65_rolling_hash.go">65_rolling_hash.go</a>, in <code>rabinKarp</code>, replace the check <code>text[i:i+m] == pat</code> by <code>true</code>. Compare the number of matches reported for each modulus with the correct answer of 1.</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/66_palindromes.go">66_palindromes.go</a>, remove the cap in <code>k = min(d1[l+r-i], r-i+1)</code>, leaving only <code>d1[l+r-i]</code>. Why does the answer become wrong only for some strings?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/67_suffix_array.go">67_suffix_array.go</a>, delete the <code>if h &gt; 0 { h-- }</code> step in <code>lcpArray</code>. The program panics. Follow the value of <code>h</code> to see why.</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/68_aho_corasick.go">68_aho_corasick.go</a>, delete the <code>if ... else</code> block that sets <code>a.out[v]</code>. The <code>ushers</code> example still prints results. Which of the checks fails, and what does the nested-pattern example print instead of 29,565?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Rotation.</strong> Decide whether string B is a rotation of string A by searching for B in <code>A + A</code>. Why is that enough, and what length check is also needed?</li>
+          <li><strong>Prefix occurrences.</strong> Using only the prefix function, count how many times each prefix of a string occurs in the string. Hint: every border is also an occurrence of a shorter prefix.</li>
+          <li><strong>Repeated DNA.</strong> Find every 10-letter sequence that occurs more than once in a long DNA string, with a rolling hash. Compare against a map of substrings, in time and memory.</li>
+          <li><strong>Fewest palindromes.</strong> The DP in <a href="/roadmap/dsa/dynamic-programming.html#prefix-partitions">Dynamic Programming</a> cuts a string into the fewest palindromes. Replace its O(n²) palindrome table with the arrays from Manacher and check that the answers agree.</li>
+          <li><strong>K-th distinct substring.</strong> Use the suffix array and the LCP array to print the k-th smallest distinct substring in dictionary order, without listing them all.</li>
+          <li><strong>Word filter.</strong> Extend the censor example so that only whole words are censored. Which information does the automaton need to give you, and where is the check done?</li>
+        </ol>
+        <p>Continue with <a href="/roadmap/dsa/advanced-techniques.html">Advanced Techniques</a>.</p>
+
       </main>
     </div>
   </div>
-
+  <hr>
   <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'dsa',
-    topicId: 'string-algorithms',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "dsa",
+    topicId: "string-algorithms",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>
