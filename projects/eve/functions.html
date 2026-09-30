@@ -63,21 +63,21 @@ return;
 <h4>Notes:</h4>
 
 <ul>
-<li>Function result is mandatory and explicit, </li>
-<li>Result type must is declared using prefix @,</li>
+<li>A function result is mandatory and explicit. A subprogram without a result is a method, because a function must be usable in expressions,</li>
+<li>Result type is declared using prefix @. The prefix forces a reference: <code>let v := f(x);</code> is valid because <code>v</code> is a variable, <code>let 2 := f(x);</code> is not,</li>
+<li>A function can return a list of results <code>=&gt; (@r1:Type, @r2:Type)</code>. In this case <code>$result</code> is a list <code>(result1, result2)</code>,</li>
 <li>A function can have input/output parameters,</li>
 <li>A function can receive parameters of type function,</li>
-<li>A function can return a result but the result is optional,</li>
-<li>A function can create as a result another function called closure,</li>
-<li>A function has a name. There are no anonymous functions,</li>
-<li>A function can raise errors but it can't handle errors,</li>
-<li>A function can be suspended and resumed on demand,</li>
-<li>A function can't modify a global variable.</li>
+<li>A method can create a function enclosed in it, called closure,</li>
+<li>A function has a name: the keyword <code>function</code> must be followed by an identifier. A lambda expression is a notation that creates a function in a single statement,</li>
+<li>A function can raise errors but it can't handle errors. Only a process can handle errors, so use preconditions to avoid runtime errors,</li>
+<li>A function can't be suspended and has no state,</li>
+<li>A plain function is deterministic and has no side effects: it can't modify a global variable. A function with side effects, or not deterministic, ends with <code>!</code>: <code>name!()</code>.</li>
 </ul>
 
-<p><b>Execute function</b>&nbsp;Function is executed in expressions using the name of the function followed by semicolon, and list of arguments in round brackets (). Brackets are mandatory even if there are no arguments.</p>
+<p><b>Execute function</b>&nbsp;Function is executed in expressions using the name of the function followed by the list of arguments in round brackets (). Brackets are mandatory even if there are no arguments.</p>
 
-<p><b>Function arguments</b>&nbsp;The arguments can be pass by position or by name. The names of arguments is useful when when a function has optional parameters.</p>
+<p><b>Function arguments</b>&nbsp;The arguments can be pass by position or by name. Positional arguments go first; mandatory parameters do not require a name. Optional parameters require naming.</p>
 
 <h4>Pattern:</h4>
 
@@ -90,7 +90,7 @@ function name1(param :Type,...) =&gt; (@result:Type) is
    let result := expression;
 return;
 
-function name2(param := value,...) =&gt; (@result:Type) is
+function name2(param = value,...) =&gt; (@result:Type) is
    let result := expression;
 return;
 
@@ -137,21 +137,21 @@ return;
 
 <h2 id="closures">Closures</h2>
 
-<p>A closure is a function created by another function. The closure has read/write access to context variables. The context is the scope of parent function, that is called <em>high order function</em>. The context is replicated and bound to every closure instance.</p>
+<p>A closure is a function created by a method and enclosed in it. The closure has read/write access to the variables of the method, which is its context. The context is replicated and bound to every closure instance. A function that has side effects or is not deterministic (stochastic) is marked with the suffix <code>!</code>: <code>name!()</code>. A closure is such a function, so its name ends with <code>!</code>. A plain function can't have state, can't be suspended and can't call a <code>!</code> function or a method. A method has no <code>!</code>, because a method is assumed to have side effects all the time; a function that calls a method is unsafe and must use <code>!</code>.</p>
 
 <h4>Why closures?</h4>
 
-<p>Closures are enabled in Eve to offer a convenient way to create generators. These are functions that can return a different result for every call. A closure is a light weight object. Like objects closures are dynamicly created at runtime using "new" keyword.</p>
+<p>Closures are enabled in Eve to offer a convenient way to create generators. These are functions that can return a different result for every call. A closure is a light weight object. Like objects closures are dynamically created at runtime using "new" keyword.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 driver test_closure is
 
-# declare a high order function
-function generator(start:Integer) =&gt; (@closure:Function) is
+# declare a method that creates a generator
+method generator(start:Integer) =&gt; (@next!:Function) is
   new current := start; 
 
-  ** define a closure using let
-  let closure := Function() =&gt; (@result:Integer): 
+  ** define an enclosed function using let: it changes state, so its name ends with !
+  let next! := Function() =&gt; (@result:Integer): 
       let current += 1;
       let result := current;
   return; 
@@ -159,25 +159,27 @@ return;
 
 process
   ** instantiate two closures
-  new index1 := generator(0);
-  new index2 := generator(10);
+  new index1! := generator(0);
+  new index2! := generator(10);
   
   ** interlace the two calls
-  print index1(), index1(); ** 1, 2
-  print index2(), index2(); ** 11, 12
-  print index1(), index1(); ** 3, 4
+  print index1!(), index1!(); ** 1, 2
+  print index2!(), index2!(); ** 11, 12
+  print index1!(), index1!(); ** 3, 4
 return;
 </code></pre>
 
 <p><b>Notes: </b></p>
 <ul>
-  <li>Closures are stochastic functions, that is opposite to deterministic. The compiler will make no effort to optimize this kind of functions.</li>
-  <li>Closures can be created only in higher order functions not in routines or classes. A class method can't create closures.</li>
-  <li>One high order function can create multiple closures. This advanced feature will be demonstrated in examples of code later when we create de compiler.</li>
+  <li>Closures are stochastic functions, that is opposite to deterministic. The compiler will make no effort to optimize this kind of functions. Their names end with <code>!</code>.</li>
+  <li>Closures are created by methods, module-level or in a class. A plain function can't create closures.</li>
+  <li>One method can create multiple closures. This advanced feature will be demonstrated in examples of code later when we create the compiler.</li>
 </ul>
 
 
 <h2 id="lambdas">Lambda expressions</h2>
+
+<p>Lambda is a notation, not a type: a lambda expression creates a function in a single statement from one or more expressions. Parentheses are mandatory, a list of expressions creates several results, and the type goes after the parentheses: <code>():Type</code> or <code>():(Type, Type)</code>. A lambda assigned to an identifier that is not defined is just a pointer; it can be sent to a parameter that receives a pointer <code>@param</code>.</p>
 
 <p>Lambda expressions are simpler functions that respect arithmetic rules. These can receive several arguments and can produce one result. A lambda expression is created with keywords "set" or "new". Lambda expressions do not have local variables or states and do not have side effects.</p>
 
@@ -190,29 +192,29 @@ return;
 <pre class="line-numbers"><code class="language-eve">
 global
   set sum = (p1, p2 :Integer) =&gt; (p1 + p2):Integer;
-  set sqr = (p1, p2 :Integer) =&gt; (p1 * p2):Integer;
+  set mul = (p1, p2 :Integer) =&gt; (p1 * p2):Integer;
 </code></pre>
 
 <h3 id="lambda-signature">Lambda signature</h3>
 
-<p>Lambda expression can be declared as data type using keyword "class". Later, this type can be used to enforce a specific signature for a <em>call-back</em> argument, variable or collection element.</p>
+<p>A function signature can be declared as a data type using keyword "Type". Later, this type can be used to enforce a specific signature for a <em>call-back</em> argument, variable or collection element.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # define a lambda signature
 driver lam_sig is
 
-** Sefine callback signature
-class BinEx = (p1, p2 :Integer):Integer &lt;&#58; Lambda;
+** Define callback signature
+Type BinEx = (p1, p2 :Integer):Integer &lt;&#58; Function;
 
 ** Use lambda signature as parameter type
-routine useLambda(test :BinEx) is
-   print test(); ** execute callback
+method useLambda(test :BinEx) is
+   print test(1, 2); ** execute callback
 return;
 
 ** Execute a process with lambda argument
 process
    ** use anonymous lambda argument
-   call useLambda((x, y) =&gt; (x + y));
+   useLambda((x, y) =&gt; (x + y));
 return;
 </code></pre>
 
@@ -228,26 +230,25 @@ return;
 # verify shared state influence
 driver shared_states is
 
-** define global settings
-  set decimals = 2: Integer;
-
 global
-  set trunc = (x:Real) =&gt; floor(x* 10^decimal)/10^decimal;
+  ** define global settings
+  set decimals = 2: Integer;
+  set trunc = (x:Real) =&gt; floor(x* 10^decimals)/10^decimals;
 
 process
   new x := 10/3;
   ** call the lambda expression
-  print trunc(x) ** expected 3.33
+  print trunc(x); ** expected 3.33
 
   ** overwrite the initial settings 
   let decimals := 4;
-  print trunc(x) ** expected 3.3333
+  print trunc(x); ** expected 3.3333
 return;
 </code></pre>
 
-<div class="alert alert-warning"><b>Warning: </b>Observe we have used "set" to create the initial value for a global variable. Then we alter it using "let" inside the process. The new value is used by the function to cut several decimals after round(). This is not exactly a side-effect but is an influence, that is not accepted in functional programming.</div>
+<div class="alert alert-warning"><b>Warning: </b>Observe we have used "set" to create the initial value for a global variable. Then we alter it using "let" inside the process. The new value is used by the function to cut several decimals with floor(). This is not exactly a side-effect but is an influence, that is not accepted in functional programming.</div>
 
-<p><b>Disclaim: </b>We acknowledge, Eve is not a pure functional language. This behavior is present in many other modern languages. Eve is not different. We seek for a balance between the theory and pragmatism.</p>
+<p><b>Disclaimer: </b>We acknowledge, Eve is not a pure functional language. This behavior is present in many other modern languages. Eve is not different. We seek for a balance between the theory and pragmatism.</p>
 
 <!-- work in progress-->
 
