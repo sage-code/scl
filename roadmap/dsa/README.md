@@ -12,9 +12,8 @@ Five phases, 24 topics (see `index.html`):
 2. Core Data Structures — arrays-slices, linked-lists, stacks-queues, hash-tables, trees, heaps — **authored**
 3. Core Algorithms — searching, sorting, graphs, graph-algorithms — **authored**
 4. Advanced Algorithms — greedy-algorithms, dynamic-programming, backtracking, advanced-trees,
-   string-algorithms, advanced-techniques, production-structures — in progress, one lesson at a time
-   (greedy-algorithms, dynamic-programming, backtracking authored)
-5. Practice & Reference — demo_examples (grows per phase), samples, references — planned
+   string-algorithms, advanced-techniques, production-structures — **authored**
+5. Practice & Reference — demo_examples (grows per phase), samples (Study Projects), references — **authored**
 
 ## Conventions
 

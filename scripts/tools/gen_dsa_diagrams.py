@@ -1005,6 +1005,578 @@ def n_queens():
     save("dsa-n-queens.svg", p)
 
 
+# ---- Advanced trees
+def tnode(cx, y, label, fill=BOX, stroke=EDGE, col=TXT, w=46, h=30):
+    return [box(cx - w / 2, y, w, h, fill, stroke, 6), text(cx, y + h / 2 + 5, label, 14, col, mono=True)]
+
+
+def avl_rotation():
+    w, h = 760, 480
+    p = head(w, h, "AVL rotations",
+             "Left-left imbalance 30, 20, 10 is fixed by one right rotation giving root 20 with children 10 and 30. "
+             "Left-right imbalance 30, 10, 20 is fixed by a left rotation at 10 followed by a right rotation at 30.")
+    p.append(text(w / 2, 28, "Rotations keep the sorted order and lower the tall side", 16, bold=True))
+
+    def tree(nodes, edges, hl=()):
+        for a, b in edges:
+            (x1, y1), (x2, y2) = nodes[a], nodes[b]
+            p.append(edge(x1, y1 + 30, x2, y2, EDGE, 1.8))
+        for k, (x, y) in nodes.items():
+            if k in hl:
+                p.extend(tnode(x, y, k, ORANGE, ORANGE, DARK))
+            else:
+                p.extend(tnode(x, y, k))
+
+    # row 1: left-left
+    p.append(text(30, 62, "left-left: one rotation", 14, ORANGE, "start", bold=True))
+    tree({30: (140, 84), 20: (100, 144), 10: (60, 204)}, [(30, 20), (20, 10)], hl=(30,))
+    p.append(text(178, 104, "balance +2", 12, RED, "start"))
+    p += arrow([(250, 144), (390, 144)], "rotate right at 30", 320, 130, "middle")
+    tree({20: (520, 84), 10: (480, 144), 30: (560, 144)}, [(20, 10), (20, 30)])
+    p.append(text(640, 148, "all balances 0", 12, GREEN, "start"))
+    # row 2: left-right
+    p.append(text(30, 262, "left-right: two rotations", 14, ORANGE, "start", bold=True))
+    tree({30: (110, 284), 10: (70, 344), 20: (110, 404)}, [(30, 10), (10, 20)], hl=(30,))
+    p.append(text(148, 304, "+2, but child leans right", 12, RED, "start"))
+    p += arrow([(190, 344), (270, 344)], "left at 10", 230, 330, "middle")
+    tree({30: (350, 284), 20: (310, 344), 10: (270, 404)}, [(30, 20), (20, 10)], hl=(30,))
+    p += arrow([(400, 344), (500, 344)], "right at 30", 450, 330, "middle")
+    tree({20: (600, 284), 10: (560, 344), 30: (640, 344)}, [(20, 10), (20, 30)])
+    p.append(text(w / 2, 450, "The first rotation straightens the zig-zag; the second is the simple case above.", 12, SUB))
+    save("dsa-avl-rotation.svg", p)
+
+
+def trie():
+    w, h = 760, 440
+    p = head(w, h, "Trie of six words",
+             "A trie holding cat, car, card, care, dog and dot. Words that share a prefix share nodes: 20 letters "
+             "are stored in 11 nodes. Each node shows how many words pass through it.")
+    p.append(text(w / 2, 28, "Six words, 20 letters, 11 nodes", 16, bold=True))
+    pos = {"root": (380, 64), "c": (250, 140), "d": (540, 140), "ca": (250, 216), "do": (540, 216),
+           "cat": (160, 292), "car": (310, 292), "dog": (480, 292), "dot": (600, 292),
+           "card": (250, 368), "care": (370, 368)}
+    label = {"root": "", "c": "c", "d": "d", "ca": "a", "do": "o", "cat": "t", "car": "r", "dog": "g", "dot": "t",
+             "card": "d", "care": "e"}
+    passes = {"c": 4, "d": 2, "ca": 4, "do": 2, "cat": 1, "car": 3, "dog": 1, "dot": 1, "card": 1, "care": 1}
+    ends = {"cat", "car", "card", "care", "dog", "dot"}
+    for k, (x, y) in pos.items():
+        if k == "root":
+            continue
+        parent = "root" if len(k) == 1 and k in "cd" else (k[:-1] if k[:-1] in pos else None)
+        if k in ("ca", "do"):
+            parent = k[0]
+        if k in ("cat", "car"):
+            parent = "ca"
+        if k in ("dog", "dot"):
+            parent = "do"
+        if k in ("card", "care"):
+            parent = "car"
+        px, py = pos[parent]
+        p.append(edge(px, py + 15, x, y - 15, EDGE, 1.8))
+    for k, (x, y) in pos.items():
+        if k == "root":
+            p.append(f'<circle cx="{x}" cy="{y}" r="15" fill="{BOX}" stroke="{EDGE}" stroke-width="1.8"/>')
+            p.append(text(x, y + 5, "*", 14, SUB, mono=True))
+            continue
+        if k in ends:
+            p.append(f'<circle cx="{x}" cy="{y}" r="17" fill="{BOX}" stroke="{ORANGE}" stroke-width="3"/>')
+        else:
+            p.append(f'<circle cx="{x}" cy="{y}" r="15" fill="{BOX}" stroke="{EDGE}" stroke-width="1.8"/>')
+        p.append(text(x, y + 5, label[k], 15, TXT, mono=True, bold=True))
+        p.append(text(x + 24, y - 12, passes[k], 11, SUB, "start", mono=True))
+    p.append(text(60, 380, "orange ring: a word ends here", 12, ORANGE, "start"))
+    p.append(text(60, 400, "small number: words passing through", 12, SUB, "start"))
+    p.append(text(520, 380, "CountPrefix(\"car\") = 3", 13, TXT, "start", mono=True))
+    p.append(text(520, 402, "read at the node r", 12, SUB, "start"))
+    save("dsa-trie.svg", p)
+
+
+def fenwick():
+    w, h = 760, 400
+    a = [3, 1, 4, 1, 5, 9, 2, 6]
+    p = head(w, h, "Fenwick tree ranges",
+             "Slot i of a Fenwick tree stores the sum of the lowbit(i) elements ending at position i. The query for the "
+             "prefix of length 7 uses slots 7, 6 and 4 (highlighted): 2 + 14 + 9 = 25.")
+    p.append(text(w / 2, 28, "Slot i covers the last lowbit(i) elements ending at i", 16, bold=True))
+    x0, cw = 90, 74
+    used = {7, 6, 4}
+    for i in range(1, 9):
+        lb = i & -i
+        lvl = lb.bit_length() - 1
+        x = x0 + (i - lb) * cw + 4
+        y = 288 - lvl * 48
+        wd = lb * cw - 8
+        hl = i in used
+        p.append(box(x, y, wd, 38, ORANGE if hl else BOX, ORANGE if hl else EDGE, 6))
+        rng = f"{i}" if lb == 1 else f"{i - lb + 1}-{i}"
+        p.append(text(x + wd / 2, y + 16, f"tree[{i}]", 13, DARK if hl else TXT, bold=True, mono=True))
+        p.append(text(x + wd / 2, y + 31, f"covers {rng}", 11, DARK if hl else SUB))
+    for i, v in enumerate(a):
+        x = x0 + i * cw + 4
+        p.append(box(x, 338, cw - 8, 30, BG, "#334155", 4))
+        p.append(text(x + (cw - 8) / 2, 359, v, 15, TXT, mono=True))
+        p.append(text(x + (cw - 8) / 2, 386, i + 1, 12, SUB, mono=True))
+    p.append(text(16, 359, "a", 13, SUB, "start", mono=True))
+    p.append(text(16, 386, "i", 12, SUB, "start", mono=True))
+    p.append(text(x0, 62, "Prefix(7): 7 → 6 → 4 → 0  (clear the lowest set bit)", 13, ORANGE, "start", bold=True))
+    p.append(text(x0, 82, "tree[7] + tree[6] + tree[4] = 2 + 14 + 9 = 25", 13, TXT, "start", mono=True))
+    p.append(text(x0 + 330, 62, "Add(5, d): 5 → 6 → 8  (add the lowest set bit)", 13, BLUE, "start", bold=True))
+    p.append(text(x0 + 330, 82, "exactly the slots whose range contains 5", 13, TXT, "start"))
+    save("dsa-fenwick.svg", p)
+
+
+def segment_tree():
+    w, h = 760, 420
+    a = [2, 5, 1, 4, 9, 3, 7, 6]
+    p = head(w, h, "Segment tree query",
+             "A sum segment tree over 2 5 1 4 9 3 7 6. The query for positions 1 to 5 is answered by three whole nodes: "
+             "leaf 1 (5), node 2 to 3 (5) and node 4 to 5 (12), for a total of 22.")
+    p.append(text(w / 2, 28, "Sum of a[1..5] = 5 + 5 + 12 = 22: three whole nodes", 16, bold=True))
+    xs = {}
+    nodes = []
+    for i, v in enumerate(a):
+        nodes.append((i, i, v))
+        xs[(i, i)] = 76 + i * 86
+    for lo, hi in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 3), (4, 7), (0, 7)]:
+        xs[(lo, hi)] = (xs[(lo, (lo + hi) // 2)] + xs[((lo + hi) // 2 + 1, hi)]) / 2
+        nodes.append((lo, hi, sum(a[lo:hi + 1])))
+    def y_of(lo, hi):
+        return {8: 60, 4: 140, 2: 220, 1: 300}[hi - lo + 1]
+    used = {(1, 1), (2, 3), (4, 5)}
+    l, r = 1, 5
+    # edges first
+    for lo, hi, v in nodes:
+        if lo == hi:
+            continue
+        mid = (lo + hi) // 2
+        for c in ((lo, mid), (mid + 1, hi)):
+            p.append(edge(xs[(lo, hi)], y_of(lo, hi) + 46, xs[c], y_of(*c), EDGE, 1.6))
+    for lo, hi, v in nodes:
+        x, y = xs[(lo, hi)], y_of(lo, hi)
+        if (lo, hi) in used:
+            fill, stroke, c1, c2 = ORANGE, ORANGE, DARK, DARK
+        elif hi < l or lo > r or any(a <= lo and hi <= b for a, b in used):
+            fill, stroke, c1, c2 = BG, "#334155", "#64748b", "#64748b"
+        else:
+            fill, stroke, c1, c2 = BOX, BLUE, TXT, SUB
+        p.append(box(x - 33, y, 66, 46, fill, stroke, 6))
+        p.append(text(x, y + 16, f"[{lo}..{hi}]" if lo != hi else f"[{lo}]", 11, c2, mono=True))
+        p.append(text(x, y + 36, v, 16, c1, bold=True, mono=True))
+    p.append(box(70, 372, 14, 14, ORANGE, ORANGE, 3))
+    p.append(text(92, 384, "whole node used in the answer", 12, TXT, "start"))
+    p.append(box(300, 372, 14, 14, BOX, BLUE, 3))
+    p.append(text(322, 384, "partly inside: split", 12, TXT, "start"))
+    p.append(box(470, 372, 14, 14, BG, "#334155", 3))
+    p.append(text(492, 384, "not needed: outside or below a used node", 12, TXT, "start"))
+    save("dsa-segment-tree.svg", p)
+
+
+
+# ---- String algorithms
+def kmp_shift():
+    w, h = 760, 400
+    tx, pat = "abcabcabd", "abcabd"
+    p = head(w, h, "KMP shift after a mismatch",
+             "The pattern abcabd is compared with the text abcabcabd. Five characters match and the sixth differs. The "
+             "longest border of the matched part abcab is ab, so the pattern slides by three and the two characters ab "
+             "need not be compared again; the rest matches.")
+    p.append(text(w / 2, 28, "A mismatch never moves the text pointer back", 16, bold=True))
+    x0, cw, ch = 70, 68, 38
+
+    def row(y, label, chars, start, styles):
+        p.append(text(20, y + 25, label, 12, SUB, "start"))
+        for k, c in enumerate(chars):
+            x = x0 + (start + k) * cw
+            fill, stroke, col = styles.get(k, (BOX, EDGE, TXT))
+            p.append(box(x + 3, y, cw - 6, ch, fill, stroke, 5))
+            p.append(text(x + cw / 2, y + 25, c, 17, col, mono=True, bold=True))
+
+    for i in range(9):
+        p.append(text(x0 + i * cw + cw / 2, 54, i, 11, SUB, mono=True))
+    row(64, "text", tx, 0, {})
+    ok = (BOX, GREEN, GREEN)
+    bad = (RED, RED, DARK)
+    skip = (BOX, BLUE, BLUE)
+    row(140, "try 1", pat, 0, {0: ok, 1: ok, 2: ok, 3: ok, 4: ok, 5: bad})
+    p.append(text(x0 + 5 * cw + cw / 2, 198, "d ≠ c", 13, RED, bold=True, mono=True))
+    p += arrow([(x0 + 3 * cw + cw / 2, 214), (x0 + 3 * cw + cw / 2, 240)], "slide by 5 - pi[4] = 3", x0 + 3 * cw + cw / 2 + 12, 233)
+    row(250, "try 2", pat, 3, {0: skip, 1: skip, 2: ok, 3: ok, 4: ok, 5: ok})
+    p.append(text(x0 + 3 * cw + cw, 308, "ab: already known to match", 12, BLUE))
+    p.append(text(x0 + 6 * cw + cw, 308, "compared: c a b d", 12, GREEN))
+    p.append(text(20, 350, "pattern  a  b  c  a  b  d", 13, SUB, "start", mono=True))
+    p.append(text(20, 372, "pi       0  0  0  1  2  0", 13, ORANGE, "start", mono=True))
+    p.append(text(330, 350, "pi[i] = longest proper prefix of pattern[:i+1]", 12, SUB, "start"))
+    p.append(text(330, 370, "that is also a suffix of it (the border)", 12, SUB, "start"))
+    save("dsa-kmp-shift.svg", p)
+
+
+def rolling_hash():
+    w, h = 760, 380
+    p = head(w, h, "Rolling hash window",
+             "Text abcde with base 10 and letters a=1, b=2, and so on. The window abc has hash 123. To slide to bcd remove "
+             "a times 100, giving 23, multiply by 10, giving 230, and add d which is 4, giving 234 in constant time.")
+    p.append(text(w / 2, 28, "Slide the window in O(1): subtract, shift, add", 16, bold=True))
+    x0, cw = 200, 64
+    chars = "abcde"
+    for i, c in enumerate(chars):
+        hl1 = i < 3
+        hl2 = 1 <= i < 4
+        stroke = ORANGE if hl1 and not hl2 else (BLUE if hl2 and not hl1 else (GREEN if hl1 and hl2 else EDGE))
+        p.append(box(x0 + i * cw + 3, 60, cw - 6, 40, BOX, stroke, 6))
+        p.append(text(x0 + i * cw + cw / 2, 87, c, 18, TXT, mono=True, bold=True))
+        p.append(text(x0 + i * cw + cw / 2, 118, i + 1, 12, SUB, mono=True))
+    p.append(f'<rect x="{x0 + 1}" y="52" width="{3 * cw - 2}" height="56" rx="8" fill="none" stroke="{ORANGE}" stroke-width="2.5"/>')
+    p.append(f'<rect x="{x0 + cw + 1}" y="132" width="{3 * cw - 2}" height="56" rx="8" fill="none" stroke="{BLUE}" stroke-width="2.5" stroke-dasharray="6 4"/>')
+    for i, c in enumerate(chars):
+        p.append(text(x0 + i * cw + cw / 2, 166, c, 18, SUB, mono=True))
+    p.append(text(x0 - 20, 88, "window 1", 13, ORANGE, "end", bold=True))
+    p.append(text(x0 - 20, 168, "window 2", 13, BLUE, "end", bold=True))
+    y = 230
+    p.append(text(60, y, "hash(abc) = 1·100 + 2·10 + 3", 15, TXT, "start", mono=True))
+    p.append(text(500, y, "= 123", 15, ORANGE, "start", mono=True, bold=True))
+    p.append(text(60, y + 34, "remove the leading a:   123 - 1·100", 15, TXT, "start", mono=True))
+    p.append(text(500, y + 34, "=  23", 15, TXT, "start", mono=True))
+    p.append(text(60, y + 68, "shift left by one place:  23 · 10", 15, TXT, "start", mono=True))
+    p.append(text(500, y + 68, "= 230", 15, TXT, "start", mono=True))
+    p.append(text(60, y + 102, "add the new letter d:    230 + 4", 15, TXT, "start", mono=True))
+    p.append(text(500, y + 102, "= 234 = hash(bcd)", 15, BLUE, "start", mono=True, bold=True))
+    p.append(text(w / 2, 362, "Real hashes use a base and a modulus so the numbers stay small; equal hashes must still be verified.", 12, SUB))
+    save("dsa-rolling-hash.svg", p)
+
+
+def suffix_array_diagram():
+    w, h = 760, 420
+    s = "banana"
+    sa = [5, 3, 1, 0, 4, 2]
+    lcp = [0, 1, 3, 0, 0, 2]
+    p = head(w, h, "Suffix array of banana",
+             "The six suffixes of banana in sorted order with their start positions and the longest common prefix with the "
+             "suffix above. The suffixes ana and anana, which start with ana, form one block found by binary search. The "
+             "largest lcp value 3 gives the longest repeated substring ana.")
+    p.append(text(w / 2, 28, "Suffix array and LCP of \"banana\"", 16, bold=True))
+    x0, y0, rh = 60, 70, 46
+    p.append(text(x0 + 30, y0 - 10, "sa", 13, SUB, bold=True))
+    p.append(text(x0 + 110, y0 - 10, "lcp", 13, SUB, bold=True))
+    p.append(text(x0 + 190, y0 - 10, "suffix", 13, SUB, "start", bold=True))
+    for r, (pos, l) in enumerate(zip(sa, lcp)):
+        y = y0 + r * rh
+        suf = s[pos:]
+        block = suf.startswith("ana")
+        big = l == max(lcp)
+        p.append(box(x0, y, 380, rh - 6, BOX, ORANGE if block else EDGE, 6))
+        p.append(text(x0 + 30, y + 26, pos, 16, TXT, mono=True, bold=True))
+        p.append(text(x0 + 110, y + 26, l, 16, ORANGE if big else TXT, mono=True, bold=True))
+        if l:
+            p.append(f'<rect x="{x0 + 190}" y="{y + 8}" width="{l * 18}" height="{rh - 22}" rx="4" fill="{ORANGE if big else BLUE}" opacity="0.35"/>')
+        p.append(text(x0 + 190, y + 27, suf, 17, TXT, "start", mono=True, bold=True))
+    p.append(f'<text x="{x0 + 400}" y="{y0 + 1 * rh + 18}" {FONT} font-size="13" fill="{ORANGE}" font-weight="bold">← the block that starts with "ana"</text>')
+    p.append(text(x0 + 400, y0 + 1 * rh + 38, "two binary searches find its ends", 12, SUB, "start"))
+    p.append(text(x0 + 400, y0 + 3 * rh + 10, "sum of lcp = 6", 13, TXT, "start", mono=True))
+    p.append(text(x0 + 400, y0 + 3 * rh + 30, "distinct substrings = 21 - 6 = 15", 13, TXT, "start", mono=True))
+    p.append(text(x0 + 400, y0 + 4 * rh + 30, "largest lcp = 3: longest repeat \"ana\"", 13, ORANGE, "start", mono=True))
+    p.append(text(w / 2, 396, "Shared prefixes are neighbours in sorted order, so one array answers many questions.", 12, SUB))
+    save("dsa-suffix-array.svg", p)
+
+
+def aho_corasick():
+    w, h = 760, 440
+    p = head(w, h, "Aho-Corasick automaton",
+             "A trie for the patterns he, she, his and hers. Nodes ringed in orange end a pattern. The table lists each "
+             "state's fail link; the state for she has fail link he, so reaching she reports both she and he.")
+    p.append(text(w / 2, 28, "Patterns: he, she, his, hers", 16, bold=True))
+    pos = {"": (230, 70), "h": (110, 150), "s": (350, 150), "he": (50, 230), "hi": (170, 230), "sh": (350, 230),
+           "her": (50, 310), "his": (170, 310), "she": (350, 310), "hers": (50, 390)}
+    ends = {"he", "hers", "his", "she"}
+    for k, (x, y) in pos.items():
+        if k:
+            px, py = pos[k[:-1]]
+            p.append(edge(px, py + 16, x, y - 16, EDGE, 1.8))
+    for k, (x, y) in pos.items():
+        ring = ORANGE if k in ends else EDGE
+        p.append(f'<circle cx="{x}" cy="{y}" r="17" fill="{BOX}" stroke="{ring}" stroke-width="{3 if k in ends else 1.8}"/>')
+        p.append(text(x, y + 5, k[-1] if k else "*", 15, TXT if k else SUB, mono=True, bold=True))
+        if k:
+            p.append(text(x + 24, y + 4, k, 11, SUB, "start", mono=True))
+    fails = [("h", "root", ""), ("he", "root", "he"), ("her", "root", ""), ("hers", "s", "hers"), ("hi", "root", ""),
+             ("his", "s", "his"), ("s", "root", ""), ("sh", "h", ""), ("she", "he", "she, he")]
+    x1 = 460
+    p.append(text(x1, 78, "state", 13, SUB, "start", bold=True))
+    p.append(text(x1 + 90, 78, "fail link", 13, SUB, "start", bold=True))
+    p.append(text(x1 + 190, 78, "reports", 13, SUB, "start", bold=True))
+    for r, (st, fl, out) in enumerate(fails):
+        y = 104 + r * 30
+        hot = st == "she"
+        col = ORANGE if hot else TXT
+        p.append(text(x1, y, st, 14, col, "start", mono=True, bold=hot))
+        p.append(text(x1 + 90, y, fl, 14, col, "start", mono=True, bold=hot))
+        p.append(text(x1 + 190, y, out or "-", 14, col, "start", mono=True, bold=hot))
+    p.append(text(x1, 392, "fail link = longest proper suffix of the", 12, SUB, "start"))
+    p.append(text(x1, 410, "state's string that is also a trie prefix", 12, SUB, "start"))
+    save("dsa-aho-corasick.svg", p)
+
+
+
+# ---- Advanced techniques
+def bit_tricks():
+    w, h = 760, 360
+    p = head(w, h, "Lowest set bit tricks",
+             "For x equal to 10110100, x minus 1 is 10110011: the lowest set bit becomes 0 and the zeros below it become 1. "
+             "x AND x minus 1 is 10110000, the lowest set bit cleared. x AND minus x is 00000100, only the lowest set bit.")
+    p.append(text(w / 2, 28, "Two identities on the lowest set bit", 16, bold=True))
+    x0, cw = 250, 42
+
+    def bits_row(y, label, val, hot=(), note=""):
+        p.append(text(20, y + 26, label, 14, TXT, "start", mono=True, bold=True))
+        for i in range(8):
+            b = (val >> (7 - i)) & 1
+            fill, stroke, col = (BOX, EDGE, TXT)
+            if i in hot:
+                fill, stroke, col = (ORANGE, ORANGE, DARK)
+            p.append(box(x0 + i * cw + 2, y, cw - 4, 36, fill, stroke, 5))
+            p.append(text(x0 + i * cw + cw / 2, y + 25, b, 18, col, mono=True, bold=True))
+        if note:
+            p.append(text(x0 + 8 * cw + 16, y + 24, note, 12, SUB, "start"))
+
+    x = 0b10110100
+    bits_row(56, "x", x, hot=(5,), note="lowest set bit: position 2")
+    bits_row(112, "x - 1", x - 1, hot=(5, 6, 7), note="it and the bits below flip")
+    bits_row(168, "x &amp; (x-1)", x & (x - 1), hot=(5,), note="lowest set bit cleared")
+    bits_row(224, "x &amp; -x", x & -x, hot=(5,), note="only the lowest set bit")
+    p.append(text(20, 290, "Uses: count set bits (clear until 0), test for a power of two (x &amp; (x-1) == 0),", 13, SUB, "start"))
+    p.append(text(20, 312, "walk the set bits of a mask, step through the subsets of a mask.", 13, SUB, "start"))
+    p.append(text(20, 340, "orange: the bits that change", 12, ORANGE, "start"))
+    save("dsa-bit-tricks.svg", p)
+
+
+def bloom_filter():
+    w, h = 760, 400
+    m = 16
+    p = head(w, h, "Bloom filter",
+             "A 16-bit array. The keys cat and dog each set three bits. Looking up cow finds one of its three bits clear, so "
+             "cow is certainly absent. Looking up emu finds all three bits set by other keys, a false positive.")
+    p.append(text(w / 2, 28, "Bloom filter: 16 bits, 3 positions per key", 16, bold=True))
+    x0, cw, y = 60, 40, 190
+    cat, dog = {2, 7, 11}, {4, 7, 13}
+    for i in range(m):
+        on = i in cat or i in dog
+        fill = BOX
+        stroke = EDGE
+        if i in cat and i in dog:
+            stroke = ORANGE
+        elif i in cat:
+            stroke = BLUE
+        elif i in dog:
+            stroke = GREEN
+        p.append(box(x0 + i * cw + 2, y, cw - 4, 40, ORANGE if (on and i in cat and i in dog) else (BLUE if i in cat else (GREEN if i in dog else BOX)), stroke, 5))
+        p.append(text(x0 + i * cw + cw / 2, y + 27, 1 if on else 0, 17, DARK if on else SUB, mono=True, bold=True))
+        p.append(text(x0 + i * cw + cw / 2, y + 60, i, 11, SUB, mono=True))
+
+    def key(label, pos, cx, cy, col, up):
+        p.append(text(cx, cy, label, 15, col, bold=True, mono=True))
+        for q in pos:
+            tx = x0 + q * cw + cw / 2
+            if up:
+                p.append(f'<line x1="{cx}" y1="{cy + 8}" x2="{tx}" y2="{y - 2}" stroke="{col}" stroke-width="1.6" marker-end="url(#arrow)"/>')
+            else:
+                p.append(f'<line x1="{cx}" y1="{cy - 20}" x2="{tx}" y2="{y + 82}" stroke="{col}" stroke-width="1.6" stroke-dasharray="5 4"/>')
+
+    key("add cat", cat, 190, 60, BLUE, True)
+    key("add dog", dog, 460, 60, GREEN, True)
+    for label, pos, yy, col in (("cow?", (2, 9, 13), 292, RED), ("emu?", (4, 7, 11), 316, ORANGE)):
+        p.append(text(12, yy + 5, label, 13, col, "start", mono=True, bold=True))
+        for q in pos:
+            p.append(f'<circle cx="{x0 + q * cw + cw / 2}" cy="{yy}" r="7" fill="{col}"/>')
+    p.append(text(x0 + 9 * cw + cw / 2, 296, "✗", 15, RED, bold=True))
+    p.append(text(60, 352, "cow? looks at bits 2, 9, 13: bit 9 is 0, so cow is certainly absent", 13, RED, "start", bold=True))
+    p.append(text(60, 376, "emu? looks at bits 4, 7, 11: all set by other keys, so \"maybe\": a false positive", 13, ORANGE, "start", bold=True))
+    p.append(text(w - 20, 150, "bit 7 is shared by cat and dog", 12, SUB, "end"))
+    save("dsa-bloom-filter.svg", p)
+
+
+def count_min():
+    w, h = 760, 400
+    p = head(w, h, "Count-Min sketch",
+             "Three rows of eight counters. The keys a, b and c were added 3, 2 and 1 times. Each key increments one counter in "
+             "every row. The estimate for a is the minimum of its three counters, 4, against a true count of 3: collisions can "
+             "only make counters too large.")
+    p.append(text(w / 2, 28, "Count-Min: estimate = minimum over the rows", 16, bold=True))
+    rows = [[0, 5, 0, 0, 0, 0, 0, 1], [0, 0, 0, 0, 4, 0, 2, 0], [0, 0, 4, 0, 0, 2, 0, 0]]
+    apos = [1, 4, 2]
+    x0, cw = 140, 60
+    for r, row in enumerate(rows):
+        y = 70 + r * 76
+        p.append(text(60, y + 28, f"row {r}", 13, SUB, "start", mono=True))
+        for i, v in enumerate(row):
+            hot = i == apos[r]
+            p.append(box(x0 + i * cw + 3, y, cw - 6, 44, ORANGE if hot else BOX, ORANGE if hot else EDGE, 6))
+            p.append(text(x0 + i * cw + cw / 2, y + 29, v, 18, DARK if hot else TXT, mono=True, bold=True))
+        p.append(text(x0 + 8 * cw + 16, y + 28, f"a → counter {apos[r]}: {rows[r][apos[r]]}", 13, ORANGE if r == 1 or r == 2 else TXT, "start", mono=True))
+    p.append(text(60, 320, "a was added 3 times, b twice, c once.", 13, SUB, "start"))
+    p.append(text(60, 344, "estimate(a) = min(5, 4, 4) = 4   (true count 3: b collided with a in row 0)", 14, TXT, "start", mono=True, bold=True))
+    p.append(text(60, 370, "estimate(c) = min(1, 4, 4) = 1   (exact: c escaped collisions in row 0)", 14, TXT, "start", mono=True, bold=True))
+    save("dsa-count-min.svg", p)
+
+
+def hyperloglog():
+    w, h = 760, 400
+    p = head(w, h, "HyperLogLog",
+             "A 64-bit hash is split. The first four bits, 0101, select register 5. The rest starts with three zeros then a one, "
+             "so the rank is 4. Register 5 keeps the maximum rank seen. The estimate combines all sixteen registers with a "
+             "harmonic mean.")
+    p.append(text(w / 2, 28, "HyperLogLog: register choice, then leading zeros", 16, bold=True))
+    bits = "0101" + "0001" + "1011" + "0110" + "1001" + "0011"
+    x0, cw = 60, 27
+    for i, b in enumerate(bits):
+        col = BLUE if i < 4 else (ORANGE if 4 <= i < 8 else EDGE)
+        fill = BOX
+        p.append(box(x0 + i * cw + 1, 60, cw - 2, 34, fill, col, 4))
+        p.append(text(x0 + i * cw + cw / 2, 83, b, 16, TXT, mono=True, bold=True))
+    p.append(text(x0 + 4 * cw / 2, 118, "register 5", 13, BLUE, bold=True))
+    p.append(text(x0 + 4 * cw + 2 * cw, 118, "3 zeros then a 1: rank 4", 13, ORANGE, bold=True))
+    p.append(text(470, 118, "(first 24 of the 64 hash bits)", 12, SUB, "start"))
+    regs = [2, 3, 1, 5, 2, 4, 1, 2, 3, 6, 2, 1, 3, 2, 4, 1]
+    rx, rw = 80, 38
+    for i, v in enumerate(regs):
+        hot = i == 5
+        p.append(box(rx + i * rw + 1, 190, rw - 2, 44, ORANGE if hot else BOX, ORANGE if hot else EDGE, 5))
+        p.append(text(rx + i * rw + rw / 2, 219, v, 17, DARK if hot else TXT, mono=True, bold=True))
+        p.append(text(rx + i * rw + rw / 2, 254, i, 11, SUB, mono=True))
+    p.append(f'<line x1="{x0 + 2 * cw}" y1="126" x2="{rx + 5 * rw + rw / 2}" y2="186" stroke="{BLUE}" stroke-width="1.6" marker-end="url(#arrow)"/>')
+    p.append(text(60, 290, "register 5 := max(its old value, 4)", 14, TXT, "start", mono=True))
+    p.append(text(60, 320, "estimate = alpha * m^2 / sum(2^-register)      (harmonic mean of the registers)", 14, TXT, "start", mono=True))
+    p.append(text(60, 348, "m = 2^14 = 16384 registers: 16 KB, standard error 1.04 / sqrt(m) = 0.81%", 14, ORANGE, "start", mono=True, bold=True))
+    p.append(text(60, 376, "the same item always hits the same register with the same rank: duplicates change nothing", 12, SUB, "start"))
+    save("dsa-hyperloglog.svg", p)
+
+
+# ---- Production structures
+def lru_cache():
+    w, h = 760, 360
+    p = head(w, h, "LRU cache: a map plus a doubly linked list",
+             "A hash map finds a node by key. The nodes sit in a doubly linked list between a head and a tail sentinel, ordered "
+             "from most recently used to least recently used. A hit moves the node to the front; inserting into a full cache "
+             "removes the node before the tail and deletes its key from the map.")
+    p.append(text(w / 2, 28, "LRU cache: the map finds, the list orders", 16, bold=True))
+    # map column
+    p.append(text(90, 66, "map[key]*node", 13, SUB, bold=True))
+    keys = ["a", "b", "c", "d"]
+    for i, k in enumerate(keys):
+        y = 80 + i * 40
+        p.append(box(50, y, 80, 30, BOX, EDGE, 5))
+        p.append(text(90, y + 20, k, 15, mono=True, bold=True))
+    # list
+    p.append(text(430, 66, "recency order (doubly linked)", 13, SUB, bold=True))
+    labels = ["HEAD", "d", "a", "c", "TAIL"]
+    xs = [190, 270, 350, 430, 510]
+    ny = 150
+    for x, lab in zip(xs, labels):
+        sent = lab in ("HEAD", "TAIL")
+        hot_new, hot_old = lab == "d", lab == "c"
+        stroke = GREEN if hot_new else (RED if hot_old else EDGE)
+        fill = DARK if sent else BOX
+        p.append(box(x, ny, 64, 44, fill, stroke, 6))
+        p.append(text(x + 32, ny + 28, lab, 13 if sent else 16, SUB if sent else TXT, mono=True, bold=not sent))
+    for a, b in zip(xs, xs[1:]):
+        p.append(f'<line x1="{a + 64}" y1="{ny + 15}" x2="{b - 2}" y2="{ny + 15}" stroke="{SUB}" stroke-width="1.8" marker-end="url(#arrow)"/>')
+        p.append(f'<line x1="{b}" y1="{ny + 31}" x2="{a + 66}" y2="{ny + 31}" stroke="{SUB}" stroke-width="1.8" marker-end="url(#arrow)"/>')
+    p.append(text(302, ny - 14, "most recently used", 12, GREEN, bold=True))
+    p.append(text(462, ny - 14, "next victim", 12, RED, bold=True))
+    # map -> node pointers
+    targets = {"a": 350, "b": None, "c": 430, "d": 270}
+    for i, k in enumerate(keys):
+        t = targets[k]
+        if t is None:
+            continue
+        y = 95 + i * 40
+        p.append(f'<path d="M130,{y} C170,{y} 170,{y} 180,{y}" fill="none" stroke="none"/>')
+        p.append(f'<path d="M130,{y} Q{(130 + t) / 2},{y + (260 - y) * 0.9} {t + 32},{ny + 46}" fill="none" stroke="{BLUE}" stroke-width="1.4" marker-end="url(#arrow)"/>')
+    p.append(text(90, 262, "(b was evicted:", 12, SUB))
+    p.append(text(90, 278, "its key left the map)", 12, SUB))
+    p.append(text(60, 322, "Get(k): map lookup, unlink the node, relink at the front. O(1).", 13, TXT, "start", mono=True))
+    p.append(text(60, 344, "Put in a full cache: unlink the node before TAIL, delete its key, insert at the front. O(1).", 13, TXT, "start", mono=True))
+    save("dsa-lru-cache.svg", p)
+
+
+def hash_ring():
+    import math
+    w, h = 760, 430
+    p = head(w, h, "Consistent hashing ring",
+             "Servers A, B and C are hashed to several points each on a circle. A key belongs to the first server point met "
+             "walking clockwise from the key. When server D is added, it takes over only the arc just before each of its points.")
+    p.append(text(w / 2, 28, "Consistent hashing: walk clockwise to the first server", 16, bold=True))
+    cx, cy, r = 250, 225, 140
+    p.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{EDGE}" stroke-width="4"/>')
+    cols = {"A": BLUE, "B": GREEN, "C": ORANGE, "D": RED}
+    pts = [(20, "A"), (75, "B"), (130, "C"), (170, "A"), (215, "B"), (255, "D"), (300, "C"), (335, "A")]
+
+    def pos(deg, rad=r):
+        a = math.radians(deg - 90)
+        return cx + rad * math.cos(a), cy + rad * math.sin(a)
+
+    # new server D's stolen arc
+    d0, d1 = 215, 255
+    n = 12
+    arc = " ".join(f"{pos(d0 + (d1 - d0) * i / n)[0]:.1f},{pos(d0 + (d1 - d0) * i / n)[1]:.1f}" for i in range(n + 1))
+    p.append(f'<polyline points="{arc}" fill="none" stroke="{RED}" stroke-width="7" stroke-linecap="round"/>')
+    for deg, s in pts:
+        x, y = pos(deg)
+        p.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="14" fill="{cols[s]}" stroke="{BG}" stroke-width="2"/>')
+        p.append(text(round(x, 1), round(y + 5, 1), s, 14, DARK, bold=True))
+    # keys
+    for deg, k in [(45, "k1"), (150, "k2"), (240, "k3")]:
+        x, y = pos(deg, r - 38)
+        p.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{TXT}"/>')
+        p.append(text(round(x, 1), round(y - 10, 1), k, 12, TXT, mono=True, bold=True))
+    p.append(text(cx, cy - 6, "hash space", 13, SUB))
+    p.append(text(cx, cy + 12, "0 ... 2^64", 13, SUB, mono=True))
+    p.append(text(cx + 10, cy - r - 12, "clockwise &#8635;", 12, SUB, "start"))
+    x0 = 470
+    p.append(text(x0, 80, "Lookup", 15, TXT, "start", bold=True))
+    p.append(text(x0, 104, "k1 (45&#176;)  &#8594; next point 75&#176;: B", 13, TXT, "start", mono=True))
+    p.append(text(x0, 126, "k2 (150&#176;) &#8594; next point 170&#176;: A", 13, TXT, "start", mono=True))
+    p.append(text(x0, 148, "k3 (240&#176;) &#8594; before D: C at 300&#176;", 13, TXT, "start", mono=True))
+    p.append(text(x0, 200, "Add server D (red arc)", 15, RED, "start", bold=True))
+    p.append(text(x0, 224, "k3 now lands on D.", 13, TXT, "start", mono=True))
+    p.append(text(x0, 246, "Every key outside the red arc", 13, TXT, "start", mono=True))
+    p.append(text(x0, 268, "keeps its server.", 13, TXT, "start", mono=True))
+    p.append(text(x0, 320, "hash(key) % N: about N/(N+1)", 13, SUB, "start", mono=True))
+    p.append(text(x0, 342, "of the keys move.", 13, SUB, "start", mono=True))
+    p.append(text(x0, 372, "ring: about 1/(N+1) move.", 13, GREEN, "start", mono=True, bold=True))
+    p.append(text(x0, 398, "Many points per server (virtual", 12, SUB, "start"))
+    p.append(text(x0, 416, "nodes) balance the load.", 12, SUB, "start"))
+    save("dsa-consistent-hash-ring.svg", p)
+
+
+def token_bucket():
+    w, h = 760, 340
+    p = head(w, h, "Token bucket",
+             "Tokens drip into a bucket at a steady rate up to its capacity. Each request removes one token and is allowed; "
+             "when the bucket is empty the request is rejected.")
+    p.append(text(w / 2, 28, "Token bucket: rate limits the average, capacity limits the burst", 16, bold=True))
+    bx, by, bw, bh = 250, 90, 200, 150
+    p.append(text(350, 62, "refill: 10 tokens per second", 13, ORANGE, bold=True))
+    p.append(f'<line x1="350" y1="68" x2="350" y2="{by - 2}" stroke="{ORANGE}" stroke-width="2.5" marker-end="url(#arrow)"/>')
+    p.append(f'<path d="M{bx},{by} L{bx},{by + bh} L{bx + bw},{by + bh} L{bx + bw},{by}" fill="{BOX}" stroke="{EDGE}" stroke-width="3"/>')
+    p.append(f'<line x1="{bx - 12}" y1="{by + 20}" x2="{bx + bw + 12}" y2="{by + 20}" stroke="{RED}" stroke-width="1.5" stroke-dasharray="6 4"/>')
+    p.append(text(bx - 18, by + 24, "capacity 10 (burst)", 12, RED, "end"))
+    import random
+    rnd = random.Random(4)
+    row = 0
+    n_tok = 7
+    for i in range(n_tok):
+        x = bx + 26 + (i % 5) * 36
+        y = by + bh - 24 - (i // 5) * 34
+        p.append(f'<circle cx="{x}" cy="{y}" r="14" fill="{ORANGE}" stroke="{BG}" stroke-width="2"/>')
+    p.append(text(350, by + bh + 26, "7 tokens now", 13, TXT, bold=True))
+    # requests
+    p.append(f'<line x1="{bx + bw + 10}" y1="{by + bh - 20}" x2="{bx + bw + 60}" y2="{by + bh - 20}" stroke="{GREEN}" stroke-width="2.5" marker-end="url(#arrow)"/>')
+    p.append(text(bx + bw + 68, by + bh - 24, "take 1 token: allowed", 13, GREEN, "start", bold=True))
+    p.append(text(bx + bw + 68, by + bh - 6, "no token: rejected (429)", 13, RED, "start", bold=True))
+    p.append(text(60, 300, "state: tokens (a number) and the time of the last refill. Refill lazily:", 13, TXT, "start", mono=True))
+    p.append(text(60, 322, "tokens = min(capacity, tokens + elapsed * rate) when a request arrives.", 13, TXT, "start", mono=True))
+    save("dsa-token-bucket.svg", p)
+
+
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     two_pointers()
@@ -1028,6 +1600,21 @@ if __name__ == "__main__":
     knapsack_table()
     backtracking_tree()
     n_queens()
+    avl_rotation()
+    trie()
+    fenwick()
+    segment_tree()
+    kmp_shift()
+    rolling_hash()
+    suffix_array_diagram()
+    aho_corasick()
+    bit_tricks()
+    bloom_filter()
+    count_min()
+    hyperloglog()
+    lru_cache()
+    hash_ring()
+    token_bucket()
     growth_rates()
     problem_solving()
     call_stack()

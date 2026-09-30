@@ -2,27 +2,37 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA Advanced Trees: balanced trees, tries, segment trees, and Fenwick trees in Go. Planned lesson.">
+  <meta name="description" content="Advanced trees in Go: AVL rotations, treaps with split and merge, order statistics (k-th smallest and rank), tries for prefix search, Fenwick trees, segment trees with lazy propagation and sparse tables, each checked against a brute-force oracle.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, go, advanced-trees">
+  <meta name="keywords" content="dsa, go, golang, avl tree, self-balancing tree, rotation, treap, split merge, order statistics, trie, prefix tree, autocomplete, fenwick tree, binary indexed tree, segment tree, lazy propagation, sparse table, range query, inversions">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DSA Advanced Trees</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/advanced-trees.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">
   <link rel="stylesheet" href="/assets/css/content-topic.css">
   <link rel="stylesheet" href="/assets/css/content-sidebar.css">
   <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -34,38 +44,529 @@
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">Advanced Trees</h1>
+        <h1 id="advanced-trees">Advanced Trees</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Planned lesson — authored in a later phase of the DSA roadmap.
+        <div class="alert alert-secondary shadow-sm">
+          A binary search tree is only as good as its shape. This lesson makes the tree a data structure you can rely on. First, two ways to <em>keep a search tree balanced</em>: AVL rotations and randomized treaps. Then the idea that turns trees into a toolbox, <em>storing extra information in each node</em>, which gives rank queries, prefix search with a trie, and range queries with Fenwick and segment trees. Every structure is built from scratch in Go, small enough to read in one sitting, and every demo checks itself against a simple brute-force version on thousands of random operations.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>This lesson will cover balanced trees, tries, segment trees, and Fenwick trees in Go, with small inline examples and larger runnable demos in the code viewer.</p>
+        <h2 id="why">Why Go Beyond a Plain BST?</h2>
+        <p>In <a href="/roadmap/dsa/trees.html#bst">Binary Trees &amp; BST</a> every operation cost O(h), where h is the height. That is a promise about the <em>shape</em>, and the shape depends on the order in which keys arrive. Sorted input, which is very common in real data, turns the tree into a linked list. The demo <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/59_avl_tree.go">59_avl_tree.go</a> inserts the keys 1 to 2000 in increasing order into both kinds of tree:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Keys inserted in order</th><th>Plain BST height</th><th>AVL height</th></tr></thead>
+            <tbody>
+              <tr><td>100</td><td>100</td><td>7</td></tr>
+              <tr><td>1,000</td><td>1,000</td><td>10</td></tr>
+              <tr><td>2,000</td><td>2,000</td><td>11</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A search in the plain tree walks 2,000 nodes; in the AVL tree, at most 11. The rest of the lesson is about two other problems a plain BST cannot solve even when it is balanced: questions about <em>prefixes of keys</em>, and questions about <em>ranges of positions</em>.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Until this lesson is published, continue with the <a href="/roadmap/dsa/">DSA roadmap index</a>.</p>
+        <h3 id="toolbox">The Toolbox</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>You need</th><th>Structure</th><th>Cost</th><th>Demo</th></tr></thead>
+            <tbody>
+              <tr><td>An ordered set that never degrades</td><td>AVL tree</td><td>O(log n) worst case</td><td>59</td></tr>
+              <tr><td>k-th smallest, rank, split and join</td><td>treap with sizes</td><td>O(log n) expected</td><td>60</td></tr>
+              <tr><td>Words by prefix, autocomplete, wildcards</td><td>trie</td><td>O(length of the word)</td><td>61</td></tr>
+              <tr><td>Prefix sums that change</td><td>Fenwick tree</td><td>O(log n) per update and query</td><td>62</td></tr>
+              <tr><td>Any range operation with updates</td><td>segment tree</td><td>O(log n) per update and query</td><td>63</td></tr>
+              <tr><td>Range minimum on data that never changes</td><td>sparse table</td><td>O(1) query, O(n log n) build</td><td>63</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Go's standard library has hash maps, slices and heaps, but no ordered map or balanced tree, so these structures are ones you write yourself, or take from a library. Knowing how they work also tells you which one a problem is really asking for.</p>
+        <hr>
+
+        <h2 id="avl">AVL Trees: Balance by Rotation</h2>
+        <p>An AVL tree is a binary search tree that obeys one extra rule: <strong>for every node, the heights of the two subtrees differ by at most 1</strong>. After every insert or delete, the nodes on the path back to the root are checked and repaired if the rule broke. The rule looks weak, but it is enough to bound the height.</p>
+
+        <h3 id="avl-bound">Why the Rule Gives O(log n)</h3>
+        <p>Ask the opposite question: what is the <em>fewest</em> nodes an AVL tree of height h can have? The root needs one subtree of height h-1 and, at least, one of height h-2. So the smallest tree is:</p>
+        <pre><code class="language-go line-numbers">func minNodes(h int) int {
+	if h &lt;= 0 {
+		return 0
+	}
+	if h == 1 {
+		return 1
+	}
+	return minNodes(h-1) + minNodes(h-2) + 1
+}</code></pre>
+        <p>This grows like the Fibonacci numbers: 12 nodes for height 5, 143 for height 10, 17,710 for height 20, 2,178,308 for height 30. Turned around, a tree with n nodes has height at most about 1.44 log<sub>2</sub>(n+2). A million keys need height at most 28, where a perfectly balanced tree would need 20. The demo tests this after random operations: no AVL tree ever has fewer nodes than <code>minNodes</code> of its height.</p>
+
+        <h3 id="avl-node">The Node</h3>
+        <p>Each node stores its own height, so the balance of a node is read in O(1) from its children:</p>
+        <pre><code class="language-go line-numbers">type node struct {
+	key         int
+	height      int // height of the subtree rooted here: a leaf is 1, nil is 0
+	left, right *node
+}
+
+func fix(n *node) { n.height = 1 + max(height(n.left), height(n.right)) }</code></pre>
+        <p><code>fix</code> recomputes one height from the two children. Any function that changes a child pointer must call it before returning, always bottom-up. Forgetting one call leaves a stale height, and the balance decisions above it will be wrong.</p>
+
+        <h3 id="rotation">The Rotation</h3>
+        <p>A rotation is a local pointer change that lifts one node above its parent. It keeps the in-order sequence of keys, so the search-tree property survives, but it moves one subtree up a level and another one down:</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-avl-rotation.svg" alt="Two rows of small trees. Top: keys 30, 20, 10 in a left chain, with balance plus 2 at 30, become a balanced tree with root 20 after one right rotation at 30. Bottom: keys 30, 10, 20 in a zig-zag become a left chain after a left rotation at 10, then a balanced tree with root 20 after a right rotation at 30" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">A single rotation fixes a straight chain. A zig-zag needs two.</p>
+        </div>
+
+        <pre><code class="language-go line-numbers">func rotateRight(y *node) *node {
+	x := y.left
+	y.left = x.right
+	x.right = y
+	fix(y) // y is now the lower node, so it is updated first
+	fix(x)
+	rotations++
+	return x
+}</code></pre>
+        <p>The subtree that changes parent (<code>x.right</code>, called B in the demo's diagram) holds keys larger than x and smaller than y, so it fits exactly as y's new left child. The function returns the new root of this subtree, and the caller must store it. <code>rotateLeft</code> is the mirror image.</p>
+
+        <h3 id="rebalance">The Four Cases</h3>
+        <p>After one insert or delete, a node can only be off by two, and only four shapes exist. Two are straight (left-left, right-right) and need one rotation. Two are zig-zags (left-right, right-left): the child leans away from the parent, so a single rotation would only move the problem to the other side. Rotate the child first to straighten the zig-zag, then rotate the parent.</p>
+        <pre><code class="language-go line-numbers">func rebalance(n *node) *node {
+	fix(n)
+	switch b := balance(n); {
+	case b &gt; 1:
+		if balance(n.left) &lt; 0 {
+			n.left = rotateLeft(n.left) // left-right case
+		}
+		return rotateRight(n)
+	case b &lt; -1:
+		if balance(n.right) &gt; 0 {
+			n.right = rotateRight(n.right) // right-left case
+		}
+		return rotateLeft(n)
+	}
+	return n
+}</code></pre>
+        <p>The demo inserts the same three keys in four orders. Every order ends as the tree with root 20: the two straight orders use one rotation, the two zig-zag orders use two.</p>
+        <pre><code class="language-text">insert order   shape         rotations   preorder after inserts
+[30 20 10]     left-left     1           20 10 30
+[10 20 30]     right-right   1           20 10 30
+[30 10 20]     left-right    2           20 10 30
+[10 30 20]     right-left    2           20 10 30</code></pre>
+
+        <h3 id="avl-ops">Insert and Delete</h3>
+        <p>Insert is the plain BST insert with one change: on the way back up the recursion, each node calls <code>rebalance</code> instead of returning itself.</p>
+        <pre><code class="language-go line-numbers">	switch {
+	case k &lt; n.key:
+		n.left = insert(n.left, k, added)
+	case k &gt; n.key:
+		n.right = insert(n.right, k, added)
+	default:
+		return n // already present: nothing changed, nothing to rebalance
+	}
+	return rebalance(n)</code></pre>
+        <p>Delete works the same way. A node with two children takes the key of its in-order successor, which is then removed from the right subtree. Unlike insert, one delete can unbalance several nodes on the path, so every node on the way up is rebalanced. An insert needs at most two rotations in total; a delete may need one per level.</p>
+
+        <h3 id="avl-results">What the Demo Measures</h3>
+        <ul>
+          <li><strong>Sorted inserts.</strong> 2,000 keys use 1,989 rotations and reach height 11, the minimum possible for 2,000 nodes. Deleting the 1,900 smallest keys afterwards leaves a valid tree of height 7.</li>
+          <li><strong>Random order.</strong> Over 200 random orders of 1,000 keys the tallest plain tree has height 29 and the tallest AVL tree height 12, under the bound of 14. Balancing helps a little on random input and enormously on sorted input.</li>
+          <li><strong>Oracle.</strong> 20,000 random inserts, deletes and lookups are applied to the tree and to a Go <code>map</code>. After every single operation a check function verifies the search order, the stored heights and the balance rule for the whole tree. Failures: 0.</li>
+        </ul>
+        <hr>
+
+        <h2 id="treap">Treaps and Order Statistics</h2>
+        <p>AVL trees need four cases and careful height bookkeeping. A <strong>treap</strong> gets the same guarantee, in expectation, from one idea: give every node a random priority, and keep the tree a BST by key <em>and</em> a heap by priority (a parent's priority is at least its children's). For a given set of keys and distinct priorities exactly one such tree exists, and because the priorities are random, its shape is the shape of a randomly built BST. Sorted input no longer matters. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/60_treap_order_statistics.go">60_treap_order_statistics.go</a>.</p>
+
+        <h3 id="split-merge">Split and Merge</h3>
+        <p>Instead of rotations, a treap is built from two operations that each follow a single path:</p>
+        <ul>
+          <li><code>split(n, k)</code> cuts a tree into the keys smaller than k and the keys at least k.</li>
+          <li><code>merge(a, b)</code> joins two trees when every key of a is below every key of b. The node with the higher priority becomes the root.</li>
+        </ul>
+        <pre><code class="language-go line-numbers">func split(n *node, k int) (*node, *node) {
+	if n == nil {
+		return nil, nil
+	}
+	if n.key &lt; k {
+		l, r := split(n.right, k) // n and its left subtree belong to the left part
+		n.right = l
+		update(n)
+		return n, r
+	}
+	l, r := split(n.left, k) // n and its right subtree belong to the right part
+	n.left = r
+	update(n)
+	return l, n
+}</code></pre>
+        <pre><code class="language-go line-numbers">func merge(a, b *node) *node {
+	switch {
+	case a == nil:
+		return b
+	case b == nil:
+		return a
+	case a.prio &gt; b.prio:
+		a.right = merge(a.right, b)
+		update(a)
+		return a
+	default:
+		b.left = merge(a, b.left)
+		update(b)
+		return b
+	}
+}</code></pre>
+        <p>Insert and erase are then a few lines. To insert, split at the key and merge the new node between the two halves. To erase, split at k and again at k+1: the middle tree holds only the key k, and the other two are merged without it.</p>
+        <pre><code class="language-go line-numbers">	l, r := split(t.root, k)
+	fresh := &amp;node{key: k, prio: t.rng.Uint32(), size: 1}
+	t.root = merge(merge(l, fresh), r)</code></pre>
+
+        <h3 id="augment">Augmenting: Store the Size</h3>
+        <p>Each node also stores <code>size</code>, the number of nodes in its subtree, repaired by <code>update</code> whenever a child pointer changes. Nothing else about the tree changes, yet it can now answer questions a plain BST cannot, in O(log n). This technique is called <em>augmentation</em>: keep one more number per node that can be recomputed from the children, and use it to steer a search.</p>
+        <pre><code class="language-go line-numbers">func (t *Treap) Kth(i int) (int, bool) {
+	if i &lt; 0 || i &gt;= t.Len() {
+		return 0, false
+	}
+	n := t.root
+	for {
+		ls := size(n.left)
+		switch {
+		case i &lt; ls:
+			n = n.left
+		case i == ls:
+			return n.key, true
+		default:
+			i -= ls + 1
+			n = n.right
+		}
+	}
+}</code></pre>
+        <p>The size of the left subtree says where the i-th smallest key is: on the left if the left has more than i nodes, here if it has exactly i, and otherwise on the right, after skipping the left subtree and this node. <code>Rank</code> is the same idea in reverse: while walking to k, every time you step right, everything to the left of that step (the left subtree plus the node) is smaller.</p>
+        <pre><code class="language-go line-numbers">func (t *Treap) Rank(k int) int {
+	count := 0
+	for n := t.root; n != nil; {
+		if k &lt;= n.key {
+			n = n.left
+		} else {
+			count += size(n.left) + 1 // this node and its whole left subtree are smaller
+			n = n.right
+		}
+	}
+	return count
+}</code></pre>
+        <p><code>Count(lo, hi)</code>, the number of keys in a range, is <code>Rank(hi+1) - Rank(lo)</code>. Together these give the median, percentiles, and "how many values are below x" for a set that keeps changing, something a sorted slice can only do by paying O(n) for each insert.</p>
+
+        <h3 id="treap-results">What the Demo Measures</h3>
+        <ul>
+          <li><strong>Balance without rules.</strong> 100,000 keys inserted in sorted order give a tree of height 44 with an average depth of 22, against log<sub>2</sub> n = 16.6. A plain BST would have height 100,000.</li>
+          <li><strong>Oracle.</strong> 30,000 random insert, erase, k-th, rank and range-count operations are checked against a sorted slice. After every operation the whole tree is verified for search order, the heap property, and correct sizes. Failures: 0.</li>
+        </ul>
+
+        <h3 id="sequence">Sequence Mode</h3>
+        <p>Drop the keys and let the position in the in-order walk be the only order. Now <code>splitAt(n, i)</code> cuts by count, using the sizes, and <code>merge</code> needs no key comparison at all. The tree becomes an array with O(log n) operations anywhere:</p>
+        <pre><code class="language-go line-numbers">func (s *Sequence) RotateLeft(k int) {
+	a, b := splitAt(s.root, k)
+	s.root = merge(b, a)
+}</code></pre>
+        <p>Inserting at index i, deleting the range [i, j), and rotating the array are each two or three splits and merges. The demo runs 5,000 random such operations against a Go slice and compares the full contents after every step. Failures: 0. This "implicit treap" is how text editors and some databases represent sequences that are cut and pasted often.</p>
+
+        <h3 id="other-balanced">Other Balanced Trees</h3>
+        <p>Red-black trees relax the AVL rule (the longest path may be up to twice the shortest) to make updates cheaper. They are common in language libraries, for example behind Java <code>TreeMap</code> and commonly behind C++ <code>std::map</code>. B-trees widen each node to hold many keys so that one node fills a disk page, which is why databases and file systems use them. All of them keep the same contract as the AVL tree here: an ordered set with O(log n) operations regardless of input order.</p>
+        <hr>
+
+        <h2 id="trie">Tries: Searching by Prefix</h2>
+        <p>A hash map answers "is this exact word stored?" and nothing more. To ask "which words start with <code>car</code>?" you would scan every key. A <strong>trie</strong> (prefix tree) stores words letter by letter: each edge is a letter, and words with a common beginning share the same path. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/61_trie.go">61_trie.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-trie.svg" alt="A trie holding cat, car, card, care, dog and dot. The root has children c and d. Below c is a, which has children t and r; r has children d and e. Below d is o, which has children g and t. Words end at the nodes ringed in orange, and each node shows how many words pass through it" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Six words, 20 letters, 11 nodes. The number beside a node counts the words that pass through it.</p>
+        </div>
+
+        <h3 id="trie-node">The Node</h3>
+        <pre><code class="language-go line-numbers">type node struct {
+	next [26]*node // one slot per letter 'a'..'z'; nil means no word continues that way
+	end  bool      // a stored word ends exactly here
+	pass int       // how many stored words pass through (or end at) this node
+}</code></pre>
+        <p>The <code>end</code> flag is needed because a word can be the prefix of another: <code>car</code> ends in the middle of the path to <code>card</code>. The <code>pass</code> counter is an augmentation, like the size in the treap: it answers prefix counts without visiting anything below the prefix.</p>
+
+        <h3 id="trie-insert">Insert, Contains, and Prefix Counts</h3>
+        <pre><code class="language-go line-numbers">func (t *Trie) Insert(w string) bool {
+	if t.Contains(w) {
+		return false
+	}
+	n := t.root
+	n.pass++
+	for i := 0; i &lt; len(w); i++ {
+		c := w[i] - 'a'
+		if n.next[c] == nil {
+			n.next[c] = &amp;node{}
+			t.nodes++
+		}
+		n = n.next[c]
+		n.pass++
+	}
+	n.end = true
+	t.words++
+	return true
+}</code></pre>
+        <p>Every operation costs O(length of the word), not O(number of words). <code>Contains</code> follows the path and checks <code>end</code>. <code>CountPrefix</code> follows the path and returns <code>pass</code>. For the six words in the diagram, <code>CountPrefix("car")</code> is 3 (car, card, care) and <code>CountPrefix("x")</code> is 0. Note that <code>Insert</code> checks for a duplicate first: without that check a repeated word would inflate every counter on its path.</p>
+
+        <h3 id="trie-autocomplete">Autocomplete</h3>
+        <p>Follow the prefix, then walk the subtree below it visiting the children in the order a to z. The words come out in alphabetical order, and the walk can stop after the first few:</p>
+        <pre><code class="language-go line-numbers">func (t *Trie) Autocomplete(p string, limit int) []string {
+	var out []string
+	var walk func(n *node, path []byte)
+	walk = func(n *node, path []byte) {
+		if n == nil || len(out) &gt;= limit {
+			return
+		}
+		if n.end {
+			out = append(out, string(path))
+		}
+		for c := 0; c &lt; 26; c++ {
+			walk(n.next[c], append(path, byte('a'+c)))
+		}
+	}
+	walk(t.find(p), []byte(p))
+	return out
+}</code></pre>
+        <p>The demo stores the six words of the diagram plus <code>careful</code>. <code>Autocomplete("car", 10)</code> returns <code>[car card care careful]</code>, and with limit 2 it returns <code>[car card]</code>. The work depends on the length of the prefix plus the number of results returned, not on the size of the dictionary.</p>
+
+        <h3 id="trie-delete">Delete</h3>
+        <p>Walking down, decrease each <code>pass</code> counter. The first node whose counter reaches zero starts a chain that belonged to this word alone, so the whole chain is cut with one assignment. If the walk reaches the end with nodes still in use (other words continue below), only the <code>end</code> flag is cleared. Deleting <code>car</code> from a trie that also holds <code>card</code> and <code>care</code> removes no node at all.</p>
+
+        <h3 id="trie-wildcard">Wildcards</h3>
+        <p>To match a pattern such as <code>c.r</code>, where the dot means any letter, follow letters normally and, at a dot, try every child. The cost grows with the number of dots, not with the number of stored words.</p>
+
+        <h3 id="trie-results">What the Demo Measures</h3>
+        <ul>
+          <li><strong>Sharing.</strong> 20,000 random words over a four-letter alphabet contain 176,949 letters and use 56,440 nodes, 32% of the letters. Real dictionaries share less than that but still far more than zero.</li>
+          <li><strong>Oracle.</strong> 20,000 random inserts, deletes, lookups, prefix counts, autocomplete calls and wildcard searches are compared with a scan of a sorted list of words. After every operation the incremental node counter is compared to a full recount. Failures: 0.</li>
+        </ul>
+
+        <h3 id="trie-cost">The Memory Cost</h3>
+        <p>An array of 26 pointers is 208 bytes per node on a 64-bit machine, even for a node with one child. Three common remedies: a <code>map[byte]*node</code> for sparse nodes, a sorted slice of children, or a <em>compressed</em> trie (radix tree) that merges chains of single-child nodes into one edge labelled with a string. Also, this trie accepts only lowercase a-z: a byte outside that range would index outside the array and panic. Check or normalize input first, or use a map when the alphabet is large, as with Unicode.</p>
+
+        <h3 id="binary-trie">The Same Idea on Bits</h3>
+        <p>A trie does not have to hold letters. Store the bits of a number, from the highest to the lowest, and each number is a path of length 20 (for numbers below 2<sup>20</sup>). Now a question about XOR becomes a walk: to find the number that gives the largest <code>x ^ y</code>, go down choosing at each bit the child <em>different</em> from x's bit whenever it exists, because a 1 in a higher bit beats anything below it. The demo computes the largest XOR of any two numbers in an array in O(n * 20) and compares it with the O(n²) all-pairs check on 2,000 random arrays. Failures: 0.</p>
+        <hr>
+
+        <h2 id="fenwick">Fenwick Trees: Prefix Sums That Change</h2>
+        <p>Prefix sums (<a href="/roadmap/dsa/arrays-slices.html">Arrays &amp; Slices</a>) answer a range-sum query in O(1), but one update forces an O(n) rebuild. Summing the range directly makes the update O(1) and the query O(n). A <strong>Fenwick tree</strong>, also called a binary indexed tree, makes both O(log n) using one flat array and no pointers. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/62_fenwick_tree.go">62_fenwick_tree.go</a>.</p>
+
+        <h3 id="lowbit">The Indexing Trick</h3>
+        <p>Positions are 1-based. Slot i stores the sum of the last <code>lowbit(i)</code> elements ending at position i, where <code>lowbit(i) = i &amp; -i</code> is the value of the lowest set bit of i. Odd positions cover one element, positions 2, 6, 10 cover two, position 4 covers four, position 8 covers eight:</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-fenwick.svg" alt="Eight array cells with values 3, 1, 4, 1, 5, 9, 2, 6 and, above them, bars for the Fenwick slots. Slots 1, 3, 5 and 7 cover one cell, slots 2 and 6 cover two, slot 4 covers four and slot 8 covers all eight. Slots 7, 6 and 4 are highlighted as the slots used by the prefix query for 7" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">A prefix query for 7 combines three slots: 2 + 14 + 9 = 25.</p>
+        </div>
+
+        <pre><code class="language-text">a       = [3 1 4 1 5 9 2 6]
+tree[i] = [3 4 4 9 5 14 2 31]</code></pre>
+
+        <h3 id="fenwick-ops">Update and Prefix Query</h3>
+        <pre><code class="language-go line-numbers">func (f *Fenwick) Add(i, delta int) {
+	for ; i &lt; len(f.tree); i += i &amp; -i {
+		f.tree[i] += delta
+	}
+}
+
+func (f *Fenwick) Prefix(i int) int {
+	sum := 0
+	for ; i &gt; 0; i -= i &amp; -i {
+		sum += f.tree[i]
+	}
+	return sum
+}</code></pre>
+        <p>A query walks <em>down</em> by clearing the lowest set bit: <code>Prefix(6)</code> reads slot 6 (positions 5-6), then slot 4 (positions 1-4), then stops at 0. The ranges met on the way are disjoint and together cover exactly 1 to 6. An update walks <em>up</em> by adding the lowest set bit: changing position 4 touches slots 4 and 8, the only slots whose range contains it. Each step either clears a set bit or moves it higher, so there are at most about log<sub>2</sub> n steps: for n = 1,000,000 the demo finds that no query needs more than 19. A range sum is a difference of two prefixes: <code>Range(l, r) = Prefix(r) - Prefix(l-1)</code>.</p>
+        <p>The tree can also be built from a slice in O(n): each slot pushes its finished total into the one slot that also covers it, instead of doing n separate updates.</p>
+
+        <h3 id="fenwick-uses">Three More Uses</h3>
+        <p><strong>Range update, point query.</strong> Store the <em>difference array</em> <code>d[i] = a[i] - a[i-1]</code>. Adding v to every position in [l, r] changes only two differences, and the value at one position is the prefix sum of the differences:</p>
+        <pre><code class="language-go line-numbers">func (f *Fenwick) RangeAdd(l, r, v int) {
+	f.Add(l, v)
+	if r+1 &lt; len(f.tree) {
+		f.Add(r+1, -v)
+	}
+}</code></pre>
+        <p><strong>The k-th item.</strong> If the tree stores counts (slot v holds how many times v occurs), the k-th smallest stored value is the smallest v whose prefix count reaches k. Instead of a binary search that calls <code>Prefix</code> each time (O(log² n)), <code>LowerBound</code> reads the tree directly, trying jumps of 2<sup>k</sup>, then 2<sup>k-1</sup>, and so on:</p>
+        <pre><code class="language-go line-numbers">func (f *Fenwick) LowerBound(target int) int {
+	n := len(f.tree) - 1
+	pos := 0
+	for step := 1 &lt;&lt; (bits.Len(uint(n)) - 1); step &gt; 0; step &gt;&gt;= 1 {
+		if pos+step &lt;= n &amp;&amp; f.tree[pos+step] &lt; target {
+			pos += step
+			target -= f.tree[pos]
+		}
+	}
+	return pos + 1
+}</code></pre>
+        <p>This requires non-negative values, so the prefix sums never decrease.</p>
+        <p><strong>Counting inversions.</strong> An inversion is a pair i &lt; j with <code>a[i] &gt; a[j]</code>. Replace each value by its rank so it fits the tree, then scan left to right: each element asks how many of the elements already seen are larger, which is "seen so far" minus a prefix query.</p>
+        <pre><code class="language-go line-numbers">	for seen, v := range a {
+		rank, _ := slices.BinarySearch(sorted, v)
+		rank++ // 1-based
+		count += seen - f.Prefix(rank)
+		f.Add(rank, 1)
+	}</code></pre>
+        <p>The demo compares this with the O(n²) all-pairs count on 500 arrays full of duplicates (equal values are not inversions). A reversed array of 100,000 numbers has 4,999,950,000 inversions, computed with about 100,000 × 2 tree operations. Every check gives failures: 0.</p>
+        <hr>
+
+        <h2 id="segment-tree">Segment Trees: Any Range Operation</h2>
+        <p>A Fenwick tree needs an operation that can be undone by subtraction, which suits sums but not a minimum. A <strong>segment tree</strong> works for any <em>associative</em> operation: sum, minimum, maximum, gcd, string concatenation, matrix product. Each node stores the answer for a range of the array and its value is <code>op(left child, right child)</code>. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/63_segment_tree.go">63_segment_tree.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-segment-tree.svg" alt="A segment tree over the array 2, 5, 1, 4, 9, 3, 7, 6 with sums in each node: root 37, then 12 and 25, then 7, 5, 12 and 13, then the eight leaves. For the query positions 1 to 5, the leaf 1 with value 5, the node covering 2 to 3 with value 5 and the node covering 4 to 5 with value 12 are highlighted; their sum is 22" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">A range query is answered by the few whole nodes that tile it: [1..5] = 5 + 5 + 12.</p>
+        </div>
+
+        <h3 id="seg-generic">A Generic Tree</h3>
+        <p>The tree needs two things from the operation: it must be associative, and it needs an <em>identity</em> element (0 for a sum, the largest integer for a minimum, 0 for gcd, the empty string for concatenation), which a query returns for the parts that lie outside the range.</p>
+        <pre><code class="language-go line-numbers">sum := NewSeg(a, 0, func(x, y int) int { return x + y })
+lo := NewSeg(a, math.MaxInt, func(x, y int) int { return min(x, y) })</code></pre>
+        <p>An update changes one leaf and recomputes its ancestors:</p>
+        <pre><code class="language-go line-numbers">func (s *Seg[T]) set(node, lo, hi, i int, v T) {
+	if lo == hi {
+		s.t[node] = v
+		return
+	}
+	mid := (lo + hi) / 2
+	if i &lt;= mid {
+		s.set(2*node, lo, mid, i, v)
+	} else {
+		s.set(2*node+1, mid+1, hi, i, v)
+	}
+	s.t[node] = s.op(s.t[2*node], s.t[2*node+1])
+}</code></pre>
+        <p>A query looks at each node and decides among three cases: the node is <em>outside</em> the query (contribute the identity), <em>completely inside</em> (use its stored value), or <em>partly inside</em> (ask both children):</p>
+        <pre><code class="language-go line-numbers">func (s *Seg[T]) query(node, lo, hi, l, r int) T {
+	s.visits++
+	if r &lt; lo || hi &lt; l {
+		return s.id
+	}
+	if l &lt;= lo &amp;&amp; hi &lt;= r {
+		return s.t[node]
+	}
+	mid := (lo + hi) / 2
+	return s.op(s.query(2*node, lo, mid, l, r), s.query(2*node+1, mid+1, hi, l, r))
+}</code></pre>
+        <p>At each level at most two nodes are partly inside, so a query visits O(log n) nodes: over 20,000 random queries on 100,000 elements the demo sees at most 67 visited nodes. For <code>a = [2 5 1 4 9 3]</code>, the sum of <code>a[1..4]</code> is 19 (9 nodes visited) and the minimum is 1; after setting <code>a[2] = 10</code> they become 28 and 4.</p>
+        <p>The left part is always combined before the right part, so the order of the elements is preserved. That matters for a <em>non-commutative</em> operation: string concatenation gives <code>"ab"</code> and <code>"ba"</code> in different orders. The demo tests sum, minimum, gcd and concatenation against brute force on 300 random arrays each. Failures: 0 for all four.</p>
+
+        <h3 id="seg-descent">Descending the Tree</h3>
+        <p>Because a node stores a summary of its range, the tree can also be <em>searched</em>. In a maximum tree, "the first position holding a value of at least x" is one walk from the root: go left if the left child's maximum is at least x, otherwise right. That is O(log n) instead of a scan, and it is the segment-tree version of the Fenwick <code>LowerBound</code>.</p>
+
+        <h3 id="lazy">Lazy Propagation: Range Updates</h3>
+        <p>Adding a value to every element of a range by updating each leaf costs O(n). The trick is to be <em>lazy</em>: when a node is completely covered by the update, change its sum at once and leave a note, <code>add[node]</code>, saying "every element below me still owes this amount". The note is delivered to the children only when a later operation has to look inside the node.</p>
+        <pre><code class="language-go line-numbers">func (s *LazySum) apply(node, lo, hi, v int) {
+	s.sum[node] += v * (hi - lo + 1)
+	s.add[node] += v
+}
+
+func (s *LazySum) push(node, lo, hi int) {
+	if s.add[node] != 0 {
+		mid := (lo + hi) / 2
+		s.apply(2*node, lo, mid, s.add[node])
+		s.apply(2*node+1, mid+1, hi, s.add[node])
+		s.add[node] = 0
+	}
+}</code></pre>
+        <p><code>rangeAdd</code> and <code>query</code> both call <code>push</code> before descending into a node: without it the children would answer with stale values. The demo checks range add and range sum against a plain array on 200 random arrays (failures: 0), then does something an array could not do quickly: add 3 to a million zeros, add 4 to the middle half, and ask for the total, 5,000,000 (3,000,000 plus 2,000,000), in a few tree steps.</p>
+
+        <h3 id="sparse">Static Data: The Sparse Table</h3>
+        <p>If the array never changes, and the operation is minimum or maximum, a <strong>sparse table</strong> answers each query with two reads. It stores, for every start position i and every power of two 2<sup>k</sup>, the minimum of <code>a[i .. i+2^k-1]</code>. A query covers [l, r] with two blocks of the same power of two that may overlap:</p>
+        <pre><code class="language-go line-numbers">func (s *SparseMin) Query(l, r int) int {
+	k := bits.Len(uint(r-l+1)) - 1 // largest k with 2^k &lt;= length
+	return min(s.level[k][l], s.level[k][r-(1&lt;&lt;k)+1])
+}</code></pre>
+        <p>Overlap is harmless for minimum, maximum and gcd, because using an element twice does not change the answer. It would double-count in a sum, so sums use prefix sums or a Fenwick tree instead. The price of the speed is memory: for n = 100,000 the table stores 1,568,946 numbers, against 400,000 slots for the segment tree.</p>
+        <hr>
+
+        <h2 id="choosing">Choosing a Structure</h2>
+
+        <h3 id="choose-table">By Situation</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Situation</th><th>Use</th></tr></thead>
+            <tbody>
+              <tr><td>Data never changes, need range sums</td><td>prefix sums</td></tr>
+              <tr><td>Data never changes, need range min or max</td><td>sparse table</td></tr>
+              <tr><td>Point updates, range sums, counts or XOR</td><td>Fenwick tree (smallest and fastest)</td></tr>
+              <tr><td>Point updates, range min, max, gcd or any other associative operation</td><td>segment tree</td></tr>
+              <tr><td>Range updates as well as range queries</td><td>segment tree with lazy propagation</td></tr>
+              <tr><td>Ordered set, predecessor and successor, ranges of keys</td><td>balanced BST (AVL, treap)</td></tr>
+              <tr><td>k-th smallest or rank in a changing set</td><td>treap with sizes, or a Fenwick tree over counts</td></tr>
+              <tr><td>Split or join sequences, cut and paste</td><td>treap in sequence mode</td></tr>
+              <tr><td>Words by prefix, autocomplete, dictionary patterns</td><td>trie</td></tr>
+              <tr><td>Only exact lookups by key</td><td>a hash map: no tree needed</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3 id="choose-simple">When Simple Is Enough</h3>
+        <p>Reach for these when the simple structure is measurably too slow. A sorted slice with binary search handles a few thousand keys well, and a loop over a range is fine when queries are rare. The point of learning them is to recognize the shape of the problem: "many updates and many range questions" is a Fenwick or segment tree, and "many questions about prefixes" is a trie.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="pitfall-index">Zero-Based Indexes in a Fenwick Tree</h3>
+        <p>The Fenwick trick depends on <code>lowbit</code>, and the lowbit of 0 is 0. <code>Add(0, x)</code> never leaves position 0 and the loop runs forever. Convert positions to 1-based at the boundary of your code, once, and nowhere else.</p>
+
+        <h3 id="pitfall-stale">Stale Augmented Fields</h3>
+        <p>The height in the AVL tree, the size in the treap, the pass counter in the trie, and the values in a segment tree are all derived data. Every code path that changes the shape must repair them, bottom-up. When a tree gives wrong answers only after some operations, check that each function which changes a pointer also calls <code>fix</code> or <code>update</code>. The demos run a full consistency check after every operation for exactly this reason.</p>
+
+        <h3 id="pitfall-lazy">Forgetting to Push</h3>
+        <p>In a lazy tree, reading or descending into a node without first pushing its note down uses out-of-date children. The bug appears only when a range update is followed by a query that partly overlaps it, so small tests may pass. Test with random interleaved operations.</p>
+
+        <h3 id="pitfall-identity">The Wrong Identity Element</h3>
+        <p>A query returns the identity for parts outside the range. Using 0 as the identity of a minimum returns 0 for every partly-outside query. The identity must satisfy <code>op(id, x) = x</code>: zero for sum and gcd, the largest value for min, the smallest for max, the empty string for concatenation.</p>
+
+        <h3 id="pitfall-duplicates">Duplicates</h3>
+        <p>The AVL tree and the treap here are <em>sets</em>: inserting an existing key changes nothing. For a multiset, store a count in each node, or make keys unique by pairing each with a serial number. In the trie, a repeated word must not increase the counters twice.</p>
+
+        <h3 id="pitfall-deep">Depth of Unbalanced Trees</h3>
+        <p>A plain BST fed sorted input recurses n levels deep. Go grows the stack dynamically, so it survives thousands of levels, but each level costs memory, and it is a sign that the shape needs balancing.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Each exercise below breaks one detail. Predict what will fail, run the demo, and explain why that check catches it.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/59_avl_tree.go">59_avl_tree.go</a>, delete the three lines in <code>rebalance</code> that rotate <code>n.left</code> first (the left-right case). Which row of the four-case table changes, and how many failures does the random test report?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/60_treap_order_statistics.go">60_treap_order_statistics.go</a>, delete <code>update(a)</code> in the first branch of <code>merge</code>. Every result stays correct as a set of keys, so what exactly does the verification catch?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/61_trie.go">61_trie.go</a>, delete the <code>Contains</code> check at the top of <code>Insert</code>. The small dictionary at the start still looks right. Which random check fails, and why is the failure invisible in the first example?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/62_fenwick_tree.go">62_fenwick_tree.go</a>, delete the line <code>target -= f.tree[pos]</code> in <code>LowerBound</code>. Which section fails? Then change the update position in section 2 from <code>1+rng.Intn(n)</code> to <code>rng.Intn(n)</code> and run with <code>timeout 5 go run 62_fenwick_tree.go</code>. Why does the program never finish?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/63_segment_tree.go">63_segment_tree.go</a>, delete <code>s.push(node, lo, hi)</code> in <code>rangeAdd</code>. What does the million-element example print now, and which part of the total is lost?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>AVL with ranks.</strong> Add a <code>size</code> field to the AVL node and implement <code>Kth</code> and <code>Rank</code>. Which functions must now update it, and in what order relative to <code>fix</code>?</li>
+          <li><strong>Sliding-window median.</strong> Use the treap to output the median of every window of k numbers in a stream. Compare with sorting each window. Values repeat in a stream, so read the Duplicates pitfall first.</li>
+          <li><strong>Word search with a trie.</strong> Revisit the word-search problem from <a href="/roadmap/dsa/backtracking.html#grids-strings">Backtracking</a>. Build a trie of the dictionary and prune a path as soon as it is not a prefix of any word. Count the states against the version in demo 57.</li>
+          <li><strong>Smaller elements to the right.</strong> For each element of an array, count how many later elements are smaller. Solve it with a Fenwick tree over ranks, scanning right to left, and check it against a double loop.</li>
+          <li><strong>Range minimum with position.</strong> Change the segment tree so a query returns the index of the minimum, not only its value. What does the node type become, and what happens when two values tie?</li>
+          <li><strong>Range assign.</strong> Extend <code>LazySum</code> with "set every element in [l, r] to v". Now a node holds two kinds of pending notes, add and assign. Which one must be cleared when the other arrives?</li>
+        </ol>
+        <p>Continue with <a href="/roadmap/dsa/string-algorithms.html">String Algorithms</a>, where the tries from this lesson meet pattern matching, hashing and edit distance.</p>
+
       </main>
     </div>
   </div>
-
+  <hr>
   <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'dsa',
-    topicId: 'advanced-trees',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "dsa",
+    topicId: "advanced-trees",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>

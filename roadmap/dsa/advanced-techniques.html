@@ -1,25 +1,38 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA Advanced Techniques placeholder page.">
+  <meta name="description" content="Advanced techniques in Go: bit manipulation and bitsets, submask and Gray code enumeration, XOR puzzles, randomized algorithms (Fisher-Yates, reservoir sampling, quickselect, Miller-Rabin, Freivalds), Bloom filters, Count-Min sketches, and HyperLogLog, each checked against exact answers.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, advanced-techniques">
+  <meta name="keywords" content="dsa, go, golang, bit manipulation, bitset, bitmask, xor, gray code, randomized algorithms, fisher yates shuffle, reservoir sampling, quickselect, miller rabin, freivalds, bloom filter, count-min sketch, hyperloglog, probabilistic data structures">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DSA Advanced Techniques</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/advanced-techniques.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -31,38 +44,469 @@
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DSA Advanced Techniques</h1>
+        <h1 id="advanced-techniques">Advanced Techniques</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Placeholder page ready for content authoring.
+        <div class="alert alert-secondary shadow-sm">
+          The algorithms so far were exact and deterministic. This lesson adds three ways of thinking that professional code uses constantly. <strong>Bits</strong>: an integer is 64 yes/no flags that the processor handles in one instruction, so sets, subsets and toggles become arithmetic. <strong>Randomness on purpose</strong>: a random choice cannot be defeated by a bad input, and a small chance of error can be repeated away. <strong>Approximation with a known error</strong>: when the data is too big for an exact answer, a few kilobytes can say "probably seen" or "about a million distinct" with a guaranteed accuracy. As before, every demo checks its results against a simple exact method, and every random result is tested with fixed seeds so the output is the same on every run.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>Add the learning objectives, key concepts, and practical examples for this topic.</p>
+        <h2 id="bits">Bit Manipulation</h2>
+        <p>An integer stores its value in binary. Treating those bits as separate flags is the basis of bitmasks (the DP over subsets in <a href="/roadmap/dsa/dynamic-programming.html#bitmask">Dynamic Programming</a> used one), bitsets, hashing, and compact protocols. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/69_bit_manipulation.go">69_bit_manipulation.go</a>.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Replace placeholder text with structured lessons, code snippets, and exercises.</p>
+        <h3 id="operators">The Operators</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Go</th><th>Name</th><th>Result bit is 1 when</th><th>Typical use</th></tr></thead>
+            <tbody>
+              <tr><td><code>a &amp; b</code></td><td>AND</td><td>both are 1</td><td>test a bit, keep some bits</td></tr>
+              <tr><td><code>a | b</code></td><td>OR</td><td>either is 1</td><td>set bits</td></tr>
+              <tr><td><code>a ^ b</code></td><td>XOR</td><td>exactly one is 1</td><td>toggle bits, find a difference</td></tr>
+              <tr><td><code>a &amp;^ b</code></td><td>AND NOT</td><td>a is 1 and b is 0</td><td>clear bits (Go-specific operator)</td></tr>
+              <tr><td><code>a &lt;&lt; k</code>, <code>a &gt;&gt; k</code></td><td>shifts</td><td>&nbsp;</td><td>multiply or divide by 2<sup>k</sup>, move a bit into position</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Go defines shifts fully: shifting by the width of the type or more gives 0 for unsigned values (the demo prints <code>1&lt;&lt;64 = 0</code> for a variable shift count), and there is no undefined behavior as in C. Shifting a signed negative number right keeps the sign. Use unsigned types for bit patterns.</p>
+
+        <h3 id="lowest-bit">The Two Identities</h3>
+        <p>Subtracting 1 from a number flips its lowest 1 bit to 0 and every 0 below it to 1. That single fact gives two identities that solve many problems:</p>
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-bit-tricks.svg" alt="The number 10110100 on four rows. x minus 1 is 10110011: the lowest set bit and the zeros below it flip. x AND (x minus 1) is 10110000, the lowest set bit cleared. x AND minus x is 00000100, only the lowest set bit" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2"><code>x &amp; (x-1)</code> clears the lowest set bit; <code>x &amp; -x</code> isolates it.</p>
+        </div>
+        <pre><code class="language-go line-numbers">func popcount(x uint) int {
+	n := 0
+	for ; x != 0; x &amp;= x - 1 {
+		n++
+	}
+	return n
+}
+
+func isPowerOfTwo(x uint) bool { return x != 0 &amp;&amp; x&amp;(x-1) == 0 }</code></pre>
+        <p><code>popcount</code> counts the set bits by clearing one per iteration: as many steps as there are ones, not as many as there are positions. A power of two has exactly one set bit, so clearing it leaves zero. In real code use <code>bits.OnesCount</code> from <code>math/bits</code>, which compiles to a single instruction; the demo checks the loop, a 64-step loop and the library function against each other on 20,000 values. Failures: 0.</p>
+
+        <h3 id="submasks">Enumerating Submasks</h3>
+        <p>To visit every subset of the bits of a mask (including the mask itself and 0), start at the mask and repeatedly compute <code>(sub - 1) &amp; mask</code>. Subtracting 1 drops to the next lower number; AND-ing with the mask throws away the bits that are not allowed. The numbers come out in decreasing order and none is skipped:</p>
+        <pre><code class="language-go line-numbers">func forEachSubmask(mask uint, visit func(sub uint)) {
+	for sub := mask; ; sub = (sub - 1) &amp; mask {
+		visit(sub)
+		if sub == 0 {
+			return
+		}
+	}
+}</code></pre>
+        <p>For <code>101101</code> the demo prints 16 submasks, 2<sup>4</sup> because the mask has four set bits, from <code>101101</code> down to <code>000000</code>. It matches "filter every number up to the mask" on 300 random masks. This loop is the engine of DP over subsets, where a state is a set and its transitions look at its subsets.</p>
+
+        <h3 id="gray-gosper">Gray Codes and Gosper's Hack</h3>
+        <p>A <strong>Gray code</strong> lists the numbers so that neighbours differ in exactly one bit, useful for encoders and for changing one setting at a time. The n-th code is <code>n ^ (n &gt;&gt; 1)</code>: for 0 to 7 it is <code>000 001 011 010 110 111 101 100</code>. The demo verifies the one-bit property for all 65,536 codes of 16 bits.</p>
+        <p><strong>Gosper's hack</strong> produces the next larger number with the same number of set bits, which enumerates all k-element subsets of n items in increasing order without recursion:</p>
+        <pre><code class="language-go line-numbers">func nextSamePopcount(x uint) uint {
+	c := x &amp; -x // lowest set bit
+	r := x + c  // carries through the lowest block of ones
+	return (r^x)&gt;&gt;2/c | r
+}</code></pre>
+        <p>Adding the lowest bit makes the lowest block of ones carry into the next zero; the leftover ones are shifted back to the bottom. The demo checks that starting from <code>(1&lt;&lt;k)-1</code> it visits exactly the numbers below 2<sup>n</sup> with k set bits, in order, for every n up to 12 and every k. Failures: 0.</p>
+
+        <h3 id="xor-puzzles">XOR Puzzles</h3>
+        <p>XOR has three properties: <code>a ^ a = 0</code>, <code>a ^ 0 = a</code>, and the order does not matter. XOR-ing a whole array therefore cancels every value that appears twice, and what is left is the value that appears once:</p>
+        <pre><code class="language-go line-numbers">func singleNumber(nums []int) int {
+	x := 0
+	for _, v := range nums {
+		x ^= v
+	}
+	return x
+}</code></pre>
+        <p>With <em>two</em> values appearing once (call them a and b), the XOR of everything is <code>a ^ b</code>, which is not zero. Any set bit in it is a position where a and b differ, so splitting the numbers by that bit puts a and b in different groups, and each group is the previous problem. The demo plants two singles among random pairs and shuffles: 2,000 arrays, failures: 0. A related trick finds the missing number in 0..n by XOR-ing all the indexes with all the values, in O(n) time and O(1) space.</p>
+        <p>A well-known puzzle swaps two integers with three XORs and no temporary. It is also a trap: if both pointers refer to the <em>same</em> variable, the first line zeroes it, and the demo shows <code>swapXor(&amp;same, &amp;same)</code> turning 7 into 0. A temporary variable is clearer and never slower.</p>
+
+        <h3 id="bitset">A Bitset</h3>
+        <p>A <code>[]bool</code> uses one byte per flag. A bitset packs 64 flags into each <code>uint64</code>: eight times less memory, and set operations that handle 64 elements per instruction.</p>
+        <pre><code class="language-go line-numbers">func (b Bitset) Set(i int)       { b[i&gt;&gt;6] |= 1 &lt;&lt; (i &amp; 63) } // i&gt;&gt;6 = i/64, i&amp;63 = i%64
+func (b Bitset) Clear(i int)     { b[i&gt;&gt;6] &amp;^= 1 &lt;&lt; (i &amp; 63) }
+func (b Bitset) Test(i int) bool { return b[i&gt;&gt;6]&gt;&gt;(i&amp;63)&amp;1 == 1 }</code></pre>
+        <p>Bit i lives in word <code>i/64</code> at position <code>i%64</code>; shifting and masking is faster than division. Union is OR, intersection is AND, difference is AND NOT, and counting is <code>bits.OnesCount64</code> per word:</p>
+        <pre><code class="language-go line-numbers">func (b Bitset) Intersect(o Bitset) {
+	for i := range b {
+		b[i] &amp;= o[i]
+	}
+}</code></pre>
+        <p>The demo sieves the primes below 5,000,000 both ways. Both find 348,513 primes; the bitset uses 625,000 bytes and the <code>[]bool</code> 5,000,000. Intersecting the multiples of 2 and 3 below 1,000 takes 16 word operations and leaves the 167 multiples of 6.</p>
+        <hr>
+
+        <h2 id="randomized">Randomized Algorithms</h2>
+        <p>Randomness is a design tool, not only a source of test data. Two families are worth knowing by name:</p>
+        <ul>
+          <li><strong>Las Vegas</strong> algorithms are always correct; only the running time is random. Randomized quickselect is expected O(n) on <em>every</em> input.</li>
+          <li><strong>Monte Carlo</strong> algorithms are always fast; the answer is correct with high probability. Miller-Rabin primality and Freivalds' matrix check are examples.</li>
+        </ul>
+        <p>Two ideas make this practical. A fixed rule can be defeated by a bad input, but no input can defeat a random choice, because the adversary cannot predict it. And a Monte Carlo error of 1/2 per trial falls to 2<sup>-20</sup> after 20 independent trials: repetition turns a weak guarantee into a strong one. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/70_randomized.go">70_randomized.go</a>. Results that are random are tested statistically, with fixed seeds so the output is identical on every run.</p>
+
+        <h3 id="shuffle">Shuffling: The Tempting Bug</h3>
+        <p>To shuffle a slice, swap every position with a random position of the <em>whole</em> slice. It looks fair, and it is not:</p>
+        <pre><code class="language-go line-numbers">	for i := range a {
+		j := rng.Intn(len(a))
+		a[i], a[j] = a[j], a[i]
+	}</code></pre>
+        <p>This makes n<sup>n</sup> equally likely sequences of choices, and n! does not divide n<sup>n</sup>, so some permutations must be more likely than others. <strong>Fisher-Yates</strong> chooses, for position i, only among the positions that are still undecided. That gives n × (n−1) × ... × 1 = n! paths, one for each permutation:</p>
+        <pre><code class="language-go line-numbers">	for i := 0; i &lt; len(a)-1; i++ {
+		j := i + rng.Intn(len(a)-i)
+		a[i], a[j] = a[j], a[i]
+	}</code></pre>
+        <p>The demo shuffles <code>[1 2 3]</code> 600,000 times each way; a fair shuffle gives each of the six permutations 100,000 times:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Permutation</th><th>Biased shuffle</th><th>Fisher-Yates</th></tr></thead>
+            <tbody>
+              <tr><td>[1 2 3]</td><td>89,024</td><td>100,294</td></tr>
+              <tr><td>[1 3 2]</td><td>111,307</td><td>99,865</td></tr>
+              <tr><td>[2 1 3]</td><td>110,606</td><td>99,527</td></tr>
+              <tr><td>[2 3 1]</td><td>110,971</td><td>99,567</td></tr>
+              <tr><td>[3 1 2]</td><td>89,085</td><td>100,346</td></tr>
+              <tr><td>[3 2 1]</td><td>89,007</td><td>100,401</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A chi-square statistic summarizes how far a table is from uniform. For six outcomes anything above 20.5 is suspicious at the 0.1% level: the biased shuffle scores 7,212 and Fisher-Yates 8.0. Real code should call <code>rand.Shuffle</code>, which is Fisher-Yates.</p>
+
+        <h3 id="reservoir">Reservoir Sampling</h3>
+        <p>Pick k items uniformly from a stream whose length you do not know and cannot store, such as log lines or a file read once. Keep the first k. Then, for item number i (counting from 1), replace a random slot with probability k/i:</p>
+        <pre><code class="language-go line-numbers">	for i, v := range stream {
+		if i &lt; k {
+			sample = append(sample, v)
+		} else if j := rng.Intn(i + 1); j &lt; k { // probability k/(i+1)
+			sample[j] = v
+		}
+	}</code></pre>
+        <p>Why is this fair? Item i is kept when it arrives with probability k/i, and then it survives each later step j with probability 1 − 1/j. The product telescopes: k/i × i/(i+1) × ... × (n−1)/n = k/n, the same for every item, whatever n turns out to be. The demo samples 3 of 10 items 200,000 times: every item should be chosen 60,000 times, and the counts range from 59,763 to 60,216, a 0.8% spread. Memory is O(k), independent of the stream.</p>
+
+        <h3 id="quickselect">Quickselect</h3>
+        <p>The k-th smallest element does not need a full sort. Partition around a pivot, then keep only the side that contains index k, as in quicksort but with a single recursive call. The partition here is three-way (smaller, equal, larger), so inputs with many duplicates do not degrade:</p>
+        <pre><code class="language-go line-numbers">		lt, i, gt := lo, lo, hi // invariant: [lo,lt) &lt; pv, [lt,i) == pv, (gt,hi] &gt; pv
+		for i &lt;= gt {
+			*cmps++
+			switch {
+			case a[i] &lt; pv:
+				a[lt], a[i] = a[i], a[lt]
+				lt++
+				i++
+			case a[i] &gt; pv:
+				a[i], a[gt] = a[gt], a[i]
+				gt--
+			default:
+				i++
+			}
+		}
+		switch {
+		case k &lt; lt:
+			hi = lt - 1
+		case k &gt; gt:
+			lo = gt + 1
+		default:
+			return pv
+		}</code></pre>
+        <p>With a random pivot, each round is expected to remove a constant fraction of the elements, so the total work is about 3 to 4 comparisons per element: O(n) expected for every input. With "the first element" as the pivot, an already sorted array removes one element per round. The demo finds the median of 20,000 numbers:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Input</th><th>First-element pivot</th><th>Random pivot</th></tr></thead>
+            <tbody>
+              <tr><td>sorted</td><td>2,354,448</td><td>72,421</td></tr>
+              <tr><td>shuffled</td><td>54,640</td><td>68,734</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The fixed rule is fine on shuffled data and 32 times worse on sorted data; the random pivot is equally good on both. Both versions match sorting on 3,000 arrays with many duplicates. Failures: 0. (Go's <code>slices.Sort</code> uses pattern-defeating quicksort for the same reason: no single input should be bad for it.)</p>
+
+        <h3 id="miller-rabin">Miller-Rabin Primality</h3>
+        <p>Trial division needs up to √n steps, hopeless for a 64-bit number. The <strong>Fermat test</strong> is based on the fact that for a prime n, <code>a<sup>n−1</sup> ≡ 1 (mod n)</code>. It is fooled by <em>Carmichael numbers</em> such as 561 = 3 × 11 × 17, which pass for every base coprime to them: the demo shows <code>fermat(561, 2)</code> returning true.</p>
+        <p><strong>Miller-Rabin</strong> strengthens it. Write n − 1 = d × 2<sup>r</sup> with d odd. If n is prime, then for any base a either a<sup>d</sup> ≡ 1, or squaring a<sup>d</sup> up to r − 1 times reaches −1 (mod n), because the only square roots of 1 modulo a prime are 1 and −1. If neither happens, a is a <em>witness</em> that n is composite:</p>
+        <pre><code class="language-go line-numbers">	d, r := n-1, 0
+	for d%2 == 0 {
+		d /= 2
+		r++
+	}
+	for _, a := range testBases {
+		x := powMod(a, d, n)
+		if x == 1 || x == n-1 {
+			continue
+		}
+		witness := true // a proves n composite unless -1 shows up
+		for i := 1; i &lt; r; i++ {
+			x = mulMod(x, x, n)
+			if x == n-1 {
+				witness = false
+				break
+			}
+		}
+		if witness {
+			return false
+		}
+	}
+	return true</code></pre>
+        <p>A composite number fools at most a quarter of the bases, so with random bases this is a Monte Carlo test. Using the twelve smallest primes as bases is <em>proven</em> to be exact for every n below 3.3 × 10<sup>24</sup>, which includes all 64-bit numbers, so <code>isPrime</code> here is deterministic. The products need 128 bits; <code>bits.Mul64</code> and <code>bits.Div64</code> compute <code>a*b mod m</code> without overflow:</p>
+        <pre><code class="language-go line-numbers">func mulMod(a, b, m uint64) uint64 {
+	hi, lo := bits.Mul64(a, b)
+	_, rem := bits.Div64(hi, lo, m) // requires hi &lt; m, true because a, b &lt; m
+	return rem
+}</code></pre>
+        <p>The demo compares <code>isPrime</code> with a sieve for every number below 2,000,000 (failures: 0), and tests hard cases: 561 is rejected; 3,215,031,751, a composite that passes the tests for bases 2, 3, 5 and 7, is rejected; the Mersenne prime 2<sup>61</sup>−1 and 18,446,744,073,709,551,557, the largest prime below 2<sup>64</sup>, are accepted; the product of 1,000,000,007 and 998,244,353 is rejected.</p>
+
+        <h3 id="freivalds">Freivalds: Checking a Product</h3>
+        <p>Is A × B = C for three n × n matrices? Multiplying costs O(n³). <strong>Freivalds' check</strong> picks a random 0/1 vector r and compares <code>A(Br)</code> with <code>Cr</code>. Each side is two matrix-vector products, O(n²):</p>
+        <pre><code class="language-go line-numbers">		if !slices.Equal(mulVec(a, mulVec(b, r)), mulVec(c, r)) {
+			return false // certainly wrong
+		}</code></pre>
+        <p>If A × B = C the two sides always agree. If not, they differ for at least half of the possible vectors r, so one round misses the error with probability at most 1/2. The demo takes a correct 60 × 60 product, changes one entry among 3,600, and runs the check 4,000 times for each number of rounds:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Rounds</th><th>Errors caught (of 4,000)</th><th>Measured miss rate</th><th>Bound 2<sup>-rounds</sup></th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>1,947</td><td>0.5132</td><td>0.5</td></tr>
+              <tr><td>3</td><td>3,513</td><td>0.1218</td><td>0.125</td></tr>
+              <tr><td>10</td><td>3,997</td><td>0.0008</td><td>0.00098</td></tr>
+              <tr><td>20</td><td>4,000</td><td>0.0000</td><td>0.000001</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A correct product is always accepted. The same pattern, "verify cheaply with a random probe", is used to check big computations, polynomial identities, and file transfers.</p>
+        <hr>
+
+        <h2 id="approximate">Approximate Answers in Fixed Memory</h2>
+        <p>An exact set or map needs memory proportional to the number of items. When the data is huge (billions of URLs, a day of network traffic), an approximate answer with a <em>known</em> error can be worth far more than an exact one that does not fit. The structures below hash each item to several positions in a fixed-size array. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/71_bloom_and_sketches.go">71_bloom_and_sketches.go</a>. Both share a helper that derives two 64-bit hashes from a key; position i of a structure then uses <code>h1 + i*h2</code>, so k positions cost two hash computations instead of k ("double hashing").</p>
+
+        <h3 id="bloom">Bloom Filter: Have I Seen It?</h3>
+        <p>A Bloom filter is an array of m bits. To add a key, set k bits chosen by k hash positions. To look up a key, check the same k bits: if any is 0, the key was <strong>certainly never added</strong>; if all are 1, it <strong>may</strong> have been, because other keys could have set those bits. It has no false negatives, only false positives, and it cannot delete.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-bloom-filter.svg" alt="A 16-bit array with bits 2, 7 and 11 set by the key cat, and bits 4, 7 and 13 set by the key dog. Looking up cow probes bits 2, 9 and 13: bit 9 is 0, so cow is certainly absent. Looking up emu probes bits 4, 7 and 11, all set by other keys, so the filter answers maybe: a false positive" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Two keys in a 16-bit filter. A 0 bit is proof of absence; all 1s is only a "maybe".</p>
+        </div>
+
+        <pre><code class="language-go line-numbers">func (b *Bloom) Add(key string) {
+	h1, h2 := hash2(key)
+	for i := 0; i &lt; b.k; i++ {
+		pos := (h1 + uint64(i)*h2) % b.m
+		b.words[pos/64] |= 1 &lt;&lt; (pos % 64)
+	}
+}</code></pre>
+        <pre><code class="language-go line-numbers">	for i := 0; i &lt; b.k; i++ {
+		pos := (h1 + uint64(i)*h2) % b.m
+		if b.words[pos/64]&gt;&gt;(pos%64)&amp;1 == 0 {
+			return false
+		}
+	}
+	return true</code></pre>
+        <p><strong>Sizing.</strong> For n keys and a target false-positive rate p, the best number of bits and hash positions are:</p>
+        <pre><code class="language-go line-numbers">	m := uint64(math.Ceil(-float64(n) * math.Log(p) / (math.Ln2 * math.Ln2)))
+	k := int(math.Round(float64(m) / float64(n) * math.Ln2))</code></pre>
+        <p>That is about 9.6 bits per key and 7 hashes for p = 1%, and 14.4 bits for p = 0.1%, whatever the length of the keys. The demo builds a filter for 100,000 keys: 958,506 bits (117 KB). All 100,000 added keys are found (no false negatives), and of 100,000 keys that were never added 980 are reported present: 0.98%, against the 1.00% predicted by the formula <code>(1 − e<sup>−kn/m</sup>)<sup>k</sup></code>.</p>
+        <p>More memory buys a lower error, and the measured rates follow the theory closely:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Bits per key</th><th>Hashes</th><th>Measured false positives</th><th>Theory</th></tr></thead>
+            <tbody>
+              <tr><td>4</td><td>3</td><td>14.365%</td><td>14.689%</td></tr>
+              <tr><td>8</td><td>6</td><td>2.183%</td><td>2.158%</td></tr>
+              <tr><td>10</td><td>7</td><td>0.852%</td><td>0.819%</td></tr>
+              <tr><td>16</td><td>11</td><td>0.041%</td><td>0.046%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Two filters of the same size and hash count merge with a bitwise OR, which contains the keys of both (the demo checks that none is lost). <strong>Typical use:</strong> put a Bloom filter in front of a slow lookup, a disk table or a remote cache. A "certainly absent" answer skips the lookup entirely; a "maybe" costs the lookup you would have done anyway, so only the 1% of false positives are wasted. Databases such as those built on LSM trees use exactly this to avoid reading files that cannot contain a key.</p>
+
+        <h3 id="count-min">Count-Min Sketch: How Often?</h3>
+        <p>A Count-Min sketch answers "how many times did this key occur?" for a stream. It has d rows of w counters. Adding a key increments one counter in every row (chosen by that row's hash), and the estimate is the <strong>smallest</strong> of the key's d counters. A collision can only add to a counter, so every counter is at least the true count, and so is the minimum; taking the minimum picks the least polluted one.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-count-min.svg" alt="Three rows of eight counters after adding key a three times, b twice and c once. The counters for a are 5, 4 and 4 in the three rows, so its estimate is 4 against a true count of 3, because b collided with a in the first row. Key c has counters 1, 4 and 4 so its estimate 1 is exact" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The estimate is the minimum of the key's counters; it can be too high, never too low.</p>
+        </div>
+
+        <pre><code class="language-go line-numbers">func (c *CountMin) Add(key string, count uint32) {
+	h1, h2 := hash2(key)
+	for i := range c.rows {
+		c.rows[i][(h1+uint64(i)*h2)%c.width] += count
+	}
+}</code></pre>
+        <pre><code class="language-go line-numbers">func (c *CountMin) Estimate(key string) uint32 {
+	h1, h2 := hash2(key)
+	best := uint32(math.MaxUint32)
+	for i := range c.rows {
+		best = min(best, c.rows[i][(h1+uint64(i)*h2)%c.width])
+	}
+	return best
+}</code></pre>
+        <p>The size follows from two numbers you choose: the estimate is at most ε × N too high (N is the total of all counts) with probability at least 1 − δ.</p>
+        <pre><code class="language-go line-numbers">	w := uint64(math.Ceil(math.E / eps))
+	d := int(math.Ceil(math.Log(1 / delta)))</code></pre>
+        <p>With ε = 0.001 and δ = 0.01 that is 5 rows of 2,719 counters: 53 KB. The demo feeds it 1,000,000 events from a Zipf distribution (a few keys very frequent, most rare, like words or URLs) with 34,110 distinct keys. No estimate is below the true count. Every estimate is within ε × N = 1,000 of the truth (the guarantee only promises 99%); the worst error is 235. The frequent keys, the ones you usually care about, are estimated almost exactly:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Key</th><th>Exact count</th><th>Estimate</th></tr></thead>
+            <tbody>
+              <tr><td>key-0</td><td>199,792</td><td>199,805</td></tr>
+              <tr><td>key-1</td><td>86,958</td><td>86,990</td></tr>
+              <tr><td>key-2</td><td>53,311</td><td>53,323</td></tr>
+              <tr><td>key-3</td><td>37,982</td><td>38,030</td></tr>
+              <tr><td>key-4</td><td>28,568</td><td>28,590</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The error is the same absolute amount for every key, so it matters for rare keys (an estimate of 235 for a key seen twice) and hardly at all for heavy hitters. That is why Count-Min is used to find the frequent items.</p>
+        <hr>
+
+        <h2 id="hll">HyperLogLog: Counting Distinct Items</h2>
+        <p>How many <em>different</em> visitors are in a stream? Exactly, you need a set with every item. <strong>HyperLogLog</strong> estimates it with a fixed array of small registers. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/72_hyperloglog.go">72_hyperloglog.go</a>.</p>
+
+        <h3 id="hll-idea">The Coin-Flip Idea</h3>
+        <p>Hash each item to a random 64-bit number. A hash that begins with j zeros appears for about one item in 2<sup>j</sup>. So if the longest run of leading zeros ever seen is L, about 2<sup>L</sup> different items have probably been hashed. Repeats do not matter: the same item always produces the same hash. The catch is variance: one lucky hash ruins the estimate. On 20,000 distinct items and 40 different hash seeds, this single-register estimate ranges from 8,192 to 2,097,152, with a median of 32,768.</p>
+        <p>HyperLogLog splits the hash. The first p bits choose one of m = 2<sup>p</sup> registers; the remaining bits give the leading-zero count. Each register keeps only the <em>maximum</em> it has seen, and a <strong>harmonic mean</strong> over the registers gives the estimate, which damps the effect of a few lucky ones.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-hyperloglog.svg" alt="A hash whose first four bits 0101 select register 5 and whose next bits start with three zeros and a one, so the rank is 4. A row of sixteen registers is shown with register 5 highlighted and updated to the maximum of its old value and 4. The estimate is alpha times m squared over the sum of 2 to the minus register" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The first bits choose a register; the zero run updates it, keeping the maximum.</p>
+        </div>
+
+        <pre><code class="language-go line-numbers">func (h *HLL) Add(key string) {
+	x := hash64(key)
+	idx := x &gt;&gt; (64 - h.p)
+	rest := x&lt;&lt;h.p | 1&lt;&lt;(h.p-1)
+	h.regs[idx] = max(h.regs[idx], rank(rest))
+}</code></pre>
+        <p>The rank of the remaining bits is the number of leading zeros plus one, computed by <code>bits.LeadingZeros64</code>. The extra 1 bit at the bottom of <code>rest</code> keeps the rank finite if all the remaining bits are zero. The hash must look random in every bit, so the demo passes FNV through a finalizer that spreads each input bit over all output bits.</p>
+        <pre><code class="language-go line-numbers">func rank(x uint64) uint8 { return uint8(bits.LeadingZeros64(x)) + 1 }</code></pre>
+
+        <h3 id="hll-estimate">The Estimate and Small Counts</h3>
+        <pre><code class="language-go line-numbers">	est := alpha * m * m / sum
+	if est &lt;= 2.5*m &amp;&amp; zeros &gt; 0 {
+		return m * math.Log(m/float64(zeros))
+	}
+	return est</code></pre>
+        <p>Here <code>sum</code> is the total of 2<sup>−register</sup> and <code>alpha</code> is a constant near 0.72 that corrects a bias. When many registers are still 0, the count is small and the formula is inaccurate; the fallback is <em>linear counting</em>, which reads the array like a Bloom filter backwards: how many of the m buckets are still empty? With 16,384 registers (16 KB) the relative standard error is 1.04/√m = 0.81%, and the demo's estimates are:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Distinct items</th><th>Estimate</th><th>Error</th></tr></thead>
+            <tbody>
+              <tr><td>100</td><td>100</td><td>+0.31%</td></tr>
+              <tr><td>1,000</td><td>1,000</td><td>−0.01%</td></tr>
+              <tr><td>10,000</td><td>9,912</td><td>−0.88%</td></tr>
+              <tr><td>100,000</td><td>99,865</td><td>−0.13%</td></tr>
+              <tr><td>1,000,000</td><td>1,004,365</td><td>+0.44%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The memory is 16 KB for a million items, and it would be the same for a billion. After 3,000,000 more insertions of the same keys the estimate is exactly unchanged, because a repeat can only write a value a register already holds.</p>
+
+        <h3 id="hll-accuracy">Memory Against Accuracy</h3>
+        <p>Each doubling of the registers cuts the error by a factor of √2. The demo builds 12 sketches of 100,000 items for each size and reports the mean absolute error. (For a normal distribution the mean absolute error is about 0.8 of the standard deviation, which is what the measured column shows.)</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Registers</th><th>Memory</th><th>Theory 1.04/√m</th><th>Measured mean error</th></tr></thead>
+            <tbody>
+              <tr><td>64</td><td>64 B</td><td>13.00%</td><td>7.74%</td></tr>
+              <tr><td>256</td><td>256 B</td><td>6.50%</td><td>4.55%</td></tr>
+              <tr><td>1,024</td><td>1 KB</td><td>3.25%</td><td>2.53%</td></tr>
+              <tr><td>4,096</td><td>4 KB</td><td>1.62%</td><td>1.21%</td></tr>
+              <tr><td>16,384</td><td>16 KB</td><td>0.81%</td><td>0.64%</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="hll-merge">Merging: Unions for Free</h3>
+        <p>Because a register keeps a maximum, two sketches built with the same parameters merge by taking the larger value in each register. The result is exactly the sketch of the <em>union</em> of the two sets, so counts computed on different servers or different days can be combined:</p>
+        <pre><code class="language-go line-numbers">func (h *HLL) Merge(o *HLL) {
+	for i := range h.regs {
+		h.regs[i] = max(h.regs[i], o.regs[i])
+	}
+}</code></pre>
+        <p>In the demo, set A holds ids 0 to 599,999 (estimate 600,519) and set B ids 400,000 to 999,999 (estimate 597,380). The merged sketch estimates 998,802 for a true union of 1,000,000, an error of 0.12%. Inclusion-exclusion gives the overlap as |A| + |B| − |A ∪ B| ≈ 199,098 (true value 200,000), but subtracting large estimates amplifies their errors, so small overlaps cannot be measured this way.</p>
+        <hr>
+
+        <h2 id="choosing">Choosing a Technique</h2>
+
+        <h3 id="choose-table">By Situation</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Situation</th><th>Use</th></tr></thead>
+            <tbody>
+              <tr><td>A set of small integers, flags, or subsets</td><td>bitmask or bitset</td></tr>
+              <tr><td>Find the odd one out, cancel pairs</td><td>XOR</td></tr>
+              <tr><td>Unbiased shuffle or random sample of a stream</td><td>Fisher-Yates, reservoir sampling</td></tr>
+              <tr><td>The k-th smallest, median</td><td>quickselect (expected O(n))</td></tr>
+              <tr><td>Is a 64-bit number prime?</td><td>Miller-Rabin</td></tr>
+              <tr><td>Check a big computation cheaply</td><td>a random probe (Freivalds-style)</td></tr>
+              <tr><td>"Have I seen this?" over a huge set, errors one-sided</td><td>Bloom filter</td></tr>
+              <tr><td>Frequencies and heavy hitters in a stream</td><td>Count-Min sketch</td></tr>
+              <tr><td>Number of distinct items, mergeable</td><td>HyperLogLog</td></tr>
+              <tr><td>The exact answer is required, or the data fits in memory</td><td>a map or a set</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="choose-exact">Exact First</h3>
+        <p>Approximate structures trade accuracy for memory, so use them only when memory is the real constraint. A <code>map[string]struct{}</code> for a million keys is a few tens of megabytes and gives exact answers: often perfectly fine. Start with the exact version, measure, and switch when the data outgrows the machine. Keep the exact version as the oracle in your tests, as the demos do.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="pitfall-signed">Signed Shifts and Overflow</h3>
+        <p>Use unsigned integers for bit patterns. A right shift of a negative signed value fills with the sign bit, and shifting 1 left by 63 places in an <code>int</code> variable gives a negative number. Also mind operator precedence: in Go, <code>&amp;</code> and <code>&lt;&lt;</code> bind tighter than <code>+</code> and <code>==</code>, unlike in C, but parentheses cost nothing when the meaning is not obvious.</p>
+
+        <h3 id="pitfall-rng">Which Random Generator?</h3>
+        <p><code>math/rand</code> is fast and, with a fixed seed, reproducible, which is what algorithms and tests want. It is <em>not</em> suitable for secrets: tokens, keys and passwords need <code>crypto/rand</code>. Do not reuse one seed everywhere, and do not create a new generator inside a hot loop.</p>
+
+        <h3 id="pitfall-modulo">Modulo Bias and Off-by-One in Random Ranges</h3>
+        <p>Use <code>rng.Intn(n)</code>, not <code>rng.Int() % n</code>, which is slightly biased when n does not divide the range. In Fisher-Yates and reservoir sampling the range of the random index is exactly what makes the result fair: <code>Intn(len(a)-i)</code> and <code>Intn(i+1)</code>. Changing either bound silently changes the distribution, and only a statistical test will notice.</p>
+
+        <h3 id="pitfall-hash">Weak Hash Functions</h3>
+        <p>Bloom filters, Count-Min and HyperLogLog assume the hash bits look random. A poor hash, such as one that keeps similar keys close together, breaks the error formulas without any visible failure. Use a good 64-bit hash, or finalize a simple one as the demos do. If the input can be chosen by an attacker, seed the hash randomly at startup.</p>
+
+        <h3 id="pitfall-parameters">Wrong Sizing</h3>
+        <p>A Bloom filter sized for n keys degrades quickly once you add many more than n: the false-positive rate is a function of the load. Size for the largest count you expect, or use a scalable variant. Two sketches can only be merged if they use the same size and hash functions.</p>
+
+        <h3 id="pitfall-assumption">Believing an Estimate Is Exact</h3>
+        <p>A "maybe" from a Bloom filter needs the real lookup behind it. A HyperLogLog count is not a number to compare for equality, and a Count-Min estimate is an upper bound. State the error next to any figure you report.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Each exercise breaks one detail. Predict what will fail, run the demo, and explain why that check catches it.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/69_bit_manipulation.go">69_bit_manipulation.go</a>, change <code>sub = (sub - 1) &amp; mask</code> in <code>forEachSubmask</code> to <code>sub = sub - 1</code>. What does the loop visit now, and how many of the 300 random masks fail?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/70_randomized.go">70_randomized.go</a>, change <code>j := i + rng.Intn(len(a)-i)</code> in <code>shuffleFisherYates</code> to <code>j := rng.Intn(len(a))</code>. Compare the two chi-square values. Then change <code>testBases</code> to <code>{2}</code>: how many numbers below 2,000,000 are misjudged, and which of the hard cases is now accepted?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/71_bloom_and_sketches.go">71_bloom_and_sketches.go</a>, in <code>MayContain</code> change <code>uint64(i)</code> to <code>uint64(i+1)</code>. Bloom filters promise no false negatives; what is the count of "added keys reported absent"? Then restore it and make <code>Estimate</code> return the last row's counter instead of the minimum: which guarantee is lost?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/72_hyperloglog.go">72_hyperloglog.go</a>, change <code>max</code> to <code>min</code> in <code>Merge</code>. What does the merged sketch estimate for the union of 1,000,000 ids, and why?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Missing number.</strong> An array holds the numbers 0 to n except one. Find it with XOR in O(n) time and O(1) space, then with the sum formula, and explain when the sum could overflow.</li>
+          <li><strong>Subset sums with masks.</strong> For up to 20 numbers, compute the sum of every subset by iterating over all masks, using the lowest-bit identity to reuse the sum of <code>mask &amp; (mask-1)</code>. Compare with the recursive version from <a href="/roadmap/dsa/backtracking.html">Backtracking</a>.</li>
+          <li><strong>Weighted sampling.</strong> Sample one item with probability proportional to its weight from a stream. Adapt reservoir sampling and check the frequencies with a chi-square test.</li>
+          <li><strong>Counting Bloom filter.</strong> Replace each bit by a small counter so that keys can be deleted. What can go wrong when a counter overflows, and what happens if you delete a key that was never added?</li>
+          <li><strong>Heavy hitters.</strong> Keep a Count-Min sketch and a small heap of the current top 10 keys, updating the heap when an estimate rises above its smallest entry. Compare the final list with the exact top 10 on the Zipf stream.</li>
+          <li><strong>HyperLogLog plus.</strong> Count the distinct values of a stream in a sliding window of the last hour by keeping one sketch per minute and merging the last 60. What error do you expect for a window of 60 sketches?</li>
+        </ol>
+        <p>Continue with <a href="/roadmap/dsa/production-structures.html">Production Structures</a>.</p>
+
       </main>
     </div>
   </div>
-
+  <hr>
   <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'dsa',
-    topicId: 'advanced-techniques',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "dsa",
+    topicId: "advanced-techniques",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>

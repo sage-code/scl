@@ -2,27 +2,37 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA Production Structures: LRU caches, rate limiters, consistent hashing, and concurrent structures in Go. Planned lesson.">
+  <meta name="description" content="Production data structures in Go: an O(1) LRU cache with TTL, four rate limiters (fixed window, sliding log, sliding counter, token bucket), consistent hashing with virtual nodes and rendezvous hashing, and concurrent structures: mutexes, sharding, atomics, a lock-free stack, bounded queues and call collapsing.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, go, production-structures">
+  <meta name="keywords" content="dsa, go, golang, lru cache, ttl cache, rate limiter, token bucket, sliding window, consistent hashing, rendezvous hashing, virtual nodes, concurrent data structures, sharded map, mutex, atomic, lock-free stack, singleflight, cache stampede, backpressure">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DSA Production Structures</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/production-structures.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">
   <link rel="stylesheet" href="/assets/css/content-topic.css">
   <link rel="stylesheet" href="/assets/css/content-sidebar.css">
   <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-
   <div class="container-fluid px-0">
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
@@ -34,38 +44,441 @@
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
-
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">Production Structures</h1>
+        <h1 id="production-structures">Production Structures</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Planned lesson — authored in a later phase of the DSA roadmap.
+        <div class="alert alert-secondary shadow-sm">
+          A structure that is correct on a whiteboard still has to survive traffic. This lesson covers four building blocks that appear in almost every service, and the one habit that makes them testable. <strong>An LRU cache</strong> keeps the answers worth keeping in bounded memory. <strong>A rate limiter</strong> decides which requests to refuse. <strong>Consistent hashing</strong> spreads data over servers so that adding one does not reshuffle everything. <strong>Concurrent structures</strong> let many goroutines share data without corrupting it. The habit: <em>inject the clock</em>. Every limiter and cache below takes the time as a parameter instead of calling <code>time.Now()</code>, so the demos replay the same traffic on every run and never need to sleep. Each result is checked against a slow, obviously correct version, as in the earlier lessons.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>This lesson will cover LRU caches, rate limiters, consistent hashing, and concurrent structures in Go, with small inline examples and larger runnable demos in the code viewer.</p>
+        <h2 id="lru">LRU Cache</h2>
+        <p>A cache trades memory for time: keep the answers that were expensive to compute or fetch. Memory is bounded, so when the cache is full something must be removed. <strong>Least recently used</strong> removes the entry untouched for the longest time, on the bet that recent use predicts future use. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/73_lru_cache.go">73_lru_cache.go</a>.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Until this lesson is published, continue with the <a href="/roadmap/dsa/">DSA roadmap index</a>.</p>
+        <h3 id="lru-design">Two Structures, One Cache</h3>
+        <p>To make every operation O(1), two structures cooperate. A <a href="/roadmap/dsa/hash-tables.html">hash map</a> finds an entry by key. A <a href="/roadmap/dsa/linked-lists.html">doubly linked list</a> keeps the entries in recency order: the front is the most recently used, the back is the next victim. Neither works alone: a map has no order, and a list cannot find a key without walking it.</p>
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-lru-cache.svg" alt="A map from keys a, b, c, d to nodes. The nodes d, a, c sit in a doubly linked list between HEAD and TAIL sentinels. d is the most recently used and c is the next victim. Key b is gone because it was evicted" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The map points into the list. A hit moves the node to the front; eviction takes the node before TAIL.</p>
+        </div>
+        <p>Two sentinel nodes, <code>head</code> and <code>tail</code>, remove every special case: the list is never empty, and unlinking a node is always the same four pointer writes (the same idea as the sentinel list in <a href="/roadmap/dsa/linked-lists.html">Linked Lists</a>).</p>
+        <pre><code class="language-go line-numbers">type node[K comparable, V any] struct {
+	key        K
+	val        V
+	expires    int64 // 0 means "never"
+	prev, next *node[K, V]
+}
+
+func (c *LRU[K, V]) unlink(n *node[K, V]) {
+	n.prev.next = n.next
+	n.next.prev = n.prev
+}
+
+func (c *LRU[K, V]) pushFront(n *node[K, V]) {
+	n.prev = &amp;c.head
+	n.next = c.head.next
+	c.head.next.prev = n
+	c.head.next = n
+}
+
+func (c *LRU[K, V]) Get(k K) (V, bool) {
+	n, ok := c.items[k]
+	if ok &amp;&amp; n.expires != 0 &amp;&amp; c.now() &gt;= n.expires {
+		c.remove(n) // expired: treat as a miss
+		ok = false
+	}
+	if !ok {
+		c.Misses++
+		var zero V
+		return zero, false
+	}
+	c.Hits++
+	c.unlink(n)
+	c.pushFront(n) // now the most recently used
+	return n.val, true
+}</code></pre>
+        <p>Note that the node stores its own <code>key</code>. When the tail node is evicted, the cache must also delete that key from the map, and the node is the only place that remembers which key it was.</p>
+        <p><code>Put</code> mirrors <code>Get</code>. If the key exists, update it and move it to the front. Otherwise, if the cache is full, remove the node before <code>tail</code> (and its map entry), then insert the new node at the front. An optional <code>OnEvict</code> callback lets the owner flush or log what leaves.</p>
+
+        <h3 id="lru-oracle">Testing Against a Slow LRU</h3>
+        <p>The oracle is a slice ordered by recency with a linear search: about ten lines, and obviously right. The demo replays 200,000 random operations (a third of them writes) on 120 distinct keys with capacity 50 through both caches, and compares every result and, every thousand steps, the full recency order. The result is <em>0 disagreements</em>. A generic random test like this catches the bugs hand-written examples miss: an update that forgets to move the node, or an eviction that leaves the key in the map.</p>
+
+        <h3 id="lru-ttl">Time to Live</h3>
+        <p>Cached data goes stale. <code>PutTTL</code> stores an expiry time, and <code>Get</code> removes an expired entry when it meets one (<em>lazy expiry</em>): no background thread, no timer per entry. The cost is that expired entries that nobody asks for still occupy memory until the LRU order pushes them out, which is bounded by the capacity anyway.</p>
+        <p>The clock is a <code>func() int64</code> given to <code>NewLRU</code>. In production pass <code>time.Now().UnixMilli</code>; in a test pass a variable that the test advances. The demo puts a session with a 30-unit TTL and a token with a 10-unit TTL into the cache and reads at t = 0, 9, 10, 29, 30: the token disappears exactly at 10, the session exactly at 30, and the size drops from 2 to 1 to 0. Nothing sleeps, and nothing can flake.</p>
+
+        <h3 id="lru-ratio">How Big Should It Be?</h3>
+        <p>Real request streams are skewed: a few keys are very popular. The demo draws 100,000 requests from 10,000 keys with a Zipf distribution and measures the hit ratio for different capacities:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Capacity</th><th>Share of the keys</th><th>Hit ratio</th></tr></thead>
+            <tbody>
+              <tr><td>10</td><td>0.1%</td><td>0.345</td></tr>
+              <tr><td>100</td><td>1%</td><td>0.656</td></tr>
+              <tr><td>1,000</td><td>10%</td><td>0.859</td></tr>
+              <tr><td>5,000</td><td>50%</td><td>0.939</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The first hundred entries buy two thirds of the benefit, and doubling from there gives less each time. Measure the hit ratio of your own traffic before choosing a size: it decides whether memory spent on the cache is worth it.</p>
+
+        <h3 id="lru-scan">The Weakness: Scans</h3>
+        <p>LRU assumes that a key touched once is likely to be touched again. A report, a backup or a crawler reads many keys exactly once. The demo warms a 200-entry cache on skewed traffic (hit ratio 0.893), then reads 500 cold keys once each. Afterwards <em>none</em> of the 20 hottest keys is still cached, and the next 2,000 hot requests start with a hit ratio of only 0.859 while the cache refills. Remedies, in increasing effort: bypass the cache for bulk reads; use <em>segmented LRU</em> or 2Q, where a key must be seen twice before it can push out a proven one; or use an admission policy such as TinyLFU that compares a newcomer's estimated frequency (a <a href="/roadmap/dsa/advanced-techniques.html#count-min">Count-Min sketch</a>) with the victim's.</p>
+
+        <h3 id="lru-concurrent">One Caveat</h3>
+        <p><code>Get</code> <em>writes</em> (it moves a node), so even readers of an LRU need exclusive access. A plain <code>sync.RWMutex</code> does not help: use a <code>sync.Mutex</code>, or shard the cache (see <a href="#sharded">Sharded Locks</a>) so that different keys use different locks.</p>
+        <hr>
+
+        <h2 id="rate">Rate Limiters</h2>
+        <p>A rate limiter answers one question per request: <em>allow or refuse?</em> It protects a service from one client asking too often, and protects the client from its own retry loop. "At most 10 requests per second" sounds like one rule but has several implementations that differ in memory, in accuracy, and in what a clever client can get away with. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/74_rate_limiters.go">74_rate_limiters.go</a>; all four limiters implement <code>Allow(nowMs int64) bool</code>.</p>
+
+        <h3 id="rate-policies">Four Policies</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Policy</th><th>State</th><th>Idea</th><th>Weakness</th></tr></thead>
+            <tbody>
+              <tr><td>Fixed window</td><td>1 counter</td><td>count requests per calendar second, reset at each boundary</td><td>2&times; the limit across a boundary</td></tr>
+              <tr><td>Sliding window log</td><td>up to <em>limit</em> timestamps</td><td>keep every accepted time, drop those older than the window</td><td>memory grows with the limit</td></tr>
+              <tr><td>Sliding window counter</td><td>2 counters</td><td>current count + previous count &times; the part of it still in the window</td><td>an estimate; assumes an even spread</td></tr>
+              <tr><td>Token bucket</td><td>tokens + last time</td><td>tokens refill at a fixed rate up to a burst size; a request takes one</td><td>allows bursts (by design)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="rate-boundary">The Boundary Attack</h3>
+        <p>The fixed window resets its counter at every whole second. A client that sends 10 requests at 981&ndash;990 ms and 10 more at 1000&ndash;1009 ms is within the limit in both windows, yet 20 requests arrived within 30 ms. The demo sends exactly that traffic to all four limiters and reports the largest number accepted in any span of 1,000 ms:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Limiter</th><th>Accepted of 20</th><th>Worst 1 s span</th></tr></thead>
+            <tbody>
+              <tr><td>fixed window</td><td>20</td><td>20</td></tr>
+              <tr><td>sliding log</td><td>10</td><td>10</td></tr>
+              <tr><td>sliding counter</td><td>11</td><td>11</td></tr>
+              <tr><td>token bucket</td><td>10</td><td>10</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The sliding log is exact, and the sliding counter is off by one here because it estimates the previous window's contribution. The token bucket passes the burst it has tokens for and nothing more.</p>
+
+        <h3 id="rate-bucket">The Token Bucket</h3>
+        <p>Picture a bucket that holds at most <em>burst</em> tokens and gains <em>rate</em> tokens per second. A request removes one token and is allowed; with no token it is refused. The rate limits the <em>average</em>, the bucket size limits the <em>burst</em>, and the state is two numbers.</p>
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-token-bucket.svg" alt="A bucket with capacity 10 holding 7 tokens. Tokens drip in at 10 per second. A request that finds a token takes it and is allowed; a request that finds none is rejected" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">No timer refills the bucket: the refill is computed from the elapsed time when a request arrives.</p>
+        </div>
+        <pre><code class="language-go line-numbers">// Tokens are stored in thousandths so the arithmetic stays exact in integers.
+type TokenBucket struct {
+	burstMilli  int64
+	ratePerSec  int64
+	milliTokens int64
+	last        int64
+	initialized bool
+}
+
+func (b *TokenBucket) Allow(now int64) bool {
+	if !b.initialized {
+		b.last, b.initialized = now, true
+	}
+	// ratePerSec tokens per 1000 ms is ratePerSec milli-tokens per ms
+	b.milliTokens = min(b.burstMilli, b.milliTokens+(now-b.last)*b.ratePerSec)
+	b.last = now
+	if b.milliTokens &lt; 1000 {
+		return false
+	}
+	b.milliTokens -= 1000
+	return true
+}</code></pre>
+        <p>Floating-point tokens would work too, but repeated additions of 0.001 drift; integer milli-tokens make the demo's results exact. The demo's timeline uses rate 2 per second and burst 4, and requests at 0, 0, 0, 0, 0, 100, 500, 1000, 1000, 1500, 2000 ms and six at 6000 ms. The pattern of answers is <code>YYYYnnYYnYYYYYYnn</code>: four instant tokens, refusals while the bucket is empty, one token per 500 ms afterwards, and after a long silence the bucket refills only to the burst size, so four of the six requests at 6000 ms pass and two do not.</p>
+        <p>A second test sends a burst of 25 at t = 0, then 20 requests per second for two seconds. Every limiter accepts only 10 of the burst. Over the next two seconds the three window limiters accept 20 of the 40 requests, exactly 10 per second. The token bucket accepts 29: it refilled its 10 tokens during the pause and spends that saved burst on top of the steady rate. Neither behavior is wrong; they are different promises.</p>
+
+        <h3 id="rate-choose">Which Guarantee Do You Need?</h3>
+        <p>The demo also sends 20 random traffic patterns of 200 requests over 5 seconds to each limiter and records the worst span of 1 second:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Limiter</th><th>Worst accepted in 1 s (limit 10)</th><th>Guarantee</th></tr></thead>
+            <tbody>
+              <tr><td>fixed window</td><td>18</td><td>at most 2 &times; limit</td></tr>
+              <tr><td>sliding log</td><td>10</td><td>exactly the limit</td></tr>
+              <tr><td>sliding counter</td><td>12</td><td>close to the limit</td></tr>
+              <tr><td>token bucket</td><td>19</td><td>burst + rate &times; 1 s = 20</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For an API quota ("1000 calls per hour") a fixed window is simple and adequate. To protect a fragile backend, use a sliding window or a small bucket. When bursts are acceptable but the average must be bounded, which is the common case for user-facing traffic, use a token bucket. To limit a whole fleet, keep the counter in a shared store; the same arithmetic applies, but every check becomes a network round trip, so a per-node bucket that refills from a global budget is a common compromise.</p>
+        <hr>
+
+        <h2 id="hashing">Consistent Hashing</h2>
+        <p>A cache or database is split over N servers. The obvious rule is <code>server = hash(key) % N</code>. It balances well, but when a server is added N changes, and almost every key maps somewhere new: a cache loses nearly all its contents at once, and the database behind it takes the whole load. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/75_consistent_hashing.go">75_consistent_hashing.go</a>.</p>
+
+        <h3 id="hash-ring">The Ring</h3>
+        <p>Hash the servers onto a circle of 2<sup>64</sup> positions, and hash every key onto the same circle. A key belongs to the first server met walking <em>clockwise</em> from the key. Adding a server takes over only the arc before its points, about 1/(N+1) of the keys; everything else stays where it is.</p>
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-consistent-hash-ring.svg" alt="A circle with server points A, B, C, A, B, D, C, A. Keys k1, k2, k3 sit on the circle. Each key belongs to the next server point clockwise. The arc before server D is red: those keys move to D when D is added" width="700" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The red arc is all that changes when D joins.</p>
+        </div>
+        <p>The ring is a sorted slice of (hash, server) points. A lookup is one <a href="/roadmap/dsa/searching.html">binary search</a>, O(log P) for P points, with a wrap to index 0 when the search runs off the end:</p>
+        <pre><code class="language-go line-numbers">func (r *Ring) Get(key string) string {
+	h := hash64(key)
+	i := sort.Search(len(r.points), func(i int) bool { return r.points[i].hash &gt;= h })
+	if i == len(r.points) {
+		i = 0 // past the last point: wrap around to the first
+	}
+	return r.points[i].server
+}</code></pre>
+        <p>The oracle is the definition itself, by brute force: the point with the smallest clockwise distance from the key, computed with <code>uint64</code> subtraction, which wraps around exactly like the circle. The two agree on all 50,000 test keys.</p>
+
+        <h3 id="hash-move">How Many Keys Move?</h3>
+        <p>The demo goes from 10 servers to 11 and counts how many of 100,000 keys change server:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Scheme</th><th>Keys moved</th></tr></thead>
+            <tbody>
+              <tr><td><code>hash % N</code></td><td>90.9%</td></tr>
+              <tr><td>ring, 200 virtual nodes</td><td>10.0%</td></tr>
+              <tr><td>rendezvous</td><td>9.1%</td></tr>
+              <tr><td>ideal minimum</td><td>1/11 = 9.1%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The ring also guarantees <em>where</em> keys move: not one key moved between two old servers; all of them went to the new one. Removing a server works in reverse. After removing one of ten, 9.9% of the keys move, none of them stays on the dead server, and none moved that did not have to.</p>
+
+        <h3 id="hash-vnodes">Virtual Nodes</h3>
+        <p>With one point per server the arcs have very different lengths. Give each server many points (<code>"node-03#0"</code>, <code>"node-03#1"</code>, ...) and the arcs average out. The demo hashes 100,000 keys onto 10 servers:</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Virtual nodes per server</th><th>Busiest &divide; average</th><th>Least busy &divide; average</th><th>Ring points</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>5.42</td><td>0.08</td><td>10</td></tr>
+              <tr><td>10</td><td>1.45</td><td>0.54</td><td>100</td></tr>
+              <tr><td>100</td><td>1.13</td><td>0.86</td><td>1,000</td></tr>
+              <tr><td>1,000</td><td>1.04</td><td>0.96</td><td>10,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>With one point one server carries 5.4 times the average and another almost nothing. The imbalance shrinks roughly like 1/&radic;(virtual nodes), so each tenfold increase in memory buys a threefold improvement, and 100 to 200 points per server is a common choice. Virtual nodes also let you give a stronger machine more points than a weaker one.</p>
+
+        <h3 id="hash-replicas">Replicas and Rendezvous Hashing</h3>
+        <p>To store each key on three servers, walk clockwise from the key and collect the first three <em>distinct</em> servers (skipping further points of a server already chosen). The demo prints such lists, for example <code>user:1 &rarr; [node-00 node-02 node-05]</code>. When a server dies, its keys already have copies on the next servers along the ring.</p>
+        <p><strong>Rendezvous hashing</strong> (highest random weight) needs no ring. Give every (server, key) pair a score, <code>hash(server + "|" + key)</code>, and pick the server with the highest one. When a server is added it wins exactly the keys for which it has the top score, about 1/(N+1) of them, and the distribution is perfectly even without virtual nodes. The price is O(N) work per lookup, which is fine for tens of servers and too slow for thousands. Its stateless simplicity makes it a good default for small clusters.</p>
+        <hr>
+
+        <h2 id="concurrent">Concurrent Structures</h2>
+        <p>A Go map, slice or linked list is <strong>not</strong> safe for use by several goroutines at once. Two writers can corrupt the structure, and the runtime may stop the program with <code>fatal error: concurrent map writes</code>. A shared structure needs a plan. The demo is <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/76_concurrent_structures.go">76_concurrent_structures.go</a>: eight goroutines, 50,000 operations each. Every check has one right answer, so the output is identical on every run even though the schedule is not. Also run it with <code>go run -race</code> where the race detector is available: it reports unsynchronized access even when the result happens to be right.</p>
+
+        <h3 id="conc-ladder">From Simple to Delicate</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Tool</th><th>Use it for</th><th>Cost</th></tr></thead>
+            <tbody>
+              <tr><td><code>sync.Mutex</code></td><td>any structure, any operation</td><td>waiting when contended</td></tr>
+              <tr><td><code>sync.RWMutex</code></td><td>many readers, rare writers</td><td>more overhead than a Mutex; useless if reads also write (as in LRU)</td></tr>
+              <tr><td>sharded locks</td><td>a big map hit by many cores on different keys</td><td>whole-structure operations visit every shard</td></tr>
+              <tr><td><code>sync/atomic</code></td><td>one counter, flag or pointer</td><td>one word only</td></tr>
+              <tr><td>compare-and-swap loop</td><td>a lock-free stack or queue</td><td>hard to get right; retries under contention</td></tr>
+              <tr><td>channels</td><td>handing work or ownership between goroutines</td><td>a goroutine switch per hand-off</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Start at the top of the table. A mutex around a map is correct, simple and fast enough far more often than expected. Move down only when a profile shows contention.</p>
+
+        <h3 id="counters">Counters: Mutex and Atomic</h3>
+        <p>Incrementing <code>n++</code> is three steps (read, add, write). Two goroutines can read the same value and both write back the same result, losing one increment. Both the mutex and the atomic version of the demo produce exactly 400,000 for 8 &times; 50,000 increments:</p>
+        <pre><code class="language-go line-numbers">var mu sync.Mutex
+locked := 0
+parallel(func(int) {
+	for i := 0; i &lt; perWorker; i++ {
+		mu.Lock()
+		locked++
+		mu.Unlock()
+	}
+})
+
+var atom atomic.Int64
+parallel(func(int) {
+	for i := 0; i &lt; perWorker; i++ {
+		atom.Add(1) // one hardware instruction, no lock
+	}
+})</code></pre>
+        <p>The atomic is cheaper, but it protects exactly one variable. As soon as two values must change together (a balance and a counter), you need the mutex.</p>
+
+        <h3 id="sharded">Sharded Locks</h3>
+        <p>One lock around one map serializes every operation. Split the map into 16 shards, each with its own lock, and choose the shard by hashing the key: two goroutines wait for each other only when their keys fall in the same shard.</p>
+        <pre><code class="language-go line-numbers">type Sharded struct {
+	shards []SafeMap // each has its own RWMutex and map
+}
+
+func (s *Sharded) shard(k string) *SafeMap {
+	h := fnv.New32a()
+	h.Write([]byte(k))
+	return &amp;s.shards[h.Sum32()%uint32(len(s.shards))]
+}
+
+func (s *Sharded) Add(k string, d int) { s.shard(k).Add(k, d) }</code></pre>
+        <p>In the demo both versions give the same answers: 1,000 keys and a total of 400,000. Speed is a separate question that depends on the machine, so measure it with a benchmark (<code>go test -bench</code>) rather than trusting a rule of thumb. The cost of sharding is visible in <code>Len()</code>, which must lock and visit every shard, and it gives no consistent snapshot unless all shards are locked together. Go's <code>sync.Map</code> is a different tool: it is tuned for keys written once and read many times, or for goroutines that touch disjoint keys.</p>
+
+        <h3 id="lockfree">A Lock-Free Stack</h3>
+        <p>A lock-free structure has one shared word and changes it with <strong>compare-and-swap</strong> (CAS): "set the head to <em>new</em> only if it still equals <em>old</em>; tell me whether it worked". If another goroutine changed it first, read again and retry. No goroutine ever waits holding a lock.</p>
+        <pre><code class="language-go line-numbers">type Stack[T any] struct {
+	head atomic.Pointer[stackNode[T]]
+}
+
+func (s *Stack[T]) Push(v T) {
+	n := &amp;stackNode[T]{val: v}
+	for {
+		old := s.head.Load()
+		n.next = old
+		if s.head.CompareAndSwap(old, n) {
+			return
+		}
+	}
+}
+
+func (s *Stack[T]) Pop() (T, bool) {
+	for {
+		old := s.head.Load()
+		if old == nil {
+			var zero T
+			return zero, false
+		}
+		if s.head.CompareAndSwap(old, old.next) {
+			return old.val, true
+		}
+	}
+}</code></pre>
+        <p>The demo pushes 400,000 distinct numbers from 8 goroutines, then pops them from 8 goroutines and marks each one in a table. Result: 400,000 popped, 0 duplicates, 0 missing. In C this design suffers from the <em>ABA problem</em>: a node is popped, freed, reallocated at the same address and pushed again, so a stale CAS succeeds when it should not. Go's garbage collector never reuses a node that some goroutine still references, so the problem cannot occur here. Do not extend the idea casually: a lock-free queue or map is a research-grade exercise, and the standard library and well-tested packages already have them.</p>
+
+        <h3 id="channels">Bounded Queues and Worker Pools</h3>
+        <p>A buffered channel <em>is</em> a bounded concurrent queue. The producer blocks when the buffer is full, which gives <strong>backpressure</strong>: a slow consumer slows the producer down instead of letting memory grow without limit.</p>
+        <pre><code class="language-go line-numbers">jobs := make(chan int, 64) // at most 64 waiting jobs
+results := make(chan int, 64)
+
+var wg sync.WaitGroup
+for w := 0; w &lt; workers; w++ {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for j := range jobs { // ends when jobs is closed and drained
+			results &lt;- j * j
+		}
+	}()
+}
+go func() { // producer
+	for i := 1; i &lt;= 10000; i++ {
+		jobs &lt;- i
+	}
+	close(jobs)
+}()
+go func() { wg.Wait(); close(results) }()</code></pre>
+        <p>The demo sums the squares of 1 to 10,000 through eight workers and gets 333,383,335,000, the value of the formula n(n+1)(2n+1)/6. The closing order matters: the producer closes <code>jobs</code>, the workers finish, and only then is <code>results</code> closed, by the goroutine that waits for the workers. Closing a channel from a sender that is not the last one is a panic.</p>
+
+        <h3 id="stampede">Cache Stampede and Call Collapsing</h3>
+        <p>A popular cache entry expires. In the next millisecond 200 requests miss, and all 200 run the same slow database query. The database, which the cache was there to protect, is hit hardest at the worst moment. <strong>Call collapsing</strong> (the idea of <code>golang.org/x/sync/singleflight</code>) lets the first caller run the load while the others wait and share its result:</p>
+        <pre><code class="language-go line-numbers">func (g *Group) Do(key string, load func() string) string {
+	g.mu.Lock()
+	if c, ok := g.calls[key]; ok { // a load is in flight: wait for it
+		g.mu.Unlock()
+		c.wg.Wait()
+		return c.val
+	}
+	c := &amp;call{}
+	c.wg.Add(1)
+	g.calls[key] = c
+	g.mu.Unlock()
+
+	c.val = load() // only this goroutine loads
+	c.wg.Done()
+
+	g.mu.Lock()
+	delete(g.calls, key)
+	g.mu.Unlock()
+	return c.val
+}</code></pre>
+        <p>To test it without depending on timing, the slow load in the demo finishes only after a counter shows that the other 199 callers have joined it. Result: all 200 callers get <code>42 rows</code> and the "database" ran exactly 1 load. This version does not share errors or handle a panicking loader; the library version does, so prefer it in real code.</p>
+        <hr>
+
+        <h2 id="choosing">Choosing a Structure</h2>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Problem</th><th>Use</th></tr></thead>
+            <tbody>
+              <tr><td>Keep the results of expensive lookups in bounded memory</td><td>LRU cache (add a TTL when data goes stale)</td></tr>
+              <tr><td>Reads scan huge amounts of cold data</td><td>bypass the cache, or segmented LRU / TinyLFU</td></tr>
+              <tr><td>Refuse requests above an average rate, allowing short bursts</td><td>token bucket</td></tr>
+              <tr><td>Never exceed N in any window</td><td>sliding window log (or counter if an estimate is fine)</td></tr>
+              <tr><td>Coarse quota per hour or day</td><td>fixed window</td></tr>
+              <tr><td>Spread keys over servers that come and go</td><td>consistent hashing with virtual nodes</td></tr>
+              <tr><td>Small cluster, no state wanted</td><td>rendezvous hashing</td></tr>
+              <tr><td>A shared map or cache</td><td>a mutex first; shard the locks if the profile demands it</td></tr>
+              <tr><td>Hand work between goroutines with a limit on memory</td><td>a buffered channel and a worker pool</td></tr>
+              <tr><td>Many callers, one missing value</td><td>call collapsing (singleflight)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+
+        <h3 id="pitfall-clock">Calling <code>time.Now()</code> Inside the Logic</h3>
+        <p>Code that reads the wall clock directly can only be tested by sleeping, which is slow and flaky. Pass the time in, as the demos do. In production also prefer a monotonic clock for durations, since the wall clock can jump when it is adjusted.</p>
+
+        <h3 id="pitfall-eviction">Forgetting Half of an Eviction</h3>
+        <p>An LRU removes the node from the list <em>and</em> the key from the map. Missing either leaves a dangling pointer or a leak. The random test against a slow oracle finds this at once; a few hand-picked examples usually do not.</p>
+
+        <h3 id="pitfall-ttl">Unbounded Caches</h3>
+        <p>A map used as a cache with no eviction is a memory leak with a delay. Every cache needs a capacity, a TTL or both, and its hit ratio should be a metric you watch.</p>
+
+        <h3 id="pitfall-reads">Locking Readers That Write</h3>
+        <p>A read lock is only valid if the "read" really does not modify anything. An LRU <code>Get</code> moves a node, so a <code>RWMutex</code> read lock around it is a data race that may work for months.</p>
+
+        <h3 id="pitfall-ring">Rebuilding a Ring Per Request, or Too Few Points</h3>
+        <p>Build the ring once and share it; rebuild only when membership changes, and swap in the new ring atomically. Also do not run with one or a few points per server: the load is then visibly uneven.</p>
+
+        <h3 id="pitfall-leak">Goroutines That Never End</h3>
+        <p>A worker blocked on a channel nobody closes, or a waiter on a load that never finishes, stays alive for the life of the process. Every goroutine needs a way to stop: closing the input channel, a context, or a timeout.</p>
+
+        <h3 id="pitfall-locks">Holding a Lock While Calling Out</h3>
+        <p>Do not hold a mutex while calling a function that may block or lock something else (the load in a cache miss, an eviction callback that logs to a slow sink). Copy what you need, unlock, then call. Two locks taken in different orders in different places will eventually deadlock; keep one order.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Each exercise breaks one detail. Predict what will fail, run the demo, and explain which check notices.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/73_lru_cache.go">73_lru_cache.go</a>, remove the two lines <code>c.unlink(n)</code> and <code>c.pushFront(n)</code> from the hit path of <code>Get</code>. The cache still returns correct values. Which check now fails, and why does a cache that is never wrong about values still count as broken? Then change <code>&gt;=</code> to <code>&gt;</code> in the expiry test: which of the readings at t = 10 and t = 30 changes?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/74_rate_limiters.go">74_rate_limiters.go</a>, change <code>b.milliTokens -= 1000</code> to <code>b.milliTokens = 0</code> (empty the bucket on every request). How does the answer pattern in the timeline demo change? Then in <code>SlidingLog.Allow</code> change <code>&gt;=</code> to <code>&gt;</code> in <code>len(s.stamps) &gt;= s.limit</code>: which check reports 11?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/75_consistent_hashing.go">75_consistent_hashing.go</a>, change the wrap-around in <code>Get</code> from <code>i = 0</code> to <code>i = len(r.points) - 1</code>. Which comparison notices, and which keys are affected (hint: those beyond the last point)? Then set the vnodes in the first demo to 1: how much of the movement guarantee survives?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase4/76_concurrent_structures.go">76_concurrent_structures.go</a>, replace <code>atom.Add(1)</code> with <code>n++</code> on a plain shared <code>int</code>. What total do you get, does it change between runs, and what does <code>-race</code> report? Then change <code>CompareAndSwap(old, n)</code> in <code>Push</code> to a plain store <code>s.head.Store(n)</code>: how many popped values go missing?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>LFU cache.</strong> Evict the least <em>frequently</em> used entry instead. Keep a map from frequency to a list of keys plus the current minimum frequency so that every operation stays O(1). Replay the scan experiment: does one scan still flush the hot keys?</li>
+          <li><strong>Segmented LRU.</strong> Split the cache into a probation segment and a protected segment. A key enters probation and moves to protected only on its second hit. Measure the hit ratio after the scan against plain LRU.</li>
+          <li><strong>Leaky bucket.</strong> Implement the limiter that drains a queue at a constant rate and refuses when the queue is full. How does its output differ from a token bucket's?</li>
+          <li><strong>Per-client limits.</strong> Keep one token bucket per client id in an LRU cache so memory stays bounded. What should happen when a client's bucket is evicted, and can a client exploit that?</li>
+          <li><strong>Weighted ring.</strong> Give one server three times the virtual nodes of the others. Confirm that it receives about three times the keys, then remove it and check that its keys spread over the others.</li>
+          <li><strong>Jump consistent hash.</strong> Look up Google's jump hash: it maps a key to one of N buckets in O(1) space and moves only 1/(N+1) of the keys when N grows. What can it not do that a ring can?</li>
+          <li><strong>Concurrent LRU.</strong> Shard the LRU into 16 independent caches by key hash. Compare the total hit ratio with a single cache of the same total size, and explain the difference.</li>
+        </ol>
+        <p>This lesson completes Phase 4. Continue with <a href="/roadmap/dsa/demo_examples.html">Demo Examples</a> for the full list of runnable programs, then the <a href="/roadmap/dsa/samples.html">samples</a> and <a href="/roadmap/dsa/references.html">references</a>.</p>
+
       </main>
     </div>
   </div>
-
+  <hr>
   <footer class="footer copyright">
     <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
   </footer>
 </div>
-
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
   <span style="font-size: 24px;">&#9776;</span>
 </button>
-
 <script>
   window.TOPIC_CONFIG = {
-    labId: 'dsa',
-    topicId: 'production-structures',
-    homeLink: './index.html#topics',
-    labHomeLink: './index.html',
+    labId: "dsa",
+    topicId: "production-structures",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
     inlineContent: true
   };
 </script>
