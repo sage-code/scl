@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Heaps and priority queues in Go: the heap property, array-backed complete trees, sift up and sift down, O(n) heapify, heapsort, container/heap with heap.Fix, and the top-k, k-way merge, and running-median patterns.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="dsa, go, golang, heap, binary heap, priority queue, container/heap, heapify, heapsort, top k, k-way merge, running median">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DSA Heaps &amp; Priority Queues</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsa/heaps.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="heaps">Heaps &amp; Priority Queues</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A priority queue always hands out the most important item next: the most urgent task, the nearest unvisited city, the earliest timer. The binary heap implements it with O(log n) insertion and removal using nothing but a slice. Heaps power schedulers, Dijkstra's shortest paths (Phase 3), event simulations, and every "top k" query over a stream. This lesson builds a heap from scratch, then uses Go's <code>container/heap</code> for four common patterns.
+        </div>
+
+        <h2 id="heap-property">The Heap Property</h2>
+        <p>A <strong>min-heap</strong> is a binary tree in which every parent is less than or equal to its children. The smallest element is therefore always at the root. Nothing else is ordered: siblings can appear in any order, and a heap is <em>not</em> sorted.</p>
+
+        <h3 id="complete-tree">Complete Trees in Arrays</h3>
+        <p>A binary heap is also a <strong>complete</strong> tree: every level is full except possibly the last, which fills from left to right. A complete tree has no gaps, so it can be stored level by level in a slice with no pointers at all. Parent and child positions are computed with arithmetic.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-heap-array.svg" alt="Min-heap with values 1, 3, 2, 7, 4, 5 drawn as a tree and as a slice; node 3 at index 1 has children 7 and 4 at indices 3 and 4" width="640" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The same heap as a tree and as a slice. The node at index 1 (blue) has its children at indices 2·1+1 = 3 and 2·1+2 = 4 (orange).</p>
+        </div>
+        <pre><code class="language-go line-numbers">// Index arithmetic for a heap stored in a slice (0-based).
+func parent(i int) int { return (i - 1) / 2 }
+func left(i int) int   { return 2*i + 1 }
+func right(i int) int  { return 2*i + 2 }</code></pre>
+
+        <h3 id="min-max">Min-Heaps and Max-Heaps</h3>
+        <p>A max-heap reverses the rule: every parent is greater than or equal to its children. Rather than writing two implementations, make the ordering a parameter. With a <code>less(a, b)</code> function, <code>a &lt; b</code> produces a min-heap, <code>a &gt; b</code> a max-heap, and a comparison on a struct field produces a priority queue of tasks.</p>
+        <hr>
+
+        <h2 id="heap-ops">Heap Operations</h2>
+        <p>Every operation changes the heap in one place and then repairs the heap property along a single root-to-leaf path. The height of a complete tree is about log₂ n, so the repairs cost O(log n). Full implementation with heapsort and randomized verification: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/27_binary_heap.go">27_binary_heap.go</a>.</p>
+
+        <h3 id="sift-up">Push and Sift Up</h3>
+        <p>Append the new element at the end — the only position that keeps the tree complete — then swap it with its parent while it is smaller. It rises at most to the root.</p>
+        <pre><code class="language-go line-numbers">func (h *Heap[T]) Push(v T) {
+	h.data = append(h.data, v)
+	i := len(h.data) - 1
+	for i &gt; 0 {
+		p := (i - 1) / 2
+		if !h.less(h.data[i], h.data[p]) {
+			break // parent is not larger: the heap property holds
+		}
+		h.data[i], h.data[p] = h.data[p], h.data[i]
+		i = p
+	}
+}</code></pre>
+
+        <h3 id="sift-down">Pop and Sift Down</h3>
+        <p>The root is the answer. Remove it by moving the last element into the root — again keeping the tree complete — and sink that element: swap it with its <strong>smaller</strong> child while that child is smaller than it. Swapping with the larger child would place a larger value above a smaller one and break the property.</p>
+        <pre><code class="language-go line-numbers">func (h *Heap[T]) siftDown(i int) {
+	n := len(h.data)
+	for {
+		smallest := i
+		l, r := 2*i+1, 2*i+2
+		if l &lt; n &amp;&amp; h.less(h.data[l], h.data[smallest]) {
+			smallest = l
+		}
+		if r &lt; n &amp;&amp; h.less(h.data[r], h.data[smallest]) {
+			smallest = r
+		}
+		if smallest == i {
+			return // both children are larger or absent
+		}
+		h.data[i], h.data[smallest] = h.data[smallest], h.data[i]
+		i = smallest
+	}
+}</code></pre>
+
+        <h3 id="heapify">Heapify in O(n)</h3>
+        <p>Building a heap by pushing n elements costs O(n log n). Building it in place is faster: leaves are already valid one-element heaps, so sift down every internal node, from the last parent (<code>n/2 − 1</code>) back to the root. The total is O(n) because work is proportional to how far each node can sink: half of the nodes are leaves and sink zero levels, a quarter sink at most one, an eighth at most two, and so on. The sum n/4·1 + n/8·2 + n/16·3 + … is less than n.</p>
+
+        <h3 id="heapsort">Heapsort</h3>
+        <p>Heapify the slice as a <em>max</em>-heap, then repeatedly swap the root (the current maximum) to the end of the unsorted region and sift the new root down in the shrunken heap. Heapsort runs in O(n log n) in the worst case with O(1) extra space, but it is not stable and its memory access pattern is less cache-friendly than quicksort's; Phase 3 compares the sorting algorithms.</p>
+        <hr>
+
+        <h2 id="container-heap">container/heap</h2>
+        <p>The standard library provides the heap algorithms, not a heap type. You define the storage and ordering by implementing <code>heap.Interface</code>; the package's functions keep the heap property.</p>
+
+        <h3 id="heap-interface">heap.Interface</h3>
+        <p><code>heap.Interface</code> is <code>sort.Interface</code> (<code>Len</code>, <code>Less</code>, <code>Swap</code>) plus <code>Push</code> and <code>Pop</code>. Your <code>Push</code> and <code>Pop</code> only append to and remove from the <em>end</em> of the slice; <code>heap.Push</code> and <code>heap.Pop</code> call them and do the sifting.</p>
+        <pre><code class="language-go line-numbers">// IntHeap is a min-heap of ints.
+type IntHeap []int
+
+func (h IntHeap) Len() int           { return len(h) }
+func (h IntHeap) Less(i, j int) bool { return h[i] &lt; h[j] }
+func (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *IntHeap) Push(x any)        { *h = append(*h, x.(int)) }
+func (h *IntHeap) Pop() any {
+	old := *h
+	x := old[len(old)-1] // heap.Pop already moved the minimum here
+	*h = old[:len(old)-1]
+	return x
+}
+
+// usage: always through the package functions
+h := &amp;IntHeap{5, 2, 8}
+heap.Init(h)          // O(n) heapify
+heap.Push(h, 1)       // O(log n)
+m := heap.Pop(h).(int) // 1, O(log n)</code></pre>
+
+        <h3 id="heap-fix">Updating Priorities with heap.Fix</h3>
+        <p>Schedulers need to change the priority of an item already in the queue. If each item stores its current index — updated in <code>Swap</code> — you can change its priority and call <code>heap.Fix(h, item.index)</code>, which sifts it up or down in O(log n). Without the stored index you would need an O(n) search. Dijkstra's algorithm uses the same "decrease key" operation.</p>
+        <hr>
+
+        <h2 id="pq-patterns">Priority Queue Patterns</h2>
+        <p>Four patterns cover most uses of a priority queue. All of them, plus the scheduler with <code>heap.Fix</code>: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/28_priority_queue_patterns.go">28_priority_queue_patterns.go</a>.</p>
+
+        <h3 id="top-k">Top-k</h3>
+        <p>To keep the k largest values of a large stream, maintain a <strong>min</strong>-heap of size k. Its root is the smallest of the current top k; a new value larger than the root replaces it. The cost is O(n log k) time and O(k) memory — the full stream never needs to be stored or sorted. Using a max-heap of everything would cost O(n) memory instead.</p>
+
+        <h3 id="k-way-merge">k-Way Merge</h3>
+        <p>To merge k sorted inputs, put the first element of each into a min-heap. Repeatedly pop the smallest and push the next element from the same input. The heap never holds more than k elements, so merging N total elements costs O(N log k). Databases and external sorting tools merge sorted runs from disk this way.</p>
+
+        <h3 id="running-median">Running Median</h3>
+        <p>To report the median after every insertion, keep the lower half of the values in a <em>max</em>-heap and the upper half in a <em>min</em>-heap, with sizes differing by at most one. The median is at the top of one heap or the average of both tops: O(log n) per insertion, O(1) per query.</p>
+        <pre><code class="language-go line-numbers">func (m *MedianFinder) Add(v int) {
+	if m.low.Len() == 0 || v &lt;= m.low.IntHeap[0] {
+		heap.Push(&amp;m.low, v) // belongs to the lower half
+	} else {
+		heap.Push(&amp;m.high, v)
+	}
+	// rebalance: len(low) == len(high) or len(high)+1
+	if m.low.Len() &gt; m.high.Len()+1 {
+		heap.Push(&amp;m.high, heap.Pop(&amp;m.low))
+	} else if m.high.Len() &gt; m.low.Len() {
+		heap.Push(&amp;m.low, heap.Pop(&amp;m.high))
+	}
+}</code></pre>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Most heap bugs come from confusing a heap with a sorted list, or from bypassing the package functions.</p>
+
+        <h3 id="pitfall-methods">Calling h.Push Instead of heap.Push</h3>
+        <p>Your type's <code>Push</code> method only appends; it does not sift. Calling <code>h.Push(x)</code> directly compiles and runs, but silently breaks the heap property. Always call <code>heap.Push(h, x)</code> and <code>heap.Pop(h)</code>.</p>
+
+        <h3 id="pitfall-sorted">Treating the Heap as Sorted</h3>
+        <p>Only the root is guaranteed. Iterating over the heap's slice does not yield sorted order, and <code>h[1]</code> is not necessarily the second smallest element. To read elements in order, pop them.</p>
+
+        <h3 id="pitfall-search">Searching a Heap</h3>
+        <p>Finding an arbitrary element in a heap is O(n). If you need to update or remove specific items, keep their indices (as with <code>heap.Fix</code>) or a map from item to index.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>For each exercise, decide what the heap stores and what its root means.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/27_binary_heap.go">27_binary_heap.go</a>, change <code>siftDown</code> to swap with the <em>larger</em> child and run the randomized heapsort check.</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/28_priority_queue_patterns.go">28_priority_queue_patterns.go</a>, change a task's priority without calling <code>heap.Fix</code>. In what order do the tasks come out?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>K closest points.</strong> Return the k points closest to the origin using a max-heap of size k keyed by squared distance.</li>
+          <li><strong>Task scheduler.</strong> Given tasks with durations and k workers, compute when all tasks finish, using a min-heap of worker finish times.</li>
+          <li><strong>Meeting rooms.</strong> Find the minimum number of rooms for a list of meetings: sort by start time and keep a min-heap of end times.</li>
+          <li><strong>Generic d-ary heap.</strong> Generalize <code>Heap[T]</code> so each node has d children. How do the index formulas change, and how does d affect push and pop costs?</li>
+        </ol>
+        <p>Phase 2 is complete. Continue with <a href="/roadmap/dsa/searching.html">Searching</a>, the first lesson of Phase 3.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "dsa",
+    topicId: "heaps",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

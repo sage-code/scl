@@ -1,12 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DSA Algorithms placeholder page.">
+  <meta name="description" content="Thinking in algorithms with Go: specify a problem, work examples, start from brute force, reason with invariants, and verify with table-driven tests.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dsa, algorithms">
+  <meta name="keywords" content="dsa, algorithms, go, golang, problem solving, loop invariant, brute force, two sum, table-driven tests">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DSA Algorithms</title>
+  <title>DSA Thinking in Algorithms</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dsa/algorithms.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -14,7 +14,11 @@
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
@@ -33,17 +37,212 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DSA Algorithms</h1>
+        <h1 id="algorithms">Thinking in Algorithms</h1>
 
-        <div class="alert alert-warning shadow-sm" role="status">
-          <strong>Status:</strong> Placeholder page ready for content authoring.
+        <div class="alert alert-secondary shadow-sm">
+          This roadmap teaches data structures and algorithms as a way of <strong>thinking</strong>, not a list of recipes to memorize. Every lesson follows the same rhythm: a small example you can read in one screen, the reasoning behind it, and a larger runnable Go program in the <a href="/roadmap/dsa/demo_examples.html">demo collection</a> that you open in the code viewer, run, and modify.
         </div>
 
-        <h2 id="scope">Scope</h2>
-        <p>Add the learning objectives, key concepts, and practical examples for this topic.</p>
+        <h2 id="what-is">What Is an Algorithm</h2>
+        <p>An algorithm is a finite, precise sequence of steps that transforms an input into a desired output. Recipes, driving directions, and long division are informal algorithms; a sorting routine is a formal one. What separates engineering from trial and error is the ability to describe these steps precisely, argue that they are correct, and predict how much they cost.</p>
 
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Replace placeholder text with structured lessons, code snippets, and exercises.</p>
+        <h3 id="definition">Definition &amp; Properties</h3>
+        <p>Donald Knuth lists five properties every algorithm must have. They are worth keeping as a checklist whenever you design a procedure:</p>
+        <ul>
+          <li><strong>Finiteness</strong> — it always stops after a finite number of steps.</li>
+          <li><strong>Definiteness</strong> — every step is unambiguous; two engineers would execute it identically.</li>
+          <li><strong>Input</strong> — it takes zero or more values from a specified set.</li>
+          <li><strong>Output</strong> — it produces one or more results with a specified relation to the input.</li>
+          <li><strong>Effectiveness</strong> — every step is basic enough to be carried out exactly.</li>
+        </ul>
+
+        <h3 id="algo-vs-program">Algorithm vs Program</h3>
+        <p>An algorithm is the idea; a program is one implementation of it in a particular language, with real types, memory, and error handling. The same binary search algorithm can be written in Go, C, or Python. This separation matters: you reason about correctness and cost at the algorithm level, then deal with language details (overflow, allocation, error values) at the program level. Both levels can contain bugs.</p>
+
+        <h3 id="why-go">Why Go for This Roadmap</h3>
+        <p>Go is a good teaching language for data structures because it hides very little. Slices expose their length and capacity, pointers are explicit but safe, there is no hidden inheritance, and the standard library supplies only a few containers, so you build the rest yourself and understand them. Generics (Go 1.18+) let you write reusable containers once you understand the concrete version.</p>
+        <p>Install Go from <a href="https://go.dev/dl/" target="_blank" rel="noopener noreferrer nofollow">go.dev/dl</a>, then run any demo in this roadmap as a single file:</p>
+        <pre><code class="language-bash line-numbers"># check the installed toolchain (Go 1.23 or newer is assumed)
+go version
+
+# run one demo file directly — no module or project setup needed
+go run 01_find_max.go
+
+# static checks catch common mistakes before you run anything
+go vet 01_find_max.go</code></pre>
+        <hr>
+
+        <h2 id="workflow">The Problem-Solving Workflow</h2>
+        <p>Experienced engineers rarely produce an optimal solution in one step. They follow a loop: understand the problem, try examples, write something correct, measure its cost, and improve it only if the cost is too high. The diagram shows this loop; the rest of the section explains each step.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-problem-solving.svg" alt="Problem-solving workflow: understand, examples, brute force, analyze, optimize loop, implement and test" width="620" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The workflow: a correct brute-force solution comes first and becomes the oracle that every faster version is tested against. Optimization is a loop back through analysis, not a single leap.</p>
+        </div>
+
+        <h3 id="understand">Understand the Problem</h3>
+        <p>Restate the problem in your own words and write down three things before any code: the <strong>input</strong> (types, sizes, can it be empty, can values be negative or repeated?), the <strong>output</strong> (a value, an index, a list, or an error?), and the <strong>constraints</strong> (how large can the input be, how fast must the answer be?). Most bugs in interviews and production code come from an unasked question here.</p>
+
+        <h3 id="examples">Work Examples First</h3>
+        <p>Write small inputs and their expected outputs by hand. Include a typical case plus the cases that break naive code: empty input, one element, all equal, the answer at the first or last position, negative numbers. These examples become your tests, and working them by hand usually reveals the algorithm.</p>
+
+        <h3 id="brute-force">Start with Brute Force</h3>
+        <p>The brute-force solution tries every possibility directly. It is often slow, but it is easy to get right, and it gives you something valuable: an <em>oracle</em>, a trusted reference against which you check faster versions on thousands of random inputs. Never skip it just because you suspect it is too slow.</p>
+
+        <h3 id="optimize">Look for Repeated Work</h3>
+        <p>To optimize, ask: <em>what work does my solution repeat?</em> The answer points to the technique. Repeatedly scanning for a value suggests a hash map. Repeatedly comparing against every element suggests sorting first. Repeatedly solving the same subproblem suggests memoization. Each later phase of this roadmap is, in effect, a catalog of ways to remove repeated work.</p>
+        <hr>
+
+        <h2 id="correctness">Reasoning About Correctness</h2>
+        <p>Tests show that code works for the inputs you tried. Reasoning shows it works for all inputs. You need both: reasoning to design the code, tests to catch the gap between what you meant and what you typed.</p>
+
+        <h3 id="invariants">Loop Invariants</h3>
+        <p>A loop invariant is a statement that is true before the loop starts and remains true after every iteration. If it is true when the loop ends, and the loop ends, the result is correct. The example below finds a maximum; the comment states the invariant that justifies each line.</p>
+        <pre><code class="language-go line-numbers">// findMax returns the largest element of nums, or an error when nums is empty.
+func findMax(nums []int) (int, error) {
+	if len(nums) == 0 {
+		// There is no correct integer to return for "max of nothing",
+		// so the empty case is an error, not a magic value like 0.
+		return 0, errors.New("findMax: empty input")
+	}
+	best := nums[0] // invariant holds: best = max(nums[0..0])
+	for i := 1; i &lt; len(nums); i++ {
+		// invariant at this point: best = max(nums[0..i-1])
+		if nums[i] &gt; best {
+			best = nums[i]
+		}
+		// invariant restored: best = max(nums[0..i])
+	}
+	// loop ended with i == len(nums): best = max of the whole slice
+	return best, nil
+}</code></pre>
+        <p>Full program with a table of test cases: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/01_find_max.go">01_find_max.go</a>.</p>
+
+        <h3 id="edge-cases">Edge Cases Checklist</h3>
+        <p>Run through this list for every function that takes a collection. Each item has broken real production code:</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Case</th><th>Question to ask</th><th>Typical bug</th></tr></thead>
+          <tbody>
+            <tr><td>Empty</td><td>What is the answer for no elements?</td><td>Index out of range on <code>nums[0]</code></td></tr>
+            <tr><td>Single element</td><td>Does the loop body ever run?</td><td>Loop assumes a pair exists</td></tr>
+            <tr><td>Duplicates</td><td>Are equal values allowed and distinct?</td><td>Element paired with itself</td></tr>
+            <tr><td>Negatives / zero</td><td>Does any initial value assume positive?</td><td><code>best := 0</code> for all-negative input</td></tr>
+            <tr><td>Boundaries</td><td>Is the answer at index 0 or <code>len-1</code>?</td><td>Off-by-one with <code>&lt;</code> vs <code>&lt;=</code></td></tr>
+            <tr><td>Large input</td><td>Does the cost fit the constraints?</td><td>Quadratic loop times out</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="table-tests">Table-Driven Tests in Go</h3>
+        <p>Go's idiomatic test style stores examples as a table of structs and runs one loop over them. Put this in a file ending in <code>_test.go</code> next to the code and run <code>go test</code>. Adding a new case is one line, so edge cases are cheap to keep.</p>
+        <pre><code class="language-go line-numbers">// findmax_test.go — run with: go test
+package main
+
+import "testing"
+
+func TestFindMax(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      []int
+		want    int
+		wantErr bool
+	}{
+		{"typical", []int{3, 7, 2}, 7, false},
+		{"all negative", []int{-5, -2, -8}, -2, false},
+		{"empty", nil, 0, true},
+	}
+	for _, tt := range tests {
+		// t.Run gives every case its own name in the test report
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := findMax(tt.in)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr &amp;&amp; got != tt.want {
+				t.Errorf("findMax(%v) = %d, want %d", tt.in, got, tt.want)
+			}
+		})
+	}
+}</code></pre>
+        <hr>
+
+        <h2 id="case-study">Case Study: Two Sum</h2>
+        <p><strong>Problem:</strong> given a slice of integers and a target, return the indices of two different elements that add up to the target. This small problem shows the entire workflow: a brute-force oracle, then two optimizations that each remove a different kind of repeated work.</p>
+
+        <h3 id="two-sum-brute">Version 1: Every Pair</h3>
+        <p>The direct approach checks every pair once. With <em>n</em> elements there are n(n-1)/2 pairs, so the cost grows with the square of the input.</p>
+        <pre><code class="language-go line-numbers">// twoSumBrute checks all pairs: O(n^2) time, O(1) extra space.
+func twoSumBrute(nums []int, target int) (int, int, bool) {
+	for i := 0; i &lt; len(nums); i++ {
+		// j starts at i+1: each pair once, never an element with itself
+		for j := i + 1; j &lt; len(nums); j++ {
+			if nums[i]+nums[j] == target {
+				return i, j, true
+			}
+		}
+	}
+	return 0, 0, false
+}</code></pre>
+
+        <h3 id="two-sum-sorted">Version 2: Sort and Two Pointers</h3>
+        <p><em>Repeated work:</em> for each element we scan all others. If the values are sorted, one comparison tells us which side to discard. Put a pointer at each end: when the sum is too small, the left value cannot pair with anything (every other right value is smaller still), so move left up; when it is too large, move right down. Each step eliminates one candidate, so the scan is linear and sorting dominates at O(n log n). The full version in the demo keeps the original indices while sorting.</p>
+
+        <h3 id="two-sum-map">Version 3: Remember What You Have Seen</h3>
+        <p><em>Repeated work:</em> for each element <code>x</code> we search for <code>target - x</code>. A map answers "have I seen this value?" in constant average time, so a single pass is enough.</p>
+        <pre><code class="language-go line-numbers">// twoSumMap: one pass, O(n) time, O(n) extra space for the map.
+func twoSumMap(nums []int, target int) (int, int, bool) {
+	seen := make(map[int]int, len(nums)) // value -&gt; index
+	for j, x := range nums {
+		if i, ok := seen[target-x]; ok {
+			return i, j, true
+		}
+		// store AFTER the lookup, so x is never paired with itself
+		seen[x] = j
+	}
+	return 0, 0, false
+}</code></pre>
+
+        <h3 id="two-sum-compare">Comparing the Three</h3>
+        <p>None of the versions is "best" in every situation. The table summarizes the trade-off; the demo measures all three on the same worst-case inputs and verifies each answer against the brute-force oracle.</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Version</th><th>Time</th><th>Extra space</th><th>When it fits</th></tr></thead>
+          <tbody>
+            <tr><td>Every pair</td><td>O(n²)</td><td>O(1)</td><td>Tiny inputs, or as a test oracle</td></tr>
+            <tr><td>Sort + two pointers</td><td>O(n log n)</td><td>O(n) for index pairs</td><td>Input already sorted (then O(n), O(1))</td></tr>
+            <tr><td>Hash map</td><td>O(n) average</td><td>O(n)</td><td>General case, memory available</td></tr>
+          </tbody>
+        </table>
+        <p>Full program with correctness checks and timings: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/02_two_sum_three_ways.go">02_two_sum_three_ways.go</a>.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>These mistakes appear in beginner and senior code alike. Each has a simple habit that prevents it.</p>
+
+        <h3 id="pitfall-magic">Magic Initial Values</h3>
+        <p>Starting a maximum at <code>0</code> or a minimum at <code>999999</code> silently fails on inputs outside the range you imagined. Initialize from a real element (<code>nums[0]</code>) or use the type's limit from the <code>math</code> package (<code>math.MinInt</code>), and handle empty input explicitly.</p>
+
+        <h3 id="pitfall-off-by-one">Off-by-One Errors</h3>
+        <p>Loop bounds (<code>&lt;</code> vs <code>&lt;=</code>), inclusive vs exclusive ranges, and <code>len-1</code> are the most common source of bugs in array code. Decide on one convention — Go slices use half-open ranges <code>[lo, hi)</code> — state it in a comment, and test the first and last positions.</p>
+
+        <h3 id="pitfall-premature">Optimizing Too Early</h3>
+        <p>An unverified fast solution is worth less than a verified slow one. Optimize only after the brute-force version works and the analysis shows it is too slow for the stated constraints — and keep the brute-force version as the test oracle.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Reading is not enough; the goal is to build the habit of specifying, testing, and analyzing before coding.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>Open <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/01_find_max.go">01_find_max.go</a>, change <code>best := nums[0]</code> to <code>best := 0</code>, and run it. Which case fails, and why?</li>
+          <li>Open <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase1/02_two_sum_three_ways.go">02_two_sum_three_ways.go</a> and move <code>seen[x] = j</code> above the lookup in <code>twoSumMap</code>. Find the example that now gives a wrong answer.</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Second largest.</strong> Write <code>secondMax(nums []int) (int, error)</code>. Specify first: what is the second largest of <code>[5, 5, 3]</code>? Write the table of cases before the code.</li>
+          <li><strong>Count pairs.</strong> Change Two Sum to count <em>all</em> pairs that reach the target. Write the brute-force version, then a map version, and check them against each other on random inputs.</li>
+          <li><strong>Invariant practice.</strong> Write the loop invariant for a function that returns the index of the first negative number, or -1 if none exists.</li>
+        </ol>
+        <p>Next lesson: <a href="/roadmap/dsa/complexity-analysis.html">Complexity Analysis</a> — how to predict cost before running code.</p>
       </main>
     </div>
   </div>

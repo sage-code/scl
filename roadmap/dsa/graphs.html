@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Graphs in Go: edge lists, adjacency matrices and adjacency lists, breadth-first search with path reconstruction, grid and multi-source BFS, depth-first search, components, cycle detection, bipartite graphs, topological sort, and union-find.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="dsa, go, golang, graph, adjacency list, adjacency matrix, bfs, dfs, breadth-first search, depth-first search, topological sort, kahn algorithm, cycle detection, union-find, disjoint set">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DSA Graph Traversal</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsa/graphs.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="graphs">Graph Traversal</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Linked lists and trees are special cases of a more general structure: the <strong>graph</strong>. A graph is a set of vertices connected by edges, and it can model road networks, social networks, package dependencies, web links, state machines, and circuit layouts. The step that matters most is often recognizing that a problem <em>is</em> a graph problem. After that, two traversals, breadth-first and depth-first search, answer a large number of questions in O(V + E). This lesson covers representations, both traversals, dependency ordering, and union-find for graphs that keep growing.
+        </div>
+
+        <h2 id="graph-basics">Graph Vocabulary and Representations</h2>
+        <p>A graph has V vertices and E edges. Edges can be <strong>directed</strong> (a follows b, a imports b) or <strong>undirected</strong> (a road, a friendship), and can carry a <strong>weight</strong> (distance, cost, latency). The <strong>degree</strong> of a vertex is its number of edges. A graph is <strong>sparse</strong> when E is close to V and <strong>dense</strong> when E approaches V². Almost all real graphs are sparse. Demo with all three representations: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/37_graph_representations.go">37_graph_representations.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-graph-representations.svg" alt="A weighted undirected graph with vertices A to E, the same graph as adjacency lists, and as a 5 by 5 adjacency matrix" width="720" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">The same five-vertex graph three ways. The matrix spends a cell on every pair, including the 13 pairs with no edge.</p>
+        </div>
+
+        <h3 id="representations">Choosing a Representation</h3>
+        <div class="table-responsive">
+          <table class="table table-dark table-striped table-sm">
+            <thead><tr><th>Representation</th><th>Memory</th><th>Is u–v an edge?</th><th>Neighbours of u</th><th>Best for</th></tr></thead>
+            <tbody>
+              <tr><td>Edge list <code>[]Edge</code></td><td>O(E)</td><td>O(E)</td><td>O(E)</td><td>input files, Kruskal's MST</td></tr>
+              <tr><td>Adjacency matrix <code>[][]int</code></td><td>O(V²)</td><td>O(1)</td><td>O(V)</td><td>dense graphs, Floyd-Warshall</td></tr>
+              <tr><td>Adjacency list <code>[][]Edge</code></td><td>O(V + E)</td><td>O(degree)</td><td>O(degree)</td><td>almost everything else</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For a sparse graph with a million vertices and four million edges, a matrix of booleans would need about 1,000 GB, while adjacency lists need about 200 MB. Use adjacency lists by default.</p>
+
+        <h3 id="adjacency-list">Adjacency Lists in Go</h3>
+        <p>Number the vertices 0 to V − 1 and store a slice of outgoing edges per vertex. If vertices have names or IDs, map them to indices once, at the boundary, with a <code>map[string]int</code>. The algorithms can then use fast slices instead of maps.</p>
+        <pre><code class="language-go line-numbers">type Edge struct {
+	From, To, Weight int
+}
+
+// Graph is an adjacency list: adj[u] holds the edges leaving u.
+type Graph struct {
+	adj      [][]Edge
+	directed bool
+}
+
+func (g *Graph) AddEdge(u, v, w int) {
+	g.adj[u] = append(g.adj[u], Edge{u, v, w})
+	if !g.directed {
+		g.adj[v] = append(g.adj[v], Edge{v, u, w}) // store both directions
+	}
+}</code></pre>
+
+        <h3 id="implicit-graphs">Implicit Graphs</h3>
+        <p>Many graphs are never stored at all. In a maze, image, or game map, the neighbours of cell <code>(r, c)</code> are computed when needed: the up to four adjacent cells that are inside the grid and not walls. Word ladders, puzzle states, and configuration spaces work the same way. The traversal algorithms do not change; only the "get neighbours" step does.</p>
+        <hr>
+
+        <h2 id="bfs">Breadth-First Search</h2>
+        <p>BFS explores in waves: first the start vertex, then everything one edge away, then two edges away, and so on. A FIFO queue produces exactly this order. Because each wave is completed before the next begins, the first time BFS reaches a vertex, it has found a path with the <strong>fewest edges</strong>. Demo with path reconstruction, a maze, multi-source BFS, and an oracle check on random graphs: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/38_bfs.go">38_bfs.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-bfs-dfs.svg" alt="The same graph explored from A. BFS visits A, B, C, D, E, F, G level by level. DFS visits A, B, D, G, E, C, F, going deep first" width="680" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">BFS (left) visits by distance. DFS (right) follows one branch to the end before backtracking. The blue edges form each search's tree.</p>
+        </div>
+
+        <h3 id="bfs-code">The Algorithm</h3>
+        <pre><code class="language-go line-numbers">func bfs(adj [][]int, start int) (dist, parent []int) {
+	n := len(adj)
+	dist = make([]int, n)
+	parent = make([]int, n)
+	for i := range dist {
+		dist[i], parent[i] = -1, -1 // -1 doubles as "not visited yet"
+	}
+	dist[start] = 0
+	queue := []int{start}
+	for head := 0; head &lt; len(queue); head++ { // index instead of popping: O(1)
+		u := queue[head]
+		for _, v := range adj[u] {
+			if dist[v] == -1 { // mark when ENQUEUED, not when dequeued,
+				dist[v] = dist[u] + 1 // or a vertex can enter the queue twice
+				parent[v] = u
+				queue = append(queue, v)
+			}
+		}
+	}
+	return dist, parent
+}</code></pre>
+        <p>Each vertex is enqueued at most once and each edge is examined once from each end, so BFS runs in O(V + E) time and O(V) memory. Reading the queue by index is a simple alternative to the ring buffer from <a href="/roadmap/dsa/stacks-queues.html">Stacks &amp; Queues</a>, because BFS never needs the slots again.</p>
+
+        <h3 id="path-reconstruction">Reconstructing the Path</h3>
+        <p><code>parent[v]</code> records which vertex discovered <code>v</code>. The parent links form a <strong>BFS tree</strong> of shortest paths from the start. To get the path to a target, follow parents back to the start and reverse:</p>
+        <pre><code class="language-go line-numbers">func pathTo(parent []int, target int) []int {
+	var path []int
+	for v := target; v != -1; v = parent[v] {
+		path = append(path, v)
+	}
+	slices.Reverse(path)
+	return path
+}</code></pre>
+
+        <h3 id="grid-bfs">Grids and Multiple Sources</h3>
+        <p>On a grid, the same loop finds the shortest route through a maze. The demo solves a 5 × 10 maze and draws the path. With <strong>multi-source BFS</strong>, all sources start in the queue at distance 0, and the result is each vertex's distance to its <em>nearest</em> source, such as every house to the closest hospital, in a single O(V + E) pass rather than one BFS per source.</p>
+        <hr>
+
+        <h2 id="dfs">Depth-First Search</h2>
+        <p>DFS follows one path as deep as possible, then backtracks to the most recent vertex that still has unexplored edges. Recursion provides that last-in, first-out order automatically; an explicit stack does the same without risking a stack overflow on huge graphs. DFS does not find shortest paths, but the order in which it enters and leaves vertices reveals the graph's structure. Demo: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/39_dfs.go">39_dfs.go</a>.</p>
+
+        <h3 id="dfs-code">Recursive and Iterative DFS</h3>
+        <pre><code class="language-go line-numbers">func dfsOrder(adj [][]int, start int) []int {
+	visited := make([]bool, len(adj))
+	var order []int
+	var visit func(u int)
+	visit = func(u int) {
+		visited[u] = true
+		order = append(order, u)
+		for _, v := range adj[u] {
+			if !visited[v] {
+				visit(v) // go deeper before trying u's next neighbour
+			}
+		}
+	}
+	visit(start)
+	return order
+}</code></pre>
+        <p>The iterative version pops a vertex from a stack, skips it if it is already visited, and pushes its neighbours in reverse order so they come off the stack in the same order as in the recursive version. The demo checks on random graphs that both versions produce identical orders.</p>
+
+        <h3 id="components">Connected Components</h3>
+        <p>In an undirected graph, one DFS (or BFS) visits exactly one connected component. Loop over all vertices and start a new search from each vertex that is not yet visited. The number of searches is the number of components. Flood fill in paint programs and counting islands on a map work the same way on grids.</p>
+
+        <h3 id="cycles">Detecting Cycles with Three Colours</h3>
+        <p>In a directed graph, a cycle exists exactly when DFS finds an edge back to a vertex that is still on the current path. Three colours track this: <strong>white</strong> (not visited), <strong>gray</strong> (on the current path), and <strong>black</strong> (finished). An edge to a black vertex is harmless; it leads into a part of the graph that was fully explored and has no path back.</p>
+        <pre><code class="language-go line-numbers">func hasCycleDirected(adj [][]int) bool {
+	const white, gray, black = 0, 1, 2
+	color := make([]int, len(adj))
+	var visit func(u int) bool
+	visit = func(u int) bool {
+		color[u] = gray
+		for _, v := range adj[u] {
+			if color[v] == gray || (color[v] == white &amp;&amp; visit(v)) {
+				return true
+			}
+		}
+		color[u] = black
+		return false
+	}
+	for u := range adj {
+		if color[u] == white &amp;&amp; visit(u) {
+			return true
+		}
+	}
+	return false
+}</code></pre>
+
+        <h3 id="bipartite">Two-Colouring: Bipartite Graphs</h3>
+        <p>A graph is <strong>bipartite</strong> if its vertices can be split into two groups with every edge crossing between them: workers and jobs, students and courses. Colour the start vertex, give each neighbour the opposite colour, and report failure if an edge joins two vertices of the same colour. That happens exactly when the graph contains an odd cycle.</p>
+        <hr>
+
+        <h2 id="topological-sort">Topological Sort</h2>
+        <p>A <strong>topological order</strong> lists every vertex before all the vertices it points to: a package before the packages that import it, a course before the courses that require it. It exists if and only if the directed graph has no cycle, which makes it a <strong>DAG</strong> (directed acyclic graph). Demo with both algorithms, cycle detection, and a critical-path schedule: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/40_topological_sort.go">40_topological_sort.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-topo-sort.svg" alt="A DAG of build steps: fetch leads to configure and docs, configure to compile, compile to test and package, and test, package, and docs lead to release. Below, Kahn's order lists them left to right" width="680" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">In a topological order, every dependency arrow points from left to right.</p>
+        </div>
+
+        <h3 id="kahn">Kahn's Algorithm</h3>
+        <p>Count each vertex's incoming edges (its in-degree). Vertices with in-degree 0 have no remaining prerequisites and can go first. Output one, remove its outgoing edges by decrementing its neighbours' in-degrees, and repeat. If some vertices are never output, they lie on a cycle.</p>
+        <pre><code class="language-go line-numbers">for len(ready) &gt; 0 {
+	u := ready[0]
+	ready = ready[1:]
+	order = append(order, u)
+	for _, v := range adj[u] {
+		indeg[v]-- // u is done: one fewer prerequisite for v
+		if indeg[v] == 0 {
+			ready = append(ready, v)
+		}
+	}
+}
+// Vertices on a cycle never reach in-degree 0 and are never emitted.
+return order, len(order) == len(adj)</code></pre>
+
+        <h3 id="dfs-topo">DFS Postorder</h3>
+        <p>In a DAG, a vertex finishes (turns black) only after every vertex it points to has finished. Appending each vertex when it finishes and reversing the list therefore gives a topological order. The gray check from cycle detection comes for free.</p>
+
+        <h3 id="critical-path">Scheduling: the Critical Path</h3>
+        <p>A topological order lets you process vertices so that all inputs of a vertex are final before the vertex itself. This is dynamic programming on a DAG, which Phase 4 develops in depth. With task durations, the earliest finish time of each task is its duration plus the latest finish among its prerequisites. The longest chain of dependencies, the <strong>critical path</strong>, is the minimum time for the whole project, however many workers you add.</p>
+        <hr>
+
+        <h2 id="union-find">Union-Find</h2>
+        <p>BFS and DFS answer connectivity questions for a fixed graph. When edges keep arriving and you must answer "are x and y connected?" after each one, re-running a traversal every time costs O(V + E) per question. A <strong>disjoint-set union</strong> (DSU, or union-find) answers each question in nearly constant time. Demo with a relabelling oracle and a worst-case comparison: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/41_union_find.go">41_union_find.go</a>.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-union-find.svg" alt="Before Find(x), x points to b, b to a, and a to the root r. After Find(x), a, b, and x all point directly to r" width="680" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Path compression: after one <code>Find(x)</code>, every node on the path points directly to the root.</p>
+        </div>
+
+        <h3 id="dsu-ops">Find and Union</h3>
+        <p>Each group is stored as a tree of parent pointers, and the root is the group's representative. <code>Find</code> follows parents to the root; <code>Union</code> attaches one root under the other. <code>Union</code> returns false when both elements are already in the same group. For an edge, that means adding it would close a cycle, which is exactly what Kruskal's algorithm in the next lesson needs.</p>
+        <pre><code class="language-go line-numbers">func (d *DSU) Find(x int) int {
+	root := x
+	for d.parent[root] != root {
+		root = d.parent[root]
+	}
+	for d.parent[x] != root { // second pass: repoint every node to the root
+		next := d.parent[x]
+		d.parent[x] = root
+		x = next
+	}
+	return root
+}
+
+func (d *DSU) Union(x, y int) bool {
+	rx, ry := d.Find(x), d.Find(y)
+	if rx == ry {
+		return false
+	}
+	if d.size[rx] &lt; d.size[ry] {
+		rx, ry = ry, rx // make rx the larger tree
+	}
+	d.parent[ry] = rx
+	d.size[rx] += d.size[ry]
+	d.groups--
+	return true
+}</code></pre>
+
+        <h3 id="dsu-complexity">Why It Is Almost Constant Time</h3>
+        <p>Without care, unions can build a long chain, and each <code>Find</code> costs O(n). In the demo, 16,384 finds on such a chain take 134 million parent steps. Two tricks fix this. <strong>Union by size</strong> hangs the smaller tree under the larger, so a node's depth increases only when its tree at least doubles in size, which limits the height to log₂ n (the demo's worst case reaches exactly 14 for n = 2¹⁴). <strong>Path compression</strong> then flattens every path that <code>Find</code> walks. Together they give an amortized cost of O(α(n)) per operation, where α, the inverse Ackermann function, is at most 4 for any realistic n.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Graph bugs usually come from bookkeeping: visited marks, edge directions, and recursion depth.</p>
+
+        <h3 id="pitfall-visited">Marking Visited Too Late</h3>
+        <p>If BFS marks a vertex when it is dequeued instead of when it is enqueued, the same vertex can enter the queue many times. On dense graphs the queue grows to O(E) and the running time multiplies. Mark it at the moment you add it to the queue.</p>
+
+        <h3 id="pitfall-direction">Forgetting the Reverse Edge</h3>
+        <p>An undirected edge must be stored in both adjacency lists. Missing the reverse edge turns the graph into a directed one: BFS then misses vertices, and component counts come out wrong.</p>
+
+        <h3 id="pitfall-recursion">Deep Recursion</h3>
+        <p>Go's goroutine stacks grow dynamically, so recursive DFS on a path of a million vertices does not crash immediately as it would in C, but each frame costs memory and time, and the maximum stack size is 1 GB by default. For very large graphs, use the iterative version with an explicit stack.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>For each exercise, first name the vertices and the edges. Then choose BFS, DFS, topological sort, or union-find.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/38_bfs.go">38_bfs.go</a>, turn the queue into a stack: take <code>u</code> from the end of the slice instead of the front. The oracle check fails. Why do the distances become wrong even though every vertex is still visited?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/39_dfs.go">39_dfs.go</a>, treat black like gray in <code>hasCycleDirected</code> (<code>color[v] != white</code>). Which of the two small example graphs now reports a false cycle?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/40_topological_sort.go">40_topological_sort.go</a>, move <code>order = append(order, u)</code> in <code>dfsTopo</code> to just after <code>color[u] = gray</code>, so vertices are recorded when they are entered instead of when they finish. The DFS order stops being valid: find an edge that it violates.</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase3/41_union_find.go">41_union_find.go</a>, remove the second loop of <code>Find</code> (path compression). How deep does the tree stay after one <code>Find</code> per element?</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Word ladder.</strong> Find the shortest chain from "cold" to "warm" that changes one letter at a time, where each word must be in a dictionary. What are the vertices and edges, and do you need to build the graph explicitly?</li>
+          <li><strong>Course schedule.</strong> Given prerequisites as pairs, return a valid course order or report the courses that lie on a cycle.</li>
+          <li><strong>Accounts merge.</strong> Each account lists email addresses; accounts that share an address belong to the same person. Group them with union-find.</li>
+          <li><strong>Rotting oranges.</strong> In a grid, rotten oranges infect adjacent fresh ones every minute. Compute when the last orange rots using multi-source BFS.</li>
+        </ol>
+        <p>Next: <a href="/roadmap/dsa/graph-algorithms.html">Shortest Paths &amp; MST</a>, which adds weights to edges.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "dsa",
+    topicId: "graphs",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

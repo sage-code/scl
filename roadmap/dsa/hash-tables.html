@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Hash tables in Go: hash functions, collisions, load factor and resizing, separate chaining and open addressing built from scratch, how Go maps work, and the map-based patterns that turn O(n^2) problems into O(n).">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="dsa, go, golang, hash table, hash map, hashing, separate chaining, open addressing, linear probing, swiss table, load factor">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DSA Hash Tables</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsa/hash-tables.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="hash-tables">Hash Tables</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A hash table finds a value by key in constant average time, no matter how many entries it holds. It is the structure behind Go maps, database indexes, caches, compilers' symbol tables, and deduplication everywhere. This lesson builds two hash tables from scratch to show how that constant time is achieved — and when it is lost — then collects the map patterns that appear in most practical problems.
+        </div>
+
+        <h2 id="idea">The Core Idea</h2>
+        <p>An array gives O(1) access by <em>integer index</em>. A hash table extends this to any key by converting the key into an index: compute a number from the key (the hash), then reduce it to the range of an array of <em>buckets</em>.</p>
+
+        <h3 id="hash-functions">Hash Functions</h3>
+        <p>A hash function maps a key to a fixed-size integer. A good one is <strong>deterministic</strong> (the same key always gives the same hash), <strong>fast</strong>, and <strong>well distributed</strong> (similar keys give very different hashes, so keys spread evenly over the buckets). FNV-1a, used in the demos, mixes in one byte at a time with an XOR and spreads it across all 64 bits with a multiplication:</p>
+        <pre><code class="language-go line-numbers">// fnv1a is the 64-bit FNV-1a hash (also available as hash/fnv).
+func fnv1a(s string) uint64 {
+	h := uint64(14695981039346656037) // offset basis
+	for i := 0; i &lt; len(s); i++ {
+		h ^= uint64(s[i])  // mix in one byte
+		h *= 1099511628211 // FNV prime: spread it over all bits
+	}
+	return h
+}
+
+// bucket index for a table of n buckets, n a power of two:
+// h &amp; (n-1) equals h % n without a division.
+idx := int(fnv1a(key) &amp; uint64(n-1))</code></pre>
+        <p>FNV is not designed to resist attackers. If users can choose keys, they can pick keys that all collide and degrade every lookup to O(n). Go's built-in map defends against this by seeding its hash function randomly for each map.</p>
+
+        <h3 id="collisions">Collisions</h3>
+        <p>There are more possible keys than buckets, so different keys inevitably map to the same bucket — a <strong>collision</strong>. Collisions are normal, not an error. A hash table is defined by how it resolves them: <em>separate chaining</em> keeps a list per bucket; <em>open addressing</em> looks for another free slot in the same array.</p>
+
+        <h3 id="load-factor">Load Factor and Resizing</h3>
+        <p>The <strong>load factor</strong> is entries ÷ buckets. As it rises, chains grow longer (chaining) or probe sequences grow longer (open addressing), and lookups slow down. Tables therefore <strong>resize</strong> — typically doubling the bucket array — when the load factor passes a threshold. Every entry must be <em>rehashed</em> into the new array, because its bucket depends on the array size. A resize costs O(n), but it happens only after about n inserts, so inserts remain O(1) amortized — the same argument as for slice <code>append</code>.</p>
+        <hr>
+
+        <h2 id="chaining">Separate Chaining</h2>
+        <p>With separate chaining, each bucket holds a small collection of the entries that hashed to it. A lookup hashes the key, goes to one bucket, and scans only that bucket's chain.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-hash-chaining.svg" alt="Eight buckets; apple and cherry share bucket 3, banana and fig share bucket 1, date is in bucket 6" width="640" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Five keys in eight buckets. Two collisions produce chains of length two; a lookup for <code>cherry</code> hashes to bucket 3 and compares against at most two keys.</p>
+        </div>
+
+        <h3 id="chaining-impl">Implementation</h3>
+        <p>Each bucket is a slice of entries. <code>Put</code> updates the key if it is already in the chain, otherwise appends it and resizes when the load factor exceeds 0.75. <code>Get</code> scans one chain and reports presence with the "comma ok" convention of Go maps.</p>
+        <pre><code class="language-go line-numbers">type entry[V any] struct {
+	key string
+	val V
+}
+
+type HashMap[V any] struct {
+	buckets [][]entry[V] // len(buckets) is a power of two
+	count   int
+}
+
+func (m *HashMap[V]) Put(key string, val V) {
+	b := int(fnv1a(key) &amp; uint64(len(m.buckets)-1))
+	for i := range m.buckets[b] {
+		if m.buckets[b][i].key == key {
+			m.buckets[b][i].val = val // existing key: update in place
+			return
+		}
+	}
+	m.buckets[b] = append(m.buckets[b], entry[V]{key, val})
+	m.count++
+	if float64(m.count)/float64(len(m.buckets)) &gt; 0.75 {
+		m.resize() // double the buckets and rehash every entry
+	}
+}
+
+func (m *HashMap[V]) Get(key string) (V, bool) {
+	b := int(fnv1a(key) &amp; uint64(len(m.buckets)-1))
+	for _, e := range m.buckets[b] {
+		if e.key == key {
+			return e.val, true
+		}
+	}
+	var zero V
+	return zero, false
+}</code></pre>
+
+        <h3 id="bad-hash">What a Bad Hash Does</h3>
+        <p>The whole O(1) guarantee rests on the hash function. The demo inserts 100,000 keys and reports the longest chain: with FNV-1a it is a handful of entries; with a "hash" that returns only the key's length, every key has the same length and all 100,000 land in one chain — each lookup becomes a linear scan. Full table with resizing, deletion, and statistics: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/21_hash_table_chaining.go">21_hash_table_chaining.go</a>.</p>
+        <hr>
+
+        <h2 id="open-addressing">Open Addressing</h2>
+        <p>Open addressing stores all entries directly in one flat array, with no per-bucket lists. It avoids an allocation per entry and reads neighboring memory on collisions, which suits CPU caches. Most high-performance hash tables, including Go's current map, use it.</p>
+
+        <h3 id="probing">Linear Probing</h3>
+        <p>On a collision, try the next slot, then the next, wrapping at the end of the array, until the key or an empty slot is found. An empty slot ends the search: the key would have been placed there. Because runs of occupied slots grow quickly as the table fills, open-addressing tables keep a lower load factor than chaining tables — the demo resizes at 0.5.</p>
+
+        <h3 id="tombstones">Deletion with Tombstones</h3>
+        <p>Deletion is the subtle part. Simply emptying a slot would cut the probe sequence of every key stored after it: a later lookup would stop at the new empty slot and wrongly report "absent". Instead, a deleted slot becomes a <strong>tombstone</strong>. Lookups skip over tombstones, inserts may reuse them, and a rehash removes them all.</p>
+        <pre><code class="language-go line-numbers">const (
+	empty     slotState = iota // never used: ends a probe sequence
+	full                       // holds a live key
+	tombstone                  // deleted: probing continues past it
+)
+
+func (s *HashSet) Remove(key string) bool {
+	i, found := s.find(key)
+	if !found {
+		return false
+	}
+	s.slots[i] = slot{state: tombstone} // NOT empty: keeps chains intact
+	s.live--
+	s.dead++
+	return true
+}</code></pre>
+        <p>The demo deletes a key in the middle of a probe chain and verifies that every other key is still found, then runs 50,000 inserts and 25,000 deletes and measures the average probes per lookup: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/22_open_addressing.go">22_open_addressing.go</a>.</p>
+
+        <h3 id="go-maps">How Go Maps Work</h3>
+        <p>Since Go 1.24 the built-in map is based on <strong>Swiss tables</strong>, an open-addressing design. Slots are arranged in groups of eight, and each group has a control word holding a few bits of each slot's hash. A lookup compares the key's hash bits against all eight control bytes at once and examines only the slots that match, so most probes touch a single group. Large maps are split into several tables that grow independently, which keeps the cost of any single resize bounded. The rules for using maps did not change: keys must be comparable, iteration order is unspecified, and maps are not safe for concurrent writes.</p>
+        <hr>
+
+        <h2 id="patterns">Hashing Patterns</h2>
+        <p>Once you can ask "have I seen this?" or "how many times?" in O(1), many problems that seem to need nested loops become single passes. Recognizing the pattern is the skill. All of these, with examples: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/23_hashing_patterns.go">23_hashing_patterns.go</a>.</p>
+
+        <h3 id="counting">Counting</h3>
+        <p><code>map[K]int</code> answers frequency questions: word counts, majority elements, anagram checks. Two strings are anagrams if every character count matches — count up for one string and down for the other; every count must end at zero. When keys are bytes, a <code>[256]int</code> array is a faster "map" with no hashing at all.</p>
+
+        <h3 id="seen-set">Seen Sets</h3>
+        <p><code>map[K]struct{}</code> is Go's set type; the empty struct occupies no memory. It answers "is this a duplicate?", "what is the first repeat?", and "which values are in both inputs?" — build the set from one input and probe it with the other, in O(n + m) instead of O(n · m).</p>
+
+        <h3 id="grouping">Grouping by Canonical Key</h3>
+        <p>To group items that are "equivalent", compute a <strong>canonical key</strong> that is identical for every member of a group and use it as the map key. For anagrams, the letter-count array <code>[26]byte</code> works: arrays are comparable in Go, so they can be map keys directly — slices cannot.</p>
+        <pre><code class="language-go line-numbers">func groupAnagrams(words []string) map[[26]byte][]string {
+	groups := map[[26]byte][]string{}
+	for _, w := range words {
+		var key [26]byte // letter counts: equal for all anagrams
+		for _, c := range w {
+			key[c-'a']++ // assumes lowercase ASCII input
+		}
+		groups[key] = append(groups[key], w)
+	}
+	return groups
+}</code></pre>
+
+        <h3 id="consecutive">Membership Tricks</h3>
+        <p>The longest run of consecutive integers in an unsorted slice seems to require sorting. With a set, start counting only at numbers whose predecessor is <em>absent</em> — the start of a run — and extend while the next number is present. Each number is visited at most twice, so the algorithm is O(n) rather than O(n log n).</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Go maps are easy to use; most bugs come from their few firm rules.</p>
+
+        <h3 id="pitfall-concurrent">Concurrent Writes</h3>
+        <p>A map written by one goroutine while another reads or writes it can crash the program with <code>fatal error: concurrent map writes</code> — a fatal error, not a recoverable panic. Protect shared maps with a <code>sync.Mutex</code> or <code>sync.RWMutex</code>, or use <code>sync.Map</code> for its specific read-mostly use cases. The race detector (<code>go run -race</code>) finds these bugs in testing.</p>
+
+        <h3 id="pitfall-struct-values">Updating Struct Values in a Map</h3>
+        <p><code>m[k].Count++</code> does not compile when the map holds struct values ("cannot assign to struct field m[k].Count in map"): map elements are not addressable, because the map may move them during growth. Read the value, modify it, and store it back — or store pointers, <code>map[K]*T</code>.</p>
+
+        <h3 id="pitfall-float-keys">Floating-Point Keys</h3>
+        <p><code>NaN != NaN</code>, so every insertion with a NaN key creates a new entry that can never be looked up. Rounding errors also make <code>0.1 + 0.2</code> a different key from <code>0.3</code>. Avoid float keys; round to an integer unit (cents, milliseconds) first.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Before each exercise, name the pattern: count, seen set, index, group, or membership.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/21_hash_table_chaining.go">21_hash_table_chaining.go</a>, raise <code>maxLoad</code> to 4.0 and then 16.0. How do the longest chain and the number of resizes change?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/22_open_addressing.go">22_open_addressing.go</a>, make <code>Remove</code> set the slot to <code>empty</code> instead of <code>tombstone</code>. The dense-table check now reports lost keys — trace one of them through its probe sequence.</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Isomorphic strings.</strong> Decide whether characters of <code>s</code> can be replaced to get <code>t</code>, with a consistent one-to-one mapping (<code>egg</code>/<code>add</code> yes, <code>foo</code>/<code>bar</code> no). You will need two maps.</li>
+          <li><strong>Longest subarray with sum k.</strong> Combine prefix sums with a map from prefix value to its <em>first</em> index.</li>
+          <li><strong>Generic chaining map.</strong> Make <code>HashMap</code> generic in its key type with a <code>hash func(K) uint64</code> parameter, and test it with struct keys.</li>
+          <li><strong>Count distinct in windows.</strong> For every window of size k, report the number of distinct values in O(n) total, using a count map that grows and shrinks with the window.</li>
+        </ol>
+        <p>Next lesson: <a href="/roadmap/dsa/trees.html">Binary Trees &amp; BST</a>.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "dsa",
+    topicId: "hash-tables",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

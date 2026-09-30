@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Linked lists in Go: singly and doubly linked lists built from scratch with generics, sentinel nodes, and the pointer techniques behind reversal, cycle detection, and merging.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="dsa, go, golang, linked list, doubly linked list, sentinel node, floyd cycle detection, reverse linked list">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DSA Linked Lists</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/dsa/linked-lists.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="linked-lists">Linked Lists</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A linked list stores elements in separate nodes connected by pointers. In everyday Go code a slice is usually the better choice, so why study lists? Because they teach pointer discipline, and because they are the building block of structures that are genuinely useful: LRU caches, free lists, adjacency lists, and every tree in this roadmap. This lesson builds singly and doubly linked lists from scratch, then covers the pointer techniques that solve most list problems.
+        </div>
+
+        <h2 id="nodes">Nodes and Pointers</h2>
+        <p>Each node holds a value and a pointer to the next node. The list itself holds only a pointer to the first node; everything else is reached by following pointers.</p>
+
+        <h3 id="list-vs-slice">Linked List vs Slice</h3>
+        <p>The two structures make opposite trade-offs. The list wins only where it avoids shifting elements <em>and</em> you already hold a reference to the node — which is exactly the situation in an LRU cache or a text editor's cursor.</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Operation</th><th>Slice</th><th>Linked list</th></tr></thead>
+          <tbody>
+            <tr><td>Access element i</td><td>O(1)</td><td>O(n) — walk from the head</td></tr>
+            <tr><td>Insert / delete at the front</td><td>O(n) — shift everything</td><td>O(1)</td></tr>
+            <tr><td>Insert / delete at a held node</td><td>O(n)</td><td>O(1) (doubly linked)</td></tr>
+            <tr><td>Append at the end</td><td>O(1) amortized</td><td>O(1) with a tail pointer</td></tr>
+            <tr><td>Memory per element</td><td>the element only</td><td>element + 1 or 2 pointers + allocation overhead</td></tr>
+            <tr><td>Scan speed</td><td>fast: contiguous, cache-friendly</td><td>slow: each node may be a cache miss</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="node-type">A Generic Node Type</h3>
+        <p>With generics one node type serves every element type. The constraint <code>comparable</code> allows <code>==</code>, which searching and removing by value require. Keeping the node type unexported forces callers to go through the list's methods, so the list's invariants (head, tail, and size stay consistent) cannot be broken from outside.</p>
+        <pre><code class="language-go line-numbers">// node is unexported: only List's methods manipulate pointers.
+type node[T comparable] struct {
+	val  T
+	next *node[T] // nil marks the end of the list
+}
+
+// List is usable as its zero value: head == tail == nil means empty.
+type List[T comparable] struct {
+	head, tail *node[T]
+	size       int
+}</code></pre>
+        <hr>
+
+        <h2 id="singly">Singly Linked List</h2>
+        <p>A singly linked list can be walked in one direction only. Keeping a <code>tail</code> pointer in addition to <code>head</code> makes appending O(1), at the cost of one more pointer to keep correct in every operation.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-linked-list.svg" alt="Singly linked list a, b, c with head and tail pointers; below, node c is removed by pointing b.next at d" width="640" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">Top: head and tail give O(1) access to both ends. Bottom: removing a node changes one pointer in its predecessor — which is why a singly linked list must find the node <em>before</em> the one being removed.</p>
+        </div>
+
+        <h3 id="push-pop">Push and Pop at the Ends</h3>
+        <p>Every operation must handle the transition between empty and non-empty: the first push sets both <code>head</code> and <code>tail</code>, and popping the last node must reset both to nil. Forgetting the second half is the most common list bug.</p>
+        <pre><code class="language-go line-numbers">func (l *List[T]) PushBack(v T) {
+	n := &amp;node[T]{val: v}
+	if l.tail == nil { // empty list: n is both head and tail
+		l.head, l.tail = n, n
+	} else {
+		l.tail.next = n
+		l.tail = n
+	}
+	l.size++
+}
+
+func (l *List[T]) PopFront() (v T, ok bool) {
+	if l.head == nil {
+		return v, false // v is T's zero value
+	}
+	n := l.head
+	l.head = n.next
+	if l.head == nil { // removed the only node
+		l.tail = nil
+	}
+	l.size--
+	return n.val, true
+}</code></pre>
+
+        <h3 id="remove">Removing a Node</h3>
+        <p>Removal changes the <code>next</code> pointer of the node <em>before</em> the victim, so the search stops one step early. Three cases need care: the victim is the head (no predecessor), the victim is the tail (the tail pointer must move back), and the value is absent.</p>
+        <pre><code class="language-go line-numbers">func (l *List[T]) Remove(v T) bool {
+	if l.head == nil {
+		return false
+	}
+	if l.head.val == v { // no predecessor: reuse PopFront
+		l.PopFront()
+		return true
+	}
+	prev := l.head
+	for prev.next != nil &amp;&amp; prev.next.val != v {
+		prev = prev.next
+	}
+	if prev.next == nil {
+		return false // not found
+	}
+	victim := prev.next
+	prev.next = victim.next // unlink
+	if victim == l.tail {
+		l.tail = prev // the tail moved back
+	}
+	l.size--
+	return true
+}</code></pre>
+
+        <h3 id="iteration">Iteration</h3>
+        <p>Since Go 1.23 a collection can offer an iterator function that works with <code>for … range</code>. The function calls <code>yield</code> for each value and stops if <code>yield</code> returns false (the caller used <code>break</code>). The full list, with a self-checking test of every edge case above: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/15_singly_linked_list.go">15_singly_linked_list.go</a>.</p>
+        <pre><code class="language-go line-numbers">// All lets callers write: for v := range list.All() { ... }
+func (l *List[T]) All() func(yield func(T) bool) {
+	return func(yield func(T) bool) {
+		for n := l.head; n != nil; n = n.next {
+			if !yield(n.val) {
+				return // the loop body executed break
+			}
+		}
+	}
+}</code></pre>
+        <hr>
+
+        <h2 id="doubly">Doubly Linked List</h2>
+        <p>Adding a <code>prev</code> pointer to every node costs memory but gives two abilities: walking backward, and removing any node in O(1) without searching for its predecessor.</p>
+
+        <div class="text-center">
+          <img src="/roadmap/dsa/img/dsa-doubly-sentinel.svg" alt="Doubly linked ring: sentinel, A, B, C linked by next and prev pointers, with C linking back to the sentinel" width="640" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">A sentinel node closes the list into a ring. Every real node always has a non-nil <code>prev</code> and <code>next</code>, so insertion and removal need no special cases.</p>
+        </div>
+
+        <h3 id="sentinel">Sentinel Nodes</h3>
+        <p>A sentinel (or dummy) node is a node that holds no data and never leaves the list. <code>sentinel.next</code> is the first real node and <code>sentinel.prev</code> the last; in an empty list both point to the sentinel itself. The empty-list and end-of-list special cases disappear, and the code becomes shorter and harder to get wrong. Go's <code>container/list</code> is implemented exactly this way.</p>
+
+        <h3 id="o1-unlink">Linking and Unlinking in O(1)</h3>
+        <p>Insertion writes four pointers and removal writes two. The order matters for insertion: set the new node's own pointers first, while the neighbors are still reachable.</p>
+        <pre><code class="language-go line-numbers">// insertAfter links n directly after node at.
+func insertAfter(n, at *Node) {
+	n.prev = at
+	n.next = at.next
+	at.next.prev = n // at.next is never nil: the sentinel closes the ring
+	at.next = n
+}
+
+// unlink removes n; its neighbors now point past it.
+func unlink(n *Node) {
+	n.prev.next = n.next
+	n.next.prev = n.prev
+	n.prev, n.next = nil, nil // a detached node must not be walked
+}</code></pre>
+        <p>The demo builds a playlist with a map from song name to node, so "move this song to the front" costs O(1): a map lookup, an unlink, and an insert. It also checks the invariant <code>n.next.prev == n</code> after every operation: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/17_doubly_linked_list.go">17_doubly_linked_list.go</a>. This map-plus-list combination is exactly an LRU cache, built in Phase 4.</p>
+
+        <h3 id="container-list">container/list</h3>
+        <p>The standard library's <code>container/list</code> is a doubly linked list with a sentinel. It stores values as <code>any</code>, so each read needs a type assertion (<code>e.Value.(string)</code>), and its methods such as <code>MoveToFront</code> and <code>Remove</code> take the <code>*list.Element</code> you received when inserting. Use it when you need O(1) moves of elements you hold references to; for plain sequences, use a slice.</p>
+        <hr>
+
+        <h2 id="techniques">Pointer Techniques</h2>
+        <p>Five techniques solve most linked-list problems. All of them run in O(n) time and O(1) extra space. The demo implements each and checks the results: <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/16_list_algorithms.go">16_list_algorithms.go</a>.</p>
+
+        <h3 id="reverse">Reversal with Three Pointers</h3>
+        <p>Reversing flips every <code>next</code> pointer. Before flipping <code>cur.next</code>, save it — otherwise the rest of the list is lost. The four lines inside the loop are worth memorizing in this exact order.</p>
+        <pre><code class="language-go line-numbers">func reverse(head *Node) *Node {
+	var prev *Node
+	cur := head
+	for cur != nil {
+		next := cur.Next // 1. save the rest of the list
+		cur.Next = prev  // 2. flip this pointer
+		prev = cur       // 3. advance prev
+		cur = next       // 4. advance cur
+	}
+	return prev // the old tail is the new head
+}</code></pre>
+
+        <h3 id="slow-fast">Slow and Fast Pointers</h3>
+        <p>Move one pointer one step at a time and another two steps. When the fast pointer reaches the end, the slow pointer is at the middle. If the list has a cycle, the fast pointer never reaches the end; inside the cycle it gains one step per iteration on the slow pointer, so the two must meet. This is Floyd's cycle detection, which needs O(1) memory where a set of visited nodes would need O(n).</p>
+        <pre><code class="language-go line-numbers">func hasCycle(head *Node) bool {
+	slow, fast := head, head
+	for fast != nil &amp;&amp; fast.Next != nil {
+		slow = slow.Next
+		fast = fast.Next.Next
+		if slow == fast { // same node (pointer identity), not same value
+			return true
+		}
+	}
+	return false
+}</code></pre>
+
+        <h3 id="gap">Gap Pointers and Dummy Heads</h3>
+        <p>To remove the n-th node from the end in one pass, start a lead pointer n + 1 steps ahead of a trail pointer and advance both until the lead falls off the end; the trail then sits just before the victim. Starting both at a dummy node placed before the head makes removing the head itself an ordinary case, and the function returns <code>dummy.Next</code> as the (possibly new) head.</p>
+
+        <h3 id="merge">Merging by Relinking</h3>
+        <p>Merging two sorted lists needs no new nodes: repeatedly take the smaller head and append it to a result built behind a dummy node. When one list runs out, attach the rest of the other in a single pointer write. This is the merge step of merge sort on linked lists, which runs in O(n log n) with O(1) extra space for the merge itself.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Almost every list bug is a pointer written in the wrong order or a case that was not considered.</p>
+
+        <h3 id="pitfall-lost">Losing the Rest of the List</h3>
+        <p>Writing <code>cur.Next = prev</code> before saving <code>cur.Next</code> disconnects everything after <code>cur</code>. Before any pointer write, ask: "do I still hold a reference to every node I will need?"</p>
+
+        <h3 id="pitfall-nil">nil Dereferences</h3>
+        <p><code>fast.Next.Next</code> panics if <code>fast.Next</code> is nil. Check every pointer you dereference, in the order you dereference it: <code>fast != nil &amp;&amp; fast.Next != nil</code>. Sentinel nodes remove many of these checks.</p>
+
+        <h3 id="pitfall-cycle-print">Walking a Cyclic List</h3>
+        <p>Printing or measuring a list that contains a cycle loops forever. Code that may receive untrusted or corrupted lists should detect cycles first or cap the number of steps.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>Draw the pointers on paper before coding each exercise; list bugs are much easier to see in a diagram than in code.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/15_singly_linked_list.go">15_singly_linked_list.go</a>, delete the line <code>l.tail = prev</code> in <code>Remove</code>. Which checks fail, and why?</li>
+          <li>In <a href="/roadmap/code-viewer.html?file=/roadmap/dsa/demo/phase2/17_doubly_linked_list.go">17_doubly_linked_list.go</a>, delete the line <code>at.next.prev = n</code> in <code>insertAfter</code>. Run it: songs land in the wrong order, <code>checkLinks</code> fails, and the program finally panics on a nil pointer. Trace why one missing write corrupts every later operation.</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Cycle start.</strong> Extend Floyd's algorithm to return the node where the cycle begins. (After the pointers meet, move one to the head and advance both one step at a time.)</li>
+          <li><strong>Reverse in groups.</strong> Reverse the nodes of a list in groups of k, leaving a final group shorter than k unchanged.</li>
+          <li><strong>Sort a list.</strong> Implement merge sort on a singly linked list using <code>middle</code> to split and <code>mergeSorted</code> to combine.</li>
+          <li><strong>Intersection.</strong> Two lists merge into one shared tail. Find the first shared node in O(n + m) time and O(1) space.</li>
+        </ol>
+        <p>Next lesson: <a href="/roadmap/dsa/stacks-queues.html">Stacks &amp; Queues</a>.</p>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: "dsa",
+    topicId: "linked-lists",
+    homeLink: "./index.html#topics",
+    labHomeLink: "./index.html",
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
