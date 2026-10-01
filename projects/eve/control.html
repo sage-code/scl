@@ -81,19 +81,7 @@ label: &lt;control_type&gt;
 
 <h4>Syntax pattern</h4>
 
-<p>A job without a label starts with <code>job</code> and ends with a naked <code>done;</code>:</p>
-
-<pre class="line-numbers"><code class="language-eve">
-job
-  ** local declarations
-  ...
-do
-  ** job statements
-  ...
-done;
-</code></pre>
-
-<p>A labeled job starts with <code>label: job</code> and ends with <code>done job [label];</code>:</p>
+<p>A job always has a label. It starts with <code>label: job</code> and ends with <code>done label;</code>:</p>
 
 <pre class="line-numbers"><code class="language-eve">
 ** job description or notes
@@ -107,13 +95,13 @@ do
   ...
   raise "message" if condition; ** fail the job: go to recover
   ...
-done job [job_name];
+done job_name;
 </code></pre>
 
 <p><b>Notes:</b></p>
 <ul>
   <li>Jobs are used only in a process (driver or aspect), at the top level. Jobs can't be nested; functions and methods do not have jobs.</li>
-  <li>The label is optional. A job without a label has the implicit name <code>job24</code>, where 24 is the line number of the <code>job</code> keyword. When the job has a label, the keyword <code>job</code> is required after <code>done</code>; the label after it is optional. A naked <code>done;</code> closes only a job that has no label, and <code>job</code> is its first keyword.</li>
+  <li>The label is mandatory, and the closing <code>done label;</code> must repeat it. There is no implicit job name and no <code>done job</code>.</li>
   <li>A job passes when it reaches <code>done</code> or <code>stop</code>. It fails when an error is raised inside it, including errors from the methods it calls. The job status is recorded automatically: <code>"none"</code> for a job that was never executed, <code>"pass"</code> or <code>"fail"</code>.</li>
   <li>The status belongs to the process, in the map <code>jobs</code>: <code>jobs["name"].status</code>, <code>jobs["name"].error</code> and <code>jobs["name"].line</code>. The recover region reads <code>$error.job</code> (a string) to know which job failed.</li>
   <li>Nothing is reported automatically. The process reads the job states and writes its own report in the <code>finalize</code> region.</li>
@@ -248,7 +236,7 @@ process
   then
     ** execute after the match is done, whatever path was taken
     ...
-  done match [label]; ** you can't use if after done
+  done [label]; ** you can't use if after done
 return;
 </code></pre>
 
@@ -258,7 +246,7 @@ return;
 <li>the default block (last) is <code>when other</code>: it is executed only if no <code>when</code> matched;</li>
 <li>the <code>then</code> clause is executed after the match, for any path, including <code>other</code>;</li>
 <li>a <code>when</code> can test a value, several values or a range;</li>
-<li>match statement can have a label, used by <code>done match [label]</code>;</li>
+<li>match statement can have a label. A labeled match closes with <code>done label;</code>, otherwise with <code>done;</code>;</li>
 <li>match statement has a local scope (before the first when).</li>
 </ul>
 
@@ -274,7 +262,7 @@ process
     print "high";
   when other do
     print "out of range";
-  done match;
+  done;
 return;
 </code></pre>
 
@@ -310,7 +298,7 @@ else
 then
   ** executed every time the loop ends, also after break
   ...
-done loop [label]; ** you can't use "if" here
+done [label]; ** you can't use "if" here
 
 </code></pre>
 
@@ -339,7 +327,7 @@ process
     ** flush the write buffer
     print;
     print ("iterations", i - 1, separator: " ");
-  done loop;
+  done;
 return;
 </code></pre>
 
@@ -356,7 +344,7 @@ iterations 5
 <li><code>cycle [label] [if condition];</code> starts the next iteration early: it goes back to the condition. It is allowed only in a <code>while</code> loop. The compiler turns it into a jump to the start of the loop. The <code>for</code> loop uses <code>next</code>;</li>
 <li>Some other languages use {break &amp; continue}, we use {break &amp; cycle} and {break &amp; next};</li>
 <li>With the condition <code>True</code> the compiler accepts the loop without a warning and the <code>else</code> block never runs;</li>
-<li>Every block is closed with <code>done</code>. A loop closes with <code>done loop [label];</code>. The keyword <code>repeat</code> does not exist;</li>
+<li>Every block is closed with <code>done</code>. A labeled loop closes with <code>done label;</code>, an unlabeled loop with <code>done;</code>. The keyword <code>repeat</code> does not exist;</li>
 <li>The <code>then</code> clause is executed when the loop ends, also after <code>break</code>. <code>stop</code> is used only for jobs and <code>break</code> only for loops.</li>
 </ul>
 
@@ -372,7 +360,7 @@ process
     write n;
     write "," if n &lt; 3;
     break if n &gt;= 3;
-  done loop;
+  done;
   print;
 return;
 </code></pre>
@@ -409,14 +397,14 @@ return;
 then
     ** what happen after the loop
     ...
-done loop [label]; ** you can't use "if" here
+done [label]; ** you can't use "if" here
 </code></pre>
 
 <h4>Notes:</h4>
 <ul>
 <li>Control variable is auto-incremented at end of each iteration;</li>
 <li>Control variable is declared in the <code>loop</code> header. If the loop has no header, the <code>for</code> statement creates an implicit scope for it; if the header exists, <code>for</code> uses that scope and creates none;</li>
-<li>Control variable is available in the <code>then</code> region, but not after <code>done loop</code>;</li>
+<li>Control variable is available in the <code>then</code> region, but not after <code>done</code>;</li>
 <li><code>break</code> leaves the loop (or the outer loop, when a label is used) and <code>then</code> is still executed;</li>
 <li>Inside a loop that is inside a job, <code>stop</code> ends the job and <code>break</code> ends only the loop.</li>
 </ul>
@@ -430,7 +418,7 @@ for i in (1..10)(2) do
     ** write only odd numbers
     write i;
     write ',' if (i &lt; 9);
-done loop;
+done label;
 
 print;
 </code></pre>
@@ -450,7 +438,7 @@ for i in (1..5) do
 then
     print;
     print ("last index", i, separator: " ");
-done loop;
+done;
 </code></pre>
 
 <h4>Output:</h4>
@@ -475,15 +463,17 @@ last index 5
 </tr>
 </thead>
 <tbody>
-<tr><td>job</td><td><code>[name:] job</code></td><td><code>do</code></td><td><code>done;</code> or <code>done job [name];</code></td><td>optional</td><td>yes (declarations)</td><td>no</td></tr>
+<tr><td>job</td><td><code>name: job</code></td><td><code>do</code></td><td><code>done name;</code></td><td>mandatory</td><td>yes (declarations)</td><td>no</td></tr>
 <tr><td>if</td><td><code>if c do</code></td><td><code>else if c do</code>, <code>else</code></td><td><code>done;</code></td><td>no</td><td>no</td><td>no</td></tr>
-<tr><td>match</td><td><code>[label:] match s</code></td><td><code>when v do</code>, <code>when other do</code>, <code>then</code></td><td><code>done match [label];</code></td><td>optional</td><td>yes (before first when)</td><td>no</td></tr>
+<tr><td>match</td><td><code>[label:] match s</code></td><td><code>when v do</code>, <code>when other do</code>, <code>then</code></td><td><code>done [label];</code></td><td>optional</td><td>yes (before first when)</td><td>no</td></tr>
 
-<tr><td>while</td><td><code>[label:] loop</code> (optional)</td><td><code>while c do</code>, <code>cycle [if c]</code>, <code>else</code>, <code>then</code></td><td><code>done loop [label];</code></td><td>optional</td><td>header, or the parent scope</td><td>no</td></tr>
-<tr><td>for</td><td><code>[label:] loop</code> (optional)</td><td><code>for x in r do</code>, <code>next [if c]</code>, <code>then</code></td><td><code>done loop [label];</code></td><td>optional</td><td>header, or an implicit scope</td><td>no</td></tr>
+<tr><td>while</td><td><code>[label:] loop</code> (optional)</td><td><code>while c do</code>, <code>cycle [if c]</code>, <code>else</code>, <code>then</code></td><td><code>done [label];</code></td><td>optional</td><td>header, or the parent scope</td><td>no</td></tr>
+<tr><td>for</td><td><code>[label:] loop</code> (optional)</td><td><code>for x in r do</code>, <code>next [if c]</code>, <code>then</code></td><td><code>done [label];</code></td><td>optional</td><td>header, or an implicit scope</td><td>no</td></tr>
 <tr><td>parallel</td><td><code>name: parallel</code></td><td><code>fork</code></td><td><code>join name;</code></td><td>required</td><td>yes (declarations)</td><td>no</td></tr>
 </tbody>
 </table>
+
+<p>Closers: every block ends with <code>done</code>. A block that has a label ends with <code>done label;</code>; a block without a label ends with <code>done;</code>. There is no <code>done if</code>, <code>done while</code>, <code>done loop</code> or <code>done job</code>, and <code>if</code> cannot follow <code>done</code>.</p>
 
 <p>Interruptions: <code>cycle</code> starts the next iteration of a <code>while</code> loop (also <code>while True</code>, the infinite loop), <code>next</code> advances a <code>for</code> loop, <code>break</code> leaves a loop, <code>stop</code> ends a job without error.</p>
 
