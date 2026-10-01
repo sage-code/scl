@@ -120,50 +120,46 @@ project
 
 <h3 id="regions">Regions</h3>
 
-<p>A script file is divided into regions using keywords: {import, alias, constant, global, process, initialize}. Indentation is mandatory: the members of a region are indented by exactly 2 spaces, and the compiler reports an error when the indentation is wrong. A region ends when the next region begins. Region keywords are left-aligned (they start at column 0). A class is not a region: each class is declared on one line, <code>class Name = {...} &lt;&#58; Type;</code>. The regions differ by kind of script: the canonical skeleton of a driver is below, of an aspect in <a href="#aspects">Aspects</a> and of a module in <a href="#modules">Modules</a>.</p>
+<p>A driver, aspect or module has a single scope. There are no <code>import</code>, <code>alias</code>, <code>constant</code> or <code>global</code> regions: imports (<code>from … use</code>), aliases (<code>def</code>), constants (<code>set</code>), variables (<code>let</code>), classes, functions, methods and processes are declarations in the same scope, in any order. Indentation is mandatory: everything between the header and <code>end name;</code> is indented by exactly 2 spaces, and the compiler reports an error when the indentation is wrong. Only the header, the closing <code>end</code> and the comments before the header start at column 0. A process has its own regions, <code>recover</code> and <code>finalize</code>, aligned with the <code>process</code> keyword. The canonical skeleton of a driver is below, of an aspect in <a href="#aspects">Aspects</a> and of a module in <a href="#modules">Modules</a>.</p>
 
 <h4>Driver skeleton:</h4>
 
-<p>An Eve script begins with one of these keywords: {"driver", "aspect", "module"}. Script name is the same as the file name without the extension. A driver or aspect script can have parameters, defined after script name in a list, but a module do not have parameters.</p>
+<p>An Eve script begins with one of these keywords: {"driver", "aspect", "module"}. Script name is the same as the file name without the extension. A driver or aspect has no parameter list in its header: the parameters belong to its processes, <code>process name(parameters) is</code>. The process is indented inside the driver or aspect. A module has no process and no parameters.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 ** purpose of the driver
 driver driver_name is
 
-** system variables and constants: right after the header, 2 spaces
+  ** system variables and constants
   set $sys_con = value;
   set LIMIT = 10 :Integer;
 
-** import region
-import
+  ** import modules
   from $path/library_name use (*);
 
-** qualifier suppression region
-alias
+  ** alias: qualifier suppression
   def AliasName = library_name.MemberName;
 
-** constant region: a visual delimiter for constants
-constant
+  ** constants
   set NAME = Value :Type;
 
-** global region: classes, functions, global variables
-global
+  ** classes, functions and global variables
   class Person = {name:String, age:Integer} &lt;&#58; Object;
   set expression_name = (params) =&gt; (expression);
   let shared = value1 :user_type;
 
-** main process
-process main is
-  let my_var = value :Type;  ** private to the process
-  ** executable region
-  ...
-recover
-  ** error handling area: retry, resume or abort
-  ...
-finalize
-  ** release locked resources, consume the job report
-  ...
-return;
+  ** main process
+  process main is
+    let my_var = value :Type;  ** private to the process
+    ** executable region
+    ...
+  recover
+    ** error handling area: retry, resume or abort
+    ...
+  finalize
+    ** release locked resources, consume the job report
+    ...
+  return;
 end driver_name;
 </code></pre>
 
@@ -175,17 +171,17 @@ end driver_name;
 <li>a driver can "set" system variables and constants using "$" sigil;</li>
 </ul>
 
-<p><b>Note: </b>The <code>constant</code> region is a visual delimiter for constants. You can also ignore the <code>constant</code> and <code>global</code> regions and write declarations directly under the script header, indented by 2 spaces. They belong to the global scope, which is bound to the process scope.</p>
+<p><b>Note: </b>All declarations sit directly under the script header, indented by 2 spaces. They belong to the global scope, which is bound to the process scope.</p>
 
 <p><b>Note: </b>Only a driver defines global states. In its global scope you can set constants and system variables, and define global variables, classes, functions and methods. Aspects and modules define public and private members instead (see <a href="#module-import">Module Import</a>).</p>
 
-<p>The keyword "set" creates a constant; the keyword "let" creates a variable. You can not define global variables in the constant region. Global constants and variables are static: they are created on the heap and have a permanent nature.</p>
+<p>The keyword "set" creates a constant; the keyword "let" creates a variable. Global constants and variables are static: they are created on the heap and have a permanent nature.</p>
 
 <h3 id="system-variables">System Variables</h3>
 
 <p><em>System variables </em>use prefix "$". These are defined and maintained by EVE virtual engine. Values for these variables can be read automatically by EVE engine at startup. Can be loaded from a configuration file (*.cfg). New variables can be defined by user for each script.</p>
 
-<p><em>New system variables</em> can be defined with the keyword <code>set</code> directly after the script header (or after the <code>#!</code> line), with 2-space indentation. No need to use <em>global</em> keyword for this unnamed first region: it is the <em>global</em> region. These are constants that belong to the global scope, the same scope used by the driver.</p>
+<p><em>New system variables</em> can be defined with the keyword <code>set</code> directly after the script header (or after the <code>#!</code> line), with 2-space indentation. These are constants that belong to the global scope, the same scope used by the driver.</p>
 
 <h4>Note:</h4>
 <ul>
@@ -223,10 +219,8 @@ end driver_name;
 
 <pre class="line-numbers"><code class="language-eve">
 ** define global scope
-constant
   set PI  = 3.14 :Real;       ** global constant
   ...
-global
   let var = 0    :Integer;    ** global variable
   ...
 </code></pre>
@@ -247,11 +241,9 @@ global
 driver test is
 
 ** driver context constant
-constant
   set E = 2.718281828 :Real;    ** Euler's number
 
 ** driver context: class and variable
-global
   class Person = {name:String, age:Integer} &lt;&#58; Object;
   let x = 0 :Integer;           ** global state
   ...
@@ -262,7 +254,7 @@ global
 <li>Global constants are created using keyword "set", global variables using keyword "let",</li>
 <li>All global states are bound to the process scope,</li>
 <li>We are using operator "=" for initialization,</li>
-<li>Operator ":=" executes an expression and can be used in any region, including the global regions, for example a string concatenation,</li>
+<li>Operator ":=" executes an expression and can be used in the global scope, for example a string concatenation,</li>
 <li>Constants are by convention using uppercase letters, the compiler does not check it,</li>
 <li>$user_path is a shared variable defined by the user;</li>
 <li>spaces in script-names are not supported you must use: "_";</li>
@@ -270,7 +262,7 @@ global
 <li>a path is a string, built with the smart concatenation operator /</li>
 </ul>
 
-<h3 id="import-region">Import Region</h3>
+<h3 id="import-region">Importing Modules</h3>
 
 <p>The import is used to include public members from modules:</p>
 
@@ -280,16 +272,14 @@ driver script_name is
   ** define global system variable
   set $user_path := root_path/relative_path;
 
-import
   from $user_path use (module_name,...);  ** specific modules
   from $user_path use (*);                ** find all modules
   ...
-alias
   ** create alias for some of the hidden members
   def new_name = module_name.member_name;
-process main is
-  ...
-return;
+  process main is
+    ...
+  return;
 end script_name;
 </code></pre>
 
@@ -301,9 +291,9 @@ end script_name;
 
 <h2 id="process">Process</h2>
 
-<p>A process is a named executable region of a script, mandatory for drivers and aspects. It is declared <code>process name is … return;</code>, and the driver or aspect itself closes with <code>end script_name;</code>. The entry point is the process named <code>main</code>. A script can declare other processes, started with <code>start name(args);</code> (the caller waits) or, inside a parallel block, with <code>begin name(args);</code>. Running an aspect creates its <code>main</code> process, which can start further processes.</p>
+<p>A process is a named executable region of a script, mandatory for drivers and aspects. It is declared <code>process name is … return;</code>, and the driver or aspect itself closes with <code>end script_name;</code>. A driver has one process, <code>main</code>, its entry point. An aspect hosts one or more named processes, started with <code>apply aspect.process(args);</code> (the caller waits) or, inside a parallel block, with <code>start aspect.process(args);</code>.</p>
 
-<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". The arguments are passed in a list, <code>start total(10, @sum);</code>, and the same list is used by "begin" in a parallel block. With "start" the caller waits, so the outputs are ready on the next statement. With "begin" the process runs in parallel, so an output is ready only after the "join" of its group. A process reads and changes the global members of its script: the module globals when it is declared in a module, the driver globals when it is declared in a driver.</p>
+<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". The arguments are passed in a list, <code>apply reports.total(10, @sum);</code>, and the same list is used by "start" in a parallel block. With "apply" the caller waits, so the outputs are ready on the next statement. With "start" the process runs in parallel, so an output is ready only after the "join" of its group. Only the driver defines a global scope: the main process reads and changes the driver globals. A process of an aspect has its own scope and no globals: it receives data by parameters. The scope of an imported module is bound to the scope of the driver or aspect that imports it.</p>
 
 <p> While modules don't use the 'process' keyword, they have an initialization region that serves a similar purpose. This initialization region is executed first when a process starts. For modules imported by a driver, the initialization runs within the driver's main process. When imported by an aspect, it runs in the sub-process created by that aspect.</p> 
 
@@ -323,15 +313,15 @@ end script_name;
 # terminate a program with: over
 driver test_over is
 
-process main is
-  loop
-    let i = 0 :Integer;
-  while True do
-    write "."; wait  10;
-    over if i &gt; 10;
-    i += 1;
-  done;
-return;
+  process main is
+    loop
+      let i = 0 :Integer;
+    while True do
+      write "."; wait  10;
+      over if i &gt; 10;
+      i += 1;
+    done;
+  return;
 end test_over;
 </code></pre>
 
@@ -344,8 +334,8 @@ end test_over;
 <li>Any application can have one or more drivers,</li>
 <li>A driver is the process entry point,</li>
 <li>A driver can read configuration files at startup,</li>
-<li>A driver can receive parameters;</li>
-<li>A driver has one process named <code>main</code>, and can declare other named processes;</li>
+<li>The main process of a driver can receive parameters;</li>
+<li>A driver has exactly one process, <code>main</code>: it is a single-thread master. It can define methods, including asynchronous methods, but no other process;</li>
 <li>A driver is independent, can not be imported;</li>
 <li>A driver is the only script that defines global states;</li>
 </ul>
@@ -354,37 +344,40 @@ end test_over;
 
 <p>An <em>"aspect"</em> is a script specific to a particular project. It resolve a problem or address a specific concern. Aspect files are executable. One aspect can execute other aspects, however it can't be recursive.</p>
 
-<p>An aspect can receive parameters. One aspect has a declaration region and a mandatory process. The driver executes the process of an aspect with the keyword "apply". An aspect must handle its own errors, it can't raise errors. If errors are not handled, the program panic and stop execution.</p>
+<p>An aspect hosts one or more named processes, each can receive parameters. It has no <code>main</code>. A process of an aspect is executed with the keyword "apply" (serial) or "start" (in a parallel block). An aspect must handle its own errors, it can't raise errors. If errors are not handled, the program panic and stop execution.</p>
 
 <h4>Aspect skeleton:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
 ** purpose of the aspect
-aspect aspect_name(parameter_list) is
+aspect aspect_name is
 
-** public and private members: an aspect defines no globals
-  let .result = 0 :Integer;  ** public member, prefix "."
-  let count = 0 :Integer;    ** private member
+  ** declarations of the aspect: an aspect defines no globals,
+  ** each process receives its own copy of the variables
+  let count = 0 :Integer;
 
-import
   from $path/library_name use (*);
 
-process main is
-  ** executable region, mandatory
-  ...
-recover
-  ** handle all errors
-  ...
-finalize
-  ** release locked resources
-  ...
-return;
+  process first(parameter_list) is
+    ** executable region
+    ...
+  recover
+    ** handle all errors
+    ...
+  finalize
+    ** release locked resources
+    ...
+  return;
+
+  process second(parameter_list) is
+    ...
+  return;
 end aspect_name;
 </code></pre>
 
 <h3 id="running-aspect">Running an Aspect</h3>
 
-<p>Aspect is executed with keyword "apply". An aspect can be executed synchronously (apply) or asynchronously (with "begin" in a parallel block). Both create the <code>main</code> process of the aspect. We will explain more about aspect execution after we define the control flow, asynchronous methods, functions and error handling. At this time let's focus on Driver execution and Modules.</p>
+<p>A process of an aspect is executed with keyword "apply" (<code>apply aspect.process(args);</code>, the caller waits) or with keyword "start" in a parallel block (<code>start aspect.process(args);</code>, joined by the "join" of its group). Inside an aspect, a process can call a sibling process by its bare name. Each process runs in its own scope: processes of one aspect, and parallel runs of the same process, never share variables. We will explain more about aspect execution after we define the control flow, asynchronous methods, functions and error handling. At this time let's focus on Driver execution and Modules.</p>
 
 <h2 id="modules">Modules</h2>
 
@@ -408,22 +401,21 @@ end aspect_name;
 ** purpose of the module
 module module_name is
 
-** public and private members: a module defines no globals
+  ** public and private members: a module defines no globals
   let .counter = 0 :Integer;  ** public member, prefix "."
   let total = 0 :Integer;     ** private member
   ...
 
-import
   from $path/library_name use (*);
 
-initialize
-  ** setup initial states, executed when the module is first imported
-  let counter := 0;
-  ...
-finalize
-  ** verify states & log
-  $error.log();
-  ...
+  initialize
+    ** setup initial states, executed when the module is first imported
+    let counter := 0;
+    ...
+  finalize
+    ** verify states & log
+    $error.log();
+    ...
 end module_name;
 </code></pre>
 
@@ -483,7 +475,7 @@ end module_name;
 
 <h3 id="driver-execution">Driver Execution</h3>
 
-<p>When a driver is executed, all its components are compiled in memory, then the <em>main process</em> is executed. An aspect has its own process, run when the driver applies it; it can also be loaded from EVE console to call one process or function at a time, for testing purpose.</p>
+<p>When a driver is executed, all its components are compiled in memory, then the <em>main process</em> is executed. An aspect hosts named processes, run when the driver applies or starts them; it can also be loaded from EVE console to call one process or function at a time, for testing purpose.</p>
 
 <h4>Start EVE REPL</h4>
 
@@ -565,11 +557,11 @@ eve:&gt; execute ~/path/driver_name.eve -c file.cfg -m 2048GB</pre>
 
 <p>The driver or aspect can import modules. After import, all public elements of modules can be used on demand. The parent process is controlling the execution. Remember, modules are not directly executable and must be hosted into a process.</p>
 
-<p>Modules are "singleton" once a module is loaded in memory, it will bind its scope to the process. Only a driver defines globals. Aspects and modules define public members (declared with the prefix ".") and private members. A public member is used with the dot operator through the module name or an alias: alias.member. Two modules can define the same member name without conflict, because each one is reached through its own name or alias. Eve is a multi-session system. In each session you can run a single driver.</p>
+<p>Modules are "singleton" once a module is loaded in memory, it will bind its scope to the driver or aspect that imports it. Only a driver defines globals. Aspects and modules define public members (declared with the prefix ".") and private members. A public member is used with the dot operator through the module name or an alias: alias.member. Two modules can define the same member name without conflict, because each one is reached through its own name or alias. Eve is a multi-session system. In each session you can run a single driver.</p>
 
 <h3 id="exclusive-mode">Exclusive Mode</h3>
 
-<p>Planned, not in 0.1. When eve is executed, it can be started with parameter: -x or --exclusive. This is a signal that only one session can run at a time. In this mode a second driver is refused while any other driver is active. Asynchronous methods started with "start" inside a driver are not affected. You can use this more especially for debugging or tuning purpose.</p>
+<p>Planned, not in 0.1. When eve is executed, it can be started with parameter: -x or --exclusive. This is a signal that only one session can run at a time. In this mode a second driver is refused while any other driver is active. Asynchronous methods called inside a driver are not affected. You can use this more especially for debugging or tuning purpose.</p>
 
 
     </main>
