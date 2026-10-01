@@ -45,7 +45,7 @@
 <h1 id="eve-concurrency">Eve Concurrency</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Eve can execute one or more methods in synchronous or asynchronous mode. We will define in this chapter the method and the asynchronous method. A method can be suspended in memory, and later resumed. Using this system we can create light weight concurrent applications: cooperative multitasking on a single core, without the cost of operating system threads.
+Eve can execute methods in two modes. A method called by its name runs on the core of its caller; when it contains "suspend" it can stop in memory and continue later: this is cooperative multitasking on a single core, without the cost of operating system threads. A method started in a parallel block runs on another core: one process can use all the cores of the computer. We define in this chapter the method, the asynchronous method and the parallel method.
 </div>
 
 <h2 id="methods">Methods</h2>
@@ -78,9 +78,9 @@ driver process_demo is
   ** bar has 3 parameters
   method bar(param1:Integer, 
               param2 = 0: Integer,
-              @result = 0: Integer):
+              @result: Integer) is
     print "I have two parameters: param1 and param2";
-    let result = param1 + param2;                    
+    result := param1 + param2;                    
   return;
 
   process main is
@@ -88,9 +88,9 @@ driver process_demo is
     let output:=0; ** prepare a variable to receive output
 
     ** execute method with 2 arguments and receiver
-    bar(1,2,output);
+    bar(1, 2, @output);
     expect output == 3; ** the value of output should be 3.
-    print ("outout=", output);
+    print ("output=", output);
   return;
 end process_demo;
 </code></pre>
@@ -147,7 +147,10 @@ end side_effect;
 <li>parameter :Type</li>
 <li>parameter  = value :Type</li>
 <li>parameter := expression</li>
+<li>@parameter :Type</li>
 </ul>
+
+<p>A parameter without "@" receives its argument by value, also a collection: the method works on its own copy and the caller's variable does not change. A parameter with "@" is an input/output parameter: it receives a reference to the caller's variable, so the method reads its value and can change it. An "@" parameter can't have a default value, so it is never optional.</p>
 
 <h4>Notes:</h4>
 
@@ -195,7 +198,7 @@ eve:&gt;run test.eve 1 2 3
 </code></pre>
 
 <h4>Output Parameters</h4>
-<p>To avoid overuse of global variables you must use input/output parameters. We prefix output parameters using symbol "@". Output parameters require a variable as argument, otherwise you will not be able to capture the output value. Compiler will complain if you do not send a valid reference to an output parameter.</p>
+<p>To avoid overuse of global variables you must use input/output parameters. We prefix output parameters using symbol "@", and the caller writes "@" before the argument too: <code>add(1, 2, @result)</code>, or by name <code>add(1, 2, op: @result)</code>. The "@" asks for pass by reference; without it the argument is passed by value. An output argument must be a variable, an element or a slice, otherwise you will not be able to capture the output value. The compiler will complain if you do not send a valid reference to an output parameter.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 #demo output parameters
@@ -209,12 +212,13 @@ driver output_params is
   process main is
     let result: Integer;
 
-    ** inpur/output argument require a variable
-    add(1,2, op:result);
+    ** input/output argument requires a reference to a variable
+    add(1, 2, op: @result);
     print result;  ** expected value 3
 
-    ** negative test, will fail
-    add(1,2,4); ** error, "op" parameter require a variable
+    ** negative tests, will fail
+    add(1, 2, result); ** error, "op" requires @
+    add(1, 2, @4);     ** error, "op" requires a variable
   return;
 end output_params;
 </code></pre>
@@ -222,7 +226,8 @@ end output_params;
 <h4>Notes:</h4>
 <ul>
 <li>Output parameters are usually the last parameters;</li>
-<li>Output parameters are having "@" prefix;</li>
+<li>Output parameters are having "@" prefix, and so are their arguments;</li>
+<li>An output parameter has no default value;</li>
 <li>Method invocation is done using name of method as a statement;</li>
 </ul>
 
@@ -230,7 +235,7 @@ end output_params;
 
 <p>An asynchronous method is a method that contains the keyword "suspend". It does not run on another processor core: it runs on the same thread as its caller. When it reaches "suspend" its state stays in memory and the control returns to the caller, so the program continues. Later the method can wake-up with a signal and continue processing. A method that produces values one batch at a time is called a generator. Functions can't be suspended and can't have state: only methods can.</p>
 
-<p>An asynchronous method is declared with the same keyword "method" and is called exactly like a simple method: by its bare name. There is no special call keyword. The body decides how it runs: a method that never reaches "suspend" runs to completion, like any method; a method that reaches "suspend" stays suspended while the program continues. The suspended method is controlled using "suspend", "resume" and "wait all" keywords. Switching happens only at "suspend", so this is cooperative multitasking: it is cheap, and no two methods ever run at the same instant. The keyword "start" is not used for methods: it only launches a process inside a parallel block, and "apply" runs a process serially.</p>
+<p>An asynchronous method is declared with the same keyword "method" and is called exactly like a simple method: by its bare name. There is no special call keyword. The body decides how it runs: a method that never reaches "suspend" runs to completion, like any method; a method that reaches "suspend" stays suspended while the program continues. The suspended method is controlled using "suspend", "resume" and "wait all" keywords. Switching happens only at "suspend", so this is cooperative multitasking: it is cheap, and no two methods ever run at the same instant. To run a method on another core, start it in a parallel block: see <a href="#parallel-methods">Parallel methods</a>.</p>
 
 <!-- a regular diagram -->
 <div class="text-center">
@@ -241,7 +246,7 @@ end output_params;
 
 <h3 id="shoulder-thread">Shoulder Thread</h3>
 
-<p>In next example we demonstrate a thread that can generate a a bunch of numbers every time the main thred is yielding for it. When the buffer is full, you can process the batch and then yield for a new.</p>
+<p>In next example we demonstrate a thread that can generate a a bunch of numbers every time the main thread is yielding for it. When the buffer is full, you can process the batch and then yield for a new.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 driver shoulder_thread is
@@ -263,7 +268,7 @@ driver shoulder_thread is
     let batch :()Float;
     let total :Real;
     ** initialize the generator and produce first batch
-    generator(1000, result:batch);
+    generator(1000, result: @batch);
     while batch.count() &gt; 0 do
       ** process current batch
       for x in batch do
@@ -278,61 +283,155 @@ end shoulder_thread;
 
 <p><b>Time-out:</b> Is easy to create a wrong shoulder thread that can runs forever. If a method takes too much time you can set a time-out. If one method time-out, the entire application crash. You can set $timeout system variable to control this time.</p>
 
-<h3 id="multi-threading">Multi Threading</h3>
+<p><b>Notes: </b>a suspended method is waiting for a wake-up signal. Another method must send a signal for it to wake-up. If the suspended method receiving the signal is not running, then it can't wake-up. In this case, the control is given back to the main process. If the main process is waiting it will resume. A method that nobody resumes stays suspended until its process ends; then it is terminated.</p>
 
-<p>This design pattern enable you do create two asynchronous methods that wait for each other. It is common practice to use this pattern to create a multi-thread applications. The threads communicate using one or more channels.</p>
+<p><b>Instances: </b>every call creates a new instance of the method. "resume name" wakes all suspended instances of that method, and "wait all" joins every instance that is still suspended.</p>
 
-<h4>Example</h4>
+<p>"wait all" and "wait n" do different things. "wait n" pauses for a duration and should not be used for joining methods. We recommend to use "wait all". Also you can wait for a specific method to finish: wait [method_name] if necessary.</p>
+
+<h2 id="parallel-methods">Parallel methods</h2>
+
+<p>A method called by its name runs on the core of its caller. To use several cores, a process starts methods inside a <code>parallel</code> block. Each <code>start</code> creates a task: the method runs on a worker core with its own arguments. The closing <code>done</code> is a barrier: the process waits there until every started method has returned. In this way one process can span all the cores of the computer. Aspects are never started: an aspect process runs with <code>apply</code>, in serial mode (see <a href="/projects/eve/processing/#parallel">Processing</a>).</p>
+
+<h4>Syntax:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-method producer(@pipeline: ()Integer, count = 1000: Integer) is
-  for i in (1..count) do
-    pipeline += random(100);
-    if (i % 100) == 0 do
-      resume consumer;
-      suspend;
-    done;
-  done;
-return;
-
-method consumer(@pipeline, @partials: ()Integer) is
-  while True do
-    for element in pipeline do
-      pipeline := pipeline -&gt; element;
-      wait 10ms;
-      partials += element; 
-    done;
-    resume producer;
-    suspend;
-    break if pipeline.count() &lt;= 0;
-  done;
-return;
-
-process main is
-  let pipeline: ()Integer;
-  let partials: ()Integer; 
-
-  producer(pipeline, 10000);
-  for i in (1..32) do
-    consumer(pipeline, partials);
-    wait 3ms;
-  done;
-
-  wait all;  ** Wait for all suspended methods to finish
-  
-  ** prepare the final result from partials
-  let result := sum(partials);
-  print result;
-return;
+[name:] parallel
+  ** declarations, local to the group
+do
+  start method_name(arguments);
+  ...
+done [name];
 </code></pre>
 
-<p><b>Notes: </b>a suspended method is waiting for a wake-up signal. Another method must send a signal for it to wake-up. If the suspended method receiving the signal is not running, then it can't wake-up. In this case, the control is given back to the main process. If the main process is waiting it will resume.</p>
+<h4>Rules:</h4>
+<ul>
+<li><code>start</code> is allowed only in the <code>do</code> region of a parallel block. It starts methods, not functions and not aspect processes;</li>
+<li>The arguments are evaluated at <code>start</code>. An argument without "@" is passed by value, also a collection: the task works on its own copy, and the process can go on changing its variables. The virtual machine shares a large collection and copies it only when one side writes into it (copy on write), so passing by value is cheap;</li>
+<li>An output argument (<code>@</code>) is passed by reference and belongs to one started method. Two methods of the same group can't receive the same variable, the same element or two overlapping slices as output. The compiler rejects what it can prove; the virtual machine checks the rest at <code>start</code> and raises an error;</li>
+<li>A started method can't change the globals of the driver and can't use <code>suspend</code>. It can call other methods by name; they run on the same worker core. It can print, but the lines of different tasks come in any order;</li>
+<li>Parallel blocks don't nest: a started method can't contain a <code>parallel</code> block;</li>
+<li>The number of started methods is not limited by the number of cores. The virtual machine keeps a pool of worker threads, one for each core, and queues the extra tasks. The pool size is the system variable <code>$cores</code>: by default the number of hardware cores, it can be set in the configuration file of the driver;</li>
+<li>When a started method raises an error, the tasks of the group that have not begun are cancelled, the running ones finish, and <code>done</code> raises the first error in the process.</li>
+</ul>
 
-<p><b>Instances: </b>every call creates a new instance of the method. "resume name" wakes all suspended instances of that method, and "wait all" joins every instance that is still suspended. In the example above there are 32 instances of "consumer", and "resume consumer" wakes them all.</p>
+<p>With these rules two tasks never write the same data and never wait for each other. The language needs no locks and no shared mutable objects, and a parallel block can't deadlock.</p>
 
-<p>We can see in this example that "wait all" and "wait n" do different things. "wait n" should not be used for joining methods. We recommend to use "wait all". Also you can wait for a specific method to finish: wait [method_name] if necesary.</p>
+<h3 id="bsp">Bulk Synchronous Parallel</h3>
 
-<p>Control over number of threads can be dynamic. You can use configuration files and establish convention to calculate the number of threads depending on data size. It can be also hard coded using constants inside the driver. This give you flexibility to tune your process.</p>
+<p>The recommended pattern for parallel work is Bulk Synchronous Parallel (BSP). The computation is a sequence of supersteps. A superstep has three phases:</p>
+
+<ol>
+<li><b>Compute:</b> every worker computes on its own part of the data, without talking to the others;</li>
+<li><b>Communicate:</b> every worker writes its results into its own output;</li>
+<li><b>Synchronize:</b> a barrier waits for all the workers. After the barrier, all the results are visible.</li>
+</ol>
+
+<p>In Eve, one parallel block is one superstep, and its <code>done</code> is the barrier. Between two blocks the process runs alone: it combines the partial results or prepares the data for the next superstep. An iterative algorithm puts the parallel block in a loop.</p>
+
+<h4>Example: parallel sum</h4>
+
+<p>Next driver computes the sum of 32,000 random numbers with 32 workers. The data is split into 32 slices, one for each worker, and every worker writes one element of the array <code>partials</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# parallel sum with one BSP superstep
+driver parallel_sum is
+  set workers = 32 :Integer;
+  set size = 1000 :Integer; ** elements for one worker
+
+  ** local computation: one slice in, one partial sum out
+  method partial_sum(data: []Integer, @partial: Integer) is
+    partial := 0;
+    for x in data do
+      partial += x;
+    done;
+  return;
+
+  process main is
+    let data: [workers * size]Integer;
+    let partials: [workers]Integer;
+
+    ** produce the data
+    for i in (1..workers * size) do
+      data[i] := (0..99).random();
+    done;
+
+    ** superstep: 32 workers, one slice each
+    sums: parallel
+      let first: Integer;
+    do
+      for w in (1..workers) do
+        first := (w - 1) * size + 1;
+        start partial_sum(data[first..first + size - 1], @partials[w]);
+      done;
+    done sums; ** barrier: all the partial sums are ready
+
+    ** combine on the main core
+    let total := 0;
+    for p in partials do
+      total += p;
+    done;
+    print total;
+  return;
+end parallel_sum;
+</code></pre>
+
+<p>The same job can be written with a producer, 32 consumers and channels between them. The BSP version is simpler and safer:</p>
+
+<ul>
+<li>no shared object: every worker reads its own slice and writes its own element;</li>
+<li>no blocking: a worker never waits for another worker, only the process waits, at <code>done</code>. There is no buffer that can fill up, so there is no deadlock;</li>
+<li>deterministic: the partial results are combined in index order, so the result is the same on every run, also for floating point numbers, where the order of a sum changes the rounding;</li>
+<li>one error point: errors arrive at the barrier, where the recover region of the process can handle them;</li>
+<li>predictable cost: a superstep lasts as long as its slowest worker, plus the barrier.</li>
+</ul>
+
+<h4>Example: iterative supersteps</h4>
+
+<p>Next driver simulates the heat that flows along a bar. The bar is an array of 1002 cells. The first cell is hot and the last cell is cold; they don't change. At every step, a cell takes the average of itself and its two neighbors. The 1000 inner cells are split into 10 slices. A worker receives the current state <code>cur</code> by value and writes its slice of the next state <code>nxt</code> by reference. After the barrier the process clones <code>nxt</code> into <code>cur</code> with <code>::</code>; an assignment <code>:=</code> would share the array instead of copying it, and the next superstep would read and write the same cells. This copy is the communication between supersteps: in the next superstep every worker sees the new values of its neighbor slices.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# heat diffusion with iterative BSP supersteps
+driver heat_bar is
+  set workers = 10 :Integer;
+  set width = 100 :Integer; ** cells for one worker
+
+  ** compute one slice of the next state
+  method smooth(cur: []Real, first: Integer, @part: []Real) is
+    for k in (1..part.count()) do
+      let i := first + k - 1;
+      part[k] := (cur[i - 1] + cur[i] + cur[i + 1]) / 3;
+    done;
+  return;
+
+  process main is
+    let cur: [workers * width + 2]Real;
+    let nxt: [workers * width + 2]Real;
+    cur[1] := 100.0; ** hot end, the cold end stays 0
+    nxt[1] := 100.0;
+
+    for n in (1..500) do
+      ** compute in parallel
+      superstep: parallel
+        let first: Integer;
+      do
+        for w in (1..workers) do
+          first := (w - 1) * width + 2;
+          start smooth(cur, first, @nxt[first..first + width - 1]);
+        done;
+      done superstep; ** barrier
+
+      ** communicate: the next state becomes the current state
+      cur :: nxt; ** clone: cur is a new copy of nxt
+    done;
+    print cur[2..11]; ** temperature near the hot end
+  return;
+end heat_bar;
+</code></pre>
+
+<p><b>Number of workers: </b>it can be dynamic. You can read it from the configuration file, compute it from the size of the data or from <code>$cores</code>, or hard code it as a constant inside the driver. This gives you flexibility to tune your process.</p>
+
+<p><b>Streams: </b>data that does not fit in memory is read in batches, and every batch is one superstep. Channels between tasks that run at the same time (producer and consumer) are not part of this version of Eve.</p>
 
 
 <!-- work in progress-->

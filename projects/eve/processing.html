@@ -48,7 +48,7 @@
 <ul>
   <li><a href="#main-process">Main process</a></li>
   <li><a href="#execution">Aspect execution</a></li>
-  <li><a href="#parallel">Parallel processes</a></li>
+  <li><a href="#parallel">Parallel execution</a></li>
   <li><a href="#exceptions">Exception handling</a></li>
 </ul>
 <hr>
@@ -219,9 +219,9 @@ end test_apply;
 <p><b>Note: </b>You do not have to import an aspect into a driver but you must specify the relative path of the aspect. If the aspect is in a subfolder, you must include relative folder name. If the aspect is in the same location as the driver, you do not need a folder name.</p>
 
 
-<h2 id="parallel">Parallel processes</h2>
+<h2 id="parallel">Parallel execution</h2>
 
-<p>You can create parallel processes using multiple aspects. Processes ca be executed on multi-core processors one for each core. Not all processes have same duration. You can wait in the driver for a group of process to finish. </p>
+<p>Aspects are executed in serial mode: <code>apply</code> runs one process of an aspect and the caller waits for it to finish. An aspect process is never started in parallel. Parallel work happens inside a process: one process can span several processor cores by starting methods in a <code>parallel</code> block. Each started method runs on a worker core, and the process waits for all of them at the end of the block. The details, the data rules and the recommended pattern are in <a href="/projects/eve/concurrency/#parallel-methods">Concurrency: Parallel methods</a>.</p>
 
 <!-- a regular diagram -->
 <div class="text-center">
@@ -230,65 +230,79 @@ end test_apply;
   <p>Parallel System</p>
 </div>
 
-<p>Aspects can be executed asynchronously using a special block of code that can group aspects. The main process can execute group by group. Each group can have an optional name. Groups are sequential.</p>
+<p>A parallel block groups methods that run at the same time. The process executes the groups one by one: a group begins after the previous group has finished. Each group can have an optional name.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-# asynchronous call demo
-driver async_demo is
+# parallel groups demo
+driver parallel_demo is
+
+  ** work done by one worker
+  method task(n: Integer) is
+    print ("task ", n, " is running");
+  return;
+
   process main is
     ** main process is a series of sequential groups
 
     group1: parallel
       ** local variables for group1
-    fork
-      start aspect1.run();
-      start aspect2.run();
-    join group1;
+    do
+      start task(1);
+      start task(2);
+    done group1;
 
     ** group1 is now complete, group2 starts
 
     group2: parallel
       ** local variables for group2
-    fork
-      start aspect3.run();
-      start aspect4.run();
-    join group2;
+    do
+      start task(3);
+      start task(4);
+    done group2;
 
     ** Both groups are now complete
-
   return;
-end async_demo;
+end parallel_demo;
 </code></pre>
 
 <h4>Notes:</h4>
 <ul>
   <li>Each group executes sequentially.</li>
-  <li>Within each group, aspects can run concurrently.</li>
-  <li>The join statement is always for a single group;</li>
-  <li>The label of a group is optional. A group without a label starts with <code>parallel</code> and ends with a naked <code>join;</code>; a labeled group ends with <code>join label;</code>;</li>
+  <li>Within each group, the started methods run concurrently, on several cores.</li>
+  <li><code>start</code> is allowed only in the <code>do</code> region of a parallel block, and it starts only methods. <code>start aspect.process()</code> is an error: use <code>apply</code>;</li>
+  <li>The closing <code>done</code> waits for all the methods started in the group, and it is always for a single group;</li>
+  <li>The label of a group is optional. A group without a label starts with <code>parallel</code> and ends with a naked <code>done;</code>; a labeled group ends with <code>done label;</code>;</li>
   <li>Recover and finalize regions are optional in drivers;</li>
 </ul>
 
-<p>One driver can start same aspect multiple times with different parameters and compute different data sets. Next example show how to execute one aspect using a loop in a demo group. After the aspect start several times, the main process must wait for group demo to finish.</p>
+<p>One process can start the same method several times with different arguments, to compute different parts of the data. Next example starts one method in a loop. Every started method writes its own element of the array <code>s</code>: two started methods never receive the same output variable. After the method starts several times, the process waits for the group demo to finish.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-## create parallel processes
-driver async_loop is
-  process main is
-    ** enqueue same aspect 4 times
-    demo: parallel
-      let i: Integer;
-    fork
-      for i in (1..4) do
-        start demo.run(i); ** start a demo process in parallel
-      done;
-    join demo;
-    ** all demo processes have finished
+## create parallel work
+driver parallel_loop is
+
+  ** compute one result
+  method square(n: Integer, @result: Integer) is
+    result := n * n;
   return;
-end async_loop;
+
+  process main is
+    let s: [4]Integer; ** one result for each worker
+
+    ** start the same method 4 times
+    demo: parallel
+    do
+      for i in (1..4) do
+        start square(i, @s[i]); ** runs in parallel
+      done;
+    done demo;
+    ** all started methods have finished, s is ready
+    print s; ** [1,4,9,16]
+  return;
+end parallel_loop;
 </code></pre>
 
-<p><b>Note: </b>Groups are bringing back the driver process in synchronous mode. That is good for error handling. If any process in the group propagate out an exception, the othe groups will not begin. THerefore a recovery region, can catch all errors in any sub-process.</p>
+<p><b>Note: </b>Groups bring the process back in synchronous mode. That is good for error handling. If a started method raises an error, the methods of its group that have not begun are cancelled, the running ones finish, and the error is raised by <code>done</code>. The next groups do not begin, so a recover region can catch the errors of all the started methods.</p>
 
 <hr>
 
