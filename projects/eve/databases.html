@@ -69,25 +69,28 @@ import
 <p><b>pattern:</b></p>
 <pre class="line-numbers"><code class="language-eve">
 ** create a database session
-class OracleSession = {user,password,name: String} &lt;&#58; orcl.Database:
-  new _credentials: String;
-release
-  orcl.disconnect();
-return
+class OracleSession = {user,password,name: String} &lt;&#58; orcl.Database is
+  let _credentials: String;
 
-constructor OracleSession(location,user,password:String) =&gt; (@self db.Session) is 
-  ** prepare credentials
-  let self.location = location;
-  let self.user = user;
-  let self.password = password;
-  ** prepare credentials
-  let self.connect(self._credentials);
-  orcl.connect();
-return;
+  destructor(@self) is
+    orcl.disconnect();
+  return;
+
+  constructor(@self)(location,user,password:String) is
+    self := new db.Session();
+    ** prepare credentials
+    let self.location = location;
+    let self.user = user;
+    let self.password = password;
+    ** prepare credentials
+    self.connect(self._credentials);
+    orcl.connect();
+  return;
+end OracleSession;
 
 process
   ** create database connection
-  new demoDB =  set db := OracleSession(user:$user,password:$password,location:$location);
+  let demoDB =  set db := new OracleSession(user:$user,password:$password,location:$location);
   ...
 return;
 </code></pre>
@@ -207,15 +210,15 @@ class RecordName = {id: Integer} &lt;&#58; Record;
 <pre class="line-numbers"><code class="language-eve">
 method update_tables(value1,value2 ...) is
   ** create empty records
-  new record1 := table_name1.append();
-  new record2 := table_name2.append();
+  let record1 := table_name1.append();
+  let record2 := table_name2.append();
   ** populate records with values 
   
   update record1:
     let field_name := value1;
     ...
   update record2:
-    let field_name := value2;
+    field_name := value2;
     ... 
   commit; 
 return;
@@ -228,13 +231,13 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">** use search fields and values
 process
-  new record1 := table_name.find(field:value1, ...);
-  new record2 := table_name.find(field:value2, ...);
+  let record1 := table_name.find(field:value1, ...);
+  let record2 := table_name.find(field:value2, ...);
   update record1:
     let field_name := value;
     ...
   update record2:
-    let field_name := value;
+    field_name := value;
     ...
   commit;
 return;
@@ -250,8 +253,8 @@ return;
 ** Find one or more records and delete them
 process
   ** local variables
-  new deleted1 := table_name1.delete(field:value,...);
-  new deleted2 := table_name2.delete(field:value,...);
+  let deleted1 := table_name1.delete(field:value,...);
+  let deleted2 := table_name2.delete(field:value,...);
   commit;
 finalize
   ** check status
@@ -284,7 +287,7 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 # execute query string and return a list of records
-  new query_result := db.query(query_template ? source)
+  let query_result := db.query(query_template ? source)
 </code></pre>
 
 <p>Working with Direct SQL is not our purpose. Eve has enaugh power to enable developers handle processes. Using direct SQL is a backup, offered for special opperations Eve is not capable of. Examples will be provided for testing.</p>
@@ -305,12 +308,13 @@ class Result = {
       } &lt;&#58; Record;
 
 global
-  new buffer: ()Result; ** collection/table
-process
+  let buffer: ()Result; ** collection/table
+process main is
   ** execute stored procedure and collect records in the buffer
-  let buffer &lt;+ db.procedure_name(arguments);
+  buffer &lt;+ db.procedure_name(arguments);
   ...
 return;
+end main;
 </code></pre>
 
 

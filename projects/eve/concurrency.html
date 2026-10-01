@@ -83,15 +83,16 @@ method bar(param1:Integer,
   let result = param1 + param2;                    
 return;
 
-process
+process main is
   foo; ** call method without arguments
-  new output:=0; ** prepare a variable to receive output
+  let output:=0; ** prepare a variable to receive output
 
   ** execute method with 2 arguments and receiver
   bar(1,2,output);
   expect output == 3; ** the value of output should be 3.
   print ("outout=", output);
 return;
+end process_demo;
 </code></pre>
 
 
@@ -118,17 +119,18 @@ driver side_effect is
 
 ** method with side effects
 method add_numbers is
-  let test := p1 + p2; ** first side-effect
+  test := p1 + p2; ** first side-effect
   print test;          ** second side-effect
 return;
 
 ** define main process
-process
-  let p1 := 10;
+process main is
+  p1 := 10;
   let p2 := 20;
   add_numbers; **  method call without arguments
   expect test == 30;
 return;
+end side_effect;
 </code></pre>
 
 <p>Note: In Eve it is not required to use empty parenthesis() to call a method. Only functions require empty brackets. We will talk about functions later. This feature enable us to extend Eve using Eve scripts.</p>
@@ -178,13 +180,14 @@ return;
 driver test(*args: ()String) is
 
 ** list all arguments
-process
+process main is
   loop
-    new arg :String;
+    let arg :String;
   for arg in args do
     print arg;  ** expect 1,2,3
   done;
 return;
+end test;
 </code></pre>
 
 <pre><code class="output">
@@ -200,11 +203,11 @@ aspect output_params is
 
 ** private method
 method add(p1 = 0, p2 = 1: Integer, @op: Integer) is
-  let op := p1 + p2;
+  op := p1 + p2;
 return;
 
-process
-  new result: Integer;
+process main is
+  let result: Integer;
 
   ** inpur/output argument require a variable
   add(1,2, op:result);
@@ -213,6 +216,7 @@ process
   ** negative test, will fail
   add(1,2,4); ** error, "op" parameter require a variable
 return;
+end output_params;
 </code></pre>
  
 <h4>Notes:</h4>
@@ -244,31 +248,32 @@ driver shoulder_thread is
 
 ** generator producer, make 100 numbers
 method generator(cap:Integer, @result:()Float) is
-  new count := 0;
+  let count := 0;
   while True do
     for i in (1..100) do
-      let result += (0..1).random();
+      result += (0..1).random();
     done;
     suspend; ** continue the main thread    
-    let count += 1;
+    count += 1;
     break if count &gt;= cap;
   done;
 return;
 
-process
-  new batch :()Float;
-  new total :Real;
+process main is
+  let batch :()Float;
+  let total :Real;
   ** initialize the generator and produce first batch
   start generator(1000, result:batch):
   while batch.count() &gt; 0 do
     ** process current batch
     for x in batch do
-       let total += x; 
+       total += x; 
     done;
     ** read the next batch
     resume generator; ** resume generator
   done;
 return;
+end shoulder_thread;
 </code></pre>
 
 <p><b>Time-out:</b> Is easy to create a wrong shoulder thread that can runs forever. If a method takes too much time you can set a time-out. If one method time-out, the entire application crash. You can set $timeout system variable to control this time.</p>
@@ -282,7 +287,7 @@ return;
 <pre class="line-numbers"><code class="language-eve">
 method producer(@pipeline: ()Integer, count = 1000: Integer) is
   for i in (1..count) do
-    let pipeline += random(100);
+    pipeline += random(100);
     if (i % 100) == 0 do
       resume consumer;
       suspend;
@@ -293,9 +298,9 @@ return;
 method consumer(@pipeline, @partials: ()Integer) is
   while True do
     for element in pipeline do
-      let pipeline := pipeline -&gt; element;
+      pipeline := pipeline -&gt; element;
       wait 10ms;
-      let partials += element; 
+      partials += element; 
     done;
     resume producer;
     suspend;
@@ -304,8 +309,8 @@ method consumer(@pipeline, @partials: ()Integer) is
 return;
 
 process
-  new pipeline: ()Integer;
-  new partials: ()Integer; 
+  let pipeline: ()Integer;
+  let partials: ()Integer; 
 
   start producer(pipeline, 10000);
   for i in (1..32) do
@@ -316,7 +321,7 @@ process
   wait all;  ** Wait for all methods to finish
   
   ** prepare the final result from partials
-  new result := sum(partials);
+  let result := sum(partials);
   print result;
 return;
 </code></pre>
