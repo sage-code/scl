@@ -144,7 +144,7 @@ print "a is even" if (a % 2 == 0);
 print "a is odd"  if (a % 2 &lt;&gt; 0);
 </code></pre>
 
-<p><b>Note:</b> The "if" is restricted for some statements. It can't be used after expect or done. A loop that repeats only while a condition is true ends its body with <code>cycle if condition;</code>. We will explain syntax for each block statement.
+<p><b>Note:</b> The "if" is restricted for some statements. It can't be used after expect or done. A loop ends early with <code>break if condition;</code>. We will explain syntax for each block statement.
 
 </p>
 
@@ -281,55 +281,8 @@ return;
 <p>The compiler will generate a warning message if not all cases are covered when you do not create the default block. It may be an error but not necessarily. Is better to have information to prevent wrong doing.</p>
 
 
-<h2 id="loop">Unconditional Loop</h2>
-
-<p>This is a repetitive block statement. The loop body is executed once, and again every time a <code>cycle</code> statement is reached, until a "break" statement is encountered or <code>cycle</code> is not reached. The break can be conditioned by "if" or "match". This is called an "interruption". You can use keyword "cycle" with conditional "if" to start the next iteration early, or at the end of the body to repeat it. This is called a "shortcut" statement. The compiler turns <code>cycle</code> into a jump to the start of the loop.</p>
-
-
-
-<div class="text-center">
-  <img src="/projects/eve/img/loop.svg" alt="loop"
-  width="580" class="img-fluid protect rounded shadow border" >
-  <p>infinite loop </p>
-</div>
-
-<h4>Syntax:</h4>
-
-<pre class="line-numbers"><code class="language-eve">#infinite loop
-[label:] loop
-  ** declare variables that survive all iterations
-  ...
-do
-  ** loop shortcut: start the next iteration
-  cycle [label] [if condition];
-  ...
-  ** early interruption
-  break [label] [if condition];
-  ...
-  ** repeat the body: last statement
-  cycle [label] [if condition];
-then
-  ** what happen after loop stop, also after break
-done loop [label];
-</code></pre>
-
-<h4>Notes:</h4>
-
-<ul>
-<li>Unconditional loop is executed at least one time;</li>
-<li>The label is optional, that's why is in square brackets;</li>
-<li>The label is used, for nested loops otherwise is not necessary.</li>
-<li>Some other languages use {break & continue} we use {break & cycle}. The keyword <code>next</code> is used only by the <code>for</code> loop;</li>
-<li>Every block is closed with <code>done</code>. The loop closes with <code>done loop [label];</code>;</li>
-<li><code>cycle if condition;</code> as last statement starts another iteration only while the condition is true. The keyword <code>repeat</code> does not exist. Without a <code>cycle</code> the body is executed once;</li>
-<li>The <code>loop</code> header is optional. It holds the declarations of the loop. These variables live in the loop scope, survive all iterations and are available in the <code>then</code> region. Without a header, the loop body has no private scope: it uses the parent scope;</li>
-<li>The <code>do</code> keyword starts the executable region. A variable created there with <code>new</code> is created on the stack at every iteration. Declare in the header what must survive until <code>then</code>;</li>
-<li>The <code>then</code> clause is executed when the loop ends, also after <code>break</code>. <code>stop</code> is used only for jobs and <code>break</code> only for loops.</li>
-</ul>
-
-
 <h2 id="while">While Loop</h2>
-<p>Execute a block of code as long as one condition is true. When the condition become false the repetitive block ends. If the condition is false the first time, only the "else" block is executed. If the condition was true at least once, the else block is not executed. The "then" block is executed every time the loop ends, also after a <code>break</code>.</p>
+<p>Execute a block of code as long as one condition is true. When the condition become false the repetitive block ends. If the condition is false the first time, only the "else" block is executed. If the condition was true at least once, the else block is not executed. The "then" block is executed every time the loop ends, also after a <code>break</code>. There is no separate infinite loop: use the condition <code>True</code>, as in <code>while True do</code>, and leave the loop with <code>break</code>.</p>
 
 
 <div class="text-center">
@@ -394,6 +347,40 @@ return;
 <pre class="output">
 c,d,e
 iterations 5
+</pre>
+
+<h4>Notes:</h4>
+<ul>
+<li>The <code>loop</code> header is optional. It holds the label and the declarations of the loop. These variables live in the loop scope, survive all iterations and are available in the <code>then</code> region. Without a header, the loop body has no private scope: it uses the parent scope;</li>
+<li>The <code>do</code> keyword starts the executable region. A variable created there with <code>new</code> is created on the stack at every iteration. Declare in the header what must survive until <code>then</code>;</li>
+<li><code>cycle [label] [if condition];</code> starts the next iteration early: it goes back to the condition. It is allowed only in a <code>while</code> loop. The compiler turns it into a jump to the start of the loop. The <code>for</code> loop uses <code>next</code>;</li>
+<li>Some other languages use {break &amp; continue}, we use {break &amp; cycle} and {break &amp; next};</li>
+<li>With the condition <code>True</code> the compiler accepts the loop without a warning and the <code>else</code> block never runs;</li>
+<li>Every block is closed with <code>done</code>. A loop closes with <code>done loop [label];</code>. The keyword <code>repeat</code> does not exist;</li>
+<li>The <code>then</code> clause is executed when the loop ends, also after <code>break</code>. <code>stop</code> is used only for jobs and <code>break</code> only for loops.</li>
+</ul>
+
+<h4>Example: test at the end of the body</h4>
+
+<p>A loop that runs at least once, like a do-while, leaves the loop with <code>break</code> as the last statement:</p>
+
+<pre class="line-numbers"><code class="language-eve">#test at the end
+process
+  new n = 0 :Integer;
+  while True do
+    let n += 1;
+    write n;
+    write "," if n &lt; 3;
+    break if n &gt;= 3;
+  done loop;
+  print;
+return;
+</code></pre>
+
+<h4>Output:</h4>
+
+<pre class="output">
+1,2,3
 </pre>
 
 
@@ -491,14 +478,14 @@ last index 5
 <tr><td>job</td><td><code>[name:] job</code></td><td><code>do</code></td><td><code>done;</code> or <code>done job [name];</code></td><td>optional</td><td>yes (declarations)</td><td>no</td></tr>
 <tr><td>if</td><td><code>if c do</code></td><td><code>else if c do</code>, <code>else</code></td><td><code>done;</code></td><td>no</td><td>no</td><td>no</td></tr>
 <tr><td>match</td><td><code>[label:] match s</code></td><td><code>when v do</code>, <code>when other do</code>, <code>then</code></td><td><code>done match [label];</code></td><td>optional</td><td>yes (before first when)</td><td>no</td></tr>
-<tr><td>loop</td><td><code>[label:] loop</code></td><td><code>do</code>, <code>cycle [if c]</code>, <code>then</code></td><td><code>done loop [label];</code></td><td>optional</td><td>yes (header)</td><td>no</td></tr>
+
 <tr><td>while</td><td><code>[label:] loop</code> (optional)</td><td><code>while c do</code>, <code>cycle [if c]</code>, <code>else</code>, <code>then</code></td><td><code>done loop [label];</code></td><td>optional</td><td>header, or the parent scope</td><td>no</td></tr>
 <tr><td>for</td><td><code>[label:] loop</code> (optional)</td><td><code>for x in r do</code>, <code>next [if c]</code>, <code>then</code></td><td><code>done loop [label];</code></td><td>optional</td><td>header, or an implicit scope</td><td>no</td></tr>
 <tr><td>parallel</td><td><code>name: parallel</code></td><td><code>fork</code></td><td><code>join name;</code></td><td>required</td><td>yes (declarations)</td><td>no</td></tr>
 </tbody>
 </table>
 
-<p>Interruptions: <code>cycle</code> starts the next iteration of a <code>loop</code> or <code>while</code>, <code>next</code> advances a <code>for</code> loop, <code>break</code> leaves a loop, <code>stop</code> ends a job without error.</p>
+<p>Interruptions: <code>cycle</code> starts the next iteration of a <code>while</code> loop (also <code>while True</code>, the infinite loop), <code>next</code> advances a <code>for</code> loop, <code>break</code> leaves a loop, <code>stop</code> ends a job without error.</p>
 
 
 
