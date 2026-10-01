@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
@@ -22,6 +22,15 @@
   <style>
     .side-bar { order: 1; }
     #main-content { order: 2; }
+    .summary-wrap { margin: 1rem 0 1.5rem; border: 1px solid rgba(255,255,255,.15); border-radius: .5rem; }
+    .summary-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .summary-table th, .summary-table td { padding: .6rem .8rem; vertical-align: top; border-bottom: 1px solid rgba(255,255,255,.1); }
+    .summary-table thead th { background: rgba(255,255,255,.08); color: #fff; font-weight: 600; white-space: nowrap; text-align: left; }
+    .summary-table tbody tr:last-child th, .summary-table tbody tr:last-child td { border-bottom: 0; }
+    .summary-table tbody tr:nth-child(even) { background: rgba(255,255,255,.03); }
+    .summary-table tbody tr:hover { background: rgba(255,255,255,.07); }
+    .summary-table tbody th { color: #7fd1ff; font-weight: 600; text-align: left; }
+    .summary-table td.kw { font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .85rem; color: #ffd479; white-space: nowrap; }
     @media (max-width: 991px) {
       .side-bar { display: none; }
       .side-bar.active {
@@ -67,13 +76,15 @@ Most languages have similar flow control statements. These are block statements 
 <p>Most control statements have a block structure with data scope, specific keyword pairs for declaration region, execution region start and end of block. We diverge from classic begin...end or {}, to create a more verbose and relevant syntax. </p>
 
 <pre class="line-numbers"><code class="language-eve">
-label: &lt;control_type&gt;
+[label:] &lt;control_type&gt;
     ** Declarations & local scope initializations
 &lt;transition_keyword&gt;
     ** Executable statements
-[optional clauses: else, then, etc.]
+[optional clauses]
 &lt;terminator&gt;
 </code></pre>
+
+<p>Statements that represent a note, or a jump point require label. Statements that do not represent a jump point have optional label. We use a label only if we need to be specific about the control statement closing it or jumping back to it or refer it.</p>
 
 <h2 id="job">Sequential job</h2>
 
@@ -81,11 +92,11 @@ label: &lt;control_type&gt;
 
 <h4>Syntax pattern</h4>
 
-<p>A job always has a label. It starts with <code>label: job</code> and ends with <code>done label;</code>:</p>
+<p>A job usually has a label and belong to a process. It starts with <code>label: job</code> and ends with <code>done label. If a job do not have label, it can't be referred. If code fail, we do not know what job has failed and we can't handle the error properly.</code>:</p>
 
 <pre class="line-numbers"><code class="language-eve">
 ** job description or notes
-job_name: job
+[job_name:] job
   ** local declarations
   ...
 do
@@ -95,7 +106,7 @@ do
   ...
   raise "message" if condition; ** fail the job: go to recover
   ...
-done job_name;
+done job [job_name];
 </code></pre>
 
 <p><b>Notes:</b></p>
@@ -201,8 +212,7 @@ done; ** you can't use if after done
 <h2 id="match">Match Selector</h2>
 
 <p>
-This is a multi-path selector similar to switch also named: jump table. It has two variants: "all" or "one". That is an optional keyword.
- If used, ALL will evaluate all values it may be matching multiple cases. If "one" is used (this is the default), only first case that has a matching value will be executed and the rest are ignored, even if a second match exist. The second match should not be present though and is probably a mistake!
+This is a multi-path selector similar to switch also named: jump table. It has two variants: "all" or "one". That is an optional keyword. If used, "all" will evaluate all "when" branches it may be matching multiple cases. If "one" is used (this is the default), only first case that has a matching value will be executed and the rest are ignored, even if a second match exist. The second match should not be present though and is probably a mistake!
 </p>
 
 <div class="text-center">
@@ -221,13 +231,13 @@ process main is
   let s := V1;
 
   ** create match selector
-  label: match s [one | all]
+  match s [one | all]
     ** declare locals
     ...
   when V1 do
     ** first path
     ...
-  when V2, V3 do
+  when (V2, V3) do
     ** second path
     ...
   when other do
@@ -236,7 +246,7 @@ process main is
   then
     ** execute after the match is done, whatever path was taken
     ...
-  done [label]; ** you can't use if after done
+  done; ** you can't use if after done
 return;
 </code></pre>
 
@@ -256,12 +266,12 @@ return;
 process main is
   let n := 7;
   match n
-  when (1..5) do
-    print "low";
-  when (6..10) do
-    print "high";
-  when other do
-    print "out of range";
+    when (1..5) do
+      print "low";
+    when (6..10) do
+      print "high";
+    when other do
+      print "out of range";
   done;
 return;
 </code></pre>
@@ -286,8 +296,10 @@ return;
   ** declare control variables (optional header)
   ...
 while condition do
-  ** shortcut iteration: back to the condition
-  cycle if condition;
+  ** jump to the start of the cycle: verify the condition and run again
+  repeat if condition;
+  ** the same, at most 3 times in a row
+  repeat 3 times if condition;
   ...
   ** early interruption
   break if condition;
@@ -342,10 +354,11 @@ iterations 5
 <ul>
 <li>The <code>loop</code> header is optional. It holds the label and the declarations of the loop. These variables live in the loop scope, survive all iterations and are available in the <code>then</code> region. Without a header, the loop body has no private scope: it uses the parent scope;</li>
 <li>The <code>do</code> keyword starts the executable region. A variable created there with <code>let</code> is created on the stack at every iteration. Declare in the header what must survive until <code>then</code>;</li>
-<li><code>cycle [label] [if condition];</code> starts the next iteration early: it goes back to the condition. It is allowed only in a <code>while</code> loop. The compiler turns it into a jump to the start of the loop. The <code>for</code> loop uses <code>next</code>;</li>
-<li>Some other languages use {break &amp; continue}, we use {break &amp; cycle} and {break &amp; next};</li>
+<li><code>repeat [label] [N times] [if condition];</code> jumps to the beginning of the cycle: the loop condition is verified again and, if it is true, the body is executed again. The compiler turns it into a jump to the start of the loop. It is allowed in every loop, <code>while</code> and <code>for</code>. Section <a href="#for">For Loop</a> shows how it works with an index;</li>
+<li><code>N times</code> limits the repetitions. <code>N</code> is an integer expression. After <code>N</code> consecutive repeats of the same cycle, the <code>repeat</code> statement is ignored and the execution continues after it. The count starts again when a cycle ends without a repeat. Without <code>times</code> the number is not limited, and the condition must become false by itself, or the loop never ends;</li>
+<li>Some other languages use {break &amp; continue}, we use {break &amp; repeat} and {break &amp; next};</li>
 <li>With the condition <code>True</code> the compiler accepts the loop without a warning and the <code>else</code> block never runs;</li>
-<li>Every block is closed with <code>done</code>. A labeled loop closes with <code>done label;</code>, an unlabeled loop with <code>done;</code>. The keyword <code>repeat</code> does not exist;</li>
+<li>Every block is closed with <code>done</code>. A labeled loop closes with <code>done label;</code>, an unlabeled loop with <code>done;</code>. There is no <code>repeat</code> that closes a loop. The keyword <code>repeat</code> is a statement of the <code>for</code> loop, see below;</li>
 <li>The <code>then</code> clause is executed when the loop ends, also after <code>break</code>. <code>stop</code> is used only for jobs and <code>break</code> only for loops.</li>
 </ul>
 
@@ -393,6 +406,9 @@ return;
     ** next iteration
     next if condition;
     ...
+    ** same index again
+    repeat [N times] if condition;
+    ...
     ** early interruption
     break if condition;
 then
@@ -405,21 +421,22 @@ done [label]; ** you can't use "if" here
 <ul>
 <li>Control variable is auto-incremented at end of each iteration;</li>
 <li>Control variable is declared in the <code>loop</code> header. If the loop has no header, the <code>for</code> statement creates an implicit scope for it; if the header exists, <code>for</code> uses that scope and creates none;</li>
+<li><code>repeat [label] [N times] [if condition];</code> jumps to the beginning of the cycle without incrementing the control variable: the same value is verified against the range and the body is executed again. <code>next</code> advances the index, <code>repeat</code> does not. The rules of <code>N times</code> are the ones from the <a href="#while">While Loop</a>;</li>
+<li>Variables created by <code>let</code> in the <code>do</code> region are created again at every repetition. Declare in the header what must survive, for example a counter of attempts;</li>
 <li>Control variable is available in the <code>then</code> region, but not after <code>done</code>;</li>
 <li><code>break</code> leaves the loop (or the outer loop, when a label is used) and <code>then</code> is still executed;</li>
 <li>Inside a loop that is inside a job, <code>stop</code> ends the job and <code>break</code> ends only the loop.</li>
 </ul>
 
+<h4>Example:</h4>
 
-<p>Example of range iteration using step ratio 2:</p>
+<p>Range iteration using step ratio 2:</p>
 <pre class="line-numbers"><code class="language-eve">#example of range iteration
-label: loop
-    let i :Integer;
 for i in (1..10)(2) do
     ** write only odd numbers
     write i;
     write ',' if (i &lt; 9);
-done label;
+done`;
 
 print;
 </code></pre>
@@ -449,9 +466,52 @@ done;
 last index 5
 </pre>
 
+<p>Repeat an iteration with the same index, at most 2 times in a row:</p>
+
+<pre class="line-numbers"><code class="language-eve">#repeat N times
+for i in (1..3) do
+    print ("index", i);
+    repeat 2 times if (i &gt; 1);
+done;
+</code></pre>
+
+<h4>Output:</h4>
+
+<pre class="output">
+index 1
+index 2
+index 2
+index 2
+index 3
+index 3
+index 3
+</pre>
+
+<p>Repeat with a condition that changes. The counter <code>tries</code> is declared in the header, so it survives the repetition:</p>
+
+<pre class="line-numbers"><code class="language-eve">#repeat an iteration
+attempts: loop
+    let tries = 0 :Integer;
+for i in (1..3) do
+    tries += 1;
+    print ("index", i, "try", tries, separator: " ");
+    repeat if (i &gt; 1) and (tries &lt; 3);
+done attempts;
+</code></pre>
+
+<h4>Output:</h4>
+
+<pre class="output">
+index 1 try 1
+index 2 try 2
+index 2 try 3
+index 3 try 4
+</pre>
+
 <h2 id="summary">Block summary</h2>
 
-<table class="table table-bordered table-striped">
+<div class="table-responsive summary-wrap">
+<table class="summary-table">
 <thead>
 <tr>
 <th>Block</th>
@@ -459,26 +519,22 @@ last index 5
 <th>Middle keywords</th>
 <th>Closer</th>
 <th>Label</th>
-<th>Opens scope</th>
-<th>Condition after closer</th>
 </tr>
 </thead>
 <tbody>
-<tr><td>job</td><td><code>name: job</code></td><td><code>do</code></td><td><code>done name;</code></td><td>mandatory</td><td>yes (declarations)</td><td>no</td></tr>
-<tr><td>if</td><td><code>if c do</code></td><td><code>else if c do</code>, <code>else</code></td><td><code>done;</code></td><td>no</td><td>no</td><td>no</td></tr>
-<tr><td>match</td><td><code>[label:] match s</code></td><td><code>when v do</code>, <code>when other do</code>, <code>then</code></td><td><code>done [label];</code></td><td>optional</td><td>yes (before first when)</td><td>no</td></tr>
-
-<tr><td>while</td><td><code>[label:] loop</code> (optional)</td><td><code>while c do</code>, <code>cycle [if c]</code>, <code>else</code>, <code>then</code></td><td><code>done [label];</code></td><td>optional</td><td>header, or the parent scope</td><td>no</td></tr>
-<tr><td>for</td><td><code>[label:] loop</code> (optional)</td><td><code>for x in r do</code>, <code>next [if c]</code>, <code>then</code></td><td><code>done [label];</code></td><td>optional</td><td>header, or an implicit scope</td><td>no</td></tr>
-<tr><td>parallel</td><td><code>[name:] parallel</code></td><td><code>fork</code></td><td><code>join [name];</code></td><td>optional</td><td>yes (declarations)</td><td>no</td></tr>
+<tr><th scope="row">job</th><td class="kw">name: job</td><td class="kw">do</td><td class="kw">done name;</td><td>mandatory</td></tr>
+<tr><th scope="row">if</th><td class="kw">if c do</td><td class="kw">else if c do<br>else</td><td class="kw">done;</td><td>no</td></tr>
+<tr><th scope="row">match</th><td class="kw">[label:] match s</td><td class="kw">when v do<br>when other do<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
+<tr><th scope="row">while</th><td class="kw">[label:] loop</td><td class="kw">while c do<br>repeat [N times] [if c]<br>else<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
+<tr><th scope="row">for</th><td class="kw">[label:] loop</td><td class="kw">for x in r do<br>next [if c]<br>repeat [N times] [if c]<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
+<tr><th scope="row">parallel</th><td class="kw">[name:] parallel</td><td class="kw">do</td><td class="kw">done [name];</td><td>optional</td></tr>
 </tbody>
 </table>
+</div>
 
 <p>Closers: every block ends with <code>done</code>. A block that has a label ends with <code>done label;</code>; a block without a label ends with <code>done;</code>. There is no <code>done if</code>, <code>done while</code>, <code>done loop</code> or <code>done job</code>, and <code>if</code> cannot follow <code>done</code>.</p>
 
-<p>Interruptions: <code>cycle</code> starts the next iteration of a <code>while</code> loop (also <code>while True</code>, the infinite loop), <code>next</code> advances a <code>for</code> loop, <code>break</code> leaves a loop, <code>stop</code> ends a job without error.</p>
-
-
+<p>Interruptions: <code>repeat</code> jumps to the start of the cycle of a <code>while</code> or <code>for</code> loop without advancing the index, <code>next</code> advances a <code>for</code> loop, <code>break</code> leaves a loop, <code>stop</code> ends a job without error.</p>
 
 <hr>
 <p><b>Read next:</b>

@@ -23,8 +23,8 @@
         apply to synchronise rollback`);
     define("operator", "in is as or eq and not xor");
     define("control", `
-        job do cycle when case on loop while for match if then else done
-        parallel fork join`);
+        job do repeat when case on loop while for match if then else done
+        parallel`);
     define("type", `
         Byte Short Integer Natural Real Float Rational String Logic Table Symbol
         Record Ordinal Variant Date Time Array List Object Class Lambda Function

@@ -27,7 +27,7 @@ const keywordMap = {
     'scrub': 'keytab', 'delete': 'keytab',
 
     // Control flow
-    'cycle': 'control', 'when': 'control',
+    'repeat': 'control', 'when': 'control',
     'job': 'control', 'case': 'control', 'on': 'control', 'loop': 'control',
     'while': 'control', 'for': 'control', 'task': 'control', 'try': 'control',
     'miss': 'control', 'match': 'control', 'if': 'control', 'then': 'control',
