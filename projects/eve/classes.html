@@ -131,7 +131,7 @@ class MyClass = {a, b: Integer} &lt;&#58; Object;
   <li>Encapsulation: each object has its own states;</li>
   <li>Inheritance: an object inherit its base class;</li>
   <li>Polymorphism: an object can play its base class role;</li>
-  <li>Abstraction: eve support partials similar to abstract classes;</li>
+  <li>Abstraction: eve supports abstract classes and traits, made of partial methods;</li>
 </ul>
 
 <h4>Notes:</h4>
@@ -476,135 +476,130 @@ end NewType;
 </code></pre>
 <hr>
 
-<h2 id="partials">What are Partials?</h2>
+<h2 id="partials">Partials, Abstract Classes and Traits</h2>
 
-<p><b>Partials: </b>In Eve a thing that is not fully defined is called <em>partial</em> and is equivalent to "traits", "abstract classes", or "interfaces" in other languages. We do not make a distinction between interfaces, traits, and abstract classes or methods. Partials can be "abstract classes" or "prototype constructors" that have partial declarations of methods without implementation (just the signature). These methods need implementation in the inherited class.</p>
+<p>A <b>partial method</b> is a method signature without a body, ended by <code>;</code>. It says what an object can do, and leaves the implementation to another class. Three entities use partial methods. Each has a different job, so Eve names them separately:</p>
 
-<h3 id="abstract-constructor">Abstract Constructor</h3>
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Entity</th><th>State</th><th>Methods</th><th>Created with "new"</th></tr>
+</thead>
+<tbody>
+<tr><td>Class</td><td>attributes and constructor</td><td>all implemented</td><td>yes</td></tr>
+<tr><td>Abstract class</td><td>attributes and constructor</td><td>some partial</td><td>no, only a subclass constructor calls it</td></tr>
+<tr><td>Trait</td><td>none</td><td>partial and provided</td><td>no, never has instances</td></tr>
+</tbody>
+</table>
 
-<p>A constructor that has only signature for some methods is <i>partial</i> also. Inherited classes need to implement a constructor similar, with all the required methods as they are designed in the prototype constructor. The prototype constructors can be called in the inherited constructor.</p>
+<h3 id="abstract-class">Abstract Class</h3>
+
+<p>A class that has at least one partial method is an <i>abstract class</i>. It can have attributes, a constructor and implemented methods, like any class, but it can not be instantiated. A subclass calls the abstract constructor by the name of the class, in its own constructor. Inside a class body, object methods take <code>@self</code> without a type.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-# Partial class
+** abstract class: it has partial methods
 class Shape = {name: String} &lt;&#58; Object is
-    ** Partial constructor for Shape
     constructor(@self)(name: String) is
         self := new Object();
         let self.name := name;
-
-        method getName() =&gt; (@result: String) is
-            result := self.name;
-        return;
-
-        ** Partial method signatures
-        method area() =&gt; (@result: Real);
-        method perimeter() =&gt; (@result: Real);
     return;
+
+    ** implemented method, inherited by all shapes
+    method getName(@self) =&gt; (@result: String) is
+        result := self.name;
+    return;
+
+    ** partial methods: the subclass must implement them
+    method area(@self) =&gt; (@result: Real);
+    method perimeter(@self) =&gt; (@result: Real);
 end Shape;
 
-# Concrete class
 class Circle = {radius: Real} &lt;&#58; Shape is
-    ** Concrete constructor implementing the partial constructor
     constructor(@self)(name: String, radius: Real) is
-        self := new Shape(name);  ** Call partial constructor to set up basic structure
+        self := new Shape(name);  ** call the abstract constructor
+        let self.radius := radius;
+    return;
 
-        let self.radius := radius;  ** Set additional state
+    method area(@self) =&gt; (@result: Real) is
+        result := pi * self.radius * self.radius;
+    return;
 
-        ** Implement required methods
-        method area() =&gt; (@result: Real) is
-            result := pi * self.radius * self.radius;
-        return;
-
-        method perimeter() =&gt; (@result: Real) is
-            result := 2 * pi * self.radius;
-        return;
+    method perimeter(@self) =&gt; (@result: Real) is
+        result := 2 * pi * self.radius;
     return;
 end Circle;
 
 # Usage
-process
+process main is
     let myCircle := new Circle("Small Circle", 5);
-    print myCircle.getName();  ** Uses method from partial constructor
-    print myCircle.area();     ** Uses implemented method
+    print myCircle.getName();  ** inherited from Shape
+    print myCircle.area();     ** implemented by Circle
 return;
 </code></pre>
 
+<p>A class that has a constructor must implement all the partial methods it inherits. A missing implementation is a compile error. It is never a <code>Null</code> result at run time.</p>
 
-<h4>Traits in Eve</h4>
+<h3 id="traits">Traits</h3>
 
-<p>Some classes are not inherited from Object or any base-class. In these cases, the partial class can't be instantiated using the default Object constructor, and are designed to be used to add bihaviour to a class. This kind of entity is called "trait" in other languages. In Eve this is just a different kind of partial.</p>
-
+<p>A <i>trait</i> is a set of behaviors that unrelated classes can share. It is declared with the keyword <code>trait</code>, and it closes with <code>end</code>. A trait is a container of methods only:</p>
+<ul>
+<li>it has no attributes, no properties, no constructor and no destructor, so it has no state and no instances;</li>
+<li>a <i>required</i> method is a partial method: the class that adopts the trait must implement it;</li>
+<li>a <i>provided</i> method has a body. It can call the required methods through <code>@self</code>, and the class receives it for free;</li>
+<li><code>@self</code> has no type: it is the class that adopts the trait;</li>
+<li>a trait can be generic: <code>trait Comparable(:T) is</code>.</li>
+</ul>
 
 <pre class="line-numbers"><code class="language-eve">
-  # Partial (similar to a trait or interface)
-  class Printable is
-    method print(); ** method signature
-    method toString() =&gt; (@result: String);
-  end Printable;
+** a trait: one required method and one provided method
+trait Printable is
+    method toString(@self) =&gt; (@result: String);
 
-  # Partial (similar to an abstract class)
-  class Shape is
-    ** abstract method that need implementation
-    method area(@self) =&gt; (@result: Real);
-
-    ** partial constructor
-    constructor(@self)() is
-      ** Partial method that use "self", as argument
-      self := new Object();
-      method describe() =&gt; (@result: String) is
-        result := "This shape has an area of # square units." ? self.area();
-      return;
-    return;
-  end Shape;
-
-  # Partial super class (its constructor is a high order function)
-  class ShapeBase &lt;&#58; Shape is
-    constructor(@self)(name: String) is
-      ** This partial constructor create one hidden state
-      self := new Object();
-      let self.state := 0;
-
-      ** This method signature need implementation otherwise the result is Null
-      method getName() =&gt; (@result: String);
-    return;
-  end ShapeBase;
-
-  # Concrete class is inheriting from partials
-  class Circle = {radius: Real} &lt;&#58; (ShapeBase,Printable) is
-    method area(@self) =&gt; (@result: Real) is
-      result := pi * self.radius * self.radius;
-    return;
-
-    ** Concrete constructor implementing the abstract constructor
-    constructor(@self)(name: String, radius: Real) is
-      ** Call partal super constructor, by the name of the superclass
-      self := new ShapeBase(name);
-      let self.radius := radius;
-
-      ** implement required method
-      method getName() =&gt; (@result: String) is
-        result := name;
-      return;
-
-      ** implement required method
-      method print() is
+    method show(@self) is
         print self.toString();
-      return;
-
-      ** implement required method
-      method toString() =&gt; (@result: String) is
-        result := "Circle '#' with radius #" ? (self.getName(), self.radius);
-      return;
     return;
-  end Circle;
+end Printable;
 
-  # Usage
-  process
+** a class adopts traits in the inheritance list
+class Circle = {radius: Real} &lt;&#58; (Shape, Printable) is
+    constructor(@self)(name: String, radius: Real) is
+        self := new Shape(name);
+        let self.radius := radius;
+    return;
+
+    ** implement the required methods of Shape and Printable
+    method area(@self) =&gt; (@result: Real) is
+        result := pi * self.radius * self.radius;
+    return;
+
+    method perimeter(@self) =&gt; (@result: Real) is
+        result := 2 * pi * self.radius;
+    return;
+
+    method toString(@self) =&gt; (@result: String) is
+        result := "Circle '#' with radius #" ? (self.getName(), self.radius);
+    return;
+end Circle;
+
+# Usage
+process main is
     let myCircle := new Circle("Small Circle", 5);
-    myCircle.print();
-    print myCircle.describe();
-  return;
+    myCircle.show();                   ** provided by the trait
+    let p: Printable := myCircle;      ** a trait is also a type
+    p.show();
+    expect myCircle is Printable;
+return;
 </code></pre>
+
+<h4>Rules of the inheritance list</h4>
+<ul>
+<li>A class has at most one superclass that carries state, and any number of traits. The superclass is optional (<code>Object</code> by default);</li>
+<li>when a class and a trait define the same method, the method of the class wins;</li>
+<li>when two traits provide the same method, the class must implement the method itself, otherwise the compiler reports an error;</li>
+<li>a trait can be used as the type of a variable or a parameter, and tested with <code>is</code>;</li>
+<li>the <code>for</code> loop uses the library trait <code>Iterable</code>: a class that adopts it can be traversed.</li>
+</ul>
+
+<p><b>Note:</b> Eve has no "partial constructor". An object receives its state from the constructor of a class, and the traits add behavior only. This is why a class never inherits conflicting attributes from two parents.</p>
 
 <h2 id="class-tree">Class Tree</h2>
 
