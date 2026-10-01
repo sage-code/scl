@@ -17,14 +17,14 @@
     define("keyword", `
         object method shell return
         session update insert commit from use
-        new let set scrub delete
+        new let set def scrub delete
         expect break halt next alter make store start yield call wait exit stop
         print write read over panic pass fail raise retry resume abort suspend
         apply to synchronise rollback`);
     define("operator", "in is as or eq and not xor");
     define("control", `
         job do cycle when case on loop while for match if then else done
-        parallel fork begin join`);
+        parallel fork join`);
     define("type", `
         Byte Short Integer Natural Real Float Rational String Logic Table Symbol
         Record Ordinal Variant Date Time Array List Object Class Lambda Function
@@ -33,8 +33,8 @@
 
     // declaration keywords are highlighted only when they open a line
     const DECLARATIONS = new Set(`
-        class driver module aspect import alias global constant process initialize
-        recover finalize trait constructor function routine release`.trim().split(/\s+/));
+        class driver module aspect process initialize
+        recover finalize trait constructor destructor function end`.trim().split(/\s+/));
 
     const TOKEN = new RegExp([
         /(\(\*\*.*?(?:\*\*\)|$)|\*\*.*)/,           // 1: (** expression **) or ** end-of-line comment

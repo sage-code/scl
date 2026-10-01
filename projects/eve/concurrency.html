@@ -3,7 +3,7 @@
   <meta charset="utf-8">
   <meta name="description" content="Sage-Code Eve methods, generators and threads. Synchron versus asynchron execution.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, parallel, asynchronous, concurency, method, generator, thread, begin, suspend, resume">
+  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, parallel, asynchronous, concurency, method, generator, thread, suspend, resume">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Cache-Control" content="no-cache" />
   <meta http-equiv="Pragma" content="no-cache" />
@@ -45,7 +45,7 @@
 <h1 id="eve-concurrency">Eve Concurrency</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Eve can execute one or more methods in synchronous or asynchronous mode. We will define in this chapter the method and the asynchronous method. A method can be suspended in memory, and later resumed. Using this system we can create light weight multi-treding applications.
+Eve can execute one or more methods in synchronous or asynchronous mode. We will define in this chapter the method and the asynchronous method. A method can be suspended in memory, and later resumed. Using this system we can create light weight concurrent applications: cooperative multitasking on a single core, without the cost of operating system threads.
 </div>
 
 <h2 id="methods">Methods</h2>
@@ -70,28 +70,28 @@ return;
 # demonstrate two methods
 driver process_demo is
 
-** foo has no parameters
-method foo is
-  print "I have no arguments";
-return;
+  ** foo has no parameters
+  method foo is
+    print "I have no arguments";
+  return;
 
-** bar has 3 parameters
-method bar(param1:Integer, 
-            param2 = 0: Integer,
-            @result = 0: Integer):
-  print "I have two parameters: param1 and param2";
-  let result = param1 + param2;                    
-return;
+  ** bar has 3 parameters
+  method bar(param1:Integer, 
+              param2 = 0: Integer,
+              @result = 0: Integer):
+    print "I have two parameters: param1 and param2";
+    let result = param1 + param2;                    
+  return;
 
-process main is
-  foo; ** call method without arguments
-  let output:=0; ** prepare a variable to receive output
+  process main is
+    foo; ** call method without arguments
+    let output:=0; ** prepare a variable to receive output
 
-  ** execute method with 2 arguments and receiver
-  bar(1,2,output);
-  expect output == 3; ** the value of output should be 3.
-  print ("outout=", output);
-return;
+    ** execute method with 2 arguments and receiver
+    bar(1,2,output);
+    expect output == 3; ** the value of output should be 3.
+    print ("outout=", output);
+  return;
 end process_demo;
 </code></pre>
 
@@ -117,19 +117,19 @@ driver side_effect is
   set test   :Integer;
   set p1, p2 :Integer;
 
-** method with side effects
-method add_numbers is
-  test := p1 + p2; ** first side-effect
-  print test;          ** second side-effect
-return;
+  ** method with side effects
+  method add_numbers is
+    test := p1 + p2; ** first side-effect
+    print test;          ** second side-effect
+  return;
 
-** define main process
-process main is
-  p1 := 10;
-  let p2 := 20;
-  add_numbers; **  method call without arguments
-  expect test == 30;
-return;
+  ** define main process
+  process main is
+    p1 := 10;
+    let p2 := 20;
+    add_numbers; **  method call without arguments
+    expect test == 30;
+  return;
 end side_effect;
 </code></pre>
 
@@ -170,28 +170,28 @@ end side_effect;
 <li>You can use any name but "*args" is the usual name for it.</li>
 </ul>
 
-<div class="alert alert-info">Note: Also driver and aspect can receive parameters. The same convention apply for aspects, drivers, functions and methods. Eve offer same features for all subprograms. The only difference are the call concentions.</div>
+<div class="alert alert-info">Note: Also the main process of a driver or aspect can receive parameters. The same convention apply for aspects, drivers, functions and methods. Eve offer same features for all subprograms. The only difference are the call concentions.</div>
 
 <h4>Example:</h4>
 
-<p>Next driver can have a list of arguments. The arguments have no names, so it will just print all the arguments it has received. Drivers receive argument values from command line or REPL console using "start" command.</p>
+<p>Next driver can have a list of arguments. The arguments have no names, so it will just print all the arguments it has received. Drivers receive argument values from command line or REPL console using "run" command.</p>
 
 <pre class="line-numbers"><code class="language-eve"># print all arguments
-driver test(*args: ()String) is
+driver test is
 
-** list all arguments
-process main is
-  loop
-    let arg :String;
-  for arg in args do
-    print arg;  ** expect 1,2,3
-  done;
-return;
+  ** list all arguments
+  process main(*args: ()String) is
+    loop
+      let arg :String;
+    for arg in args do
+      print arg;  ** expect 1,2,3
+    done;
+  return;
 end test;
 </code></pre>
 
 <pre><code class="output">
-eve:&gt;start test.eve 1 2 3
+eve:&gt;run test.eve 1 2 3
 </code></pre>
 
 <h4>Output Parameters</h4>
@@ -199,23 +199,23 @@ eve:&gt;start test.eve 1 2 3
 
 <pre class="line-numbers"><code class="language-eve">
 #demo output parameters
-aspect output_params is
+driver output_params is
 
-** private method
-method add(p1 = 0, p2 = 1: Integer, @op: Integer) is
-  op := p1 + p2;
-return;
+  ** private method
+  method add(p1 = 0, p2 = 1: Integer, @op: Integer) is
+    op := p1 + p2;
+  return;
 
-process main is
-  let result: Integer;
+  process main is
+    let result: Integer;
 
-  ** inpur/output argument require a variable
-  add(1,2, op:result);
-  print result;  ** expected value 3
+    ** inpur/output argument require a variable
+    add(1,2, op:result);
+    print result;  ** expected value 3
 
-  ** negative test, will fail
-  add(1,2,4); ** error, "op" parameter require a variable
-return;
+    ** negative test, will fail
+    add(1,2,4); ** error, "op" parameter require a variable
+  return;
 end output_params;
 </code></pre>
  
@@ -228,9 +228,9 @@ end output_params;
 
 <h2 id="asynchronous-methods">Asynchronous methods</h2>
 
-<p>An asynchronous method is a method that has a name and runs in a secondary thread. It can be suspended in memory for a while and later can wake-up with a signal and continue processing. A method that produces values one batch at a time is called a generator. The main thread will control the life cycle of the asynchronous method. Functions can't be suspended and can't have state: only methods can.</p>
+<p>An asynchronous method is a method that contains the keyword "suspend". It does not run on another processor core: it runs on the same thread as its caller. When it reaches "suspend" its state stays in memory and the control returns to the caller, so the program continues. Later the method can wake-up with a signal and continue processing. A method that produces values one batch at a time is called a generator. Functions can't be suspended and can't have state: only methods can.</p>
 
-<p>An asynchronous method is declared with the same keyword "method" but the call convention is different. Unlike a simple method you must use keyword "start" to run it asynchronously. This keyword suggest that the method start running but is not fully executed and will terminate later. The suspended method is controlled using "suspend", "resume" and "wait/all" keywords.</p>
+<p>An asynchronous method is declared with the same keyword "method" and is called exactly like a simple method: by its bare name. There is no special call keyword. The body decides how it runs: a method that never reaches "suspend" runs to completion, like any method; a method that reaches "suspend" stays suspended while the program continues. The suspended method is controlled using "suspend", "resume" and "wait all" keywords. Switching happens only at "suspend", so this is cooperative multitasking: it is cheap, and no two methods ever run at the same instant. The keyword "start" is not used for methods: it only launches a process inside a parallel block, and "apply" runs a process serially.</p>
 
 <!-- a regular diagram -->
 <div class="text-center">
@@ -246,33 +246,33 @@ end output_params;
 <pre class="line-numbers"><code class="language-eve">
 driver shoulder_thread is
 
-** generator producer, make 100 numbers
-method generator(cap:Integer, @result:()Float) is
-  let count := 0;
-  while True do
-    for i in (1..100) do
-      result += (0..1).random();
+  ** generator producer, make 100 numbers
+  method generator(cap:Integer, @result:()Float) is
+    let count := 0;
+    while True do
+      for i in (1..100) do
+        result += (0..1).random();
+      done;
+      suspend; ** continue the main thread    
+      count += 1;
+      break if count &gt;= cap;
     done;
-    suspend; ** continue the main thread    
-    count += 1;
-    break if count &gt;= cap;
-  done;
-return;
+  return;
 
-process main is
-  let batch :()Float;
-  let total :Real;
-  ** initialize the generator and produce first batch
-  start generator(1000, result:batch):
-  while batch.count() &gt; 0 do
-    ** process current batch
-    for x in batch do
-       total += x; 
+  process main is
+    let batch :()Float;
+    let total :Real;
+    ** initialize the generator and produce first batch
+    generator(1000, result:batch);
+    while batch.count() &gt; 0 do
+      ** process current batch
+      for x in batch do
+         total += x; 
+      done;
+      ** read the next batch
+      resume generator; ** resume generator
     done;
-    ** read the next batch
-    resume generator; ** resume generator
-  done;
-return;
+  return;
 end shoulder_thread;
 </code></pre>
 
@@ -308,17 +308,17 @@ method consumer(@pipeline, @partials: ()Integer) is
   done;
 return;
 
-process
+process main is
   let pipeline: ()Integer;
   let partials: ()Integer; 
 
-  start producer(pipeline, 10000);
+  producer(pipeline, 10000);
   for i in (1..32) do
-    start consumer(pipeline, partials);
+    consumer(pipeline, partials);
     wait 3ms;
   done;
 
-  wait all;  ** Wait for all methods to finish
+  wait all;  ** Wait for all suspended methods to finish
   
   ** prepare the final result from partials
   let result := sum(partials);
@@ -328,7 +328,9 @@ return;
 
 <p><b>Notes: </b>a suspended method is waiting for a wake-up signal. Another method must send a signal for it to wake-up. If the suspended method receiving the signal is not running, then it can't wake-up. In this case, the control is given back to the main process. If the main process is waiting it will resume.</p>
 
-<p>We can see in this example that "wait all" and "wait n" do different things. "wait n" should not be used for joining threads. We recommend to use "wait all". Also you can wait for a specific tread to finish: wait [method_name] if necesary.</p>
+<p><b>Instances: </b>every call creates a new instance of the method. "resume name" wakes all suspended instances of that method, and "wait all" joins every instance that is still suspended. In the example above there are 32 instances of "consumer", and "resume consumer" wakes them all.</p>
+
+<p>We can see in this example that "wait all" and "wait n" do different things. "wait n" should not be used for joining methods. We recommend to use "wait all". Also you can wait for a specific method to finish: wait [method_name] if necesary.</p>
 
 <p>Control over number of threads can be dynamic. You can use configuration files and establish convention to calculate the number of threads depending on data size. It can be also hard coded using constants inside the driver. This give you flexibility to tune your process.</p>
 
