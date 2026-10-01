@@ -181,9 +181,9 @@ driver test(*args: ()String) is
 process
   loop
     new arg :String;
-  for arg in args cycle
+  for arg in args do
     print arg;  ** expect 1,2,3
-  repeat;
+  done loop;
 return;
 </code></pre>
 
@@ -246,13 +246,14 @@ driver shoulder_thread is
 method generator(cap:Integer, @result:()Float) is
   new count := 0;
   loop
-  cycle
-    for i in (1..100) cycle
+  do
+    for i in (1..100) do
       let result += (0..1).random();
-    repeat;
+    done loop;
     suspend; ** continue the main thread    
     let count += 1;
-  repeat while count &lt; cap;
+    cycle if count &lt; cap;
+  done loop;
 return;
 
 process
@@ -260,14 +261,14 @@ process
   new total :Real;
   ** initialize the generator and produce first batch
   start generator(1000, result:batch):
-  while batch.count() &gt; 0 cycle
+  while batch.count() &gt; 0 do
     ** process current batch
-    for x in batch cycle
+    for x in batch do
        let total += x; 
-    repeat;
+    done loop;
     ** read the next batch
     resume generator; ** resume generator
-  repeat;
+  done loop;
 return;
 </code></pre>
 
@@ -281,26 +282,27 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 method producer(@pipeline: ()Integer, count = 1000: Integer) is
-  for i in (1..count) cycle
+  for i in (1..count) do
     let pipeline += random(100);
     if (i % 100) == 0 do
       resume consumer;
       suspend;
     done;
-  repeat;
+  done loop;
 return;
 
 method consumer(@pipeline, @partials: ()Integer) is
   loop
-  cycle
-    for element in pipeline cycle
+  do
+    for element in pipeline do
       let pipeline := pipeline -&gt; element;
       wait 10ms;
       let partials += element; 
-    repeat;
+    done loop;
     resume producer;
     suspend;
-  repeat while pipeline.count() &gt; 0;
+    cycle if pipeline.count() &gt; 0;
+  done loop;
 return;
 
 process
@@ -308,10 +310,10 @@ process
   new partials: ()Integer; 
 
   start producer(pipeline, 10000);
-  for i in (1..32) cycle
+  for i in (1..32) do
     start consumer(pipeline, partials);
     wait 3ms;
-  repeat;
+  done loop;
 
   wait all;  ** Wait for all methods to finish
   

@@ -23,7 +23,7 @@
         apply to synchronise rollback`);
     define("operator", "in is as or eq and not xor");
     define("control", `
-        job do cycle repeat when case on loop while for match if then else done
+        job do cycle when case on loop while for match if then else done
         parallel fork begin join`);
     define("type", `
         Byte Short Integer Natural Real Float Rational String Logic Table Symbol
