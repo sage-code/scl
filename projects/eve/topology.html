@@ -150,11 +150,11 @@ constant
 global
   class Person = {name:String, age:Integer} &lt;&#58; Object;
   set expression_name = (params) =&gt; (expression);
-  new shared = value1 :user_type;
+  let shared = value1 :user_type;
 
 ** main process
-process
-  new my_var = value :Type;  ** private to the process
+process main is
+  let my_var = value :Type;  ** private to the process
   ** executable region
   ...
 recover
@@ -164,6 +164,7 @@ finalize
   ** release locked resources, consume the job report
   ...
 return;
+end driver_name;
 </code></pre>
 
 
@@ -178,7 +179,7 @@ return;
 
 <p><b>Note: </b>Only a driver defines global states. In its global scope you can set constants and system variables, and define global variables, classes, functions and methods. Aspects and modules define public and private members instead (see <a href="#module-import">Module Import</a>).</p>
 
-<p>The keyword "set" creates a constant; the keyword "new" creates a variable. You can not define global variables in the constant region. Global constants and variables are static: they are created on the heap and have a permanent nature.</p>
+<p>The keyword "set" creates a constant; the keyword "let" creates a variable. You can not define global variables in the constant region. Global constants and variables are static: they are created on the heap and have a permanent nature.</p>
 
 <h3 id="system-variables">System Variables</h3>
 
@@ -226,7 +227,7 @@ constant
   set PI  = 3.14 :Real;       ** global constant
   ...
 global
-  new var = 0    :Integer;    ** global variable
+  let var = 0    :Integer;    ** global variable
   ...
 </code></pre>
 
@@ -252,13 +253,13 @@ constant
 ** driver context: class and variable
 global
   class Person = {name:String, age:Integer} &lt;&#58; Object;
-  new x = 0 :Integer;           ** global state
+  let x = 0 :Integer;           ** global state
   ...
 </code></pre>
 
 <h4>Notes:</h4>
 <ul>
-<li>Global constants are created using keyword "set", global variables using keyword "new",</li>
+<li>Global constants are created using keyword "set", global variables using keyword "let",</li>
 <li>All global states are bound to the process scope,</li>
 <li>We are using operator "=" for initialization,</li>
 <li>Operator ":=" executes an expression and can be used in any region, including the global regions, for example a string concatenation,</li>
@@ -286,9 +287,10 @@ import
 alias
   ** create alias for some of the hidden members
   def new_name = module_name.member_name;
-process
+process main is
   ...
 return;
+end script_name;
 </code></pre>
 
 <h4>Notes:</h4>
@@ -299,7 +301,11 @@ return;
 
 <h2 id="process">Process</h2>
 
-<p>A process is an executable region of a script, mandatory for drivers and aspects. While modules don't use the 'process' keyword, they have an initialization region that serves a similar purpose. This initialization region is executed first when a process starts. For modules imported by a driver, the initialization runs within the driver's main process. When imported by an aspect, it runs in the sub-process created by that aspect.</p> 
+<p>A process is a named executable region of a script, mandatory for drivers and aspects. It is declared <code>process name is … return;</code>, and the driver or aspect itself closes with <code>end script_name;</code>. The entry point is the process named <code>main</code>. A script can declare other processes, started with <code>start name(args);</code> (the caller waits) or, inside a parallel block, with <code>begin name(args);</code>. Running an aspect creates its <code>main</code> process, which can start further processes.</p>
+
+<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". The arguments are passed in a list, <code>start total(10, @sum);</code>, and the same list is used by "begin" in a parallel block. With "start" the caller waits, so the outputs are ready on the next statement. With "begin" the process runs in parallel, so an output is ready only after the "join" of its group. A process reads and changes the global members of its script: the module globals when it is declared in a module, the driver globals when it is declared in a driver.</p>
+
+<p> While modules don't use the 'process' keyword, they have an initialization region that serves a similar purpose. This initialization region is executed first when a process starts. For modules imported by a driver, the initialization runs within the driver's main process. When imported by an aspect, it runs in the sub-process created by that aspect.</p> 
 
 <h4>Process context</h4>
 
@@ -307,7 +313,7 @@ return;
 
 <h3 id="process-termination">Process Termination</h3>
 
-<p>Process can be early terminated using: <em>"over"</em> or <em>"panic"</em>. This is a way to release all locked resources and terminate the process. The statement "over" ends the program with code 0. The statement "panic" ends it with code 1; "panic 0" is not allowed and there is no "panic N". A failed "expect" always ends with code 2, and "raise" ends with an error code greater than 0.</p>
+<p>Process can be early terminated using: <em>"over"</em> or <em>"panic"</em>. This is a way to release all locked resources and terminate the process. The statement "over" ends the process it is in with code 0. The statement "panic" is an unhandled exception: it ends the whole application with code 1, not only the process; "panic 0" is not allowed and there is no "panic N". A failed "expect" always ends with code 2, and "raise" ends with an error code greater than 0.</p>
 
 <h4>Example:</h4>
 
@@ -317,15 +323,16 @@ return;
 # terminate a program with: over
 driver test_over is
 
-process
+process main is
   loop
-    new i = 0 :Integer;
+    let i = 0 :Integer;
   while True do
     write "."; wait  10;
     over if i &gt; 10;
-    let   i += 1;
+    i += 1;
   done;
 return;
+end test_over;
 </code></pre>
 
 <h2 id="drivers">Drivers</h2>
@@ -338,7 +345,7 @@ return;
 <li>A driver is the process entry point,</li>
 <li>A driver can read configuration files at startup,</li>
 <li>A driver can receive parameters;</li>
-<li>A driver can have one single main process;</li>
+<li>A driver has one process named <code>main</code>, and can declare other named processes;</li>
 <li>A driver is independent, can not be imported;</li>
 <li>A driver is the only script that defines global states;</li>
 </ul>
@@ -356,13 +363,13 @@ return;
 aspect aspect_name(parameter_list) is
 
 ** public and private members: an aspect defines no globals
-  new .result = 0 :Integer;  ** public member, prefix "."
-  new count = 0 :Integer;    ** private member
+  let .result = 0 :Integer;  ** public member, prefix "."
+  let count = 0 :Integer;    ** private member
 
 import
   from $path/library_name use (*);
 
-process
+process main is
   ** executable region, mandatory
   ...
 recover
@@ -372,11 +379,12 @@ finalize
   ** release locked resources
   ...
 return;
+end aspect_name;
 </code></pre>
 
 <h3 id="running-aspect">Running an Aspect</h3>
 
-<p>Aspect is executed with keyword "apply". An aspect can be executed synchronously (apply) or asynchronously (in a parallel block). We will explain more about aspect execution after we define the control flow, asynchronous methods, functions and error handling. At this time let's focus on Driver execution and Modules.</p>
+<p>Aspect is executed with keyword "apply". An aspect can be executed synchronously (apply) or asynchronously (with "begin" in a parallel block). Both create the <code>main</code> process of the aspect. We will explain more about aspect execution after we define the control flow, asynchronous methods, functions and error handling. At this time let's focus on Driver execution and Modules.</p>
 
 <h2 id="modules">Modules</h2>
 
@@ -401,8 +409,8 @@ return;
 module module_name is
 
 ** public and private members: a module defines no globals
-  new .counter = 0 :Integer;  ** public member, prefix "."
-  new total = 0 :Integer;     ** private member
+  let .counter = 0 :Integer;  ** public member, prefix "."
+  let total = 0 :Integer;     ** private member
   ...
 
 import
@@ -416,7 +424,7 @@ finalize
   ** verify states & log
   $error.log();
   ...
-return;
+end module_name;
 </code></pre>
 
 <h4>Notes:</h4>
@@ -461,7 +469,7 @@ return;
 
 <p><b>Configuration: &nbsp;</b>Eve services using a general configuration file: eve.cfg. This file contains default settings for EVE machine. System variables are shared. A copy of EVE system variables is send to every new driver instance.</p> 
 
-<p>Configuration settings are loaded over the default values and have priority. In a process, you can temporary change the settings using let. These changes do not propagate back into the configuration file.</p>
+<p>Configuration settings are loaded over the default values and have priority. In a process, you can temporary change the settings with an assignment. These changes do not propagate back into the configuration file.</p>
 
 <p><b>Memory allocation:&nbsp;</b>EVE service is in charge of allocating memory for each process. There is no shared memory between processes. When a process is terminated the memory is cleaned up of garbage and the machine continue to run until all processes are finished.</p>
 

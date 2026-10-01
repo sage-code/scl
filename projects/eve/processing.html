@@ -76,11 +76,11 @@
 # define process with jobs
 process
   ** local declarations
-  new tries := 0;
+  let tries := 0;
   ...
   ** preconditions: end the process prematurely
   ** over skips the recover and finalize regions
-  over 1 if condition;
+  panic if condition;
 
   ** description of c1 job
   c1: job
@@ -108,7 +108,7 @@ process
 recover
   ** decide what to do next in case of error
   if $error.job == "c1" and tries &lt; 3 do
-    let tries := tries + 1;
+    tries := tries + 1;
     retry;  ** run job c1 again
   else if $error.job == "c2" do
     print $error.message;
@@ -177,21 +177,23 @@ apply aspect_name to (param:value, *map_args);    ** mix names with hashmap
 <pre class="line-numbers"><code class="language-eve">
 # simple aspect with one parameter
 aspect print_this(p:String) is
-process
+process main is
   print p;
 return;
+end print_this;
 </code></pre>
 
 <pre class="line-numbers"><code class="language-eve"># driver with parameters
 driver process_call(*args ()String) is
-process
+process main is
   ** number of arguments received:
   loop
-    new arg: String;
+    let arg: String;
   for arg in args do
     apply print_this to arg;
   done;
 return;
+end process_call;
 </code></pre>
 
 <h3 id="aspect-execution">Aspect Execution:</h3>
@@ -204,13 +206,14 @@ return;
 driver test_apply is
 
 # synchronous call
-process
+process main is
   ** apply each aspect
   apply [folder/]aspect_one to (arguments);
   apply [folder/]aspect_two to (arguments);
   apply [folder/]aspect_three to (arguments);
   ...
 return;
+end test_apply;
 </code></pre>
 
 <p><b>Note: </b>You do not have to import an aspect into a driver but you must specify the relative path of the aspect. If the aspect is in a subfolder, you must include relative folder name. If the aspect is in the same location as the driver, you do not need a folder name.</p>
@@ -232,7 +235,7 @@ return;
 <pre class="line-numbers"><code class="language-eve">
 # asynchronous call demo
 driver async_demo is
-process
+process main is
   ** main process is a series of sequential groups
 
   group1: parallel
@@ -254,6 +257,7 @@ process
   ** Both groups are now complete
 
 return;
+end async_demo;
 </code></pre>
 
 <h4>Notes:</h4>
@@ -270,10 +274,10 @@ return;
 <pre class="line-numbers"><code class="language-eve">
 ## create parallel processes
 driver async_loop is
-process
+process main is
   ** enqueue same aspect 4 times
   demo: parallel
-    new i: Integer;
+    let i: Integer;
   fork
     for i in (1..4) do
       begin demo(i); ** start demo aspect asynchronously
@@ -281,6 +285,7 @@ process
   join demo;
   ** all demo processes have finished
 return;
+end async_loop;
 </code></pre>
 
 <p><b>Note: </b>Groups are bringing back the driver process in synchronous mode. That is good for error handling. If any process in the group propagate out an exception, the othe groups will not begin. THerefore a recovery region, can catch all errors in any sub-process.</p>
@@ -309,15 +314,21 @@ class .Error: {
   line:Integer
 } &lt;&#58; Object;
 
-class .Error = {code: Integer, message: String} =&gt; (@self :Error):
-  let self.code := code;
-  let self.message := message;
-return;
+class .Error = {code: Integer, message: String} &lt;&#58; Object is
+  constructor(@self)(code, message) is
+    self := new Object();
+    let self.code := code;
+    let self.message := message;
+  return;
+end Error;
 
-class Call = {line:String, method:String} =&gt; (@self:Call):
-  let self.line   := line;
-  let self.method := method;
-return;
+class Call = {line:String, method:String} &lt;&#58; Object is
+  constructor(@self)(line, method) is
+    self := new Object();
+    let self.line   := line;
+    let self.method := method;
+  return;
+end Call;
 
 ** system variables
 global
@@ -333,7 +344,7 @@ method (@self:Error) .expect(...);
 method (@self:Error) .pass(...);
 method (@self:Error) .fail(...);
 
-return;
+end Exception;
 </code></pre>
 
 <h3 id="run-time-errors">Runtime Errors</h3>
@@ -406,11 +417,12 @@ expect condition2, "user defined message";
 <pre class="line-numbers"><code class="language-eve">#using recover
 driver recover_demo is
   set a = 0.00;
-process
-  let a := 1/0;
+process main is
+  a := 1/0;
 recover
   print $error.message;
 return;
+end recover_demo;
 </code></pre>
 
 <h4>Output:</h4>

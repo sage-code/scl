@@ -47,7 +47,7 @@
 
 <h2 id="design">Design Strategy</h2>
 
-<p>Eve balances an explicit, verbose syntax that is easy to learn with a concise syntax that is easy to use. Keywords say what a statement does: <code>new</code> creates a variable, <code>let</code> changes one, <code>done</code> closes a block.</p>
+<p>Eve balances an explicit, verbose syntax that is easy to learn with a concise syntax that is easy to use. Keywords say what a statement does: <code>let</code> creates a variable, <code>new</code> calls a constructor, <code>done</code> closes a block. A variable changes without a keyword: <code>a := a + 1;</code>.</p>
 
 <h3 id="hello">Hello World</h3>
 
@@ -56,10 +56,11 @@
 <pre class="line-numbers"><code class="language-eve"># demo: hello world
 driver hello is
 
-process
+process main is
   ** main process
   print "Hello World!";
 return;
+end hello;
 </code></pre>
 
 <p>The file is <code>hello.eve</code>: a driver named <code>hello</code>, with one main process that prints "Hello World!". The driver name and the file name are the same.</p>
@@ -76,20 +77,21 @@ global
   set add = (p1, p2: Integer) =&gt; (p1 + p2);
   set sub = (p1, p2: Integer) =&gt; (p1 - p2);
 
-process
+process main is
   ** the process uses the arguments a and b
   print "param1: {a}, param2: {b}";
 
   ** define local variables
-  new v1, v2 :Integer;
+  let v1, v2 :Integer;
 
-  let v1 := add(4, 5);
+  v1 := add(4, 5);
   let v2 := sub(5, 3);
 
   ** print the results
   print ("result:", v1); ** result:,9
   print ("result:", v2); ** result:,2
 return;
+end syntax_elements;
 </code></pre>
 
 <h3 id="punctuation">Punctuation</h3>
@@ -168,13 +170,14 @@ return;
 -----------------------------------------------*/
 driver comment_demo is
 
-process
+process main is
   ** a note on its own line
-  new a = 0, b = 1 :Integer;
+  let a = 0, b = 1 :Integer;
 
   ** an expression comment can sit inside an expression
-  let a := a + b * (** first factor **) (a - 1); ** end-of-line note
+  a := a + b * (** first factor **) (a - 1); ** end-of-line note
 return;
+end comment_demo;
 
 /* Final notes:
    notes after the end of the script use a block comment.
@@ -558,7 +561,7 @@ file-name
 </tr>
 <tr>
   <td>process</td>
-  <td>define an executable region for driver and aspect</td>
+  <td>define a named executable region of a driver or aspect: <code>process main is … return;</code></td>
 </tr>  
 <tr>
   <td>initialize</td>
@@ -733,7 +736,7 @@ file-name
 
 <h3 id="assign-keywords">Assign Keywords</h3>
 
-<p>Every assignment or modification starts with a keyword: <code>set</code>, <code>new</code> or <code>let</code>, so the reader sees what the statement does.</p>
+<p>Every declaration starts with a keyword: <code>set</code> or <code>let</code>, so the reader sees what the statement does. A modification of an existing variable needs no keyword: <code>a := a + 1;</code>. The operator <code>new</code> calls a constructor: <code>let p := new Point(1, 2);</code>.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -744,16 +747,16 @@ file-name
 </thead>
 <tbody>
 <tr>
-<td>new</td>
-<td>Create local variable or attribute</td>
+<td>let</td>
+<td>Create local variable or object attribute (<code>let self.x := x;</code>). Redeclaring a name in the same scope is an error</td>
 </tr>
 <tr>
 <td>set</td>
-<td>Create global variable or property</td>
+<td>Create global constant or class property</td>
 </tr>
 <tr>
-<td>let</td>
-<td>Alter existing variable or attribute</td>
+<td>new</td>
+<td>Call a constructor and return the new object: <code>new Point(1, 2)</code></td>
 </tr>
 <tr>
 <td>pop</td>
@@ -813,11 +816,11 @@ file-name
 </tr>
 <tr>
   <td>begin</td>
-  <td>start an aspect asynchronously inside a <code>fork</code> region</td>
+  <td>start a process or an aspect asynchronously inside a <code>fork</code> region</td>
 </tr>
 <tr>
   <td>start</td>
-  <td>start a method in asynchronous mode</td>
+  <td>run a named process of the driver and wait for it to finish: <code>start name(args, @output);</code></td>
 </tr>
 <tr>
   <td>suspend</td>
@@ -849,7 +852,7 @@ file-name
 </tr>
 <tr>
   <td>over</td>
-  <td>interrupt all processes and terminate the application</td>
+  <td>end the process it is in, with code 0 (no value: <code>over;</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -858,7 +861,7 @@ file-name
 
 <h3 id="global-variables">Global Variables</h3>
 
-<p>A script can define global variables in a <code>global</code> region, outside any process. A global holds a primitive value or a reference to an object. It is declared with <code>set</code> and changed later with <code>let</code>. Globals do not use a sigil. A script can have several <code>global</code> regions; all globals share one memory space, so each name is unique.</p>
+<p>A script can define global variables in a <code>global</code> region, outside any process. A global holds a primitive value or a reference to an object. It is declared with <code>set</code> and changed later with an assignment, without keyword. Globals do not use a sigil. A script can have several <code>global</code> regions; all globals share one memory space, so each name is unique.</p>
 
 <pre class="line-numbers"><code class="language-eve">...
 ** define global states
@@ -875,7 +878,7 @@ global
 ...
 </code></pre>
 
-<p>Globals are static, defined in the module scope. <code>set</code> creates a global state; <code>let</code> changes it in a process or subprogram, with a modifier such as <code>:=</code>, <code>::</code>, <code>+=</code> or <code>-=</code>. The compiler reports an error when a variable is created twice with <code>set</code>, or when <code>set</code> is used inside a process or subprogram.</p>
+<p>Globals are static, defined in the module scope. <code>set</code> creates a global state; an assignment changes it in a process or subprogram, with an operator such as <code>:=</code>, <code>::</code>, <code>+=</code> or <code>-=</code>. The compiler reports an error when a variable is created twice with <code>set</code>, or when <code>set</code> is used inside a process or subprogram.</p>
 
 <h3 id="initial-value">Initial Value</h3>
 
@@ -884,9 +887,9 @@ global
 <p>The assignment <code>:=</code> infers the type from the right side, evaluates the whole right side, and is a statement, not an expression.</p>
 
 <pre class="line-numbers"><code class="language-eve">process
-  new a = 5 :Integer;          ** value and type hint, no inference
-  new x := 5;                  ** type inferred: Integer
-  let a = x = 7 :Integer;      ** = returns its value, so it chains
+  let a = 5 :Integer;          ** value and type hint, no inference
+  let x := 5;                  ** type inferred: Integer
+  a = x = 7 :Integer;      ** = returns its value, so it chains
 return;
 </code></pre>
 
@@ -900,8 +903,8 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">...
 process
-  new a = b = 1 :Integer;      ** create and initialize a, b
-  new x = y = z = 0.5 :Real;   ** create and initialize x, y, z
+  let a = b = 1 :Integer;      ** create and initialize a, b
+  let x = y = z = 0.5 :Real;   ** create and initialize x, y, z
   ...
 return;
 </code></pre>
@@ -948,18 +951,18 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">** assignment forms
   ...
-  new identifier1 := literal;         ** constant literal
-  new identifier2 := expression;      ** evaluate the expression
-  new identifier3 := function_name(); ** function call
-  new identifier4 := variable;        ** object: share the reference
-  new identifier5 := native_var;      ** native value: copy the value
+  let identifier1 := literal;         ** constant literal
+  let identifier2 := expression;      ** evaluate the expression
+  let identifier3 := function_name(); ** function call
+  let identifier4 := variable;        ** object: share the reference
+  let identifier5 := native_var;      ** native value: copy the value
   ...
 </code></pre>
 
 <p>To copy an object with all its attributes, use the clone operator <code>::</code>. After cloning, changing the copy does not change the original. Cloning applies to objects; native values are always copied.</p>
 
 <pre class="line-numbers"><code class="language-eve">  ** making a clone
-  new object :: original;
+  let object :: original;
   expect object is not original;
 </code></pre>
 
@@ -972,10 +975,10 @@ return;
 <pre class="line-numbers"><code class="language-eve">** ternary expression
 process
   ** on one line:
-  new variable1 := (value1 if condition else value2);
+  let variable1 := (value1 if condition else value2);
 
   ** on several lines:
-  new variable2 := (value1 if condition1 else
+  let variable2 := (value1 if condition1 else
                     value2 if condition2 else
                     value3);
   ...
@@ -986,7 +989,7 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">process
   ** create a logic variable
-  new test := True;
+  let test := True;
   ...
   expect (True if test else False); ** passes
   ...
@@ -1006,21 +1009,22 @@ return;
 
 <h3 id="single">Single-Line Statements</h3>
 
-<p>The next example has five single-line statements, each starting with a keyword: <code>new</code>, <code>let</code>, <code>expect</code>. The header line is a declaration, and the final <code>return</code> ends that declaration.</p>
+<p>The next example has five single-line statements, statements starting with a keyword (<code>let</code>, <code>expect</code>) or with a variable name (a modification). The header line is a declaration, and the final <code>return</code> ends that declaration.</p>
 
 <pre class="line-numbers"><code class="language-eve">driver assign_demo is
-process
+process main is
   ** initialization statements
-  new a := 2;
-  new b := 0.0;
+  let a := 2;
+  let b := 0.0;
 
   ** evaluate an expression
-  let b := a + 0.5;
+  b := a + 0.5;
 
   ** verification statements
   expect a == 2;
   expect b == 2.5;
 return;
+end assign_demo;
 </code></pre>
 
 <h3 id="multi">Multi-Line Statements</h3>
@@ -1034,13 +1038,13 @@ return;
 <pre class="line-numbers"><code class="language-eve">** multiple line demo
 process
   ** multi-line expression
-  new var := 1
+  let var := 1
             + 2
             + 3 + 4 +
               5 + 6;
 
   ** multi-line literal
-  new map := {
+  let map := {
       'two' :2,
       'four':4,
       'six' :6

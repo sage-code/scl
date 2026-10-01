@@ -64,7 +64,7 @@ return;
 
 <ul>
 <li>A function result is mandatory and explicit. A subprogram without a result is a method, because a function must be usable in expressions,</li>
-<li>Result type is declared using prefix @. The prefix forces a reference: <code>let v := f(x);</code> is valid because <code>v</code> is a variable, <code>let 2 := f(x);</code> is not,</li>
+<li>Result type is declared using prefix @. The prefix forces a reference: <code>let v := f(x);</code> is valid because <code>v</code> is a variable, <code>2 := f(x);</code> is not,</li>
 <li>A function can return a list of results <code>=&gt; (@r1:Type, @r2:Type)</code>. In this case <code>$result</code> is a list <code>(result1, result2)</code>,</li>
 <li>A function can have input/output parameters,</li>
 <li>A function can receive parameters of type function,</li>
@@ -87,20 +87,21 @@ driver function_ex is
 
 ** declare functions
 function name1(param :Type,...) =&gt; (@result:Type) is
-   let result := expression;
+   result := expression;
 return;
 
 function name2(param = value,...) =&gt; (@result:Type) is
-   let result := expression;
+   result := expression;
 return;
 
-process
+process main is
   ** execute using argument list
-  new result1 := name1(arguments);
+  let result1 := name1(arguments);
 
   ** execute using parameter names with pair operator (:)
-  new result2 := name2(param:arg,....);
+  let result2 := name2(param:arg,....);
 return;
+end function_ex;
 </code></pre>
 
 <p><b>Note:</b>&nbsp;Argument value can be an expression or a variable that translate to a value of expected type. For clarity of application we encourage creation of local variables for arguments.</p>
@@ -126,13 +127,14 @@ return;
 driver function_params is
 
 function sum(a, b: Integer) =&gt; (@result:Integer) is
-  let result := (a + b);
+  result := (a + b);
 return;
 
-process
+process main is
   print sum(1,2);  ** 3
   print sum(2,4);  ** 6
 return;
+end function_params;
 </code></pre>
 
 <h2 id="closures">Closures</h2>
@@ -148,25 +150,26 @@ driver test_closure is
 
 # declare a method that creates a generator
 method generator(start:Integer) =&gt; (@next!:Function) is
-  new current := start; 
+  let current := start; 
 
   ** define an enclosed function using let: it changes state, so its name ends with !
   let next! := Function() =&gt; (@result:Integer): 
-      let current += 1;
-      let result := current;
+      current += 1;
+      result := current;
   return; 
 return;
 
-process
+process main is
   ** instantiate two closures
-  new index1! := generator(0);
-  new index2! := generator(10);
+  let index1! := generator(0);
+  let index2! := generator(10);
   
   ** interlace the two calls
   print index1!(), index1!(); ** 1, 2
   print index2!(), index2!(); ** 11, 12
   print index1!(), index1!(); ** 3, 4
 return;
+end test_closure;
 </code></pre>
 
 <p><b>Notes: </b></p>
@@ -181,7 +184,7 @@ return;
 
 <p>Lambda is a notation, not a type: a lambda expression creates a function in a single statement from one or more expressions. Parentheses are mandatory, a list of expressions creates several results, and the type goes after the parentheses: <code>():Type</code> or <code>():(Type, Type)</code>. A lambda assigned to an identifier that is not defined is just a pointer; it can be sent to a parameter that receives a pointer <code>@param</code>.</p>
 
-<p>Lambda expressions are simpler functions that respect arithmetic rules. These can receive several arguments and can produce one result. A lambda expression is created with keywords "set" or "new". Lambda expressions do not have local variables or states and do not have side effects.</p>
+<p>Lambda expressions are simpler functions that respect arithmetic rules. These can receive several arguments and can produce one result. A lambda expression is created with keywords "set" or "let". Lambda expressions do not have local variables or states and do not have side effects.</p>
 
 <p>Lambda expressions can be declared in global region but also in the process region. You can define more than one global regions in a script. Lambda expressions are associated to a variable, sometimes can be associated to a member in a collection.</p>
 
@@ -212,10 +215,11 @@ method useLambda(test :BinEx) is
 return;
 
 ** Execute a process with lambda argument
-process
+process main is
    ** use anonymous lambda argument
    useLambda((x, y) =&gt; (x + y));
 return;
+end lam_sig;
 </code></pre>
 
 <p><b>Note: </b>Lambda expressions can be created by a function or method as a result. Lambda expressions can't modify values of variable declared in the parent scope.</p>
@@ -235,18 +239,19 @@ global
   set decimals = 2: Integer;
   set trunc = (x:Real) =&gt; floor(x* 10^decimals)/10^decimals;
 
-process
-  new x := 10/3;
+process main is
+  let x := 10/3;
   ** call the lambda expression
   print trunc(x); ** expected 3.33
 
   ** overwrite the initial settings 
-  let decimals := 4;
+  decimals := 4;
   print trunc(x); ** expected 3.3333
 return;
+end shared_states;
 </code></pre>
 
-<div class="alert alert-warning"><b>Warning: </b>Observe we have used "set" to create the initial value for a global variable. Then we alter it using "let" inside the process. The new value is used by the function to cut several decimals with floor(). This is not exactly a side-effect but is an influence, that is not accepted in functional programming.</div>
+<div class="alert alert-warning"><b>Warning: </b>Observe we have used "set" to create the initial value for a global variable. Then we alter it with an assignment inside the process. The new value is used by the function to cut several decimals with floor(). This is not exactly a side-effect but is an influence, that is not accepted in functional programming.</div>
 
 <p><b>Disclaimer: </b>We acknowledge, Eve is not a pure functional language. This behavior is present in many other modern languages. Eve is not different. We seek for a balance between the theory and pragmatism.</p>
 
