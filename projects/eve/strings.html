@@ -212,7 +212,7 @@ return;
 <ul>
   <li>regular concatenation: "+"</li>
   <li>concatenation with modifier "+="</li>
-  <li>string interpolation: "#{expr}" and "#{expr:format}"</li>
+  <li>string interpolation: "\s{expr}", "\#{expr:format}" and "\b{expr}"</li>
   <li>string string pipe "&lt;+":</li>
   <li>collection join() method</li>
 </ul>
@@ -226,8 +226,8 @@ return;
       let str := " this " + "string";
       expect str == " this string";
 
-      ** use string interpolation #{str} is recognized
-      print "I have insert #{str} here!";
+      ** use string interpolation \s{str} is recognized
+      print "I have insert \s{str} here!";
 
       ** concatenate string with collection
       print "digits = " + (1,2,3).join(",");
@@ -236,7 +236,7 @@ return;
       print "" &lt;+ ("this ","is ","a "," string");
 
       ** interpolation with a format: i3 is an integer of width 3
-      print "these numbers #{1:i3},#{3:i3},#{5:i3} are prime";
+      print "these numbers \#{1:i3},\#{3:i3},\#{5:i3} are prime";
     return;
   end string_concat;
 </code></pre>
@@ -286,19 +286,61 @@ return;
 
 <h3 id="string-format">String interpolation and format</h3>
 
-<p>Interpolation is the only way to insert values in a string: <code>"#{expr}"</code> inserts the value of any expression. After a colon you can give a format, adapted from Fortran: <code>iW</code> an integer in W columns, <code>fW.D</code> a real with D decimals in W columns, <code>sW</code> a string in W columns, and a repeat count before the code (<code>3i4</code>) prints a collection with 3 elements on each row. The old placeholders <code>#s</code>, <code>#n</code> and <code>{a}</code> and the operator <code>?</code> do not exist. To write a literal <code>#{</code> use <code>\#{</code>.</p>
+<p>Values are inserted in a string with an escape sequence that starts with a backslash and has braces, like the Unicode escape <code>\u{...}</code>. The letter says what kind of value is inserted:</p>
+
+<table class="table table-sm">
+<tr><th>Form</th><th>Inserts</th></tr>
+<tr><td><code>\s{expr}</code></td><td>any expression, as a string</td></tr>
+<tr><td><code>\#{expr}</code></td><td>a number (Integer, Natural, Real, Float...)</td></tr>
+<tr><td><code>\b{expr}</code></td><td>a boolean: True or False</td></tr>
+<tr><td><code>\u{H...}</code></td><td>a Unicode code point, 1 to 6 hexadecimal digits (no expression, no format)</td></tr>
+</table>
+
+<p>A format can follow the expression after a colon: <code>\#{expr:format}</code>. The number formats are adapted from Fortran; the alignment is borrowed from Python. A result is never truncated by the width: if the value is wider, the result is wider (only <code>.max</code> of a string cuts).</p>
+
+<pre class="fixed">
+\s{expr:[[fill]align][width][.max]}
+\#{expr:[[fill]align][flags][repeat]code[width][.digits]}
+\b{expr:[[fill]align][width][code]}
+</pre>
+
+<ul>
+<li><b>align</b>: <code>&lt;</code> left, <code>&gt;</code> right, <code>^</code> center. The default is left for strings and booleans, right for numbers;</li>
+<li><b>fill</b>: one character written before the align, default space: <code>0&gt;</code> pads with zeros, <code>*^</code> centers with stars;</li>
+<li><b>number code</b>: <code>i</code> integer, <code>f</code> fixed real, <code>e</code> real with exponent, <code>x</code> hexadecimal, <code>b</code> binary. The width <code>W</code> follows the code and <code>.D</code> sets the decimals (<code>f8.2</code>) or the minimum digits of an integer (<code>i5.3</code>);</li>
+<li><b>flags</b>: <code>+</code> always writes the sign, <code>,</code> groups the digits by thousands;</li>
+<li><b>repeat</b>: for a collection, a count before the code puts that many elements on each row: <code>3i4</code> is three columns of width 4;</li>
+<li><b>boolean code</b>: <code>tf</code> True/False (default), <code>yn</code> Yes/No, <code>01</code> 1/0;</li>
+<li><b>.max</b> on a string cuts it to at most that many symbols.</li>
+</ul>
 
 <pre class="line-numbers"><code class="language-eve">
 process main is
-  let pi := 3.14159;
-  let n  := 42;
-  print "pi = #{pi:f8.2}, n = #{n:i5}";
+  let pi   := 3.14159;
+  let n    := 42;
+  let name := "Eve";
+  let ok   := True;
+  print "pi = \#{pi:f8.2}|";
+  print "n  = \#{n:i5}|\#{n:0&gt;i5}|\#{n:&lt;i5}|";
+  print "big = \#{1234567:,i9}";
+  print "hex = \#{255:0&gt;x4}";
+  print "name = \s{name:*^9}|\s{name:&gt;6}|\s{name:.2}|";
+  print "ok = \b{ok}, \b{ok:yn}, \b{ok:01}";
+  print "alpha = \u{3B1}";
 return;
 </code></pre>
 
 <pre class="output">
-pi =     3.14, n =    42
+pi =     3.14|
+n  =    42|00042|42   |
+big = 1,234,567
+hex = 00ff
+name = ***Eve***|   Eve|Ev|
+ok = True, Yes, 1
+alpha = &alpha;
 </pre>
+
+<p>The older forms <code>#s</code>, <code>#n</code>, <code>#{a}</code>, <code>{a}</code> and the operator <code>?</code> do not exist. To write a literal brace use <code>\{</code> and <code>\}</code>.</p>
 
 <h3 id="string-split">String split</h3>
 
