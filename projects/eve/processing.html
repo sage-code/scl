@@ -221,90 +221,11 @@ end test_apply;
 
 <h2 id="parallel">Parallel execution</h2>
 
-<div class="alert alert-warning">Not in Eve 0.1: parallel blocks are planned for a later version. In version 1 a process runs on one core, and aspects run with <code>apply</code>.</div>
+<div class="alert alert-warning">Not in Eve 0.1: parallel groups and channels are planned for a later version. In version 1 a process runs on one core.</div>
 
-<p>Aspects are executed in serial mode: <code>apply</code> runs one process of an aspect and the caller waits for it to finish. An aspect process is never started in parallel. Parallel work happens inside a process: one process can span several processor cores by starting methods in a <code>parallel</code> block. Each started method runs on a worker core, and the process waits for all of them at the end of the block. The details, the data rules and the recommended pattern are in <a href="/projects/eve/concurrency/#parallel-methods">Concurrency: Parallel methods</a>.</p>
+<p>Aspects are executed in serial mode: <code>apply</code> runs one process of an aspect and the caller waits for it to finish. An aspect process is never started in parallel. Parallel work happens inside a process: the process starts methods in a parallel group (<code>parallel … do … start … done</code>), and they run on several cores. The parallel model, the data rules, Bulk Synchronous Parallel and channels are explained in one place: <a href="/projects/eve/concurrency/#parallel-model">Concurrency</a>.</p>
 
-<!-- a regular diagram -->
-<div class="text-center">
-  <img src="/images/parallel_system.svg" alt="Parallel system"
-    width="540" class="img-fluid protect rounded shadow border" >
-  <p>Parallel System</p>
-</div>
-
-<p>A parallel block groups methods that run at the same time. The process executes the groups one by one: a group begins after the previous group has finished. Each group can have an optional name.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# parallel groups demo
-driver parallel_demo is
-
-  ** work done by one worker
-  method task(n: Integer) is
-    print ("task ", n, " is running");
-  return;
-
-  process main is
-    ** main process is a series of sequential groups
-
-    group1: parallel
-      ** local variables for group1
-    do
-      start task(1);
-      start task(2);
-    done group1;
-
-    ** group1 is now complete, group2 starts
-
-    group2: parallel
-      ** local variables for group2
-    do
-      start task(3);
-      start task(4);
-    done group2;
-
-    ** Both groups are now complete
-  return;
-end parallel_demo;
-</code></pre>
-
-<h4>Notes:</h4>
-<ul>
-  <li>Each group executes sequentially.</li>
-  <li>Within each group, the started methods run concurrently, on several cores.</li>
-  <li><code>start</code> is allowed only in the <code>do</code> region of a parallel block, and it starts only methods. <code>start aspect.process()</code> is an error: use <code>apply</code>;</li>
-  <li>The closing <code>done</code> waits for all the methods started in the group, and it is always for a single group;</li>
-  <li>The label of a group is optional. A group without a label starts with <code>parallel</code> and ends with a naked <code>done;</code>; a labeled group ends with <code>done label;</code>;</li>
-  <li>Recover and finalize regions are optional in drivers;</li>
-</ul>
-
-<p>One process can start the same method several times with different arguments, to compute different parts of the data. Next example starts one method in a loop. Every started method writes its own element of the array <code>s</code>: two started methods never receive the same output variable. After the method starts several times, the process waits for the group demo to finish.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-## create parallel work
-driver parallel_loop is
-
-  ** compute one result
-  method square(n: Integer, @result: Integer) is
-    result := n * n;
-  return;
-
-  process main is
-    let s: [4]Integer; ** one result for each worker
-
-    ** start the same method 4 times
-    demo: parallel
-    do
-      for i in (1..4) do
-        start square(i, @s[i]); ** runs in parallel
-      done;
-    done demo;
-    ** all started methods have finished, s is ready
-    print s; ** [1,4,9,16]
-  return;
-end parallel_loop;
-</code></pre>
-
-<p><b>Note: </b>Groups bring the process back in synchronous mode. That is good for error handling. If a started method raises an error, the methods of its group that have not begun are cancelled, the running ones finish, and the error is raised by <code>done</code>. The next groups do not begin, so a recover region can catch the errors of all the started methods.</p>
+<p><b>Note: </b>a parallel group brings the process back in synchronous mode at its closing <code>done</code>. If a started method raises an error, <code>done</code> raises it in the process, so the recover region of the process handles the errors of all the started methods.</p>
 
 <hr>
 

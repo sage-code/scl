@@ -19,7 +19,7 @@
         session update insert commit from use
         new let set def scrub delete
         expect break halt next alter make store start yield call wait exit stop
-        print write read over panic pass fail raise retry resume abort suspend
+        print write read over panic pass fail raise retry resume abort
         apply to synchronise rollback`);
     define("operator", "in is as or eq and not xor");
     define("control", `
