@@ -46,7 +46,7 @@ Collections are composite types represents groups of elements of the same type. 
 
 <h2 id="ordinal">Ordinal</h2>
 
-<p>Ordinal is an generic class representing a set of unique ordered symbols. Each symbol represents an integer value starting from N to capacity C. Element values start with 1 or a specific number and grow with one for each element.</p>
+<p>Ordinal is an generic class representing a set of unique ordered symbols. Each symbol represents an integer value starting from N to capacity C. Element values start with 0 or a specific number and grow with one for each element. For example in <code>{False, True}</code> we have False = 0 and True = 1.</p>
 
 <h4>Pattern:</h4>
 <pre class="line-numbers"><code class="language-eve"># Define a Ordinal subtype
@@ -55,14 +55,14 @@ driver test_ordinal is
   class TypeName = {name1:0, name2, name3} &lt;&#58; Ordinal;
 
   process main is
-    let a := TypeName.name1; ** a=2
-    let b := TypeName.name2; ** b=3
-    let c := TypeName.name3; ** c=4
+    let a := TypeName.name1; ** a=0
+    let b := TypeName.name2; ** b=1
+    let c := TypeName.name3; ** c=2
   return;
 end test_ordinal;
 </code></pre>
 
-<p><b>Note:</b>&nbsp;When an element name start with capital letter there is no need to use qualifiers for the individual values. By convention these values are known in the scope where the ordinal is visible, without a qualifier.</p>
+<p><b>Note:</b>&nbsp;When an element name start with capital letter there is no need to use qualifiers for the individual values. This is a language rule: capitalized names become part of the scope where the ordinal is visible.</p>
 
 <pre class="line-numbers"><code class="language-eve">## Declare public elements in enumeration
 driver constant_ordinals is
@@ -85,20 +85,22 @@ end constant_ordinals;
 <h4>Syntax:</h4>
 <pre class="line-numbers"><code class="language-eve">#declare two lists
 ** empty list
-  let list1 : ()Type;  
+  let list1 : ()Type;
 
 ** type inference
-  let list2 := (value1, value2, ...); 
+  let list2 := (value1, value2, ...);
 
 ** using constructor
-  let list3 := List(value1,value2,...)
+  let list3 := List(value1,value2,...);
 </code></pre>
 
 <h4>Notes:</h4>
 <ul>
 <li>The elements of a list have the same type;</li>
 <li>Access to all or each element is sequential;</li>
-
+<li>The constructor <code>List(...)</code> is optional: the literal <code>(1,2,3)</code> is already a list, not a tuple;</li>
+<li>A list with one element is just <code>(x)</code>. For example <code>A := (x);</code> is a list, not a function call and not an expression. Expressions must use operators;</li>
+<li><code>()</code> is the empty list. <code>{}</code> is the empty set and <code>{:}</code> is the empty map.</li>
 </ul>
 
 <h4>Examples:</h4>
@@ -111,8 +113,8 @@ end constant_ordinals;
 # explicit declarations
   let n_list = (1,2,3) :()Integer;
   let c_list = ('a','b','b') :()Symbol;
-  let s_list = ("a","b","c") :()String; 
-  let o_list = ({a:1},{b:2},{c:3}) :()Object; 
+  let s_list = ("a","b","c") :()String;
+  let o_list = ({a:1},{b:2},{c:3}) :()Object;
 </code></pre>
 
 <p><b>list literals</b></p>
@@ -154,12 +156,16 @@ end begin_initial;
 driver list_builder is
   process main is
     ** initialize list from range
-    let a := (a   | a in ('A'..'F')); 
+    let a := (a   | a in ('A'..'F'));
     print a;
 
     ** initialize list from another list
-    let b := (x^2 | x in (1, 2, 3, 4)); 
+    let b := (x^2 | x in (1, 2, 3, 4));
     print b;
+
+    ** exclude the first value with a range open at start
+    let c := (x | x in (2&gt;..6));
+    print c;
   return;
 end list_builder;
 </code></pre>
@@ -167,7 +173,10 @@ end list_builder;
 <pre class="language-output fixes">
 'A' 'B' 'C' 'D' 'E' 'F'
  1 4 9 16
+ 3 4 5 6
 </pre>
+
+<p><b>Note:</b>&nbsp;Several generators are combined with <code>and</code>. The range <code>(2&gt;..6)</code> excludes 2.</p>
 
 <h3 id="list-deconstruct">List deconstruct</h3>
 
@@ -179,7 +188,7 @@ driver list_deconstruct is
   set a : List;
   process main is
     ** initialize list from Range
-    a := (1..10); 
+    a := (1..10);
 
     ** create new variables using clone deconstruct
     let x, y, _, *rest, _ :: a;
@@ -191,9 +200,9 @@ driver list_deconstruct is
     ** anonymous variable vanish the value
     expect _ == Null;
 
-    ** check the rest 
+    ** check the rest
     print rest;
-    print list;
+    print a;
   return;
 end list_deconstruct;
 </code></pre>
@@ -203,7 +212,7 @@ end list_deconstruct;
 (1,2,3,4,5,6,7,8,9,10)
 </pre>
 
-<p><b>Note: </b>variable "_" is special. It can consume one single element and is always Null. It can be re-declared several times in the same block. The value received is ignored.</p>
+<p><b>Note: </b>variable "_" is special. It can consume one single element and is always Null. It can be re-declared several times in the same block. It can be written, but it stays Null: whatever value you put inside is forgotten. The star "*" alone is the same, but it consumes many elements. Use "*name" to collect them.</p>
 
 <h3 id="append-to-list">Append to list</h3>
 
@@ -214,23 +223,23 @@ end list_deconstruct;
 driver list_concat is
   process main is
     ** initialized list
-    let a := ('a','b'); 
-    let b := ('1','3'); 
+    let a := ('a','b');
+    let b := ('1','3');
 
     ** concatenate two lists
     let c := a &lt;+ b;
     expect c ==  ('a','b','1','3');
 
     ** concatenate two lists
-    let d := b +&gt; b;
-    expect c ==  ('1','3','a','b');
+    let d := b &lt;+ a;
+    expect d ==  ('1','3','a','b');
   return;
 end list_concat;
 </code></pre>
 
 <h3 id="alter-a-list">Alter a list</h3>
 
-<p>You can use operators { += -= } on a list variable, to append or remove elements from beginning of list. You can remove any element from a list using "-=". All elements having specified value will be remove. To remove one single element you must use operator &lt;-, or -&gt;</p>
+<p>You can use operators { += } on a list variable, to append at end of list, or use { -= } to remove elements from of list in any position. All elements having specified value will be remove. To remove one single element you must use operator &lt;-, or -&gt;</p>
 
 <pre class="line-numbers"><code class="language-eve">
 #altering a list
@@ -238,19 +247,43 @@ driver list_alter is
   set lst :()Symbol;
   process main is
     ** initialized list
-    lst := ('a','b','c','b'); 
+    lst := ('a','b','c','b');
 
-    ** create a new element at the begining of list
-    add lst &lt;+ 'z';
+    ** append a new element at the end of list
+    lst += 'z';
     expect lst ==  ('a','b','c','b','z');
 
     ** remove all "b" elements from list
-    del 'b' in lst;
+    'b' -= lst;
     expect lst ==  ('a','c','z');
 
-    ** append element to end of list 
-    add lst &lt;+ 'x';
-    expect a ==  ('a','c','z','x');
+    ** append element to end of list
+    lst &lt;+ 'x';
+    expect lst ==  ('a','c','z','x');
+
+    ** remove last appearance of "x" from list
+    lst -&gt; 'x';
+    expect lst ==  ('a','c','z');
+
+    ** append some elements for further testing
+    lst += ('a','z','x');
+    expect lst ==  ('a','c','z','a','z','x');
+
+    ** remove first appearance of "z" from list
+    'z' &lt;- lst;
+    expect lst ==  ('a','c','a','z','x');
+
+    ** remove first element of a list using [1]
+    lst -= lst[1];
+    expect lst ==  ('c','a','z','x');
+
+    ** remove last element of a list using [$]
+    lst -= lst[$];
+    expect lst ==  ('c','a','z');
+
+    ** remove a range of a list using slice [1..n]
+    lst -= lst[2..3];
+    expect lst ==  ('c');
   return;
 end list_alter;
 </code></pre>
@@ -261,7 +294,7 @@ end list_alter;
 
 <h3 id="queue-fifo">Queue (FIFO)</h3>
 
-<p>FIFO = First in First Out</p>
+<p>FIFO = First In First Out</p>
 
 <p>For queue, two operations are possible</p>
 <ul>
@@ -273,17 +306,18 @@ end list_alter;
 #using a list as a queue
 driver list_remove is
   ** initialized queue
-  set queue := ()Symbol; 
+  set queue :()Symbol;
   process main is
     ** enqueue one element (at beginning)
-    add queue +&gt; "x";
+    queue +&gt; "x";
     expect queue ==  ('x');
-    ** enqueue several elements
-    add queue +&gt; ('z','y')
-    expect queue ==  ('z', 'y', 'x')
 
-    ** create new element and dequeue (from end)
-    pop queue -&gt; e; 
+    ** enqueue several elements
+    queue +&gt; ('z','y');
+    expect queue ==  ('z', 'y', 'x');
+
+    ** dequeue one element from end
+    let e &lt;- queue;
     expect queue ==  ('z', 'y');
     expect e == 'x';
   return;
@@ -292,35 +326,37 @@ end list_remove;
 
 <h3 id="stack">Stack</h3>
 
-<p>LIFO = Last in Last Out</p>
+<p>LIFO = Last In First Out</p>
 
 <p>For stack, two operations are possible</p>
 <ul>
-<li>add  - can append elements at end of List</li>
+<li>push - can append elements at end of List</li>
 <li>pop  - can extract the last element of the List</li>
 </ul>
+
+<p>Note: we do not implement push and pop, instead user can define it's own stack based on a list and implement methods push and pop. Maybe standard library can implement Stack class.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 #remove elements from list
 driver list_remove is
   ** initialized stack
-  set stack := ('a','b','c'); 
+  set stack := ('a','b','c');
   process main is
     ** append element at the end
-    add stack &lt;+ 'x';
+    stack &lt;+ 'x';
     expect stack ==  ('a','b','c','x');
 
     ** extract element from the end
-    pop stack -&gt; x;
+    let e := stack -&gt; 'x';
     expect stack ==  ('a','b','c');
-    expect x == 'x';
+    expect e == 'x';
   return;
 end list_remove;
 </code></pre>
 
 <h3 id="list-methods">List methods</h3>
 
-<p>A List is a class, so it has all required methods and properties to be used in algorithms and expressions. We do not yet forsee all methods bu maybe these would be useful. Here is a minimalist suggestion for some methods.</p>
+<p>A List is a class, so it has all required methods and properties to be used in algorithms and expressions. We do not yet foresee all methods but maybe these would be useful. Here is a minimalist suggestion for some methods.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 List.empty;  ** true/false
@@ -334,7 +370,7 @@ List.capacity; ** list with capacity
 
 <pre class="line-numbers"><code class="language-eve">
 #call List.join() demo
-function list_join is
+process list_join is
   let str := (1,2,3).join(',');
   expect str == "1,2,3";
 return;
@@ -344,11 +380,10 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 ** string split demo
-process list_split
-  let list: ()Integer; **  empty List
-  ** initialize new reference for "lst"
+process list_split is
+  ** split creates a list of strings
   let lst := "1,2,3".split(',');
-  expect lst == (1,2,3);
+  expect lst == ("1","2","3");
 return;
 </code></pre>
 
@@ -363,11 +398,11 @@ return;
 driver test_iteration is
   set collection := ('a','b','c');
   process main is
-    loop 
+    loop
       let element: Symbol;
     for element in collection do
        write element;
-       write ',' if element is not collection.last;
+       write ',' if element is not collection[$];
     done;
     print;
   return;
@@ -377,7 +412,10 @@ end test_iteration;
 
 <h4>Example:</h4>
 
-<pre class="line-numbers"><code class="language-eve"># list iteration
+<p>List traversal with break.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# list iteration with early termination
 driver list_iteration is
   set my_list: ()Symbol; **  this list is Null
   process main is
@@ -399,7 +437,7 @@ end list_iteration;
 
 <h2 id="array">Array</h2>
 
-<p>An array is a collection of elements ordered by one or more index numbers. Eve count elements in range (1..n), where n is the number of elements. Forst element is array[1]. We count starting from 1 while other languages start form 0.</p>
+<p>An array is a collection of elements ordered by one or more index numbers. Eve count elements in range (1..n), where n is the number of elements. First element is array[1]. We count starting from 1 while other languages start from 0. The array types are: Array (one dimension), Matrix (two dimensions) and Tensor (three or more dimensions).</p>
 
 <h4>Example:</h4>
 
@@ -419,9 +457,9 @@ driver test_array is
   process main is
     ** define local arrays of various capacities
     let array_name1: [10]Real;  ** Array of 10 large numbers
-    let array_name3: [2^8]Symbol; ** Array of 255 Symbols
+    let array_name3: [2^8]Symbol; ** Array of 256 Symbols
     let array_name4: [n,m]Type;   ** 2d matrix, capacity: 6
-    let array_name4: [x,y,z]Type; ** 3d matrix, capacity: 8
+    let array_name5: [x,y,z]Type; ** 3d tensor, capacity: 8
   return;
 end test_array;
 </code></pre>
@@ -474,10 +512,10 @@ numbers = [0,1,2,3,4,5,6,7,8,9]
 <pre class="line-numbers"><code class="language-eve">
 # How to initialize all elements
 process main is
-  let zum: [10]Integer; 
+  let zum: [10]Integer;
   ** explicit initialization using single value
-  zum[*]  := 0;
-  expect zoom = [0,0,0,0,0,0,0,0,0,0]
+  zum[1..$] := 0;
+  expect zum == [0,0,0,0,0,0,0,0,0,0];
 
   ** modify two special elements:
   zum[1] := 1;
@@ -501,7 +539,7 @@ process main is
   ** extend symbol array;
   vec.extend(10);
   print vec; ** expect ['','','','','','','','','','']
- 
+
   ** extend numeric array;
   nec.extend(10);
   print nec; ** expect [0,0,0,0,0,0,0,0,0,0];
@@ -519,13 +557,13 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 ** declare an Array initialized using range
-   set array = [ x | x in (min..max)(ratio)]: []ElementType;
+   set array = [ x | x in (min..max)(step)]: []ElementType;
 
 ** declare a new Array using a map function with range
-   set array = [ f(x) | x in (min..max)(ratio)]: []ElementType;
+   set array = [ f(x) | x in (min..max)(step)]: []ElementType;
 
 ** declare a new 2d array that is called matrix, row by row
-   set matrix = [ f(x) | x in (min..max)(ratio)]: [n,m]ElementType;
+   set matrix = [ f(x) | x in (min..max)(step)]: [n,m]ElementType;
 </code></pre>
 
 <h4>Example:</h4>
@@ -539,8 +577,8 @@ driver test_matrix is
      array := [ x | x in (1..10)(3)];
      expect array == [1,4,7,10];
      print array;
-     print ("----------")
-  ** init a matrix Array  usinc cartesian pruduct between two ranges
+     print "----------";
+  ** init a matrix Array using cartesian product between two ranges
      matrix := [ x * y | (x, y) in (1..4) &gt;&lt; (1..4)];
      print matrix;
   return;
@@ -568,7 +606,7 @@ driver array_deconstruct is
   set a :[]Integer;
   process main is
     ** initialize array from Range
-    a := [x | x in (1..10)]; 
+    a := [x | x in (1..10)];
 
     ** create new variables using deconstruct
     let x, y, *, z := a;
@@ -587,7 +625,7 @@ end array_deconstruct;
 
 <h3 id="array-slicing">Array slicing</h3>
 
-<p>An array can be sliced using slice notation [n..m]. The symbol $ is the index of the last element. A slice is also an array and can be sliced. A slice assigned with <code>:=</code> is a view over the existing elements of the array; a slice assigned with the clone operator <code>::</code> is a new array with a copy of the elements. Before you can slice an array, it must be already initialized.</p>
+<p>An array can be sliced using slice notation [n..m] (the form [n:m] does not exist). The symbol $ is the index of the last element. A slice is also an array and can be sliced. A slice assigned with <code>:=</code> is a view over the existing elements of the array; a slice assigned with the clone operator <code>::</code> is a new array with a copy of the elements. Before you can slice an array, it must be already initialized.</p>
 
 <h4>Named slices</h4>
 
@@ -606,7 +644,7 @@ driver test_slice is
     ** check slice content
     expect slice[1] == 't';
     expect slice[$] == 't';
-    expect slice == ['t','e','s','t']
+    expect slice == ['t','e','s','t'];
 
     ** join back an array to a string
     print slice.join(); ** "test"
@@ -619,7 +657,7 @@ driver test_slice is
     slice[2] := 'u';
 
     ** the copy is not modified
-    expect copy.join(); == "test"
+    expect copy.join() == "test";
 
     ** base array is now modified;
     print base.join(); ** "this is a bust array"
@@ -641,7 +679,7 @@ driver test_slice is
 
     ** limited slices
     slice := base[x..x+2];
-    let sreve := base[5..$-3].reverse(); 
+    let sreve := base[5..$-3].reverse();
 
     ** check the results
     expect slice == [5,6,7];
@@ -652,7 +690,7 @@ end test_slice;
 
 <h4>Anonymous slices</h4>
 
-<p>You can use anonymous slice to modify an Array or to print a section of the array. You do not have to assign a variable to the slice. This is a shortcut, and is very useful for handling Array elements in bulk.</p>
+<p>You can use anonymous slice to modify an Array or to print a section of the array. You do not have to assign a variable to the slice. This is a shortcut, and is very useful for handling Array elements in bulk. A slice gets a single value with <code>:=</code>, no <code>[*]</code> is needed.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 driver ano_slicing is
@@ -660,8 +698,8 @@ driver ano_slicing is
     let base:[10]Integer;
 
     ** using bulk assignment
-    base[1..5][*] := 0;
-    base[6..$][*] := 2;
+    base[1..5] := 0;
+    base[6..$] := 2;
 
     ** create a dynamic slice
     expect base == [0,0,0,0,0,2,2,2,2,2];
@@ -698,7 +736,7 @@ process main is
   let base  := [x | x in (1..8)];
 
   ** create a clone from reversed array
-  let a,b,c, *clone :: base.reverse(); 
+  let a,b,c, *clone :: base.reverse();
 
   ** check the clone elements
   expect clone == [5,4,3,2,1];
@@ -708,7 +746,7 @@ return;
 
 <h2 id="matrix">Matrix</h2>
 
-<p>A matrix is an array with 2 or more dimensions. In next diagram we have a matrix with 4 rows and 4 columns. Total 16 elements. Observe, matrix index start from [1,1] as in Mathematics.</p>
+<p>A matrix is an array with 2 dimensions. An array with 3 or more dimensions is a Tensor: a 3D tensor is an array of matrices and a tensor can have any number N of dimensions. In next diagram we have a matrix with 4 rows and 4 columns. Total 16 elements. Observe, matrix index start from [1,1] as in Mathematics.</p>
 
 <div class="text-center">
   <img src="/projects/eve/img/eve-matrix.svg" alt="eve-array" width="460" class="img-fluid protect rounded shadow border" >
@@ -721,10 +759,10 @@ return;
 <pre class="line-numbers"><code class="language-eve"># define a subtype of Array
 driver test_matrix is
 
-  class Matrix = [4,4]Integer &lt;&#58; Array;
+  class Mat4 = [4,4]Integer &lt;&#58; Matrix;
 
   process main is
-    let mat: Matrix; ** define matrix variable
+    let mat: Mat4; ** define matrix variable
 
     ** modify matrix using ":=" operator
     mat :=[
@@ -737,7 +775,7 @@ driver test_matrix is
     expect mat[1,1]; ** 1  = first element
     expect mat[2,1]; ** 5  = first element in second row
     expect mat[3,$]; ** 12 = last element in third row
-    expect mat[$,1]; ** 13 = first element last row  
+    expect mat[$,1]; ** 13 = first element last row
     expect mat[$,$]; ** 16 = last element
 
     ** nice output using array print method
@@ -755,13 +793,28 @@ end test_matrix;
 13 14 15 16
 </pre>
 
+<h3 id="matrix-all">All elements: [*]</h3>
+
+<p>The symbol <code>[*]</code> selects all the elements of one dimension. It is needed only for a matrix or a tensor, and can be combined with a range: <code>mat[1..2][*]</code> is the first two rows, <code>mat[*][1..2]</code> is the first two columns. We do not write <code>[*][*]</code>: one <code>[*]</code> is enough to assign every element.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+process main is
+  let mat: [4,4]Integer;
+  mat[*] := 0;          ** all elements
+  mat[1..2][*] := 1;    ** first two rows
+  mat[*][$] := 9;       ** last column
+return;
+</code></pre>
+
+<p>A matrix or a tensor can be accessed with one absolute index. Elements are counted row by row. The row and the column are calculated by dividing the index by the number of columns: for a matrix with 4 columns, <code>mat[7]</code> is the same element as <code>mat[2,3]</code>.</p>
+
 <h3 id="memory-model">Memory model</h3>
 
-<p>In memory elements are organized linear, row by row. We say that Eve matrix are in <em>row major</em> order like C, in contrast to Fortran where <em>column major</em> order is used. It is important to use the right major order when you traves a 2d array.</p>
+<p>In memory elements are organized linear, row by row. We say that Eve matrix are in <em>row major</em> order like C, in contrast to Fortran where <em>column major</em> order is used. It is important to use the right major order when you traverse a 2d array.</p>
 
 <!-- a regular diagram -->
 <div class="text-center">
-  <img src="/images/row-major.svg" alt="row major order"
+  <img src="/projects/eve/img/row-major.svg" alt="row major order"
        width="500" class="img-fluid protect rounded shadow border" >
   <p>Row Major Order</p>
 </div>
@@ -774,10 +827,10 @@ end test_matrix;
 process main is
   let mat: [3,3]Integer &lt;&#58; Array;
   ** initialize matrix elements
-  loop 
+  loop
     let i   := 1;
     let x   := mat.length;
-  while (i &lt; x) do
+  while (i &lt;= x) do
     mat[i] := i;
     i += 1;
   done;
@@ -787,16 +840,16 @@ return;
 
 <h4>Output:</h4>
 <pre class="language-output"><code>
- 1  2  3 
- 4  5  6 
- 7  8  9 
+ 1  2  3
+ 4  5  6
+ 7  8  9
 </code></pre>
 
 <p><b>Note: </b>The capacity of an Array is part of data type. An array of fixed size. When you define an array with variable capacity using [?], you do not reserve any memory for its elements. This kind of Array is dynamic. It can be extended.</p>
 
 <h4>Example:</h4>
 
-<p>Nested loops can be used to access every element in the matrix. When you do this kind of loops, pay attention to order of indexes. In Eve you must use first index for outer loop and second index for inner loop. For large matrix this can improve performance. Dure to better cash management.</p>
+<p>Nested loops can be used to access every element in the matrix. When you do this kind of loops, pay attention to order of indexes. In Eve you must use first index for outer loop and second index for inner loop. For large matrix this can improve performance. Due to better cache management.</p>
 
 <!--two columns pattern-->
 <pre class="line-numbers"><code class="language-eve">
@@ -804,12 +857,12 @@ driver matrix_demo is
   set matrx :[?, ?]Integer;
   process main is
     ** give value to all elements
-    matrix.extend(3,3);
+    matrx.extend(3,3);
     loop
       let i, j :Integer;
     for i in (1..3) do
       for j in (1..3) do
-         matrx(i,j)=i*10+j
+         matrx[i,j] := i*10+j;
       done;
     done;
     ** output matrix elements
@@ -833,11 +886,11 @@ end matrix_demo;
 
 <h2 id="dataset">DataSet</h2>
 
-<p>In mathematics a data set is an abstract data structure that can store certain values, in random order, but has no repeated values. Sets are fast collections for search, add update with new values. However, you have to know the element <em>value</em> in order to search for it.</p>
+<p>In mathematics a data set is an abstract data structure that can store certain values, without repeated values. In Eve a DataSet is sorted by value. Sets are fast collections for search, add update with new values. However, you have to know the element <em>value</em> in order to search for it. Lists, on the other hand, are not sorted unless you sort them explicitly.</p>
 
 <h4>Empty DataSet</h4>
 
-<p>An empty DataSet is represented like this: {} and can be assigned to a set if you wish to remove all elements of the set. A set that is not initialized is Null.</p>
+<p>An empty DataSet is represented like this: {} (the empty map is {:}) and can be assigned to a set if you wish to remove all elements of the set. A set that is not initialized is Null.</p>
 
 <pre class="line-numbers"><code class="language-eve">
   ** Define a Null DataSet with unknown element type
@@ -850,19 +903,19 @@ end matrix_demo;
 <h4>DataSet restrictions</h4>
 <ul>
 <li>All elements of a set must have the same type;</li>
-<li>DataSet elements are sorted by a hash function;</li>
+<li>DataSet elements are sorted by value, <code>print</code> shows them in order;</li>
 <li>Elements are unique, You can't store duplicates;</li>
 </ul>
 
 <h4>Mutability</h4>
-<p>A set can be modified during run-time using operators. When you modify a set, keep in mind that set's are automaticly sorted by a hash key. You never know what the position of the new element is going to be. Also if you add or remove an element the position of several other elements will be shifted.</p>
+<p>A set can be modified during run-time using operators. When you modify a set, keep in mind that sets are automatically sorted by value. The position of a new element is decided by its value. If you add or remove an element the position of several other elements will be shifted.</p>
 
 <ul>
 <li>add x in dataSet</li>
 <li>del x in dataSet</li>
 </ul>
 
-<p><b>Note: </b>You can rever to all elements using "*" and modify them using modifiers.</p>
+<p><b>Note: </b>You can refer to all elements using "*" and modify them using modifiers.</p>
 
 <h4>Example:</h4>
 <pre class="line-numbers"><code class="language-eve">
@@ -889,17 +942,17 @@ end set_demo;
 
 <h3 id="union">Union</h3>
 
-<p>Use union operator to combine two sets.</p>
+<p>Use union operator to combine two sets. The operators <code>&amp;=</code> and <code>|=</code> do not exist.</p>
 <pre class="line-numbers" data-start="0"><code class="language-eve"># combine two sets using "||" = (two vertical bars)
 driver set_union_demo is
   ** element set
   set first = {0,1,2,3} :DataSet;
   set second: DataSet; ** Null DataSet
   process main is
-    ** asign elements using union
+    ** assign elements using union
     second := first || {2, 4, 8, 10};
 
-    ** common value 2 is not duplicate 
+    ** common value 2 is not duplicate
     expect second == {0,1,2,3,4,8,10};
   return;
 end set_union_demo;
@@ -922,10 +975,10 @@ end set_intersection_demo;
 
 <h3 id="difference">Difference</h3>
 
-<p>Difference operator "-", and modifier "-=", extract elements. With this trick you can remove one single element from a DataSet instead of using "del".  Addition "+" operator and "+= modifier will not add elements. You can use && and &= that will perform union. This is to prevent the missconception that you can add elements to a set. Remember, elements in a set must be unique.</p>
+<p>Difference operator "-", and modifier "-=", extract elements. With this trick you can remove one single element from a DataSet. Remember, elements in a set must be unique.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-# Extraact severa lelements;
+# Extract several elements;
 process main is
   let test := {1,2,3,4};
   let rest := test - {3,4,5};
@@ -934,27 +987,27 @@ process main is
   expect (1,2) in rest;
   expect (3,4) not in rest;
 
-  ** use modifier -= 
-  test -= {1,3}
+  ** use modifier -=
+  test -= {1,3};
   expect test == {2,4};
 
-  ** use modifier &= to add elements
-  test &= {1,3,5};
-  expect test == {1,2,2,4,5}; ** we keep elements sorted 
+  ** use modifier += to add elements
+  test += {1,3,5};
+  expect test == {1,2,3,4,5}; ** we keep elements sorted
 return;
 </code></pre>
 
 <h2 id="using-dataSet">Using DataSet </h2>
 
-<p>A DataSet is very useful for its property to hold unique elements sorted. This enable deduplication of elements in a list by converting the list to a DataSet. Operator && is overloaded to accept list arguments but will return a DataSet.</p>
+<p>A DataSet is very useful for its property to hold unique elements sorted. This enable deduplication of elements in a list by converting the list to a DataSet. Operator || is overloaded to accept list arguments but will return a DataSet.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # convert a list to a dataset
 process main is
   let list := (1,2,1,2,3,1,2,3,4);
 
-  ** using operator && (union)
-  let dset := {} && list;
+  ** using operator || (union)
+  let dset := {} || list;
   expect dset == {1,2,3,4};
 return;
 </code></pre>
@@ -964,7 +1017,8 @@ return;
 <p>You can create elements of a DataSet from a range using builder.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-# demonstrate how to create a set from a range
+/* demonstrate how to create a set from a range
+   using shift operator to calculate power of two fast */
 process main is
   let dset := {1 &lt;&lt; x | x in (2..6)};
 
@@ -987,8 +1041,8 @@ process main is
   expect (1,2) in rest;
   expect (3,4) not in rest;
 
-  ** use modifier -= 
-  test -= (1,3)
+  ** use modifier -=
+  test -= (1,3);
   expect test == {2,4};
 return;
 </code></pre>
@@ -1000,7 +1054,7 @@ return;
 <pre class="line-numbers"><code class="language-eve">
 # Create intersection using &&
 driver set_intersection_demo is
-  set test: DataSet; ** Null set
+  set test = {} :DataSet; ** Null set
   process main is
     test := (1,2,3,4) && (2,3,4,5);
     expect test == {2,3,4};
@@ -1010,7 +1064,7 @@ end set_intersection_demo;
 
 <h2 id="hash-map">HashMap</h2>
 
-<p>It is called Hash due to similarity with letter H, that can be used as analog representation for a structure having two connecte columns. Collections are ordered by unique keys. This helps to find elements faster using a binary search algorithm.</p>
+<p>A HashMap is a collection of (key:value) pairs. In Eve a HashMap is a sorted map: the elements are ordered by unique keys. This helps to find elements faster using a binary search algorithm. We use only sorted maps, so we keep the name HashMap and we do not use the shorter name Map.</p>
 
 <ul>
 <li>HashMaps are sets of (key:value) pairs;</li>
@@ -1020,13 +1074,13 @@ end set_intersection_demo;
 
 <h4>Syntax:</h4>
 <pre class="line-numbers"><code class="language-eve">
-class Dic = {}(String,Object) &lt;&#58; HashMap;
+class Dic = {}(String,Object) &lt;: HashMap;
 driver test is
   # Null map
-  set m :Dic; ** declare empty dataset
+  set m :Dic; ** declare empty map
   process main is
     expect type(m) == HashMap;
-    expect m == {};
+    expect m == {:};
   return;
 end test;
 </code></pre>
@@ -1044,11 +1098,11 @@ driver table_init is
     expect h['a'] == 1;
     expect h['b'] == 2;
 
-    ** create new elements
-    h('c') := 3;
-    h('d') := 4;
+    ** create new elements: assign to a missing key
+    h['c'] := 3;
+    h['d'] := 4;
 
-    ** optput all elements
+    ** output all elements
     print h ** {'a':1, 'b':2, 'c':3, 'd':4};
   return;
 end table_init;
@@ -1057,7 +1111,7 @@ end table_init;
 
 <h2 id="using-hashMap">Using HashMap</h2>
 
-<p>Maps are sorted in memory by&nbsp;<em>key</em>&nbsp;for faster search. It is more difficult to search by value because usually is not unique and not sorted. To search by value one must create a loop and verify every element. This is called full scan and is slow so you should never use this process.</p>
+<p>Maps are sorted in memory by&nbsp;<em>key</em>&nbsp;for faster search. It is more difficult to search by value because usually is not unique and not sorted. To search by value one must create a loop and verify every element. This is called full scan and is slow.</p>
 
 <h3 id="map-initialization">Map Initialization</h3>
 
@@ -1072,7 +1126,7 @@ driver map_init is
 
     ** check if a specific key is present in a map collection
     expect 3 in my_map; ** will pass
-  
+
     ** check if a sub-set of keys is present in a map collection
     expect {1,3} in my_map;
   return;
@@ -1083,27 +1137,30 @@ end map_init;
 
 <pre class="line-numbers"><code class="language-eve">** create new elements
 process map_append
-  set animals: {}(String, String): ; ** empty collection
-process main is
+process map_append is
+  set animals: {}(String, String); ** empty collection
   ** append several elements
   animals += {"Rob":"dog", "Kiwi":"bird"};
 
   ** create single element
-  animals["Toto"] := "parot"
-  print  animals; 
+  animals["Toto"] := "parrot";
+  print  animals;
 return;
 </code></pre>
 
 <h4>Output:</h4>
 
 <pre class="output">
-{"Rob":"dog","Kiwi":"bird","Toto":"parot"}
+{"Kiwi":"bird","Rob":"dog","Toto":"parrot"}
 </pre>
 
 <h3 id="modify-elements">Modify Elements</h3>
+
+<p>Assigning to a missing key creates the element. Using a modifier like <code>+=</code> on a missing key raises an error.</p>
+
 <pre class="line-numbers"><code class="language-eve">#update a map
 driver map_update is
-  set animals : {}(String, String);
+  set animals : {}(String, Integer);
   process main is
     ** print the new collection
     print  animals;
@@ -1122,7 +1179,7 @@ end map_update;
 <h4>Output:</h4>
 <pre class="output">
 {}
-{"dogs":1,"birds":5};
+{"birds":5,"dogs":1}
 </pre>
 
 <h3 id="scanning-items">Iteration of Map items</h3>
@@ -1145,7 +1202,7 @@ end map_update;
 driver map_iteration is
   process main is
     let my_map := {'a':1,'b':2,'c':3};
-    loop 
+    loop
       let key: Symbol;
       let value: Integer;
     for (key: value) in my_map do
@@ -1174,7 +1231,7 @@ end map_iteration;
 driver map_generator is
   set my_map = { ((x + y): 1 &lt;&lt; y) | x in ('a'..'c') and y in (1..3)}: HashMap;
   process main is
-    loop 
+    loop
       let key  :String;
       let value:Integer;
     for (key: value) in my_map do
@@ -1201,7 +1258,7 @@ end map_generator;
 
 <h2 id="objects">Objects</h2>
 
-<p>Objects are collections of attributes of different types. The most simple object is an instance of type Object. The Object is the fundamental class in EVE, that is why it starts with uppercase.</p>
+<p>Objects are collections of attributes of different types. The most simple object is an instance of type Object. The Object is the fundamental class in EVE, that is why it starts with uppercase. An object literal has unquoted fields: <code>{x:1.5, y:2}</code>. A map literal has quoted or numeric keys: <code>{'a':1, 'b':2}</code>.</p>
 
 <h4>Pattern:</h4>
 
@@ -1211,7 +1268,7 @@ end map_generator;
 # define global object instances
 driver test is
   ** empty object
-  set object_name = {attribute:value, ...}: Object; 
+  set object_name = {attribute:value, ...}: Object;
 
   process main is
     ** accessing attributes
@@ -1229,7 +1286,7 @@ end test;
 # define global object instances
 process main is
   ** simple object with two fields
-  let point = {x:1.5, x:1.5}: Object; 
+  let point = {x:1.5, y:1.5}: Object;
 
   ** accessing attributes
   print point.x;
@@ -1245,353 +1302,22 @@ return;
 # define global object instances
 process main is
   ** simple object with two fields
-  let object = {} :Object; 
+  let object = {} :Object;
 
-  ** create new attributes using &= (union modifier)
-  object &= (x:1);
-  object &= (y:2);
+  ** create new attributes by assignment
+  object.x := 1;
+  object.y := 2;
   ...
   print object.x; ** 1
   print object.y; ** 2
 return;
 </code></pre>
 
-<p><b>Note: </b>Objects and HashMap are very similar. The difference is, object attributes can have diverse types. In a HashMap all elements have the same type. Also in HashMap the key can be numeric, symbol or string. Object attributes are always strings.</p>
-
-<h2 id="string">String</h2>
-
-<p>In Eve, strings are collections of UTF8 code points. The capacity of string is virtual unlimited. A string can grow automaticly. Strings are immutable.</p>
-
-<h3 id="string-declaration">String declaration</h3>
-
-<p>String can be initialized with a constant literals using Real quotes or triple quotes. You can scan a string symbol by symbol using a "for" loop. Each element in a string is on type Symbol.</p>
-
-<h4>Syntax:</h4>
-<pre class="line-numbers"><code class="language-eve">
-process main is
-  ** define empty string with default capacity
-  let str1 :String;      
-  let str2 = "": String; ** equivalent
-...
-</code></pre>
-
-<h3 id="string-mutability">String mutability</h3>
-
-<p>In Eve Strings are immutable. If you use ":=" the string object is replaced. You can concatenate strings and you can use string interpolation but every time you do, a new string is created.</p>
-
-<h4>Example:</h4>
-
-<pre class="line-numbers"><code class="language-eve"># working with strings
-driver test_string is
-  ** shared mutable strings
-  set str := "First value";
-  set ref := "First value";
-  process main is
-    ** check initial value
-    expect str == ref;     **  same value
-    expect str eq ref;     **  same value and type
-    expect str is not ref; **  different locations
-
-    ** operator ":=" works by reference
-    ref := str;    **  reset ref
-    expect str == ref; **  same value
-    expect str is ref; **  same reference (old reference is garbage)
-
-    ** if we recreate str, reference is reset
-    str := "First value"; **  new string
-    expect str == ref;     **  same value
-    expect str is not ref; **  different location
-
-    ** if we modify "str" then "ref" will remain the same
-    ** because the strings are immutable in Eve
-    str += ':'; **  create a new string (concatenate ":")
-    expect str == "First value:"; **  modified
-    expect ref == "First value";  **  not modified
-    expect str is not ref; ** the reference was broken
-
-  return;
-end test_string;
-</code></pre>
-
-<p><b>Note:</b></p>
-<ul>
-<li>You can create garbage in Eve if you loose references;</li>
-<li>You can create a collection of Symbols to split() a string;</li>
-<li>You can join() elements of a collection to create a string;</li>
-</ul>
-
-<h3 id="string-comparison">String comparison</h3>
-<ul>
-<li>Two strings are compared using relation operators: { ==, !=, &lt;, &gt;, &gt;=, &lt;= };</li>
-<li>Single quoted symbols can be compared to Real quoted strings;</li>
-<li>The length of the string is the number of symbols:</li>
-<li>Empty string "" == '' has length 0 and is Empty but not Null;</li>
-</ul>
-
-<h4>Example:</h4>
-<pre class="line-numbers"><code class="language-eve"># compare strings
-driver compare_strings is
-  expect ('a' == 'a');         **  true (same value)
-  expect ("this" == "this");   **  true (same value)
-  expect (" this" &lt;&gt; 'this '); **  trailing spaces are significant
-return;
-</code></pre>
-
-<h3 id="null-strings">Null strings</h3>
-
-<p>We can test if a string is Null using "is Null" expression. In Eve "" is empty string but Null string is not "" that is empty, A Null string is declared but uninitialized. That is equivalent with Null object.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# null string & symbol demo
-driver null_string is
-  set str :String; ** Null string
-  set emp := "";   ** empty string
-  set btr :Symbol; ** Null symbol  
-  process main is
-    ** null string
-    expect str is Null;
-    expect emp is not Null;
-  
-    ** empty string
-    expect emp is not Null;
-    expect emp == "";
-    expect emp.length() == 0;
-
-    ** symbol follow the same rule
-    expect btr is Null;
-    btr == '';
-    expect btr is not Null;
-  return;
-end null_string;
-</code></pre>
-
-
-<h3 id="ucs-font">UCS Font</h3>
-
-<p>The string is a collection of&nbsp;<em>code points</em>&nbsp; using symbols from universal character set (UCS). To handle code source that contain Unicode symbols you must select a proper programming font. We recommand: Dejavu Sans Mono.</p>
-
-<p>See also:&nbsp;<a href="https://en.wikipedia.org/wiki/Universal_Coded_Character_Set" rel="nofollow">wikipedia ucs</a>,&nbsp;<a href="https://en.wikipedia.org/wiki/List_of_Unicode_characters#Character_reference_overview" rel="nofollow">unicode characters</a></p>
-
-<p>HTML standard is using special escape codes for each symbol. Is not the scope of this document to explain this codification. In example below we show you some Unicode symbols. Using convention &code; we can escape special UNICODE characters in double quoted string. Eve is parsing a double quoted string and replace these characters with the correct code point.</p>
-
-<h4>Example:</h4>
-<pre class="line-numbers"><code class="language-eve"># text type has unicode support
-process unicode_text
-  let us = "I can write Greek: {&alpha;,&beta;,&gamma;,&delta;}";
-  print us;
-return;
-</code></pre>
-
-<h4>Output:</h4>
-
-<pre class="fixed">I can write Greek: {&alpha;,&beta;,&gamma;,&delta;}.</pre>
-
-<p>To edit Eve source code containing Unicode literals one must use a specific font and UTF-8 source files. The preferred font for Eve programming is "DejaVu Sans Mono". In this case it is not necesary to use &code; convention. You can copy paste the real Unicode Symbol from character map.</p>
-
-<h4>Tips & Trics</h4>
-
-<p>Sytrings are immutable You can handle more efficient strings using list. For this you can create a list from string. Conversion is implicit made using "feed" operator "<+". This operator is populating the list with characters from string, preserving the spaces between words, reduce many spages to one space.</p>
-
-<pre class="line-numbers"><code class="language-eve"># create list from string
-process main is
-  ** ASCII string buffers
-  let str1  = "test": 
-  let str2  = () &lt;+ str1; ** feed the list with Symbols
-
-  ** check list elements
-  expect str2[1]  == 't';  
-  expect str2 == ('t','e','s','t');
-return;
-</code></pre>
-
-<h3 id="using-strings">Using strings:</h3>
-
-<p>In next examples we use type inference to create strings. The length of the string is the number of symbols. You can use operator "*" to initialize a long string with the same Symbol or a String pattern.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# string generators
-process main is
-  ** examples of empty strings
-  let short_string := "short string";** most common form of literal
-  let long_line := '-' * 80;         ** a long line of 80 dashes
-  let dash_dot  := "-&middot;" * 40; ** a long line "-&middot;-&middot;-&middot;";
-return;
-</code></pre>
-
-
-<h3 id="string-concatenation">String: concatenation</h3>
-
-<p>Strings can be concatenated using operator "+" and modifier "+=" and some other ways:</p>
-
-<ul>
-  <li>regular concatenation: "+"</li>
-  <li>concatenation with modifier "+="</li>
-  <li>string formatting: "#s", "#n" and ?</li>
-  <li>string string pipe "&lt;+":</li>
-  <li>collection join() method</li>
-</ul>
-
-<h4>Example:</h4>
-<pre class="line-numbers"><code class="language-eve">** example of string concatenation
-  driver string_concat is
-  
-    process main is
-      ** set string value using different operators
-      let str := " this " + "string"; 
-      expect str == " this string";
-    
-      ** use string interpolation #{str} is recognized
-      print "I have insert #{str} here!";
-  
-      ** concatenate string with collection
-      print "digits = " + {1,2,3}.join(",")
-  
-      ** string pipeline
-      print "" &lt;+ {"this ","is ","a "," string"};
-  
-      ** string format operator ? with #n placeholders for numbers
-      print "these numbers #n, #n, #n are prime" ? (1,3,5);
-    return;
-  end string_concat;
-</code></pre>
-
-<p><b>symbols & numbers</b></p>
-
-<p>You can concatenate a Symbol (character) with number. There is an implicit coercion that will transform the number into a string before concatenation. However, to concatenate two numbers you must explicitly join the numbers together using a function join() that will produce a string.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# numeric concatenation
-process main is
-  ** implicit conversion
-  let s := 'a' + 1; 
-  expect s == "a1"; ** is a string
-
-  ** explicit conversion
-  let c := 1 + 'a'; 
-  expect c == "1a"; ** is a string
-
-  ** explicit join list elements with empty Symbol
-  let test = (1,2,3).join('');
-  expect test == "123";
-return;
-
-</code></pre>
-
-<h3 id="string-builders">String: builders</h3>
-
-<p>You can convert a range to a list of symbols by using operators: &gt;+ and +&lt;. In next example we demonstrate several use-cases useful to create new strings using range notations.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# different ways to convert data into string
-process main is
-  ** Range conversion
-  let str1 := (0..9) +&gt; "";
-  expect str1 == "0123456789"
-
-  ** DataSet conversion
-  let str2 := "" &lt;+ ("A".."F"); 
-  expect str2 == "ABCDEF";
-
-  ** Join a set created with set builder in place
-  let str2 := {"0x1" + a | a in ("A".."F")}.join(','); 
-  expect str2 == "0x1A,0x1B,0x1C,0x1D,0x1E,0x1F";
-return;
-</code></pre>
-
-<h3 id="string-split">String split</h3>
-
-<p>You can split a string in list of words. When you do this, you can specify a symbol or a list of symbols all considered separators. Separator is removed and not included in the string.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-process main is
-  let str   := "Eve is a cool language. True?";
-  let words := str.split(" ");
-  print words; 
-return;
-</code></pre>
-
-<pre class="output">
-("Eve","is","a", "cool", "language.","True?");
-</pre>
-
-<h3 id="text-literals">Text Literals</h3>
-
-<p>Strings can contain multiple lines separated with end of line character. Large text literal can be defined on multiple lines. Eve use triple quoted  strings """...""" and very special trick to parse long strings.</p>
-
-<p>A Text has an different internal representation and can be used to represent HTML or XML and other data format like CSV. Double quotes are preserved without escape sequence. Te example below demonstrate our little trick.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# declaration of a text literal
-driver text_literal is
-
-  process main is
-    ** multiline text literal is possible in Eve
-    let my_text:="""
-    "Opportunity is missed by most people
-    because it is dressed in overalls
-    and looks like work."
-    """;
-    print my_text;
-  return;
-end text_literal;
-</code></pre>
-
-<p><b>Output:</b></p>
-<pre class="output">
-"Opportunity is missed by most people
-because it is dressed in overalls
-and looks like work."
-</pre>
-
-<p>An equal number of spaces was detected by the compiler and removed. The equal number of spaces is the indentation of last tripple quote, that must be on a new line (alone) follow by semicolumn. This is used by the compiler to determine the indentation.</p>
-
-<h3 id="string-functions">String functions</h3>
-
-<p>Full inventory of functions will be design in package specification. We enumerate several function as example that we wish to have, but is not our scope yet to enumerate all possible functions.</p>
-
-<ul>
-  <li>String.split();</li> 
-  <li>String.length();</li>  
-  <li>String.find(pattern:Regex);</li>
-  <li>String.count(pattern:Regex);</li>
-  <li>String.replace(pattern:Regex, cargo:String);</li>
-</ul>
-
-<p><b>Note. </b>These functions can be used with class qualifier "String" but also with data literals. For example: "test".split() is equivalent to String.split("test"). Just a trick you can use to simplify your code sometimes.</p>
-
-<h2 id="regex">Regular Expressions</h2>
-
-<p>Regular expressions are special string templates useful to search inside strings. We implement regular expressions a la carte except the delimiter \" must be escaped. Regular expressions are enclosed in Real quotes like strings: "/regex/g". A regular expression always start with "/" and ends with "/flags".</p>
-
-
-<h3 id="regex-operators">Regex operators</h3>
-
-<p>Eve has support for two operators: "~" and "!~". These are logic operators. Represent "is like" respective "is not like". It require a string for the left operand and a regular expression for the right operand.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# compare regular expression
-process main is
-  ** search " is " in the string
-  let found := "this is like" ~ "/\sis\s/"; 
-  expect found; ** True
-
-  ** check if string start with "not"
-  let not_found := "this is not like" !~ "/^not/";
-  expect not_found; ** True 
-return;
-</code></pre>
-
-<p><b>Note:&nbsp;</b>Regular expressions are powerful but difficult to master. This is a language and like any other language has complex rules. You can create and test regular expressions using a tool. It is not in our scope to teach you regular expressions.</p>
-
-<h4>External Reference</h4>
-<p>You can learn and build regular expressions on this website: 
-<a href="https://regexr.com/" rel="nofollow noreferrer noopener" target="_blank">https://regexr.com/</a></p>
-
-
+<p><b>Note: </b>Objects and HashMap are very similar. The difference is, object attributes can have diverse types. In a HashMap all elements have the same type. Also in HashMap the key can be numeric, symbol or string. Quoted fields represent characters (strings), unquoted fields are symbols, also called identifiers: in an Object the attribute names are always identifiers.</p>
 
 <hr>
 <p><b>Read next:</b>
-<a href="/projects/eve/control/">Control Flow</a></p>
+<a href="/projects/eve/strings.html">Strings</a></p>
 
 <!-- Footer -->
     </main>
