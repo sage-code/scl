@@ -56,7 +56,7 @@ const keywordMap = {
     'wait': 'keytab', 'exit': 'keytab', 'stop': 'keytab', 'print': 'keytab',
     'write': 'keytab', 'read': 'keytab', 'over': 'keytab', 'panic': 'keytab',
     'pass': 'keytab', 'skip': 'keytab', 'fail': 'keytab', 'raise': 'keytab',
-    'retry': 'keytab', 'suspend': 'keytab', 'resume': 'keytab', 'synchronise': 'keytab',
+    'retry': 'keytab', 'resume': 'keytab', 'synchronise': 'keytab',
     'rollback': 'keytab'
 };
 

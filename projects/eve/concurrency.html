@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Sage-Code Eve methods, generators and threads. Synchron versus asynchron execution.">
+  <meta name="description" content="Sage-Code Eve methods and parallel work: parallel groups, Bulk Synchronous Parallel and channels.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, parallel, asynchronous, concurency, method, generator, thread, suspend, resume">
+  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, parallel, concurrency, method, BSP, channel, pipeline, barrier">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Cache-Control" content="no-cache" />
   <meta http-equiv="Pragma" content="no-cache" />
@@ -45,12 +45,12 @@
 <h1 id="eve-concurrency">Eve Concurrency</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Eve can execute methods in two modes. A method called by its name runs on the core of its caller; when it contains "suspend" it can stop in memory and continue later: this is cooperative multitasking on a single core, without the cost of operating system threads. A method started in a parallel block runs on another core: one process can use all the cores of the computer. We define in this chapter the method, the asynchronous method and the parallel method.
+Eve does parallel work with methods. A method called by its name runs on the core of its caller. A method started in a parallel group runs on a worker core, so one process can use all the cores of the computer. Tasks exchange data through output parameters, at the barrier that closes the group, or through channels while they run. This chapter starts with methods and parameters, then explains parallel groups, the data rules, Bulk Synchronous Parallel, channels and how to choose a model.
 </div>
 
 <h2 id="methods">Methods</h2>
 
-<p>Before we can create asynchronous methods we must understand the concept of simple method. In Eve we create a subprogram that can receive parameters and can have side-effects. You can call a method by name, with or without arguments enumerated in a list. A method is created with keyword "method" and is ending with keyword "return". Method do not have to be follow by empty parenthesis when it has no arguments. A method can be declared in a class or at module level, outside any class. A module-level method is public when its name starts with a dot (<code>method .name</code>) and private when it starts with an underscore (<code>method _name</code>). A method can also return a result.</p>
+<p>Before we can run methods in parallel we must understand the concept of simple method. In Eve we create a subprogram that can receive parameters and can have side-effects. You can call a method by name, with or without arguments enumerated in a list. A method is created with keyword "method" and is ending with keyword "return". Method do not have to be follow by empty parenthesis when it has no arguments. A method can be declared in a class or at module level, outside any class. A module-level method is public when its name starts with a dot (<code>method .name</code>) and private when it starts with an underscore (<code>method _name</code>). A method can also return a result.</p>
 
 <h4>Syntax:</h4>
 
@@ -231,71 +231,25 @@ end output_params;
 <li>Method invocation is done using name of method as a statement;</li>
 </ul>
 
-<h2 id="asynchronous-methods">Asynchronous methods</h2>
+<h2 id="parallel-model">Parallel model</h2>
 
-<div class="alert alert-warning">Not in Eve 0.1. Asynchronous methods (<code>suspend</code>, <code>resume</code>, <code>wait</code>) and parallel methods (<code>parallel</code>, <code>start</code>) are designed but not implemented in version 1. Their keywords are reserved. A method in version 1 always runs to completion on the core of its caller.</div>
+<div class="alert alert-warning">Not in Eve 0.1. Parallel groups and channels are designed but not implemented in version 1; their keywords are reserved. In version 1 a process runs on one core, and a method always runs to completion on the core of its caller.</div>
 
-<p>An asynchronous method is a method that contains the keyword "suspend". It does not run on another processor core: it runs on the same thread as its caller. When it reaches "suspend" its state stays in memory and the control returns to the caller, so the program continues. Later the method can wake-up with a signal and continue processing. A method that produces values one batch at a time is called a generator. Functions can't be suspended and can't have state: only methods can.</p>
+<p>Eve does parallel work with methods. An aspect is never run in parallel: <code>apply aspect.process(args);</code> runs a process in serial mode and the caller waits for it. Inside a process, the work can span all the cores of the computer. These are the concepts:</p>
 
-<p>An asynchronous method is declared with the same keyword "method" and is called exactly like a simple method: by its bare name. There is no special call keyword. The body decides how it runs: a method that never reaches "suspend" runs to completion, like any method; a method that reaches "suspend" stays suspended while the program continues. The suspended method is controlled using "suspend", "resume" and "wait all" keywords. Switching happens only at "suspend", so this is cooperative multitasking: it is cheap, and no two methods ever run at the same instant. To run a method on another core, start it in a parallel block: see <a href="#parallel-methods">Parallel methods</a>.</p>
+<ul>
+<li><b>Process:</b> the master. It runs on one core and opens the parallel groups, one after the other;</li>
+<li><b>Parallel group:</b> a block <code>parallel … do … done</code> that starts methods and waits for all of them;</li>
+<li><b>Task:</b> one method started with <code>start</code>. It runs on a worker core with its own copy of the input arguments;</li>
+<li><b>Barrier:</b> the closing <code>done</code>. The process waits there until every task of the group has returned; then the outputs (<code>@</code>) are ready;</li>
+<li><b>Channel:</b> a queue that connects tasks running at the same time. A task sends values into it, another task receives them.</li>
+</ul>
 
-<!-- a regular diagram -->
-<div class="text-center">
-  <img src="/images/asynch.svg" alt="Asynchronous Execution"
-       width="640" class="img-fluid protect rounded shadow border" >
-  <p>Synchronous vs Asynchronous</p>
-</div>
+<p>With these elements Eve supports three models of parallel work: <b>task groups</b> (different methods side by side), <b>Bulk Synchronous Parallel</b> (the same method on slices of the data, in supersteps) and <b>pipelines</b> (stages connected by channels). A method called by its name, without <code>start</code>, is not parallel: it runs on the core of its caller and returns when it has finished.</p>
 
-<h3 id="shoulder-thread">Shoulder Thread</h3>
+<h2 id="parallel-groups">Parallel groups</h2>
 
-<p>In next example we demonstrate a thread that can generate a a bunch of numbers every time the main thread is yielding for it. When the buffer is full, you can process the batch and then yield for a new.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-driver shoulder_thread is
-
-  ** generator producer, make 100 numbers
-  method generator(cap:Integer, @result:()Float) is
-    let count := 0;
-    while True do
-      for i in (1..100) do
-        result += (0..1).random();
-      done;
-      suspend; ** continue the main thread    
-      count += 1;
-      break if count &gt;= cap;
-    done;
-  return;
-
-  process main is
-    let batch :()Float;
-    let total :Real;
-    ** initialize the generator and produce first batch
-    generator(1000, result: @batch);
-    while batch.count() &gt; 0 do
-      ** process current batch
-      for x in batch do
-         total += x; 
-      done;
-      ** read the next batch
-      resume generator; ** resume generator
-    done;
-  return;
-end shoulder_thread;
-</code></pre>
-
-<p><b>Time-out:</b> Is easy to create a wrong shoulder thread that can runs forever. If a method takes too much time you can set a time-out. If one method time-out, the entire application crash. You can set $timeout system variable to control this time.</p>
-
-<p><b>Notes: </b>a suspended method is waiting for a wake-up signal. Another method must send a signal for it to wake-up. If the suspended method receiving the signal is not running, then it can't wake-up. In this case, the control is given back to the main process. If the main process is waiting it will resume. A method that nobody resumes stays suspended until its process ends; then it is terminated.</p>
-
-<p><b>Instances: </b>every call creates a new instance of the method. "resume name" wakes all suspended instances of that method, and "wait all" joins every instance that is still suspended.</p>
-
-<p>"wait all" and "wait n" do different things. "wait n" pauses for a duration and should not be used for joining methods. We recommend to use "wait all". Also you can wait for a specific method to finish: wait [method_name] if necessary.</p>
-
-<h2 id="parallel-methods">Parallel methods</h2>
-
-<div class="alert alert-warning">Not in Eve 0.1: parallel blocks are planned for a later version (see <a href="#asynchronous-methods">Asynchronous methods</a>).</div>
-
-<p>A method called by its name runs on the core of its caller. To use several cores, a process starts methods inside a <code>parallel</code> block. Each <code>start</code> creates a task: the method runs on a worker core with its own arguments. The closing <code>done</code> is a barrier: the process waits there until every started method has returned. In this way one process can span all the cores of the computer. Aspects are never started: an aspect process runs with <code>apply</code>, in serial mode (see <a href="/projects/eve/processing/#parallel">Processing</a>).</p>
+<p>A parallel group starts methods that run at the same time. The process executes the groups one by one: a group begins after the previous group has finished. Each group can have an optional name.</p>
 
 <h4>Syntax:</h4>
 
@@ -308,20 +262,111 @@ do
 done [name];
 </code></pre>
 
-<h4>Rules:</h4>
+<!-- a regular diagram -->
+<div class="text-center">
+  <img src="/projects/eve/img/eve-parallel.svg" alt="Two parallel groups: methods started on worker cores, done waits for all of them"
+    width="540" class="img-fluid protect rounded shadow border" >
+  <p>parallel … do … start … done</p>
+</div>
+
+<h4>Example: task group</h4>
+
+<pre class="line-numbers"><code class="language-eve">
+# parallel groups demo
+driver parallel_demo is
+
+  ** work done by one worker
+  method task(n: Integer) is
+    print ("task ", n, " is running");
+  return;
+
+  process main is
+    ** main process is a series of sequential groups
+
+    group1: parallel
+      ** local variables for group1
+    do
+      start task(1);
+      start task(2);
+    done group1;
+
+    ** group1 is now complete, group2 starts
+
+    group2: parallel
+      ** local variables for group2
+    do
+      start task(3);
+      start task(4);
+    done group2;
+
+    ** Both groups are now complete
+  return;
+end parallel_demo;
+</code></pre>
+
+<h4>Notes:</h4>
 <ul>
-<li><code>start</code> is allowed only in the <code>do</code> region of a parallel block. It starts methods, not functions and not aspect processes;</li>
-<li>The arguments are evaluated at <code>start</code>. An argument without "@" is passed by value, also a collection: the task works on its own copy, and the process can go on changing its variables. The virtual machine shares a large collection and copies it only when one side writes into it (copy on write), so passing by value is cheap;</li>
-<li>An output argument (<code>@</code>) is passed by reference and belongs to one started method. Two methods of the same group can't receive the same variable, the same element or two overlapping slices as output. The compiler rejects what it can prove; the virtual machine checks the rest at <code>start</code> and raises an error;</li>
-<li>A started method can't change the globals of the driver and can't use <code>suspend</code>. It can call other methods by name; they run on the same worker core. It can print, but the lines of different tasks come in any order;</li>
-<li>Parallel blocks don't nest: a started method can't contain a <code>parallel</code> block;</li>
-<li>The number of started methods is not limited by the number of cores. The virtual machine keeps a pool of worker threads, one for each core, and queues the extra tasks. The pool size is the system variable <code>$cores</code>: by default the number of hardware cores, it can be set in the configuration file of the driver;</li>
-<li>When a started method raises an error, the tasks of the group that have not begun are cancelled, the running ones finish, and <code>done</code> raises the first error in the process.</li>
+  <li>Each group executes sequentially. Within a group, the started methods run concurrently, on several cores;</li>
+  <li><code>start</code> is allowed only in the <code>do</code> region of a parallel group, and it starts only methods. <code>start aspect.process()</code> is an error: use <code>apply</code>;</li>
+  <li>The <code>do</code> region can use control statements, for example a loop that starts the same method several times;</li>
+  <li>The closing <code>done</code> waits for all the methods started in the group, and it is always for a single group;</li>
+  <li>The label of a group is optional. A group without a label starts with <code>parallel</code> and ends with a naked <code>done;</code>; a labeled group ends with <code>done label;</code>.</li>
 </ul>
 
-<p>With these rules two tasks never write the same data and never wait for each other. The language needs no locks and no shared mutable objects, and a parallel block can't deadlock.</p>
+<p>One process can start the same method several times with different arguments, to compute different parts of the data. Every started method writes its own element of the array <code>s</code>: two started methods never receive the same output variable.</p>
 
-<h3 id="bsp">Bulk Synchronous Parallel</h3>
+<pre class="line-numbers"><code class="language-eve">
+## create parallel work
+driver parallel_loop is
+
+  ** compute one result
+  method square(n: Integer, @result: Integer) is
+    result := n * n;
+  return;
+
+  process main is
+    let s: [4]Integer; ** one result for each worker
+
+    ** start the same method 4 times
+    demo: parallel
+    do
+      for i in (1..4) do
+        start square(i, @s[i]); ** runs in parallel
+      done;
+    done demo;
+    ** all started methods have finished, s is ready
+    print s; ** [1,4,9,16]
+  return;
+end parallel_loop;
+</code></pre>
+
+<h2 id="data-rules">Data rules</h2>
+
+<p>Tasks run at the same instant, so two tasks must never write the same data. Eve guarantees this with a few rules; it needs no locks and no shared mutable objects, except channels.</p>
+
+<ul>
+<li><b>Inputs by value:</b> the arguments are evaluated at <code>start</code>. An argument without "@" is passed by value, also a collection: the task works on its own copy, and the process can go on changing its variables. The virtual machine shares a large collection and copies it only when one side writes into it (copy on write), so passing by value is cheap;</li>
+<li><b>One owner for each output:</b> an output argument (<code>@</code>) is passed by reference and belongs to one task. Two tasks of the same group can't receive the same variable, the same element or two overlapping slices as output. The compiler rejects what it can prove; the virtual machine checks the rest at <code>start</code> and raises an error;</li>
+<li><b>Channels are the exception:</b> a channel is the only object that several tasks of a group can receive with "@". It is built for that: its operations are safe when tasks use it at the same time;</li>
+<li><b>No globals:</b> a started method can't change the globals of the driver. It can call other methods by name; they run on the same worker. It can print, but the lines of different tasks come in any order;</li>
+<li><b>No nesting:</b> a started method can't contain a <code>parallel</code> group.</li>
+</ul>
+
+<h3 id="errors-and-timeout">Errors and time-out</h3>
+
+<ul>
+<li>When a task raises an error, the tasks of the group that have not begun are cancelled, the running ones finish, and <code>done</code> raises the first error in the process. The next groups do not begin, so a recover region of the process can catch the errors of all the started methods;</li>
+<li>A task that waits on a channel longer than <code>$timeout</code> (60 seconds by default, set in the configuration file of the driver) raises a time-out error;</li>
+<li>When every unfinished task of a group waits on a channel, nothing can move any more: this is a deadlock. The virtual machine detects it and raises a deadlock error at <code>done</code>.</li>
+</ul>
+
+<h3 id="workers">Workers</h3>
+
+<p>The number of started methods is not limited by the number of cores. The virtual machine keeps a pool of worker threads, one for each core, and queues the extra tasks. The pool size is the system variable <code>$cores</code>: by default the number of hardware cores, it can be set in the configuration file of the driver. A task that waits on a channel gives its core to another task, so a pipeline with more stages than cores still works.</p>
+
+<p>The number of tasks can be dynamic. You can read it from the configuration file, compute it from the size of the data or from <code>$cores</code>, or hard code it as a constant inside the driver. This gives you flexibility to tune your process.</p>
+
+<h2 id="bsp">Bulk Synchronous Parallel</h2>
 
 <p>The recommended pattern for parallel work is Bulk Synchronous Parallel (BSP). The computation is a sequence of supersteps. A superstep has three phases:</p>
 
@@ -380,7 +425,7 @@ driver parallel_sum is
 end parallel_sum;
 </code></pre>
 
-<p>The same job can be written with a producer, 32 consumers and channels between them. The BSP version is simpler and safer:</p>
+<p>The same job can be written as a pipeline, with a producer, 32 consumers and channels between them (see <a href="#channels">Channels</a>). For data that is already in memory, the BSP version is simpler and safer:</p>
 
 <ul>
 <li>no shared object: every worker reads its own slice and writes its own element;</li>
@@ -433,10 +478,124 @@ driver heat_bar is
 end heat_bar;
 </code></pre>
 
-<p><b>Number of workers: </b>it can be dynamic. You can read it from the configuration file, compute it from the size of the data or from <code>$cores</code>, or hard code it as a constant inside the driver. This gives you flexibility to tune your process.</p>
+<h2 id="channels">Channels</h2>
 
-<p><b>Streams: </b>data that does not fit in memory is read in batches, and every batch is one superstep. Channels between tasks that run at the same time (producer and consumer) are not part of this version of Eve.</p>
+<p>A channel is a queue with a fixed capacity that connects tasks running in the same group. A producer task sends values into the channel; a consumer task receives them in the same order. When the channel is full, the sender waits; when it is empty, the receiver waits. In this way a fast stage can't run away from a slow one, and data flows through the tasks while it is produced. This is the right tool for streams: data that arrives over time or does not fit in memory.</p>
 
+<h4>Create a channel</h4>
+
+<p><code>Channel(:T)</code> is a generic class of the core library. The type parameter is the type of the values; the constructor takes the capacity and, optionally, the number of senders.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+  let jobs := new Channel(:Integer)(capacity: 100);
+  let results := new Channel(:Real)(capacity: 100, senders: 4);
+</code></pre>
+
+<h4>Operations</h4>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Operation</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ch.send(value);</code></td><td>put a value at the end of the channel; wait while the channel is full. Sending into a closed channel is an error</td></tr>
+<tr><td><code>for x in ch do … done;</code></td><td>receive the values one by one, waiting for each; the loop ends when the channel is closed and empty</td></tr>
+<tr><td><code>ch.receive(@x);</code></td><td>receive one value into <code>x</code>; wait while the channel is empty. Receiving from a closed, empty channel is an error</td></tr>
+<tr><td><code>ch.close();</code></td><td>a sender has finished. With <code>senders: n</code> the channel closes after the n-th <code>close</code>; without it, after the first</td></tr>
+<tr><td><code>ch.count()</code></td><td>the number of values waiting in the channel, for monitoring</td></tr>
+</tbody>
+</table>
+
+<h4>Rules:</h4>
+<ul>
+<li>A channel is created by the process, before the group or in the declarations of the group, and it is passed to the tasks with "@": <code>start produce(@jobs);</code>. The parameter is declared <code>@jobs: Channel(:Integer)</code>;</li>
+<li>Every sender must <code>close</code> the channel when it has finished, otherwise its receivers wait forever (until the time-out). With several senders, create the channel with <code>senders: n</code>, so the receivers stop after the last sender;</li>
+<li>Values sent into a channel are copied, like arguments passed by value: a receiver never shares data with the sender;</li>
+<li>The order of the values from one sender is kept. With several senders the values are interleaved in any order, so a result that depends on the order is not deterministic;</li>
+<li>After <code>done</code> all the tasks have finished. The process can still read what is left in a closed channel with <code>for x in ch do</code>, but it is better to collect the results inside the group, as below.</li>
+</ul>
+
+<h4>Example: pipeline</h4>
+
+<p>Next driver has three stages. One producer sends 10,000 random numbers into <code>jobs</code>. Four workers receive from <code>jobs</code>, square every number and send it into <code>results</code>. One collector receives from <code>results</code> and adds the values into <code>total</code>. The three stages run at the same time, and the barrier <code>done flow</code> waits for all six tasks.</p>
+
+<!-- a regular diagram -->
+<div class="text-center">
+  <img src="/projects/eve/img/eve-pipeline.svg" alt="Pipeline: a producer sends into the channel jobs, four workers send into the channel results, a collector computes the total"
+    width="540" class="img-fluid protect rounded shadow border" >
+  <p>produce → jobs → square ×4 → results → collect</p>
+</div>
+
+<pre class="line-numbers"><code class="language-eve">
+# pipeline: producer, 4 workers and a collector
+driver pipeline is
+  set workers = 4 :Integer;
+
+  ** stage 1: produce the numbers
+  method produce(count: Integer, @jobs: Channel(:Integer)) is
+    for i in (1..count) do
+      jobs.send((0..99).random()); ** waits while jobs is full
+    done;
+    jobs.close(); ** no more numbers
+  return;
+
+  ** stage 2: square every number
+  method square(@jobs, @results: Channel(:Integer)) is
+    for x in jobs do ** ends when jobs is closed and empty
+      results.send(x * x);
+    done;
+    results.close(); ** one of the 4 senders has finished
+  return;
+
+  ** stage 3: collect the results
+  method collect(@results: Channel(:Integer), @total: Integer) is
+    total := 0;
+    for y in results do ** ends after the 4th close
+      total += y;
+    done;
+  return;
+
+  process main is
+    let total: Integer;
+    let jobs := new Channel(:Integer)(capacity: 100);
+    let results := new Channel(:Integer)(capacity: 100, senders: workers);
+
+    flow: parallel
+    do
+      start produce(10000, @jobs);
+      for w in (1..workers) do
+        start square(@jobs, @results);
+      done;
+      start collect(@results, @total);
+    done flow; ** barrier: all the stages have finished
+
+    print total;
+  return;
+end pipeline;
+</code></pre>
+
+<h4>Notes:</h4>
+<ul>
+<li>The capacity limits the memory: at most 100 numbers wait in each channel, whatever the size of the stream;</li>
+<li>The collector runs inside the group. If the process tried to read <code>results</code> after <code>done</code>, the workers would wait on a full channel and the group would never end: the virtual machine would report a deadlock;</li>
+<li>Only the collector writes <code>total</code>, so the output rule (one owner) holds;</li>
+<li>A sum does not depend on the order of the values. For results that do, send an index with each value, or use BSP.</li>
+</ul>
+
+<h2 id="choosing">Choosing a model</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Model</th><th>Shape</th><th>Shared data</th><th>Result</th><th>Use it for</th></tr>
+</thead>
+<tbody>
+<tr><td>Task group</td><td>different methods side by side, one barrier</td><td>none: inputs by value, one owner for each output</td><td>deterministic</td><td>independent jobs: read several files, call several services, build several reports</td></tr>
+<tr><td>Bulk Synchronous Parallel</td><td>the same method on slices of the data, a barrier after each superstep</td><td>none; data is exchanged by the process between supersteps</td><td>deterministic</td><td>data in memory: aggregations, arrays and matrices, iterative algorithms</td></tr>
+<tr><td>Pipeline</td><td>stages connected by channels, running at the same time</td><td>channels only</td><td>order not guaranteed with several senders</td><td>streams: data that arrives over time or does not fit in memory, input and output overlapped with computing</td></tr>
+</tbody>
+</table>
+
+<p>Start with a task group or BSP: a worker never waits for another worker, so they can't deadlock and they give the same result on every run. Use channels when the data is a stream. A process can combine the models: for example a pipeline that reads a large file in one group, then BSP supersteps on the data it has collected.</p>
 
 <!-- work in progress-->
 
