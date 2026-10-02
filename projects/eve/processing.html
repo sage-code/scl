@@ -169,7 +169,26 @@ apply aspect_name.process_name(param:value, *map_args);    ** mix names with has
 
 <h3 id="process-interruption">Process interruption</h3>
 
-<p>A process normal ends with keyword return. When aspect process is terminated, program execution will continue with the next statement in the main process. Interruption keywords (exit, over, panic) can be used to interrupt a process. The <em>exit</em> or <em>raise</em> trigger the finalization region while "over" and "panic" skip the finalization region.</p>
+<p>A process normal ends with keyword return. When aspect process is terminated, program execution will continue with the next statement in the main process. Interruption keywords (exit, over, panic) can be used to interrupt a process. The <em>exit</em> or <em>raise</em> trigger the finalization region while "over", "panic" and "abort" skip the finalization region.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Interruption</th><th>Exit code</th><th>Recover region</th><th>Finalize region</th></tr>
+</thead>
+<tbody>
+<tr><td><code>return</code></td><td>0</td><td>no</td><td>runs</td></tr>
+<tr><td><code>over;</code></td><td>0</td><td>no</td><td>skipped</td></tr>
+<tr><td><code>panic;</code></td><td>1</td><td>no, ends the whole application</td><td>skipped</td></tr>
+<tr><td>failed <code>expect</code></td><td>2</td><td>runs</td><td>runs, except after <code>abort</code></td></tr>
+<tr><td>failed <code>assert</code></td><td>3, a warning</td><td>no: the process goes on</td><td>runs at the end</td></tr>
+<tr><td><code>raise</code></td><td>4 by default, or the code of the exception</td><td>runs</td><td>runs, except after <code>abort</code></td></tr>
+<tr><td><code>abort</code> in recover</td><td>the code of the error</td><td>-</td><td>skipped</td></tr>
+</tbody>
+</table>
+
+<p>The code of an exception is also the exit code: an exception is an object <code>{code: x, message: y}</code>. The standard codes are listed in <a href="/projects/eve/exceptions.html">Exceptions</a>.</p>
+
+<p>A failed <code>assert</code> reports a warning and tries to continue the process. A failed <code>expect</code> raises an exception. The warnings collected by <code>assert</code> help to understand why a program crashes later.</p>
 
 
 <h4>Example:</h4>
@@ -198,7 +217,7 @@ end process_call;
 
 <h3 id="aspect-execution">Aspect Execution:</h3>
 
-<p>One aspect is executed from a driver. You can not execute an aspect from itself. Recursive aspects are not supported. The compiler will detect a recursive aspect and will fail at runtime.</p>
+<p>An aspect is not run or executed: only the processes inside it are executed, with <code>apply</code>. Processes can not be recursive, but methods can be recursive.</p>
 
 <p>Aspects can be executed in serial mode one after another. Let's consider we have 3 aspects: {one, two, three}. Main process can execute each aspect using keyword: "apply" and can block the main process waiting for each aspect to finish. This will interrupt the driver main process and will execute aspect process one by one:</p>
 
@@ -216,7 +235,33 @@ driver test_apply is
 end test_apply;
 </code></pre>
 
-<p><b>Note: </b>You do not have to import an aspect into a driver but you must specify the relative path of the aspect. If the aspect is in a subfolder, you must include relative folder name. If the aspect is in the same location as the driver, you do not need a folder name.</p>
+<p><b>Note: </b>An aspect is not imported with <code>import</code>. The machine searches it by name, without the file extension:</p>
+<ol>
+<li>if the aspect is written with a folder, <code>apply folder/aspect_one.run()</code>, in that folder;</li>
+<li>otherwise in the aspect folder <code>asp</code> of the project, if there is one;</li>
+<li>otherwise in the root folder of the project, then in the library folder <code>lib</code>.</li>
+</ol>
+<p>The driver can set another place for aspects, and for libraries, with the system variable <code>$EVE_ASP</code>: <code>set $EVE_ASP = "my_folder";</code>. A project without <code>asp</code> or <code>lib</code> folders keeps aspects and libraries in its root folder.</p>
+
+<h3 id="aspect-scope">Aspect Scope</h3>
+
+<p>An aspect has one implicit scope. It is a singleton: the first <code>apply</code> creates the scope, and it is not destroyed automatically. In the aspect, declarations come in this order: imports, constants, variables, methods, then processes. The order does not matter for the machine because the declarations are hoisted.</p>
+
+<p>To free the memory of an aspect use <code>reset</code>:</p>
+
+<pre class="line-numbers"><code class="language-eve">reset aspect_one;   ** free one aspect
+reset all;          ** free all aspects
+</code></pre>
+
+<h3 id="command-line">Command-line Parameters</h3>
+
+<p>The parameters of <code>main</code> are given on the command line by name: <code>-p value</code> when the name of the parameter is short and <code>--param value</code> when it is long. A parameter can be any Eve literal: it is parsed and converted to data. The comment lines above <code>main</code> describe the parameters:</p>
+
+<pre class="line-numbers"><code class="language-eve">** @param x: "description of parameter x"
+process main(x: Integer) is
+</code></pre>
+
+<p>The command <code>eve test.eve -h</code> shows a help generated from these comments. Without comments, the help lists the parameters.</p>
 
 
 <h2 id="parallel">Parallel execution</h2>
@@ -225,7 +270,7 @@ end test_apply;
 
 <p>Aspects are executed in serial mode: <code>apply</code> runs one process of an aspect and the caller waits for it to finish. An aspect process is never started in parallel. Parallel work happens inside a process: the process starts methods in a parallel group (<code>parallel … do … start … done</code>), and they run on several cores. The parallel model, the data rules, Bulk Synchronous Parallel and channels are explained in one place: <a href="/projects/eve/concurrency/#parallel-model">Concurrency</a>.</p>
 
-<p><b>Note: </b>a parallel group brings the process back in synchronous mode at its closing <code>done</code>. If a started method raises an error, <code>done</code> raises it in the process, so the recover region of the process handles the errors of all the started methods.</p>
+<p><b>Note: </b>a parallel group brings the process back in synchronous mode at its closing <code>done</code>. If a started method raises an error, the other methods go on; <code>done</code> waits for all of them, then raises the error in the process, so the recover region of the process handles the errors of all the started methods. A process runs one parallel group at a time.</p>
 
 <hr>
 
@@ -237,51 +282,7 @@ end test_apply;
 
 <p>Error handling in Eve is done at process level, in the recover region. A process can be interrupted by a system exception or it can create user-defined exceptions. We use special keywords to signal an exception from inside a job: {raise, expect}.</p>
 
-<h4>Pseudocode</h4>
-
-<p>The Exception module is not yet created. We have the intention to use Eve to create this module. Next is a prototype that explain the structure of future Exception module. It define class .Error that is public and several metods.</p>
-
-<pre class="line-numbers"><code class="language-eve">** system exception type
-module Exception is
-
-  class .Error: {
-    code: Integer,
-    message: String,
-    module: String,
-    line:Integer
-  } &lt;&#58; Object;
-
-  class .Error = {code: Integer, message: String} &lt;&#58; Object is
-    constructor(@self)(code, message) is
-      self := new Object();
-      let self.code := code;
-      let self.message := message;
-    return;
-  end Error;
-
-  class Call = {line:String, method:String} &lt;&#58; Object is
-    constructor(@self)(line, method) is
-      self := new Object();
-      let self.line   := line;
-      let self.method := method;
-    return;
-  end Call;
-
-  ** system variables
-  set $error: Error;   ** last error
-
-  ** system objects;
-  set $stack: ()Call;  ** list of calls
-  set $trace: ()Error; ** list of errors
-
-  ** methods for Exceptions
-  method (@self:Error) .raise(...);
-  method (@self:Error) .expect(...);
-  method (@self:Error) .pass(...);
-  method (@self:Error) .fail(...);
-
-end Exception;
-</code></pre>
+<p>The Exception module is part of the standard library. It is written in Eve. Its class <code>Error</code>, the system variables, the signatures and the table of standard exceptions with their codes and message patterns are in <a href="/projects/eve/exceptions.html">Exceptions</a>. An exception is an object <code>{code: x, message: y}</code>: its code is also the exit code of the application when nobody handles it.</p>
 
 <h3 id="run-time-errors">Runtime Errors</h3>
 
@@ -296,12 +297,23 @@ end Exception;
 <b>Syntax:</b>
 
 <pre class="line-numbers"><code class="language-eve">
-** system exception
-raise $ExceptionType("message");
+** a constructor creates an exception: ExceptionType is a class
+raise ExceptionType("message");
 
-** user-defined exception
-raise (code,"message") if condition;
+** $ExceptionType is the constant code of the exception
+raise ($ExceptionType, "message");
+
+** code and message
+raise (23, "message") if condition;
+
+** an exception object
+raise {code: 23, message: "error"};
+
+** message only: the code is 4
+raise "error" if condition;
 </code></pre>
+
+<p>All these forms are valid: <code>raise</code> is an overloaded method. When the code is not given, the code is 4.</p>
 
 <h3 id="using-expect">Using expect</h3>
 
@@ -334,12 +346,12 @@ expect condition2, "user defined message";
 <tbody>
 <tr><td><code>retry</code></td><td>run the failed job again, from the start of its declarations</td></tr>
 <tr><td><code>resume</code></td><td>the error is handled: the job stays failed and the process continues after its <code>done</code></td></tr>
-<tr><td><code>abort</code></td><td>end the process: the finalize region runs, then the error propagates to the calling process</td></tr>
+<tr><td><code>abort</code></td><td>end the process without running the finalize region, the error propagates to the calling process</td></tr>
 </tbody>
 </table>
 
 <ul>
-<li>If the recover region ends without one of these, the error is handled: the finalize region runs and the process ends normally.</li>
+<li>If the recover region ends without one of these, the error is handled: the finalize region runs and the process ends normally. A process in a parallel group that fails does not stop the others: the closing <code>done</code> waits for all of them, then raises the error, and the recover region runs, or the finalize region when there is no recover region.</li>
 <li><code>retry</code> and <code>resume</code> need a failed job. An error raised outside any job can only be aborted.</li>
 <li>Raising another error in the recover region aborts with the new error.</li>
 <li>A process without a recover region aborts on every error. If the driver aborts, the application ends with an error exit code.</li>
@@ -367,7 +379,7 @@ end recover_demo;
 
 <h3 id="finalize">Finalize</h3>
 
-<p>The finalize region is optional. It runs once, when the process ends: after <code>return</code> or <code>exit</code>, or after the recover region has aborted. It is skipped by <code>over</code> and <code>panic</code>. After <code>retry</code> or <code>resume</code> the process continues, so finalize runs later, when the process ends.</p>
+<p>The finalize region is optional. It runs once, when the process ends: after <code>return</code> or <code>exit</code>, or when the recover region ends normally. It is skipped by <code>over</code>, <code>panic</code> and <code>abort</code>. After <code>retry</code> or <code>resume</code> the process continues, so finalize runs later, when the process ends.</p>
 
 <p>In finalization region developer can close resources, tear down data of test cases, archive the logs, send signals, prepare output parameters or just print debug messages. Whatever is required after all code is execute just before process termination.</p>
 
