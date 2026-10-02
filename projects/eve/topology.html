@@ -201,7 +201,10 @@ end driver_name;
 <li>$MY_LIB   :project lib folder</li>
 <li>$MY_LOG   :project log folder</li>
 <li>$OS_PWD   :current working folder</li>
+<li>$EVE_OUT  :output folder for log files, "out" by default</li>
 </ul>
+
+<p>The environment variables of the operating system are visible as system variables with the same name: <code>$PATH</code>, <code>$HOME</code>.</p>
 
 <p><em>System objects</em> are instantiated at startup and are part of core library. These contain runtime information that you can use for debugging. System objects do not need module qualifier. You can access them directly once the module is imported.</p>
 
@@ -293,7 +296,7 @@ end script_name;
 
 <p>A process is a named executable region of a script, mandatory for drivers and aspects. It is declared <code>process name is … return;</code>, and the driver or aspect itself closes with <code>end script_name;</code>. A driver has one process, <code>main</code>, its entry point. An aspect hosts one or more named processes, run with <code>apply aspect.process(args);</code>: the caller waits. A process can span several cores by starting methods in a parallel block.</p>
 
-<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". The arguments are passed in a list, <code>apply reports.total(10, @sum);</code>. The caller waits, so the outputs are ready on the next statement. A method started in a parallel block has its outputs ready after the <code>done</code> of its group. Only the driver defines a global scope: the main process reads and changes the driver globals. A process of an aspect has its own scope and no globals: it receives data by parameters. The scope of an imported module is bound to the scope of the driver or aspect that imports it.</p>
+<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". It can end with an error instead: the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> or <code>assert</code> is captured by the driver. The arguments are passed in a list, <code>apply reports.total(10, @sum);</code>. The caller waits, so the outputs are ready on the next statement. A method started in a parallel block has its outputs ready after the <code>done</code> of its group. Only the driver defines a global scope: the main process reads and changes the driver globals. A process of an aspect has its own scope and no globals: it receives data by parameters. The scope of an imported module is bound to the scope of the driver or aspect that imports it.</p>
 
 <p> While modules don't use the 'process' keyword, they have an initialization region that serves a similar purpose. This initialization region is executed first when a process starts. For modules imported by a driver, the initialization runs within the driver's main process. When imported by an aspect, it runs in the sub-process created by that aspect.</p> 
 
@@ -342,9 +345,9 @@ end test_over;
 
 <h2 id="aspects">Aspects</h2>
 
-<p>An <em>"aspect"</em> is a script specific to a particular project. It resolve a problem or address a specific concern. Aspect files are executable. One aspect can execute other aspects, however it can't be recursive.</p>
+<p>An <em>"aspect"</em> is a script specific to a particular project. It resolve a problem or address a specific concern. Aspect files are executable. A process of an aspect can apply processes of other aspects. An aspect is not executed itself, only its processes are. Processes can not be recursive, but methods can.</p>
 
-<p>An aspect hosts one or more named processes, each can receive parameters. It has no <code>main</code>. A process of an aspect is executed with the keyword "apply", in serial mode. An aspect must handle its own errors, it can't raise errors. If errors are not handled, the program panic and stop execution.</p>
+<p>An aspect hosts one or more named processes, each can receive parameters. It has no <code>main</code>. A process of an aspect is executed with the keyword "apply", in serial mode. Processes run in sequence, so a process of an aspect can raise errors like any other process, and the error propagates to the caller. An error that nobody handles ends the application. The driver captures the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> and <code>assert</code>.</p>
 
 <h4>Aspect skeleton:</h4>
 
@@ -468,89 +471,17 @@ end module_name;
 <p>To execute a driver there are these ways:</p>
 <ol>
 <li>Using the "eve" system command: <code>eve script.eve</code>,</li>
-<li>Planned: using console REPL commands: parse, debug and execute,</li>
+<li>Planned: using console REPL commands: parse, debug and execute (see <code>manual/usage.md</code>),</li>
 <li>Planned: EVE virtual machine can be run as a daemon,</li>
 <li>Planned: you can control EVE virtual machine using command: eve with parameters</li>
 </ol>
 
 <h3 id="driver-execution">Driver Execution</h3>
 
-<p>When a driver is executed, all its components are compiled in memory, then the <em>main process</em> is executed. An aspect hosts named processes, run when the driver applies or starts them; it can also be loaded from EVE console to call one process or function at a time, for testing purpose.</p>
+<p>When a driver is executed, all its components are compiled in memory, then the <em>main process</em> is executed. An aspect hosts named processes, run when the driver applies or starts them; it can also be loaded from the planned REPL to call one process or function at a time, for testing purpose.</p>
 
-<h4>Start EVE REPL</h4>
+<p>The console REPL (parse, debug and execute a script step by step) and the daemon mode are planned for a later version. They describe the tool, not the language, so they are documented in the manual of the implementation: <code>manual/usage.md</code> in the eve-lang repository.</p>
 
-<p>EVE is a REPL machine. (Read Execute Print Loop). This machine has a menu and a command line. You can issue commands that can parse, debug and execute a script. This machine is planned and not yet created. It should work using "eve" command in console on Linux, Windows or Mac.</p>
-
-<pre class="language-out">~/eve -c file.cfg</pre>
-
-<h4>Operations</h4>
-
-<p>The machine has three operations on a script: <em>parse</em>, <em>debug</em> and <em>execute</em>. You can specify how much memory to allocate to the process with the option -m.</p>
-
-<pre class="language-out">eve:&gt; parse ~/path/driver_name.eve
-eve:&gt; debug ~/path/driver_name.eve -c file.cfg
-eve:&gt; execute ~/path/driver_name.eve -c file.cfg -m 2048GB</pre>
-
-<p>Eve REPL can be used to parse, debug or execute a driver step by step, using special commands. The command options are not yet fully designed. We will implement these basic commands:</p>
-
-<table class="table table-bordered">
-<tr>
-  <th>command</th>
-  <th>description</th>
-</tr>
-<tr>
-  <td>parse</td>
-  <td>check the syntax and compile a script in memory, do not execute it</td>
-</tr>
-<tr>
-  <td>debug</td>
-  <td>execute the main process in debug mode</td>
-</tr>
-<tr>
-  <td>execute</td>
-  <td>execute the main process in production mode</td>
-</tr>
-<tr>
-  <td>begin</td>
-  <td>start the driver main process step by step execution</td>
-</tr>
-<tr>
-  <td>enter</td>
-  <td>this is actually the enter key. execute next step</td>
-</tr>
-<tr>
-  <td>print</td>
-  <td>display value for a global variable, it can't print locals</td>
-</tr>
-<tr>
-  <td>resume</td>
-  <td>continue running until a "halt" statement is encountered</td>
-</tr> 
-<tr>    
-  <td>report</td>
-  <td>create a debugging report about system state</td>
-</tr>
-<tr>    
-  <td>stop</td>
-  <td>stop the driver execution but do not clean memory</td>
-</tr>
-<tr>    
-  <td>clear</td>
-  <td>stop the driver and clean the memory</td>
-</tr>
-<tr> 
-  <td>setup</td>
-  <td>load configuration file and set "$" variables</td>     
-</tr>
-<tr>    
-  <td>quit</td>
-  <td>stop EVE machine and exit from REPL</td>
-</tr>
-</table>
-
-<p>You can use "halt" inside the script to stop a script and debug the script later. "halt" is working only when debug mode is active. Statement "halt" can be conditioned with "if" to create a debugging break-point. You should remove "halt" statements when the software is mature and do no longer need debugging.</p>
-
-<p>In debug mode you can modify the configuration and reload using "setup" command. REPL must be in "ready" state when you reload settings otherwise you will get an error.</p>
 <!-- work in progress-->
 
 <h3 id="module-import">Module Import</h3>

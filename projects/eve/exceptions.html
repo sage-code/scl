@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve exceptions and warnings: library design, standard codes and message patterns.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode, EVE, EveLang, exceptions, errors, warnings, recover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>Exceptions</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="exceptions">Exceptions</h1>
+
+<div class="alert alert-secondary shadow-sm">
+This page summarizes the design of the exception library: the types, the system variables and the predefined constants. The tables list every standard error and warning, with its code and the pattern of its message. The statements that raise and handle exceptions are explained in <a href="/projects/eve/processing.html#exceptions">Processing</a>.
+</div>
+
+<div class="alert alert-warning"><b>Draft:</b> the codes and the message patterns below are proposed. The forms of <code>raise</code> and the Exception module are not final (PRC-08, PRC-09).</div>
+
+<h2 id="design">Library Design</h2>
+
+<p>The <code>exception</code> module belongs to the standard library: it is imported by default. It is written in Eve. A process that cannot continue raises an <em>error</em>; the workflow jumps into the <code>recover</code> region, where the developer reads <code>$error</code>. A <em>warning</em> does not interrupt the process: it is added to <code>$trace</code> and the process goes on. Warnings are reported in the final exit status of the driver.</p>
+
+<h3 id="types">Types</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Type</th><th>Members</th><th>Role</th></tr>
+</thead>
+<tbody>
+<tr><td>exception.Error</td><td>code: Integer, message: String, module: String, line: Integer, job: String</td><td>An error that interrupts a process.</td></tr>
+<tr><td>exception.Warning</td><td>code: Integer, message: String, module: String, line: Integer</td><td>A condition that is reported but does not interrupt the process.</td></tr>
+<tr><td>exception.Call</td><td>line: String, method: String</td><td>One entry of the call stack.</td></tr>
+</tbody>
+</table>
+
+<p>The class <code>Error</code> in the module <code>Exception</code>:</p>
+
+<pre class="line-numbers"><code class="language-eve">** system exception type
+module exception is
+
+  ** an error: its code is also the exit code
+  class .Error = {code: Integer, message: String, module: String, line: Integer, job: String} &lt;&#58; Object is
+    constructor(@self)(code = 4, message = "" :String) is
+      self := new Object();
+      let self.code := code;
+      let self.message := message;
+    return;
+  end Error;
+
+end exception;
+</code></pre>
+
+<h3 id="system-variables">System Variables and Objects</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Name</th><th>Type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>$error</td><td>Error</td><td>The last error of the process.</td></tr>
+<tr><td>$stack</td><td>()Call</td><td>The list of calls that led to the error.</td></tr>
+<tr><td>$trace</td><td>()Error</td><td>The list of errors and warnings of the process.</td></tr>
+</tbody>
+</table>
+
+<h3 id="signatures">Signatures</h3>
+
+<p>Only the signatures are given. A declaration with the keyword <code>external</code> keeps only the signature: it is implemented in Zig by the virtual machine. The source of the module is <code>evevm/lib/exception.eve</code>. An exception is an object <code>{code: x, message: y}</code>; <code>raise</code> is overloaded and accepts a constructor call, a code constant with a message, a code with a message, an exception object, or only a message (code 4).</p>
+
+<pre class="line-numbers"><code class="language-eve">** raise an exception object
+external .raise(e: Error);
+
+** raise an error with a code and a message
+external .raise(code: Integer, message: String);
+
+** raise an error with the default code 4
+external .raise(message: String);
+
+** raise $err_expect when the condition is false
+external .expect(condition: Logic, message := "");
+
+** report a warning when the condition is false
+external .assert(condition: Logic, message := "");
+
+** report a warning and go on
+external .warn(code: Integer, message: String);
+</code></pre>
+
+<h2 id="constants">Predefined Constants</h2>
+
+<p>Every standard error and warning has a predefined constant: <code>$err_name</code> for an exception and <code>$wrn_name</code> for a warning. The constant is the integer code. In the recover region you compare it with the code of the error:</p>
+
+<pre class="line-numbers"><code class="language-eve">recover
+  if $error.code == $err_file do
+    print "Skip the missing file: " / $error.message;
+    resume;
+  else
+    abort;
+  done;
+</code></pre>
+
+<p>The constants are read only. The exit code of a driver that ends with an unhandled error is the code of the error (see <a href="/projects/eve/topology.html">Topology</a>).</p>
+
+<h3 id="code-ranges">Code Ranges</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Codes</th><th>Use</th></tr>
+</thead>
+<tbody>
+<tr><td>1 to 9</td><td>The statements of the language: panic 1, expect 2, assert 3 (a warning), raise 4 by default, then warnings.</td></tr>
+<tr><td>10 to 127</td><td>Standard errors of the virtual machine and the library.</td></tr>
+<tr><td>128 to 255</td><td>Errors defined by a project. Keep the codes of a project unique.</td></tr>
+</tbody>
+</table>
+
+<h2 id="exception-table">Standard Exceptions</h2>
+
+<p>A message pattern is the message of the error. A name in braces is replaced with the value that caused the error. <b>When a new exception is needed, add it to this table</b> with the next free code of its range, then use its constant.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Code</th><th>Constant</th><th>Message pattern</th><th>Raised by</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>$err_panic</td><td>the message given to panic, or "Panic in line {line}"</td><td>panic</td></tr>
+<tr><td>2</td><td>$err_expect</td><td>"Unexpected error in line {line}", or the custom message</td><td>expect</td></tr>
+<tr><td>4</td><td>$err_raise</td><td>the message given to raise</td><td>raise without a code</td></tr>
+<tr><td>10</td><td>$err_index</td><td>"Index {index} is out of range {first}..{last}"</td><td>collections, strings</td></tr>
+<tr><td>11</td><td>$err_key</td><td>"Key {key} not found"</td><td>HashMap, DataSet</td></tr>
+<tr><td>12</td><td>$err_divide</td><td>"Division by zero"</td><td>arithmetic</td></tr>
+<tr><td>13</td><td>$err_overflow</td><td>"Overflow in {operation}"</td><td>arithmetic</td></tr>
+<tr><td>14</td><td>$err_convert</td><td>"Cannot convert {value} to {type}"</td><td>type conversion</td></tr>
+<tr><td>15</td><td>$err_parse</td><td>"Cannot parse {text} as {type}"</td><td>parse, literals read at run time</td></tr>
+<tr><td>16</td><td>$err_null</td><td>"Null value used as {type}"</td><td>any use of Null</td></tr>
+<tr><td>17</td><td>$err_argument</td><td>"Invalid argument {name}: {reason}"</td><td>functions, methods, processes</td></tr>
+<tr><td>20</td><td>$err_file</td><td>"File not found: {path}"</td><td>file and folder classes</td></tr>
+<tr><td>21</td><td>$err_access</td><td>"Access denied: {path}"</td><td>file and folder classes</td></tr>
+<tr><td>22</td><td>$err_io</td><td>"Input/output error on {path}: {reason}"</td><td>streams, files</td></tr>
+<tr><td>30</td><td>$err_module</td><td>"Module {name} not found in {library}"</td><td>from … use</td></tr>
+<tr><td>31</td><td>$err_process</td><td>"Process {name} not found in aspect {aspect}"</td><td>apply</td></tr>
+<tr><td>40</td><td>$err_memory</td><td>"Out of memory while allocating {size}"</td><td>virtual machine</td></tr>
+<tr><td>41</td><td>$err_timeout</td><td>"Time-out after {time}"</td><td>channels, parallel groups</td></tr>
+<tr><td>42</td><td>$err_deadlock</td><td>"Deadlock: every task of the group waits on a channel"</td><td>parallel groups</td></tr>
+<tr><td>43</td><td>$err_output</td><td>"Output {name} is given to two tasks of the group"</td><td>start</td></tr>
+</tbody>
+</table>
+
+<h2 id="warning-table">Standard Warnings</h2>
+
+<p>The same rule applies: <b>list every new warning in this table</b>.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Code</th><th>Constant</th><th>Message pattern</th><th>Reported by</th></tr>
+</thead>
+<tbody>
+<tr><td>3</td><td>$wrn_assert</td><td>"Assertion failed in line {line}", or the custom message</td><td>assert</td></tr>
+<tr><td>5</td><td>$wrn_deprecated</td><td>"{name} is deprecated, use {other}"</td><td>library members marked deprecated</td></tr>
+<tr><td>6</td><td>$wrn_truncate</td><td>"Value {value} truncated to {type}"</td><td>type conversion</td></tr>
+<tr><td>7</td><td>$wrn_unused</td><td>"{name} is declared but never used"</td><td>compiler</td></tr>
+</tbody>
+</table>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/command.html">Shell command</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>
