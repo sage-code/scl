@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Sage-Code Eve programming, strings and regular expressions explained.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sagecode, EVE, EveLang, strings, regex, programming">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>Eve Strings</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-strings">Eve Strings</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Strings are immutable collections of symbols. Text is the mutable type for building large documents. Regular expressions search inside strings. This page continues <a href="/projects/eve/collections.html">Collections</a>.</div>
+
+<h2 id="string">String</h2>
+
+<p>In Eve, strings are collections of UTF8 code points. The capacity of string is virtual unlimited. A string can grow automatically. Strings are immutable. If you need a mutable string, use a collection of Symbols or a Text (see below).</p>
+
+<h3 id="string-declaration">String declaration</h3>
+
+<p>String can be initialized with a constant literals using double quotes or triple quotes. You can scan a string symbol by symbol using a "for" loop. Each element in a string is on type Symbol.</p>
+
+<h4>Syntax:</h4>
+<pre class="line-numbers"><code class="language-eve">
+process main is
+  ** define empty string with default capacity
+  let str1 :String;
+  let str2 = "": String; ** equivalent
+...
+</code></pre>
+
+<h3 id="string-mutability">String mutability</h3>
+
+<p>In Eve Strings are immutable. If you use ":=" the string object is replaced. You can concatenate strings and you can use string interpolation but every time you do, a new string is created.</p>
+
+<h4>Example:</h4>
+
+<pre class="line-numbers"><code class="language-eve"># working with strings
+driver test_string is
+  ** shared immutable strings
+  set str := "First value";
+  set ref := "First value";
+  process main is
+    ** check initial value
+    expect str == ref;     **  same value
+    expect str eq ref;     **  same value and type
+    expect str is not ref; **  different locations
+
+    ** operator ":=" works by reference
+    ref := str;    **  reset ref
+    expect str == ref; **  same value
+    expect str is ref; **  same reference (old reference is garbage)
+
+    ** if we recreate str, reference is reset
+    str := "First value"; **  new string
+    expect str == ref;     **  same value
+    expect str is not ref; **  different location
+
+    ** if we modify "str" then "ref" will remain the same
+    ** because the strings are immutable in Eve
+    str += ':'; **  create a new string (concatenate ":")
+    expect str == "First value:"; **  modified
+    expect ref == "First value";  **  not modified
+    expect str is not ref; ** the reference was broken
+
+  return;
+end test_string;
+</code></pre>
+
+<p><b>Note:</b></p>
+<ul>
+<li>You can create garbage in Eve if you lose references;</li>
+<li>You can create a collection of Symbols to split() a string;</li>
+<li>You can join() elements of a collection to create a string;</li>
+</ul>
+
+<h3 id="string-comparison">String comparison</h3>
+<ul>
+<li>Two strings are compared using relation operators: { ==, &lt;&gt;, &lt;, &gt;, &gt;=, &lt;= };</li>
+<li>Single quoted symbols can be compared to double quoted strings;</li>
+<li>The length of the string is the number of symbols:</li>
+<li>Empty string "" == '' has length 0 and is Empty but not Null;</li>
+</ul>
+
+<h4>Example:</h4>
+<pre class="line-numbers"><code class="language-eve"># compare strings
+driver compare_strings is
+  expect ('a' == 'a');         **  true (same value)
+  expect ("this" == "this");   **  true (same value)
+  expect (" this" &lt;&gt; 'this '); **  trailing spaces are significant
+return;
+</code></pre>
+
+<h3 id="null-strings">Null strings</h3>
+
+<p>We can test if a string is Null using "is Null" expression. In Eve "" is empty string but Null string is not "" that is empty, A Null string is declared but uninitialized. That is equivalent with Null object.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# null string & symbol demo
+driver null_string is
+  set str :String; ** Null string
+  set emp := "";   ** empty string
+  set btr :Symbol; ** Null symbol
+  process main is
+    ** null string
+    expect str is Null;
+    expect emp is not Null;
+
+    ** empty string
+    expect emp is not Null;
+    expect emp == "";
+    expect emp.length() == 0;
+
+    ** symbol follow the same rule
+    expect btr is Null;
+    btr := '';
+    expect btr is not Null;
+  return;
+end null_string;
+</code></pre>
+
+
+<h3 id="ucs-font">UCS Font</h3>
+
+<p>The string is a collection of&nbsp;<em>code points</em>&nbsp; using symbols from universal character set (UCS). To handle code source that contain Unicode symbols you must select a proper programming font. We recommend: Dejavu Sans Mono.</p>
+
+<p>See also:&nbsp;<a href="https://en.wikipedia.org/wiki/Universal_Coded_Character_Set" rel="nofollow">wikipedia ucs</a>,&nbsp;<a href="https://en.wikipedia.org/wiki/List_of_Unicode_characters#Character_reference_overview" rel="nofollow">unicode characters</a></p>
+
+<p>HTML standard is using special escape codes for each symbol. Is not the scope of this document to explain this codification. In example below we show you some Unicode symbols. Using convention &code; we can escape special UNICODE characters in double quoted string. Eve is parsing a double quoted string and replace these characters with the correct code point.</p>
+
+<h4>Example:</h4>
+<pre class="line-numbers"><code class="language-eve"># text type has unicode support
+process unicode_text
+  let us = "I can write Greek: {&alpha;,&beta;,&gamma;,&delta;}";
+  print us;
+return;
+</code></pre>
+
+<h4>Output:</h4>
+
+<pre class="fixed">I can write Greek: {&alpha;,&beta;,&gamma;,&delta;}.</pre>
+
+<p>To edit Eve source code containing Unicode literals one must use a specific font and UTF-8 source files. The preferred font for Eve programming is "DejaVu Sans Mono". In this case it is not necessary to use &code; convention. You can copy paste the real Unicode Symbol from character map.</p>
+
+<h4>Tips &amp; Tricks</h4>
+
+<p>Strings are immutable. You can handle more efficient strings using list. For this you can create a list from string. Conversion is implicit made using "feed" operator "<+". This operator is populating the list with characters from string, preserving the spaces between words, reduce many spaces to one space.</p>
+
+<pre class="line-numbers"><code class="language-eve"># create list from string
+process main is
+  ** ASCII string buffers
+  let str1  = "test";
+  let str2  = () &lt;+ str1; ** feed the list with Symbols
+
+  ** check list elements
+  expect str2[1]  == 't';
+  expect str2 == ('t','e','s','t');
+return;
+</code></pre>
+
+<h3 id="using-strings">Using strings:</h3>
+
+<p>In next examples we use type inference to create strings. The length of the string is the number of symbols. You can use operator "*" to initialize a long string with the same Symbol or a String pattern.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# string generators
+process main is
+  ** examples of empty strings
+  let short_string := "short string";** most common form of literal
+  let long_line := '-' * 80;         ** a long line of 80 dashes
+  let dash_dot  := "-&middot;" * 40; ** a long line "-&middot;-&middot;-&middot;";
+return;
+</code></pre>
+
+
+<h3 id="string-concatenation">String: concatenation</h3>
+
+<p>Strings can be concatenated using operator "+" and modifier "+=" and some other ways. Concatenating a string with another literal (symbol or number) gives a String:</p>
+
+<ul>
+  <li>regular concatenation: "+"</li>
+  <li>concatenation with modifier "+="</li>
+  <li>string formatting: "#s", "#n" and ?</li>
+  <li>string string pipe "&lt;+":</li>
+  <li>collection join() method</li>
+</ul>
+
+<h4>Example:</h4>
+<pre class="line-numbers"><code class="language-eve">** example of string concatenation
+  driver string_concat is
+
+    process main is
+      ** set string value using different operators
+      let str := " this " + "string";
+      expect str == " this string";
+
+      ** use string interpolation #{str} is recognized
+      print "I have insert #{str} here!";
+
+      ** concatenate string with collection
+      print "digits = " + (1,2,3).join(",");
+
+      ** string pipeline
+      print "" &lt;+ ("this ","is ","a "," string");
+
+      ** string format operator ? with #n placeholders for numbers
+      print "these numbers #n, #n, #n are prime" ? (1,3,5);
+    return;
+  end string_concat;
+</code></pre>
+
+<p><b>symbols & numbers</b></p>
+
+<p>You can concatenate a Symbol (character) or a string with number: <code>'a' + 1</code> and <code>"a" + 1</code> are both the String "a1". There is an implicit coercion that will transform the number into a string before concatenation. However, to concatenate two numbers you must explicitly join the numbers together using a function join() that will produce a string.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# numeric concatenation
+process main is
+  ** implicit conversion
+  let s := 'a' + 1;
+  expect s == "a1"; ** is a string
+
+  ** implicit conversion, number first
+  let c := 1 + 'a';
+  expect c == "1a"; ** is a string
+
+  ** explicit join list elements with empty Symbol
+  let test = (1,2,3).join('');
+  expect test == "123";
+return;
+
+</code></pre>
+
+<h3 id="string-builders">String: builders</h3>
+
+<p>You can convert a range to a list of symbols by using operators: +&gt; and &lt;+. In next example we demonstrate several use-cases useful to create new strings using range notations.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# different ways to convert data into string
+process main is
+  ** Range conversion
+  let str1 := (0..9) +&gt; "";
+  expect str1 == "0123456789";
+
+  ** DataSet conversion
+  let str2 := "" &lt;+ ("A".."F");
+  expect str2 == "ABCDEF";
+
+  ** Join a set created with set builder in place
+  let str2 := {"0x1" + a | a in ("A".."F")}.join(',');
+  expect str2 == "0x1A,0x1B,0x1C,0x1D,0x1E,0x1F";
+return;
+</code></pre>
+
+<h3 id="string-split">String split</h3>
+
+<p>You can split a string in list of words. When you do this, you can specify a symbol or a list of symbols all considered separators. Separator is removed and not included in the string.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+process main is
+  let str   := "one two three";
+  let words := str.split(" ");
+  print words;
+return;
+</code></pre>
+
+<pre class="output">
+("one","two","three")
+</pre>
+
+<h3 id="text-literals">Text Literals</h3>
+
+<p>Strings can contain multiple lines separated with end of line character. Large text literal can be defined on multiple lines. Eve use triple quoted  strings """...""" and very special trick to parse long strings.</p>
+
+<p>Text is a different type from String. A String is immutable, while a Text is mutable: it has a different internal representation, an efficient structure that allows modification (for example a rope). A Text can be used to represent HTML or XML and other data format like CSV. Double quotes are preserved without escape sequence. The example below demonstrate our little trick.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# declaration of a text literal
+driver text_literal is
+
+  process main is
+    ** multiline text literal is possible in Eve
+    let my_text:="""
+    "Opportunity is missed by most people
+    because it is dressed in overalls
+    and looks like work."
+    """;
+    print my_text;
+  return;
+end text_literal;
+</code></pre>
+
+<p><b>Output:</b></p>
+<pre class="output">
+"Opportunity is missed by most people
+because it is dressed in overalls
+and looks like work."
+</pre>
+
+<p>An equal number of spaces was detected by the compiler and removed. The equal number of spaces is the indentation of last tripple quote, that must be on a new line (alone) follow by semicolon. This is used by the compiler to determine the indentation.</p>
+
+<h3 id="string-functions">String functions</h3>
+
+<p>Full inventory of functions will be design in package specification. We enumerate several function as example that we wish to have, but is not our scope yet to enumerate all possible functions.</p>
+
+<ul>
+  <li>String.split();</li>
+  <li>String.length();</li>
+  <li>String.find(pattern:Regex);</li>
+  <li>String.count(pattern:Regex);</li>
+  <li>String.replace(pattern:Regex, cargo:String);</li>
+</ul>
+
+<p><b>Note. </b>These functions can be used with class qualifier "String" but also with data literals. For example: "test".split() is equivalent to String.split("test"). This is a general rule: a class method can be called with the class name or with an object, it is the same method.</p>
+
+<h2 id="regex">Regular Expressions</h2>
+
+<p>Regular expressions are special string templates useful to search inside strings. We implement regular expressions a la carte except the delimiter \" must be escaped. Regular expressions are enclosed in double quotes like strings: "/regex/g". A regular expression always start with "/" and ends with "/flags". A string that starts with "/" on the right of the operator "=~" is always a regular expression.</p>
+
+
+<h3 id="regex-operators">Regex operators</h3>
+
+<p>Eve has support for two operators: "=~" and "!~". These are logic operators. Represent "is like" respective "is not like". It require a string for the left operand and a regular expression for the right operand. The symbol "!" has more than one meaning in Eve; here it negates the match.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# compare regular expression
+process main is
+  ** search " is " in the string
+  let found := "this is like" =~ "/\sis\s/";
+  expect found; ** True
+
+  ** check if string start with "not"
+  let not_found := "this is not like" !~ "/^not/";
+  expect not_found; ** True
+return;
+</code></pre>
+
+<p><b>Note:&nbsp;</b>You can create and test regular expressions using a tool. It is not in our scope to teach you regular expressions.</p>
+
+<h4>External Reference</h4>
+<p>You can learn and build regular expressions on this website:
+<a href="https://regexr.com/" rel="nofollow noreferrer noopener" target="_blank">https://regexr.com/</a></p>
+
+
+
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/control.html">Control Flow</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>
