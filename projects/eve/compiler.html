@@ -97,6 +97,25 @@ Eve is an open language standard, not a single product. It is designed to have m
 </tbody>
 </table>
 
+<h3 id="status">Status of the Reference Implementation</h3>
+
+<p>The first implementation is the Eve virtual machine, written in Zig (<code>evevm/</code>, built to <code>bin/eve.exe</code>). <b>Compiler stage: Level 1 implemented.</b> It parses every script into a syntax tree and executes the tree with a tree-walking interpreter.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Level</th><th>Status</th><th>Tests</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td><b>Implemented</b></td><td>37 of 37 pass (<code>test/level1/</code>)</td></tr>
+<tr><td>2</td><td>Started: the command files of the machine (<code>.vmc</code>) and the workflow commands</td><td>11 tests pass (<code>test/level2/</code>); modules, aspects and imports are not implemented</td></tr>
+<tr><td>3</td><td>Not started</td><td>-</td></tr>
+</tbody>
+</table>
+
+<p>Level 1 covers drivers and free scripts, <code>let</code> and <code>set</code>, operators and precedence, strings with interpolation and formats, <code>if</code>, <code>while</code>, <code>loop</code>, <code>for</code>, <code>match</code>, ordinals, lists, arrays, matrices, slices and views, DataSets, HashMaps, Objects, functions, methods, classes with constructors, regular expressions (a small subset), <code>expect</code>, <code>over</code>, <code>panic</code>, <code>raise</code>, <code>recover</code>, <code>finalize</code>, and jobs with <code>retry</code> and <code>resume</code>. Not done yet: type checking (types give only the default values), the chained matrix forms such as <code>mat[1..2][*]</code> (write <code>mat[1, *]</code> and <code>mat[*, 1]</code>), modules and aspects, the debugger commands (<code>debug</code>, <code>begin</code>, <code>enter</code>, <code>resume</code>) and the bytecode compiler.</p>
+
+<p>The machine is also driven by command files. <code>eve -x -i level1.vmc</code> runs a <b>.vmc file</b> (Virtual Machine Command): one command per line, run in order from the first line. A workflow file loads one script at a time (<code>load</code>, <code>parse</code>, <code>run</code>, <code>errors</code>, <code>ast</code>, <code>inspect</code>, <code>status</code>), ends with <code>stop</code>, and leaves reports in a folder: the output, the errors, the syntax tree and an introspection report for every script. <code>python script/workflow.py 1</code> runs a whole level this way and compares it with <code>expect.json</code>. The commands are described in <code>manual/usage.md</code>.</p>
+
 <h2 id="architecture">Compiler Architecture</h2>
 
 <p>Every Eve implementation follows the same front end. The back end is where implementations differ.</p>
@@ -259,6 +278,23 @@ EOF
 <tr><td>M7 Topology</td><td>Modules, aspects, imports, error recovery</td><td>Level 2 tests pass</td></tr>
 </tbody>
 </table>
+
+<p>Where the reference implementation stands: M1, M2, M3, M5 and M6 are done in one tree-walking interpreter (all level 1 tests pass); M4 (type checking) and M7 (topology) are open.</p>
+
+<h3 id="lessons">What Level 1 Taught</h3>
+
+<p>Rules that the first implementation had to decide while running the level 1 tests. They are now part of the language, and a new implementation must follow them (the decisions are D-058 and D-063 in <code>plan/decisions.md</code>):</p>
+
+<ul>
+  <li><b>Grouping is not a list.</b> <code>(x)</code> is the value of <code>x</code>; <code>(x,)</code> is a list of one element. Without this rule <code>(2 + 3) * 4</code> cannot be an expression.</li>
+  <li><b>A Symbol is one code point.</b> <code>'one'</code> is a syntax error; use <code>"one"</code>. The lexer should reject it with a clear message, not crash later.</li>
+  <li><b>One index on a matrix is absolute.</b> <code>m[5]</code> counts the elements row by row; a row is <code>m[1, *]</code> and a column <code>m[*, 1]</code>.</li>
+  <li><b>Errors carry a code.</b> <code>raise</code> and the errors of the machine (index 0, missing key, division by zero) have code 4, a failed <code>expect</code> has code 2; <code>recover</code> catches all of them and reads <code>$error.message</code>, <code>$error.code</code> and <code>$error.job</code>. An unhandled error runs <code>finalize</code> and ends the process with its code.</li>
+  <li><b>Recover has three exits.</b> <code>retry</code> runs the failed job again, <code>resume</code> goes on after it, and reaching the end of <code>recover</code> ends the process as handled. <code>over;</code> skips both <code>recover</code> and <code>finalize</code>; <code>panic;</code> ends at once with code 1.</li>
+  <li><b><code>is</code> compares types and identity.</b> <code>type(x) is Real</code> compares two types; <code>a is b</code> is true only for the same list or object, while <code>==</code> compares the contents.</li>
+  <li><b><code>print</code> and <code>write</code>.</b> <code>print (1, 2, 3)</code> joins with a comma, <code>write (1, 2)</code> joins with nothing, and a DataSet prints as <code>{1,2,3}</code>.</li>
+  <li><b>Parse first.</b> The machine always parses a script before it runs it, and a syntax error stops the run before any statement executes.</li>
+</ul>
 
 <p>After M7, choose your direction: a faster back end, level 3 features (files, databases, network), or tooling such as a formatter or a language server.</p>
 
