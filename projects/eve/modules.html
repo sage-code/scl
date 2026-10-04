@@ -109,6 +109,16 @@ end module_name;
 </tbody>
 </table>
 
+<p><b>Extension methods.</b> A module-level method whose name starts with <code>_</code> and whose first parameter is <code>@self</code> extends a class: it is called like a method of that class, <code>p.shift(1, 2)</code>, and it is private to the module that declares it.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+  ** extension method: Point gets the method shift in this module
+  method _shift(@self: Point, dx, dy: Real) is
+    self.x := self.x + dx;
+    self.y := self.y + dy;
+  return;
+</code></pre>
+
 <p>A module has <b>no public variables</b>. <code>let .counter = 0 :Integer;</code> is an error. A value that other scripts need to change is passed to a method of the module as a parameter, or sent through a channel. A public channel is declared with <code>set</code>: the reference to the channel is a constant, while the values that flow through it change.</p>
 
 <h2 id="singleton">Modules are singletons</h2>
@@ -170,20 +180,30 @@ counter: 2 ticks
 
 <h2 id="import">Import</h2>
 
-<p>A driver, an aspect or a module imports modules with <code>from … use</code>. The path names the library folder; the list names the modules, or <code>*</code> for all the modules of the folder. A path is a string: the operator <code>/</code> joins path segments.</p>
+<p>A driver, an aspect or a module imports modules with <code>from … use</code>. The path names the library folder. It is written without quotes, as folder names joined by <code>/</code> (<code>lib/db</code>, <code>$EVE_LIB/db</code>), or as a string expression when it is computed (<code>"lib"</code>, <code>$root_path/"lib"</code>). The list in parentheses says how the members are reached:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Form</th><th>Imports</th><th>A member is used as</th></tr>
+</thead>
+<tbody>
+<tr><td><code>use (m);</code></td><td>the module <code>m</code></td><td><code>m.name</code></td></tr>
+<tr><td><code>use (m as x);</code></td><td>the module <code>m</code>, under the alias <code>x</code></td><td><code>x.name</code></td></tr>
+<tr><td><code>use (m(*));</code></td><td>the public members of <code>m</code>, into the scope</td><td><code>name</code>, without prefix</td></tr>
+<tr><td><code>use (*);</code></td><td>every module of the folder, their names merged into the scope</td><td><code>name</code>, without prefix</td></tr>
+</tbody>
+</table>
 
 <h4>Syntax:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
 driver script_name is
-  ** a path built from a system variable
-  set $user_path := $root_path/"lib";
+  from lib/db use (core, oracle as orcl);   ** core.name, orcl.name
+  from $EVE_LIB/util use (text(*));         ** the public members of text, without prefix
+  from "lib" use (*);                       ** every module of lib, names merged
 
-  from $user_path use (module_name, ...);  ** specific modules
-  from $user_path use (*);                 ** all the modules of the folder
-
-  ** an alias for a public member
-  def new_name = module_name.member_name;
+  ** an alias for one public member
+  def new_name = core.member_name;
 
   process main is
     ...
@@ -193,7 +213,9 @@ end script_name;
 
 <h4>Notes:</h4>
 <ul>
-<li>A public member is used with the dot operator through the module name, <code>module_name.member</code>, or through an alias created with <code>def</code>. Two modules can have members with the same name without conflict;</li>
+<li>With <code>use (m)</code> or an alias, two modules can have members with the same name without conflict;</li>
+<li>Members merged with <code>(*)</code> or <code>m(*)</code> must have different names: two members with the same name make the import fail. Then list the modules one by one, with <code>m(*)</code> for some and <code>m</code> or an alias for the others. This is how the standard modules give the language statements such as <code>print</code>;</li>
+<li>A module knows nothing of the script that imports it: it can't read the globals of the driver. Values go in and out through the parameters of its methods and functions;</li>
 <li>A library is searched with the system variable <code>$EVE_LIB</code>. If the module is not found, the import fails with the error <code>$err_module</code>;</li>
 <li>Circular imports are possible: a module that is being loaded is not loaded again;</li>
 <li>The standard modules, such as <code>io</code> and <code>exception</code>, are imported by default.</li>
