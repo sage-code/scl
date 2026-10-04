@@ -140,7 +140,7 @@ return;
 <h4>Notes</h4>
 
 <ul>
-<li>Any driver or aspect, can and must implement one single process;</li>
+<li>Any driver or aspect, can and must implement one single process, <code>main</code>;</li>
 <li>A process create a local scope, but also has access to a global context;</li>
 <li>Before first job there is a region for preparation/preconditions</li>
 <li>Preconditions can end the process with <code>over</code>, which skips the recover and finalize regions</li>
@@ -153,23 +153,23 @@ return;
 
 <h2 id="execution">Aspect execution</h2>
 
-<p>An aspect is executed using the "apply" command. The call is explicit: it names the aspect and one of its processes, <code>aspect_name.process_name(arguments)</code>, followed by the list of arguments. The parentheses are always written, also when there is no argument. An aspect has no <code>main</code> process: it hosts one or more named processes, and each call starts a process in its own scope.</p>
+<p>An aspect is executed using the "apply" command: <code>apply aspect_name(arguments);</code> runs the process <code>main</code> of the aspect and the caller waits. The parentheses are always written, also when there is no argument. Every aspect has one process, <code>main</code>, its only entry point; nothing else of the aspect can be reached from outside. Only the driver applies aspects: an aspect can't apply another aspect.</p>
 
 <h4>Examples:</h4>
 
 <pre class="line-numbers"><code class="language-eve">#these are all valid process calls
-apply aspect_name.process_name();                          ** call process without arguments
-apply aspect_name.process_name(argument_value);            ** call with single argument
-apply aspect_name.process_name(value, value, ...);         ** call with a list of arguments
-apply aspect_name.process_name(param:value,...);           ** call with a argument by name
-apply aspect_name.process_name(value, value, param:value); ** mix position with names
-apply aspect_name.process_name(value, *list_args);         ** use spreading operator
-apply aspect_name.process_name(param:value, *map_args);    ** mix names with hashmap
+apply aspect_name();                          ** apply without arguments
+apply aspect_name(argument_value);            ** apply with single argument
+apply aspect_name(value, value, ...);         ** apply with a list of arguments
+apply aspect_name(param:value,...);           ** apply with a argument by name
+apply aspect_name(value, value, param:value); ** mix position with names
+apply aspect_name(value, *list_args);         ** use spreading operator
+apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 </code></pre>
 
 <h3 id="process-interruption">Process interruption</h3>
 
-<p>A process normal ends with keyword return. When aspect process is terminated, program execution will continue with the next statement in the main process. Interruption keywords (exit, over, panic) can be used to interrupt a process. The <em>exit</em> or <em>raise</em> trigger the finalization region while "over", "panic" and "abort" skip the finalization region.</p>
+<p>A process normal ends with keyword return. When the process of an aspect is terminated, program execution continues with the statement after <code>apply</code>, in the process of the driver. Interruption keywords (exit, over, panic) can be used to interrupt a process. The <em>exit</em> or <em>raise</em> trigger the finalization region while "over", "panic" and "abort" skip the finalization region.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -196,7 +196,7 @@ apply aspect_name.process_name(param:value, *map_args);    ** mix names with has
 <pre class="line-numbers"><code class="language-eve">
 # simple aspect with one parameter
 aspect print_this is
-  process show(p:String) is
+  process main(p:String) is
     print p;
   return;
 end print_this;
@@ -209,7 +209,7 @@ driver process_call is
     loop
       let arg: String;
     for arg in args do
-      apply print_this.show(arg);
+      apply print_this(arg);
     done;
   return;
 end process_call;
@@ -217,19 +217,17 @@ end process_call;
 
 <h3 id="aspect-execution">Aspect Execution:</h3>
 
-<p>An aspect is not run or executed: only the processes inside it are executed, with <code>apply</code>. Processes can not be recursive, but methods can be recursive.</p>
+<p>An aspect is not instantiated: <code>apply</code> executes its process <code>main</code>. Processes can not be recursive, but methods can be recursive.</p>
 
 <p>Aspects can be executed in serial mode one after another. Let's consider we have 3 aspects: {one, two, three}. Main process can execute each aspect using keyword: "apply" and can block the main process waiting for each aspect to finish. This will interrupt the driver main process and will execute aspect process one by one:</p>
 
 <pre class="line-numbers"><code class="language-eve">
 driver test_apply is
-
-  # synchronous call
   process main is
-    ** apply each aspect
-    apply [folder/]aspect_one.run(arguments);
-    apply [folder/]aspect_two.run(arguments);
-    apply [folder/]aspect_three.run(arguments);
+    ** apply each aspect: synchronous calls
+    apply [folder/]aspect_one(arguments);
+    apply [folder/]aspect_two(arguments);
+    apply [folder/]aspect_three(arguments);
     ...
   return;
 end test_apply;
@@ -237,7 +235,7 @@ end test_apply;
 
 <p><b>Note: </b>An aspect is not imported with <code>import</code>. The machine searches it by name, without the file extension:</p>
 <ol>
-<li>if the aspect is written with a folder, <code>apply folder/aspect_one.run()</code>, in that folder;</li>
+<li>if the aspect is written with a folder, <code>apply folder/aspect_one()</code>, in that folder;</li>
 <li>otherwise in the aspect folder <code>asp</code> of the project, if there is one;</li>
 <li>otherwise in the root folder of the project, then in the library folder <code>lib</code>.</li>
 </ol>
@@ -245,13 +243,14 @@ end test_apply;
 
 <h3 id="aspect-scope">Aspect Scope</h3>
 
-<p>An aspect has one implicit scope. It is a singleton: the first <code>apply</code> creates the scope, and it is not destroyed automatically. In the aspect, declarations come in this order: imports, constants, variables, methods, then processes. The order does not matter for the machine because the declarations are hoisted.</p>
+<p>An aspect is a stateless blueprint: it defines its process <code>main</code>, methods, functions and signatures, and holds no data between two calls. Each <code>apply</code> creates the state of the call, the variables of the aspect included, and the state is dropped when <code>main</code> returns. A second <code>apply</code> sees nothing of the first. All the members of an aspect are private: data goes in by the parameters of <code>main</code> and comes out by its output parameters.</p>
 
-<p>To free the memory of an aspect use <code>reset</code>:</p>
+<pre>Aspect file (stateless blueprint)
+  └── defines: process main, methods, functions, signatures
+        └── main   (state allocated on apply → cleaned on return)
+</pre>
 
-<pre class="line-numbers"><code class="language-eve">reset aspect_one;   ** free one aspect
-reset all;          ** free all aspects
-</code></pre>
+<p>In the aspect, declarations come in this order: imports, constants, variables, methods, then the process. The order does not matter for the machine because the declarations are hoisted.</p>
 
 <h3 id="command-line">Command-line Parameters</h3>
 
@@ -268,9 +267,9 @@ process main(x: Integer) is
 
 <div class="alert alert-warning">Not in Eve 0.1: parallel groups and channels are planned for a later version. In version 1 a process runs on one core.</div>
 
-<p>Aspects are executed in serial mode: <code>apply</code> runs one process of an aspect and the caller waits for it to finish. An aspect process is never started in parallel. Parallel work happens inside a process: the process starts methods in a parallel group (<code>parallel … do … start … done</code>), and they run on several cores. The parallel model, the data rules, Bulk Synchronous Parallel and channels are explained in one place: <a href="/projects/eve/concurrency/#parallel-model">Concurrency</a>.</p>
+<p><code>apply</code> runs an aspect in serial mode and the caller waits for it to finish. Parallel work is done by aspects too: the process of the driver starts them in a parallel group (<code>parallel … do … start … done</code>), and they run on several cores. Methods and functions always run in serial mode. Only the driver opens parallel groups. The parallel model, the data rules, Bulk Synchronous Parallel and channels are explained in one place: <a href="/projects/eve/multitasking/#parallel-model">Multitasking</a>.</p>
 
-<p><b>Note: </b>a parallel group brings the process back in synchronous mode at its closing <code>done</code>. If a started method raises an error, the other methods go on; <code>done</code> waits for all of them, then raises the error in the process, so the recover region of the process handles the errors of all the started methods. A process runs one parallel group at a time.</p>
+<p><b>Note: </b>a parallel group brings the driver back in synchronous mode at its closing <code>done</code>. A parallel group behaves like a job and can have a label. If a started aspect raises an error, the other aspects go on; <code>done</code> waits for all of them, then raises the error in the driver, so its recover region handles the errors of all the started aspects; it can <code>retry</code> the group or <code>resume</code> after it. The driver runs one parallel group at a time.</p>
 
 <hr>
 
@@ -351,7 +350,7 @@ expect condition2, "user defined message";
 </table>
 
 <ul>
-<li>If the recover region ends without one of these, the error is handled: the finalize region runs and the process ends normally. A process in a parallel group that fails does not stop the others: the closing <code>done</code> waits for all of them, then raises the error, and the recover region runs, or the finalize region when there is no recover region.</li>
+<li>If the recover region ends without one of these, the error is handled: the finalize region runs and the process ends normally. An aspect in a parallel group that fails does not stop the others: the closing <code>done</code> waits for all of them, then raises the error, and the recover region runs, or the finalize region when there is no recover region.</li>
 <li><code>retry</code> and <code>resume</code> need a failed job. An error raised outside any job can only be aborted.</li>
 <li>Raising another error in the recover region aborts with the new error.</li>
 <li>A process without a recover region aborts on every error. If the driver aborts, the application ends with an error exit code.</li>

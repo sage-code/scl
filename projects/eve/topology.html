@@ -105,14 +105,14 @@ project
 <li>Module, created with keyword: "module",</li>
 </ul>
 
-<p><b>Notes:&nbsp;</b>One project can contain one or many drivers. Each driver is an independent script. A driver has a single executable process. A driver control the execution of aspects. An aspect is encapsulated and contains its own process. An aspect can receive parameters from the driver. An aspect or driver can "import" modules and can use classes or functions defined in these modules.</p>
+<p><b>Notes:&nbsp;</b>One project can contain one or many drivers. Each driver is an independent script. A driver has a single executable process, <code>main</code>. A driver control the execution of aspects. An aspect is encapsulated and contains its own process, also named <code>main</code>. An aspect can receive parameters from the driver. An aspect or driver can "import" modules and can use classes or functions defined in these modules.</p>
 
 <h4>Features:</h4>
 
 <ul>
 <li>A driver can import one or more modules;</li>
-<li>A driver applies aspects in a sequence; parallel work is done by methods started in a parallel block;</li>
-<li>A driver or aspect define a single executable process;</li>
+<li>A driver applies aspects in a sequence; parallel work is done by aspects started in a parallel block of the driver;</li>
+<li>A driver or aspect define a single executable process, <code>main</code>;</li>
 <li>An aspect or driver can import modules;</li>
 <li>Only a driver defines global states; every driver has its own global scope;</li>
 <li>Aspects and modules define public and private members, used with the dot operator.</li>
@@ -124,7 +124,7 @@ project
 
 <h4>Driver skeleton:</h4>
 
-<p>An Eve script begins with one of these keywords: {"driver", "aspect", "module"}. Script name is the same as the file name without the extension. A driver or aspect has no parameter list in its header: the parameters belong to its processes, <code>process name(parameters) is</code>. The process is indented inside the driver or aspect. A module has no process and no parameters.</p>
+<p>An Eve script begins with one of these keywords: {"driver", "aspect", "module"}. Script name is the same as the file name without the extension. A driver or aspect has no parameter list in its header: the parameters belong to its process, <code>process main(parameters) is</code>. The process is indented inside the driver or aspect. A module has no process and no parameters.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 ** purpose of the driver
@@ -294,11 +294,11 @@ end script_name;
 
 <h2 id="process">Process</h2>
 
-<p>A process is a named executable region of a script, mandatory for drivers and aspects. It is declared <code>process name is … return;</code>, and the driver or aspect itself closes with <code>end script_name;</code>. A driver has one process, <code>main</code>, its entry point. An aspect hosts one or more named processes, run with <code>apply aspect.process(args);</code>: the caller waits. A process can span several cores by starting methods in a parallel block.</p>
+<p>A process is the executable region of a script, mandatory for drivers and aspects. A driver and an aspect have the same shape: declarations, then one process, <code>process main is … return;</code>, and the script closes with <code>end script_name;</code>. <code>main</code> is the only process name and the entry point. An aspect is run with <code>apply aspect_name(args);</code>: the caller waits. The process of the driver can span several cores by starting aspects in a parallel block.</p>
 
-<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". It can end with an error instead: the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> or <code>assert</code> is captured by the driver. The arguments are passed in a list, <code>apply reports.total(10, @sum);</code>. The caller waits, so the outputs are ready on the next statement. A method started in a parallel block has its outputs ready after the <code>done</code> of its group. Only the driver defines a global scope: the main process reads and changes the driver globals. A process of an aspect has its own scope and no globals: it receives data by parameters. The scope of an imported module is bound to the scope of the driver or aspect that imports it.</p>
+<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". It can end with an error instead: the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> or <code>assert</code> is captured by the driver. The arguments are passed in a list, <code>apply reports(10, @sum);</code>. The caller waits, so the outputs are ready on the next statement. An aspect started in a parallel block has its outputs ready after the <code>done</code> of its group. Only the driver defines a global scope: its process reads and changes the driver globals. An aspect has its own state and no globals: it receives data by parameters. The scope of an imported module is bound to the scope of the driver or aspect that imports it.</p>
 
-<p> While modules don't use the 'process' keyword, they have an initialization region that serves a similar purpose. This initialization region is executed first when a process starts. For modules imported by a driver, the initialization runs within the driver's main process. When imported by an aspect, it runs in the sub-process created by that aspect.</p> 
+<p> While modules don't use the 'process' keyword, they have an initialization region that serves a similar purpose. This initialization region is executed first when a process starts. For modules imported by a driver, the initialization runs within the driver's main process. When imported by an aspect, it runs in the process of that aspect, at each <code>apply</code>.</p> 
 
 <h4>Process context</h4>
 
@@ -338,16 +338,16 @@ end test_over;
 <li>A driver is the process entry point,</li>
 <li>A driver can read configuration files at startup,</li>
 <li>The main process of a driver can receive parameters;</li>
-<li>A driver has exactly one process, <code>main</code>: it is a single-thread master. It can define methods, and start them in parallel groups, but no other process;</li>
+<li>A driver has exactly one process, <code>main</code>: it is a single-thread master. It applies aspects, and it is the only place where aspects are started in parallel groups;</li>
 <li>A driver is independent, can not be imported;</li>
 <li>A driver is the only script that defines global states;</li>
 </ul>
 
 <h2 id="aspects">Aspects</h2>
 
-<p>An <em>"aspect"</em> is a script specific to a particular project. It resolve a problem or address a specific concern. Aspect files are executable. A process of an aspect can apply processes of other aspects. An aspect is not executed itself, only its processes are. Processes can not be recursive, but methods can.</p>
+<p>An <em>"aspect"</em> is a script specific to a particular project. It resolve a problem or address a specific concern. Aspect files are executable. An aspect is an independent, encapsulated machine with the same shape as a driver: declarations and one process <code>main</code>, its entry point, that receives the parameters of the aspect. An aspect can't apply or start another aspect, so processes can not be recursive; methods can.</p>
 
-<p>An aspect hosts one or more named processes, each can receive parameters. It has no <code>main</code>. A process of an aspect is executed with the keyword "apply", in serial mode. Processes run in sequence, so a process of an aspect can raise errors like any other process, and the error propagates to the caller. An error that nobody handles ends the application. The driver captures the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> and <code>assert</code>.</p>
+<p>An aspect is not instantiated and has no public members: the dot operator is never used with an aspect. Data goes in by the parameters of <code>main</code> and comes out by its output parameters (<code>@</code>). Each call creates the state of the aspect, and the state is dropped when <code>main</code> returns. An aspect is executed with the keyword "apply", in serial mode. Aspects applied in sequence can raise errors like any other process, and the error propagates to the caller. An error that nobody handles ends the application. The driver captures the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> and <code>assert</code>.</p>
 
 <h4>Aspect skeleton:</h4>
 
@@ -355,13 +355,19 @@ end test_over;
 ** purpose of the aspect
 aspect aspect_name is
 
-  ** declarations of the aspect: an aspect defines no globals,
-  ** each process receives its own copy of the variables
+  ** declarations of the aspect: private, created at each apply
+  ** and dropped when main returns; an aspect defines no globals
   let count = 0 :Integer;
 
   from $path/library_name use (*);
 
-  process first(parameter_list) is
+  ** helper work is done by methods and functions
+  method helper(parameter_list) is
+    ...
+  return;
+
+  ** the only process: the entry point
+  process main(parameter_list) is
     ** executable region
     ...
   recover
@@ -371,68 +377,34 @@ aspect aspect_name is
     ** release locked resources
     ...
   return;
-
-  process second(parameter_list) is
-    ...
-  return;
 end aspect_name;
 </code></pre>
 
-<h3 id="running-aspect">Running an Aspect</h3>
-
-<p>A process of an aspect is executed with keyword "apply" (<code>apply aspect.process(args);</code>, the caller waits). Aspects are never run in parallel; a process can start methods in a parallel group. Inside an aspect, a process can call a sibling process by its bare name. Each process runs in its own scope: processes of one aspect, and parallel runs of the same process, never share variables. We will explain more about aspect execution after we define the control flow, methods, functions and error handling. At this time let's focus on Driver execution and Modules.</p>
-
 <h2 id="modules">Modules</h2>
 
-<p>A <em>module</em> is one script file with the extension ".eve" and the header <code>module name is</code>. Modules can be combined together in large projects. Some modules are common for many projects. These are called system modules or library modules. A folder of modules is a <em>library</em>. The term "crate" is not used in Eve.</p>
+<p>A <em>module</em> is one script file with the extension ".eve" and the header <code>module name is</code>. It holds reusable code: constants, classes, functions, methods and channels. A folder of modules is a <em>library</em>. Modules are explained in their own chapter: <a href="/projects/eve/modules.html">Modules</a>.</p>
 
-<p>modules ...</p>
 <ul>
-<li>are one script file each, stored in a library folder,</li>
-<li>can use each other,</li>
-<li>belong to one or more projects,</li>
-<li>can define public or private members,</li>
-<li>have no process: they can be imported but not applied,</li>
-<li>can be initialized when imported first time</li>
+<li>A module is not executable: it has no process and can't be applied or started;</li>
+<li>A module is a singleton: loaded once, initialized once (<code>initialize</code>), finalized once (<code>finalize</code>). It has no instances: <code>new module_name</code> is an error;</li>
+<li>Public members start with "." in their declaration: constants (<code>set</code>), classes, functions, methods and channels. A module has no public variables;</li>
+<li>Drivers, aspects and other modules import it with <code>from … use</code>.</li>
 </ul>
-
-<h4>Module skeleton:</h4>
-
-<p>An Eve module begins with "module" keyword. Module name is the same as the file name without the extension. A module can have an initialization region. This is executed when the module is imported for the first time. That is the difference, a module do not have a "main process".</p>
 
 <pre class="line-numbers"><code class="language-eve">
 ** purpose of the module
 module module_name is
-
-  ** public and private members: a module defines no globals
-  let .counter = 0 :Integer;  ** public member, prefix "."
-  let total = 0 :Integer;     ** private member
+  set .VERSION = "1.0" :String;  ** public constant, prefix "."
+  let total = 0 :Integer;        ** private variable
   ...
-
-  from $path/library_name use (*);
-
   initialize
-    ** setup initial states, executed when the module is first imported
-    let counter := 0;
+    ** executed once, when the module is loaded
     ...
   finalize
-    ** verify states & log
-    $error.log();
+    ** executed once, when the driver ends
     ...
 end module_name;
 </code></pre>
-
-<h4>Notes:</h4>
-<ul>
-<li>Modules are not executable and can't define processes;</li>
-<li>Modules can define public and private members;</li>
-<li>Modules are loaded in a process that belong to driver or aspect;</li>
-<li>A module "initialize" region is executed immediate after module is loaded;</li>
-</ul>
-
-<p><b>Module names </b>are using lowercase letters, can contain underscore or digits but no special characters and no Unicode strings. Longer names that use several words can be separated with underscore. The module name can be 30 characters long.</p>
-
-<p><b>Module files:</b> A module is a single script file. A library is a folder that contains many module script files. In the import statement you can name the modules one by one, or you can name the library folder and concatenate it with the module name using the smart concatenation operator "/".</p>
 
 <h2 id="configuration">Configuration</h2>
 
@@ -478,7 +450,7 @@ end module_name;
 
 <h3 id="driver-execution">Driver Execution</h3>
 
-<p>When a driver is executed, all its components are compiled in memory, then the <em>main process</em> is executed. An aspect hosts named processes, run when the driver applies or starts them; it can also be loaded from the planned REPL to call one process or function at a time, for testing purpose.</p>
+<p>When a driver is executed, all its components are compiled in memory, then the <em>main process</em> is executed. An aspect runs its process <code>main</code> when the driver applies or starts it; it can also be loaded from the planned REPL to apply it or call a function, for testing purpose.</p>
 
 <p>The console REPL (parse, debug and execute a script step by step) and the daemon mode are planned for a later version. They describe the tool, not the language, so they are documented in the manual of the implementation: <code>manual/usage.md</code> in the eve-lang repository.</p>
 
@@ -488,7 +460,7 @@ end module_name;
 
 <p>The driver or aspect can import modules. After import, all public elements of modules can be used on demand. The parent process is controlling the execution. Remember, modules are not directly executable and must be hosted into a process.</p>
 
-<p>Modules are "singleton" once a module is loaded in memory, it will bind its scope to the driver or aspect that imports it. Only a driver defines globals. Aspects and modules define public members (declared with the prefix ".") and private members. A public member is used with the dot operator through the module name or an alias: alias.member. Two modules can define the same member name without conflict, because each one is reached through its own name or alias. Eve is a multi-session system. In each session you can run a single driver.</p>
+<p>Modules are singletons: the first import loads and initializes a module, and every later import, by the driver, an aspect or another module, uses the same copy until the driver ends (see <a href="/projects/eve/modules.html#singleton">Modules are singletons</a>). Only a driver defines globals. Modules define public members (declared with the prefix ".") and private members; an aspect has no public members. A public member is used with the dot operator through the module name or an alias: alias.member. Two modules can define the same member name without conflict, because each one is reached through its own name or alias. Eve is a multi-session system. In each session you can run a single driver.</p>
 
 <h3 id="exclusive-mode">Exclusive Mode</h3>
 
