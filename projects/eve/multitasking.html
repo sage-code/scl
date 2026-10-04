@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Sage-Code Eve multitasking: methods, generators, cooperative tasks, parallel aspects, Bulk Synchronous Parallel and channels.">
+  <meta name="description" content="Sage-Code Eve multitasking: generators, cooperative tasks, parallel aspects, Bulk Synchronous Parallel and channels.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="sage-code, sage, code, EVE, Eve, multitasking, parallel, generator, yield, aspect, method, BSP, channel, pipeline, barrier">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -45,191 +45,8 @@
 <h1 id="eve-multitasking">Eve Multitasking</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Multitasking means that several pieces of work make progress together. Eve has two tools for it. <b>Generators</b> produce values one at a time and let tasks take turns on one core, at the points marked with <code>yield</code>. <b>Parallel aspects</b> run on several cores: the driver starts them in a parallel group, and they exchange data through output parameters, at the barrier that closes the group, or through channels while they run. Methods and functions always run in serial mode, on the core of their caller. Eve has no coroutines, no <code>async</code> and no <code>await</code>. This chapter starts with methods and parameters, then explains generators, parallel groups, the data rules, Bulk Synchronous Parallel, channels and how to choose a model.
+Multitasking means that several pieces of work make progress together. Eve has two tools for it. <b>Generators</b> produce values one at a time and let tasks take turns on one core, at the points marked with <code>yield</code>. <b>Parallel aspects</b> run on several cores: the driver starts them in a parallel group, and they exchange data through output parameters, at the barrier that closes the group, or through channels while they run. Methods and functions always run in serial mode, on the core of their caller. Eve has no coroutines, no <code>async</code> and no <code>await</code>. It assumes the <a href="/projects/eve/methods.html">Methods</a> chapter. This chapter explains generators, parallel groups, the data rules, Bulk Synchronous Parallel, channels and how to choose a model.
 </div>
-
-<h2 id="methods">Methods</h2>
-
-<p>Methods are the subprograms that do the work inside a driver or an aspect; they always run in serial mode. In Eve we create a subprogram that can receive parameters and can have side-effects. You can call a method by name, with or without arguments enumerated in a list. A method is created with keyword "method" and is ending with keyword "return". Method do not have to be follow by empty parenthesis when it has no arguments. A method can be declared in a class or at module level, outside any class. A module-level method is public when its name starts with a dot (<code>method .name</code>) and private when it starts with an underscore (<code>method _name</code>). A method can also return a result.</p>
-
-<h4>Syntax:</h4>
-
-<pre class="line-numbers"><code class="language-eve">
-# define a method
-method name(parameter_list) is
-    ** method statements
-    ...
-return;
-</code></pre>  
-
-<h4>Example</h4>
-
-<p>Next example demonstrate two methods: "foo" and "bar". We declare the methods and then call the methods. One of method has no parameters, the other has 3 parameters. Two input and one output parameter.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# demonstrate two methods
-driver process_demo is
-
-  ** foo has no parameters
-  method foo is
-    print "I have no arguments";
-  return;
-
-  ** bar has 3 parameters
-  method bar(param1:Integer, 
-              param2 = 0: Integer,
-              @result: Integer) is
-    print "I have two parameters: param1 and param2";
-    result := param1 + param2;                    
-  return;
-
-  process main is
-    foo; ** call method without arguments
-    let output:=0; ** prepare a variable to receive output
-
-    ** execute method with 2 arguments and receiver
-    bar(1, 2, @output);
-    expect output == 3; ** the value of output should be 3.
-    print ("output=", output);
-  return;
-end process_demo;
-</code></pre>
-
-
-<h2 id="side-effects">Side Effects</h2>
-
-<p>A process can use process states and can have side-effects. When a global state is changed by a method this is called side-effect. This may be useful but potential unsafe. Some side effects may be harder to debug. It is safer to use input/output parameters than side effects.</p>
-
-<p>these are side effects...</p>
-
-<ul>
-  <li>modify a global variable or system state;</li>
-  <li>open and write into an external file;</li>
-  <li>print a message or accept input from console;</li>
-  <li>upload something on internet or network;</li>
-</ul>
-
-<h4>Examples</h4>
-
-<p>Next method: "add_numbers" has side effects:</p>
-<pre class="line-numbers"><code class="language-eve">
-driver side_effect is
-  set test   :Integer;
-  set p1, p2 :Integer;
-
-  ** method with side effects
-  method add_numbers is
-    test := p1 + p2; ** first side-effect
-    print test;          ** second side-effect
-  return;
-
-  ** define main process
-  process main is
-    p1 := 10;
-    let p2 := 20;
-    add_numbers; **  method call without arguments
-    expect test == 30;
-  return;
-end side_effect;
-</code></pre>
-
-<p>Note: In Eve it is not required to use empty parenthesis() to call a method. Only functions require empty brackets. We will talk about functions later. This feature enable us to extend Eve using Eve scripts.</p>
-
-<h2 id="parameters">Parameters</h2>
-
-<p><b>Parameters</b>&nbsp; are defined in round brackets () separated by comma. Each parameter must have type and name. Parameters are optional. Eve offer a range of advanced features: optional arguments, default values, variable number of arguments and input/output arguments.</p>
-
-<h4>Parameter Syntax:</h4>
-
-<p>Mandatory parameters do not have initial values but only declared type. Optional parameters have initial value that is assign using operator "=" with explicit :type, or ":=" with type inference. Arguments can be pass by position or by name.</p>
-
-<ul>
-<li>parameter :Type</li>
-<li>parameter  = value :Type</li>
-<li>parameter := expression</li>
-<li>@parameter :Type</li>
-</ul>
-
-<p>A parameter without "@" receives its argument by value, also a collection: the method works on its own copy and the caller's variable does not change. A parameter with "@" is an input/output parameter: it receives a reference to the caller's variable, so the method reads its value and can change it. An "@" parameter can't have a default value, so it is never optional.</p>
-
-<h4>Notes:</h4>
-
-<ol>
-<li>One method can receive one or more parameters,</li>
-<li>Parameters having initial values are optional,</li>
-<li>Values used for parameters at runtime, are called "arguments",</li>
-<li>You can assign arguments by position using a list of values,</li>
-<li>You can assign arguments by name using <code>(name:value)</code> pairs;</li>
-</ol>
-
-<p><b>Vararg parameters</b></p>
-<p>One method can receive multiple arguments of the same type into a single collection parameter. This can be a List, DataSet or HashMap, depending on declaration.</p>
-
-<ul>
-<li>First arguments can be captured using named parameters,</li>
-<li>The rest of arguments are captured into vararg parameter,</li>
-<li>A method can have one single vararg parameter,</li>
-<li>The vararg parameter name is declared using prefix: "*",</li>
-<li>You can use any name but "*args" is the usual name for it.</li>
-</ul>
-
-<div class="alert alert-info">Note: Also the process <code>main</code> of a driver or aspect can receive parameters. The same convention apply for aspects, drivers, functions and methods. Eve offer same features for all subprograms. The only difference are the call concentions.</div>
-
-<h4>Example:</h4>
-
-<p>Next driver can have a list of arguments. The arguments have no names, so it will just print all the arguments it has received. Drivers receive argument values from command line or REPL console using "run" command.</p>
-
-<pre class="line-numbers"><code class="language-eve"># print all arguments
-driver test is
-
-  ** list all arguments
-  process main(*args: ()String) is
-    loop
-      let arg :String;
-    for arg in args do
-      print arg;  ** expect 1,2,3
-    done;
-  return;
-end test;
-</code></pre>
-
-<pre><code class="output">
-eve:&gt;run test.eve 1 2 3
-</code></pre>
-
-<h4>Output Parameters</h4>
-<p>To avoid overuse of global variables you must use input/output parameters. We prefix output parameters using symbol "@", and the caller writes "@" before the argument too: <code>add(1, 2, @result)</code>, or by name <code>add(1, 2, op: @result)</code>. The "@" asks for pass by reference; without it the argument is passed by value. An output argument must be a variable, an element or a slice, otherwise you will not be able to capture the output value. The compiler will complain if you do not send a valid reference to an output parameter.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-#demo output parameters
-driver output_params is
-
-  ** private method
-  method add(p1 = 0, p2 = 1: Integer, @op: Integer) is
-    op := p1 + p2;
-  return;
-
-  process main is
-    let result: Integer;
-
-    ** input/output argument requires a reference to a variable
-    add(1, 2, op: @result);
-    print result;  ** expected value 3
-
-    ** negative tests, will fail
-    add(1, 2, result); ** error, "op" requires @
-    add(1, 2, @4);     ** error, "op" requires a variable
-  return;
-end output_params;
-</code></pre>
- 
-<h4>Notes:</h4>
-<ul>
-<li>Output parameters are usually the last parameters;</li>
-<li>Output parameters are having "@" prefix, and so are their arguments;</li>
-<li>An output parameter has no default value;</li>
-<li>Method invocation is done using name of method as a statement;</li>
-</ul>
 
 <h2 id="generators">Generators</h2>
 
@@ -759,7 +576,7 @@ end pipeline;
 
 <hr>
 <p><b>Read next:</b>
-<a href="/projects/eve/functions/">Functions</a></p>
+<a href="/projects/eve/collections/">Collections</a></p>
 
 <!-- Footer -->
     </main>
