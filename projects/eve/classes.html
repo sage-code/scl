@@ -44,7 +44,7 @@
 <div class="alert alert-secondary shadow-sm">
 Eve is an object oriented language. We define objects and classes. A class is a <em>user defined data type</em>, that encapsulate data structure and methods. An object is an instance of a class. We use classes to create data structures and algorithms.</div>
 
-<p><b>Objects </b>are&nbsp;<em>state machines</em>&nbsp;that are instantiated on demand and released from memory when they are no longer needed. You can create global objects using "set", or local objects using "let" and the "new" operator, which calls a constructor: <code>let p := new Point(1, 2);</code>.</p>
+<p><b>Objects </b>are&nbsp;<em>state machines</em>&nbsp;that are instantiated on demand and released from memory when they are no longer needed. You can create global objects using "set", or local objects using "new". The class called like a function runs its constructor: <code>new p := Point(1, 2);</code>.</p>
 
 
 <h4>JSON literals</h4>
@@ -60,7 +60,7 @@ driver catalog is
 
   process main is
   ** define object using type inference
-     myList := (
+     let myList := (
         {name: "Elucian", age: 56},
         {name: "Daniel" , age: 45}
      );
@@ -86,7 +86,7 @@ end catalog;
 <pre class="line-numbers"><code class="language-eve">
 #object comparison demo
 driver object_compare is
-  set m = n = 1: Integer;
+  set (m, n) = 1 :Integer;
   process main is
     ** equal values and types
     expect   m   == n;
@@ -97,7 +97,7 @@ driver object_compare is
     expect   m is not n;
 
     ** alter one value
-    let n := 2;
+    new n := 2;
 
     ** equal values and types
     expect   m   &lt;&gt; n;
@@ -151,7 +151,7 @@ class MyClass = {a, b: Integer} &lt;&#58; Object;
 <pre class="line-numbers"><code class="language-eve">#define an object instance
 process main is
   ** initialize object using Object() constructor
-  let object_name := new Object(attribute1:value1,
+  new object_name := Object(attribute1:value1,
                             attribute2:value2,
                             ...);
   ...
@@ -197,13 +197,13 @@ driver test_method is
 
     ** method (change state)
     method .change(param:Type) is
-      last := param;
-      sum  += param;
+      let last := param;
+      let sum  += param;
     return;
 
     ** getter method
     method .sum() =&gt; (@result:Integer) is
-      result := sum;
+      let result := sum;
     return;
   end ClassName;
 
@@ -236,7 +236,7 @@ class NewType = {attributes} &lt;&#58; Object is
 
   ** constructor is a special subprogram, declared inside the class body
   constructor(@self)([other_parameters]) is
-    self := new Object();
+    let self := Object();
     ...
   return;
 
@@ -254,7 +254,7 @@ class NewType = {attributes} &lt;&#58; Object is
 end NewType;
 </code></pre>
 
-<p><b>Notes:&nbsp;</b>A class can have a single constructor, with optional parameters. The constructor and the destructor are declared inside the class body. They look like methods except they use the "constructor" and "destructor" keywords and have no name: the name of the class is known. The first list holds <code>@self</code>, without a type, and the second list holds the parameters that <code>new</code> receives.</p>
+<p><b>Notes:&nbsp;</b>A class can have a single constructor, with optional parameters. The constructor and the destructor are declared inside the class body. They look like methods except they use the "constructor" and "destructor" keywords and have no name: the name of the class is known. The first list holds <code>@self</code>, without a type, and the second list holds the parameters of the class call, <code>Point(1, 2)</code>.</p>
 
 <h3 id="object-methods">Object Methods</h3>
 
@@ -274,15 +274,15 @@ class ClassName = {attributes} &lt;&#58; Object is
    ** define class method
    method .test() =&gt; (@result:Type) is
       ...
-      result := expression;
+      let result := expression;
    return;
 
    ** constructor with default and vararg parameter, that is a list of integers
    constructor(@self)(param1:=value1, *param2:()Integer) is
      ** conditional initialization (flexible constructor)
-     self := new Object();
+     let self := Object();
      if condition do
-       let self.attribute = value;
+       new self.attribute = value;
        ...
      else
        self.attribute = other_value;
@@ -294,11 +294,11 @@ end ClassName;
 
 <h4>@self object</h4>
 
-<p>Object named "self" is the current object name. This is the result of the constructor. It uses prefix "@" to show that it is a reference. The "self". In Eve you must declare @self explicitly, as the first parameter of the constructor, without a type (it is always an object of the class); it represents a pointer to the new object. The constructor assigns it first, with the constructor of the superclass: <code>self := new Object();</code>. The other parameters receive the arguments of <code>new</code>.</p>
+<p>Object named "self" is the current object name. This is the result of the constructor. It uses prefix "@" to show that it is a reference. The "self". In Eve you must declare @self explicitly, as the first parameter of the constructor, without a type (it is always an object of the class); it represents a pointer to the new object. The constructor assigns it first, with the constructor of the superclass: <code>let self := Object();</code>. The other parameters receive the arguments of the class call.</p>
 
 <h3 id="object-attributes">Object Attributes</h3>
 
-<p>A class can define attributes, with types in the class signature. The class constructor will set initial values for the object attributes just created, and can create additional attributes explicit in the constructor using "let" statement.</p>
+<p>A class can define attributes, with types in the class signature. The class constructor will set initial values for the object attributes just created, and can create additional attributes explicit in the constructor using "new" statement: <code>new self.extra := 0;</code>.</p>
 
 <ul>
 <li>We declare public attributes using = {...}  or += {...n} after class name;</li>
@@ -331,35 +331,35 @@ driver test_point is
   class Point = {x, y :Real} &lt;&#58; Object is
     ** class method to calculate distance between two points
     method .distance(p1, p2: Point) =&gt; (@result: Real) is
-      let dx := p2.x - p1.x;
-      let dy := p2.y - p1.y;
-      result := sqrt(dx*dx + dy*dy);
+      new dx := p2.x - p1.x;
+      new dy := p2.y - p1.y;
+      let result := sqrt(dx*dx + dy*dy);
     return;
 
     ** primary constructor: @self first, then the parameters
     constructor(@self)(x = 0, y = 0 :Real) is
-      self := new Object();
-      let self.x := x;
-      let self.y := y;
+      let self := Object();
+      new self.x := x;
+      new self.y := y;
 
       ** instance method to move the point
       method move(a, b: Real) is
-        self.x += a;
-        self.y += b;
+        let self.x += a;
+        let self.y += b;
       return;
 
       ** instance method to convert point to string
       method string() =&gt; (string:String) is
-        string := "(\#{self.x}:\#{self.y})";
+        let string := "(\#{self.x}:\#{self.y})";
       return;
     return;
   end Point;
 
   process main is
     ** use the constructor with different arguments
-    let p1 := new Point(1, 2);        ** two-parameter constructor
-    let p2 := new Point();            ** no-parameter constructor (uses defaults)
-    let p3 := new Point(p1.x, p1.y);  ** copy the values of p1
+    new p1 := Point(1, 2);        ** two-parameter constructor
+    new p2 := Point();            ** no-parameter constructor (uses defaults)
+    new p3 := Point(p1.x, p1.y);  ** copy the values of p1
 
     ** print results
     print "p1: \s{p1.string()}";
@@ -367,7 +367,7 @@ driver test_point is
     print "p3: \s{p3.string()}";
 
     ** demonstrate distance calculation
-    let distance := Point.distance(p1, p3);
+    new distance := Point.distance(p1, p3);
     print "Distance between p1 and p3: \#{distance}";
   return;
 end test_point;
@@ -397,34 +397,34 @@ driver self_track is
     ** constructor receive 2 parameters
     constructor(@self)(x = 0, y = 0 :Real) is
       ** alter attribute values
-      self := new Object();
-      let self.x := x;
-      let self.y := y;
+      let self := Object();
+      new self.x := x;
+      new self.y := y;
       ** add object to list of items
-      items += self;
-      instances += 1;
+      let items += self;
+      let instances += 1;
     return;
 
     destructor(@self) is
       ** remove the object from list
-      items -= self;
-      instances -= 1;
+      let items -= self;
+      let instances -= 1;
     return;
   end Point;
 
   process main is
     ** initialize the points
-    let p1 := new Point(x:1, y:2);
-    let p2 := new Point(x:2, y:2);
+    new p1 := Point(x:1, y:2);
+    new p2 := Point(x:2, y:2);
 
     ** verify how many point
     expect Point.instances == 2;
 
     ** use item list to print all points
     loop
-      let i := 0;
+      new i := 0;
     for p in Point.items do
-      i += 1;
+      let i += 1;
       print "p\#{i} = (x:\#{p.x}, y:\#{p.y})";
     done;
   return;
@@ -466,9 +466,9 @@ class NewType += {new_attribute} &lt;&#58; (AbstractType, BaseType) is
   ** constructor for the new class
   constructor(@self)(param1, param2) is
     ** initialize object Attributes
-    self := new Object();
-    let self.attribute := param1; ** object attribute
-    let self.new_attribute := param2; ** dynamic private attribute
+    let self := Object();
+    new self.attribute := param1; ** object attribute
+    new self.new_attribute := param2; ** dynamic private attribute
     ...
   return;
 end NewType;
@@ -498,13 +498,13 @@ end NewType;
 ** abstract class: it has partial methods
 class Shape = {name: String} &lt;&#58; Object is
     constructor(@self)(name: String) is
-        self := new Object();
-        let self.name := name;
+        let self := Object();
+        new self.name := name;
     return;
 
     ** implemented method, inherited by all shapes
     method getName(@self) =&gt; (@result: String) is
-        result := self.name;
+        let result := self.name;
     return;
 
     ** partial methods: the subclass must implement them
@@ -514,28 +514,28 @@ end Shape;
 
 class Circle = {radius: Real} &lt;&#58; Shape is
     constructor(@self)(name: String, radius: Real) is
-        self := new Shape(name);  ** call the abstract constructor
-        let self.radius := radius;
+        let self := Shape(name);  ** call the abstract constructor
+        new self.radius := radius;
     return;
 
     method area(@self) =&gt; (@result: Real) is
-        result := pi * self.radius * self.radius;
+        let result := pi * self.radius * self.radius;
     return;
 
     method perimeter(@self) =&gt; (@result: Real) is
-        result := 2 * pi * self.radius;
+        let result := 2 * pi * self.radius;
     return;
 end Circle;
 
 # Usage
 process main is
-    let myCircle := new Circle("Small Circle", 5);
+    new myCircle := Circle("Small Circle", 5);
     print myCircle.getName();  ** inherited from Shape
     print myCircle.area();     ** implemented by Circle
 return;
 </code></pre>
 
-<p>A class that has a constructor must implement all the partial methods it inherits. A missing implementation is a compile error. It is never a <code>Null</code> result at run time.</p>
+<p>A class that has a constructor must implement all the partial methods it inherits. A missing implementation is a compile error. It is never a <code>null</code> result at run time.</p>
 
 <h3 id="traits">Traits</h3>
 
@@ -561,29 +561,29 @@ end Printable;
 ** a class adopts traits in the inheritance list
 class Circle = {radius: Real} &lt;&#58; (Shape, Printable) is
     constructor(@self)(name: String, radius: Real) is
-        self := new Shape(name);
-        let self.radius := radius;
+        let self := Shape(name);
+        new self.radius := radius;
     return;
 
     ** implement the required methods of Shape and Printable
     method area(@self) =&gt; (@result: Real) is
-        result := pi * self.radius * self.radius;
+        let result := pi * self.radius * self.radius;
     return;
 
     method perimeter(@self) =&gt; (@result: Real) is
-        result := 2 * pi * self.radius;
+        let result := 2 * pi * self.radius;
     return;
 
     method toString(@self) =&gt; (@result: String) is
-        result := "Circle '\s{self.getName()}' with radius \#{self.radius}";
+        let result := "Circle '\s{self.getName()}' with radius \#{self.radius}";
     return;
 end Circle;
 
 # Usage
 process main is
-    let myCircle := new Circle("Small Circle", 5);
+    new myCircle := Circle("Small Circle", 5);
     myCircle.show();                   ** provided by the trait
-    let p: Printable := myCircle;      ** a trait is also a type
+    new p: Printable := myCircle;      ** a trait is also a type
     p.show();
     expect myCircle is Printable;
 return;
@@ -612,7 +612,7 @@ return;
 <h2 id="generics">Generics in Eve</h2>
 
 
-<p>Eve supports generics, allowing for the creation of flexible, reusable code structures that can work with different types while maintaining type safety. Generics are used in Eve system libraries. You can create sub-types using a generic. Next generics are pre-defined: {Array, List, DataSet, HashMap}. We will describe these data types in next chapter.</p>
+<p>Eve supports generics, allowing for the creation of flexible, reusable code structures that can work with different types while maintaining type safety. Generics are used in Eve system libraries. You can create sub-types using a generic. Next generics are pre-defined: {Array, List, DataSet, DataMap}. We will describe these data types in next chapter.</p>
 
 <h3 id="generic-syntax">Generic Syntax</h3>
 
@@ -632,12 +632,12 @@ end GenericClass;
     <li><code>(:T)</code> is a type parameter. It can be any valid identifier.</li>
     <li>You can use <code>T</code> as a type within the class definition.</li>
     <li>When instantiating the class, you specify the actual type:<br>
-        <code>let instance := new GenericClass(:Integer)(constructor_arguments);</code></li>
+        <code>new instance := GenericClass(:Integer)(constructor_arguments);</code></li>
 </ul>
 
 <h3 id="optional-type">Optional Type</h3>
 
-<p>Eve provides an Optional type, which is a variant that can be either a value of a specific type or Null. This is particularly useful for handling nullable values in a type-safe manner.</p>
+<p>Eve provides an Optional type, which is a variant that can be either a value of a specific type or <code>null</code>. This is particularly useful for handling nullable values in a type-safe manner. The built-in short form is the optional type <code>T?</code> (see Data Types).</p>
 
 <h4>Example: Using Optional with Generics</h4>
 
@@ -651,15 +651,15 @@ class Optional(:T) = {T | Null} &lt;&#58; Variant;
 class Processor(:T) is
     method process(value: Optional(:T)) =&gt; (@result: Optional(:T)) is
         if value is Null do
-            result := Null;
+            let result := null;
         else
             ** Type-specific processing
             if type(value) is Integer do
-                result := value + 1;
+                let result := value + 1;
             else if type(value) is String do
-                result := value + " processed";
+                let result := value + " processed";
             else
-                result := value;  ** Default case
+                let result := value;  ** Default case
             done;
         done;
     return;
@@ -668,20 +668,20 @@ end Processor;
 # Usage example
 driver test_optional_processor is
   ** Create processor instances
-  let intProcessor := new Processor(:Integer);
-  let stringProcessor := new Processor(:String);
+  new intProcessor := Processor(:Integer);
+  new stringProcessor := Processor(:String);
 
   process main is
     ** Test with non-null values
-    let intResult := intProcessor.process(:Integer,5));
+    new intResult := intProcessor.process(:Integer,5));
     print intResult;  ** Output: Optional(6)
 
-    let stringResult := stringProcessor.process(Optional(:String)("Hello"));
+    new stringResult := stringProcessor.process(Optional(:String)("Hello"));
     print stringResult;  ** Output: Optional("Hello processed")
 
-    ** Test with Null
-    let nullResult := intProcessor.process(Null);
-    print nullResult;  ** Output: Null
+    ** Test with null
+    new nullResult := intProcessor.process(null);
+    print nullResult;  ** Output: null
   return;
 end test_optional_processor;
 </code></pre>
@@ -699,27 +699,27 @@ end test_optional_processor;
 
       # Generic constructor: @self first, then the parameters
       constructor(@self)(initialValue: T) is
-          self := new Object();
-          let self.value := initialValue;
+          let self := Object();
+          new self.value := initialValue;
 
           # Method to get the value
           method getValue() =&gt; (@result: T) is
-              result := self.value;
+              let result := self.value;
           return;
 
           # Method to set the value
           method setValue(newValue: T) is
-              self.value := newValue;
+              let self.value := newValue;
           return;
 
           # Method to add to the value
           method add(addend: T) is
-              self.value += addend;
+              let self.value += addend;
           return;
 
           # Method to multiply the value
           method multiply(factor: T) is
-              self.value *= factor;
+              let self.value *= factor;
           return;
 
           # Method to print the value
@@ -733,11 +733,11 @@ end test_optional_processor;
   driver test_generic_number is
       process main is
           # Create a Number with i32
-          let num32 := new Number(:i32)(42);
+          new num32 := Number(:i32)(42);
           num32.print();  # Output: Number value: 42
 
           # Create a Number with i64
-          let num64 := new Number(:i64)(9223372036854775807);  # Max value for i64
+          new num64 := Number(:i64)(9223372036854775807);  # Max value for i64
           num64.print();  # Output: Number value: 9223372036854775807
 
           # Use the methods
@@ -748,7 +748,7 @@ end test_optional_processor;
           expect num64.getValue() == 18446744073709551614;
 
           # Test with Integer (boxed i64)
-          let numInteger := new Number(:Integer)(1000);
+          new numInteger := Number(:Integer)(1000);
           numInteger.print();  # Output: Number value: 1000
           numInteger.add(500);
           expect numInteger.getValue() == 1500;
@@ -771,7 +771,7 @@ class UserList = ()Type &lt;&#58; List;
 class UserSet = {}Type &lt;&#58; DataSet;
 
 ** making a dictionary
-class UserMap = {:}(Type,Type) &lt;&#58; HashMap;
+class UserMap = {:}(Type,Type) &lt;&#58; DataMap;
 </code></pre>
 
 <h4>List of DataSet</h4>
@@ -790,13 +790,13 @@ driver test_generic is
 
   process main is
     ** instantiate UserList object
-    let myList := new UserList();
+    new myList := UserList();
 
     ** enqueue one member
-    myList += ElementType(1,2,3);
+    let myList += ElementType(1,2,3);
 
     ** append one member
-    myList := myList + ElementType(7,8,9);
+    let myList := myList + ElementType(7,8,9);
 
     print myList ** ({1,2,3},{7,8,9})
   return;
@@ -809,7 +809,7 @@ end test_generic;
 
 <pre class="line-numbers"><code class="language-eve">
 ** define object using type inference
-   let myList := ({1,2,3},{7,8,9});
+   new myList := ({1,2,3},{7,8,9});
 
 ** using introspection to find the type
    print Type(myList);       ** List
@@ -839,15 +839,15 @@ class Number(:T) &lt;&#58; Object is
     set value: T;
 
     constructor(@self)(initialValue: T) is
-        self := new Object();
-        let self.value := initialValue;
+        let self := Object();
+        new self.value := initialValue;
 
         method add(addend: T) =&gt; (@self) is
-            self.value += addend;
+            let self.value += addend;
         return @self;
 
         method multiply(factor: T) =&gt; (@self) is
-            self.value *= factor;
+            let self.value *= factor;
         return @self;
 
         method print() =&gt; (@self) is
@@ -858,7 +858,7 @@ end Number;
 
 # Usage
 process main is
-    let num := new Number(:i32)(10);
+    new num := Number(:i32)(10);
     num.add(5).multiply(2).print();
 return;
   </code></pre>

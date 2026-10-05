@@ -50,7 +50,7 @@ const keywordMap = {
     'label': 'constant', 'self': 'constant', 'args': 'constant', 'super': 'constant',
 
     // Interruption statements
-    'expect': 'keytab', 'break': 'keytab', 'halt': 'keytab', 'next': 'keytab',
+    'expect': 'keytab', 'break': 'keytab', 'halt': 'keytab',
     'alter': 'keytab', 'make': 'keytab', 'store': 'keytab', 'apply': 'keytab',
     'start': 'keytab', 'yield': 'keytab', 'run': 'keytab', 'call': 'keytab',
     'wait': 'keytab', 'exit': 'keytab', 'stop': 'keytab', 'print': 'keytab',

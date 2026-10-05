@@ -58,7 +58,7 @@ This page summarizes the design of the exception library: the types, the system 
 <tr><th>Type</th><th>Members</th><th>Role</th></tr>
 </thead>
 <tbody>
-<tr><td>exception.Error</td><td>code: Integer, message: String, module: String, line: Integer, job: String</td><td>An error that interrupts a process.</td></tr>
+<tr><td>exception.Error</td><td>code: Integer, message: String, module: String, line: Integer, job: String, errors: ()Error</td><td>An error that interrupts a process. The base class of every error class; <code>errors</code> lists the errors of the aspects of a failed parallel group.</td></tr>
 <tr><td>exception.Warning</td><td>code: Integer, message: String, module: String, line: Integer</td><td>A condition that is reported but does not interrupt the process.</td></tr>
 <tr><td>exception.Call</td><td>line: String, method: String</td><td>One entry of the call stack.</td></tr>
 </tbody>
@@ -69,12 +69,12 @@ This page summarizes the design of the exception library: the types, the system 
 <pre class="line-numbers"><code class="language-eve">** system exception type
 module exception is
 
-  ** an error: its code is also the exit code
+  ** an error: its class and its code identify it; the exit code of the process is separate
   class .Error = {code: Integer, message: String, module: String, line: Integer, job: String} &lt;&#58; Object is
     constructor(@self)(code = 4, message = "" :String) is
-      self := new Object();
-      let self.code := code;
-      let self.message := message;
+      let self := Object();
+      new self.code := code;
+      new self.message := message;
     return;
   end Error;
 
@@ -132,7 +132,23 @@ external .warn(code: Integer, message: String);
   done;
 </code></pre>
 
-<p>The constants are read only. The exit code of a driver that ends with an unhandled error is the code of the error (see <a href="/projects/eve/topology.html">Topology</a>).</p>
+<p>The constants are read only. An error is not an exit code: a driver that ends with an unhandled error ends with the exit code 4, and reports the code and the message of the error (see <a href="#exit-codes">Exit Codes</a>).</p>
+
+<h3 id="error-classes">Error Classes</h3>
+
+<p>Every standard error is an object of a class derived from <code>Error</code>, and every class has its code (table <a href="#exception-table">Standard Exceptions</a>). In the recover region you can test the class with <code>is</code> and read its fields, or compare the code with a constant:</p>
+
+<pre class="line-numbers"><code class="language-eve">recover
+  if $error is IoError do
+    retry;                          ** a transient error: try the job again
+  else if $error.code == $err_file do
+    resume;                         ** a missing file: go on
+  else
+    abort;
+  done;
+</code></pre>
+
+<p>A project defines its own errors as classes derived from <code>Error</code>, with codes from the project range: <code>class HttpError = {status: Integer} &lt;&#58; Error;</code>.</p>
 
 <h3 id="code-ranges">Code Ranges</h3>
 
@@ -141,7 +157,7 @@ external .warn(code: Integer, message: String);
 <tr><th>Codes</th><th>Use</th></tr>
 </thead>
 <tbody>
-<tr><td>1 to 9</td><td>The statements of the language: panic 1, expect 2, assert 3 (a warning), raise 4 by default, then warnings.</td></tr>
+<tr><td>1 to 9</td><td>The statements of the language: panic 1, expect 2, assert 3 (a warning), raise 4 by default, then warnings. These are error codes, not exit codes.</td></tr>
 <tr><td>10 to 127</td><td>Standard errors of the virtual machine and the library.</td></tr>
 <tr><td>128 to 255</td><td>Errors defined by a project. Keep the codes of a project unique.</td></tr>
 </tbody>
@@ -153,29 +169,31 @@ external .warn(code: Integer, message: String);
 
 <table class="table table-bordered table-striped">
 <thead>
-<tr><th>Code</th><th>Constant</th><th>Message pattern</th><th>Raised by</th></tr>
+<tr><th>Code</th><th>Class</th><th>Constant</th><th>Message pattern</th><th>Raised by</th></tr>
 </thead>
 <tbody>
-<tr><td>1</td><td>$err_panic</td><td>the message given to panic, or "Panic in line {line}"</td><td>panic</td></tr>
-<tr><td>2</td><td>$err_expect</td><td>"Unexpected error in line {line}", or the custom message</td><td>expect</td></tr>
-<tr><td>4</td><td>$err_raise</td><td>the message given to raise</td><td>raise without a code</td></tr>
-<tr><td>10</td><td>$err_index</td><td>"Index {index} is out of range {first}..{last}"</td><td>collections, strings</td></tr>
-<tr><td>11</td><td>$err_key</td><td>"Key {key} not found"</td><td>HashMap, DataSet</td></tr>
-<tr><td>12</td><td>$err_divide</td><td>"Division by zero"</td><td>arithmetic</td></tr>
-<tr><td>13</td><td>$err_overflow</td><td>"Overflow in {operation}"</td><td>arithmetic</td></tr>
-<tr><td>14</td><td>$err_convert</td><td>"Cannot convert {value} to {type}"</td><td>type conversion</td></tr>
-<tr><td>15</td><td>$err_parse</td><td>"Cannot parse {text} as {type}"</td><td>parse, literals read at run time</td></tr>
-<tr><td>16</td><td>$err_null</td><td>"Null value used as {type}"</td><td>any use of Null</td></tr>
-<tr><td>17</td><td>$err_argument</td><td>"Invalid argument {name}: {reason}"</td><td>functions, methods, processes</td></tr>
-<tr><td>20</td><td>$err_file</td><td>"File not found: {path}"</td><td>file and folder classes</td></tr>
-<tr><td>21</td><td>$err_access</td><td>"Access denied: {path}"</td><td>file and folder classes</td></tr>
-<tr><td>22</td><td>$err_io</td><td>"Input/output error on {path}: {reason}"</td><td>streams, files</td></tr>
-<tr><td>30</td><td>$err_module</td><td>"Module {name} not found in {library}"</td><td>from … use</td></tr>
-<tr><td>31</td><td>$err_process</td><td>"Aspect {name} not found, or it has no process main"</td><td>apply, start</td></tr>
-<tr><td>40</td><td>$err_memory</td><td>"Out of memory while allocating {size}"</td><td>virtual machine</td></tr>
-<tr><td>41</td><td>$err_timeout</td><td>"Time-out after {time}"</td><td>channels, parallel groups</td></tr>
-<tr><td>42</td><td>$err_deadlock</td><td>"Deadlock: every task of the group waits on a channel"</td><td>parallel groups</td></tr>
-<tr><td>43</td><td>$err_output</td><td>"Output {name} is given to two tasks of the group"</td><td>start</td></tr>
+<tr><td>1</td><td>Panic</td><td>$err_panic</td><td>the message given to panic, or "Panic in line {line}"</td><td>panic</td></tr>
+<tr><td>2</td><td>ExpectError</td><td>$err_expect</td><td>"Unexpected error in line {line}", or the custom message</td><td>expect</td></tr>
+<tr><td>4</td><td>Error</td><td>$err_raise</td><td>the message given to raise</td><td>raise without a code</td></tr>
+<tr><td>10</td><td>IndexError</td><td>$err_index</td><td>"Index {index} is out of range {first}..{last}"</td><td>collections, strings</td></tr>
+<tr><td>11</td><td>KeyError</td><td>$err_key</td><td>"Key {key} not found"</td><td>DataMap, DataSet</td></tr>
+<tr><td>12</td><td>DivideError</td><td>$err_divide</td><td>"Division by zero"</td><td>arithmetic</td></tr>
+<tr><td>13</td><td>OverflowError</td><td>$err_overflow</td><td>"Overflow in {operation}"</td><td>arithmetic</td></tr>
+<tr><td>14</td><td>ConvertError</td><td>$err_convert</td><td>"Cannot convert {value} to {type}"</td><td>type conversion</td></tr>
+<tr><td>15</td><td>ParseError</td><td>$err_parse</td><td>"Cannot parse {text} as {type}"</td><td>parse, literals read at run time</td></tr>
+<tr><td>16</td><td>NullError</td><td>$err_null</td><td>"null value used as {type}"</td><td>any use of null</td></tr>
+<tr><td>17</td><td>ArgumentError</td><td>$err_argument</td><td>"Invalid argument {name}: {reason}"</td><td>functions, methods, processes</td></tr>
+<tr><td>20</td><td>FileError</td><td>$err_file</td><td>"File not found: {path}"</td><td>file and folder classes</td></tr>
+<tr><td>21</td><td>AccessError</td><td>$err_access</td><td>"Access denied: {path}"</td><td>file and folder classes</td></tr>
+<tr><td>22</td><td>IoError</td><td>$err_io</td><td>"Input/output error on {path}: {reason}"</td><td>streams, files</td></tr>
+<tr><td>30</td><td>ModuleError</td><td>$err_module</td><td>"Module {name} not found in {library}"</td><td>from … use</td></tr>
+<tr><td>31</td><td>ProcessError</td><td>$err_process</td><td>"Aspect {name} not found, or it has no process main"</td><td>apply, start</td></tr>
+<tr><td>40</td><td>MemoryError</td><td>$err_memory</td><td>"Out of memory while allocating {size}"</td><td>virtual machine</td></tr>
+<tr><td>41</td><td>TimeoutError</td><td>$err_timeout</td><td>"Time-out after {time}"</td><td>channels, parallel groups</td></tr>
+<tr><td>42</td><td>DeadlockError</td><td>$err_deadlock</td><td>"Deadlock: every task of the group waits on a channel"</td><td>parallel groups</td></tr>
+<tr><td>43</td><td>OutputError</td><td>$err_output</td><td>"Output {name} is given to two tasks of the group"</td><td>start</td></tr>
+<tr><td>44</td><td>RecursionError</td><td>$err_recursion</td><td>"Recursion limit reached at depth {depth}"</td><td>virtual machine</td></tr>
+<tr><td>45</td><td>ParallelError</td><td>$err_parallel</td><td>"{count} aspects of the group failed"; the list is <code>$error.errors</code></td><td>parallel groups</td></tr>
 </tbody>
 </table>
 
@@ -192,6 +210,24 @@ external .warn(code: Integer, message: String);
 <tr><td>5</td><td>$wrn_deprecated</td><td>"{name} is deprecated, use {other}"</td><td>library members marked deprecated</td></tr>
 <tr><td>6</td><td>$wrn_truncate</td><td>"Value {value} truncated to {type}"</td><td>type conversion</td></tr>
 <tr><td>7</td><td>$wrn_unused</td><td>"{name} is declared but never used"</td><td>compiler</td></tr>
+</tbody>
+</table>
+
+<h2 id="exit-codes">Exit Codes</h2>
+
+<p>The exit code of a process is a small number. It tells a shell or a scheduler how the process ended; the error itself is in the message.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Exit code</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>normal end: <code>return</code>, <code>over</code>, or the normal end of the recover region</td></tr>
+<tr><td>1</td><td><code>panic</code></td></tr>
+<tr><td>2</td><td>failed <code>expect</code>, not recovered</td></tr>
+<tr><td>3</td><td>failed <code>assert</code>, when the process ends because of it</td></tr>
+<tr><td>4</td><td>unhandled error: <code>raise</code> or a run-time error, not recovered</td></tr>
+<tr><td>5</td><td>unexpected stop: Ctrl+C in the interpreter; a <code>halt</code> breakpoint in debug mode that the user ends with Ctrl+C or <code>stop</code> instead of resuming; recursion too deep; out of memory; hard time-out</td></tr>
 </tbody>
 </table>
 
