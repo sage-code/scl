@@ -46,18 +46,18 @@ Strings are immutable collections of symbols. Text is the mutable type for build
 
 <h2 id="string">String</h2>
 
-<p>In Eve, strings are collections of UTF8 code points. The capacity of string is virtual unlimited. A string can grow automatically. Strings are immutable. If you need a mutable string, use a collection of Symbols or a Text (see below).</p>
+<p>In Eve, strings are collections of UTF8 code points. The capacity of string is virtual unlimited. A string can grow automatically. Strings are immutable. If you need a mutable string, use a collection of Runes or a Text (see below).</p>
 
 <h3 id="string-declaration">String declaration</h3>
 
-<p>String can be initialized with a constant literals using double quotes or triple quotes. You can scan a string symbol by symbol using a "for" loop. Each element in a string is on type Symbol.</p>
+<p>String can be initialized with a constant literals using double quotes or triple quotes. You can scan a string symbol by symbol using a "for" loop. Each element in a string is on type Rune.</p>
 
 <h4>Syntax:</h4>
 <pre class="line-numbers"><code class="language-eve">
 process main is
   ** define empty string with default capacity
-  let str1 :String;
-  let str2 = "": String; ** equivalent
+  new str1 :String;
+  new str2 = "": String; ** equivalent
 ...
 </code></pre>
 
@@ -79,18 +79,18 @@ driver test_string is
     expect str is not ref; **  different locations
 
     ** operator ":=" works by reference
-    ref := str;    **  reset ref
+    let ref := str;    **  reset ref
     expect str == ref; **  same value
     expect str is ref; **  same reference (old reference is garbage)
 
     ** if we recreate str, reference is reset
-    str := "First value"; **  new string
+    let str := "First value"; **  new string
     expect str == ref;     **  same value
     expect str is not ref; **  different location
 
     ** if we modify "str" then "ref" will remain the same
     ** because the strings are immutable in Eve
-    str += ':'; **  create a new string (concatenate ":")
+    let str += ':'; **  create a new string (concatenate ":")
     expect str == "First value:"; **  modified
     expect ref == "First value";  **  not modified
     expect str is not ref; ** the reference was broken
@@ -102,7 +102,7 @@ end test_string;
 <p><b>Note:</b></p>
 <ul>
 <li>You can create garbage in Eve if you lose references;</li>
-<li>You can create a collection of Symbols to split() a string;</li>
+<li>You can create a collection of Runes to split() a string;</li>
 <li>You can join() elements of a collection to create a string;</li>
 </ul>
 
@@ -111,7 +111,7 @@ end test_string;
 <li>Two strings are compared using relation operators: { ==, &lt;&gt;, &lt;, &gt;, &gt;=, &lt;= };</li>
 <li>Single quoted symbols can be compared to double quoted strings;</li>
 <li>The length of the string is the number of symbols:</li>
-<li>Empty string "" == '' has length 0 and is Empty but not Null;</li>
+<li>Empty string "" == '' has length 0 and is empty but not <code>null</code>;</li>
 </ul>
 
 <h4>Example:</h4>
@@ -125,27 +125,28 @@ return;
 
 <h3 id="null-strings">Null strings</h3>
 
-<p>We can test if a string is Null using "is Null" expression. In Eve "" is empty string but Null string is not "" that is empty, A Null string is declared but uninitialized. That is equivalent with Null object.</p>
+<p>A string declared without a value is the empty string <code>""</code>, its zero value: the object exists. Only an optional string, <code>String?</code>, can be <code>null</code>, which means that no string exists. We test it with <code>is Null</code> or <code>== null</code>.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # null string & symbol demo
 driver null_string is
-  set str :String; ** Null string
-  set emp := "";   ** empty string
-  set btr :Symbol; ** Null symbol
   process main is
+    new str: String?;  ** optional string: null
+    new emp: String;   ** zero value: empty string
+    new btr: Rune?;    ** optional rune: null
+
     ** null string
     expect str is Null;
-    expect emp is not Null;
+    expect str == null;
 
     ** empty string
     expect emp is not Null;
     expect emp == "";
     expect emp.length() == 0;
 
-    ** symbol follow the same rule
-    expect btr is Null;
-    btr := '';
+    ** a rune follows the same rule
+    expect btr == null;
+    let btr := '';     ** nil, the empty rune
     expect btr is not Null;
   return;
 end null_string;
@@ -163,7 +164,7 @@ end null_string;
 <h4>Example:</h4>
 <pre class="line-numbers"><code class="language-eve"># text type has unicode support
 process main is
-  let us = "I can write Greek: {&alpha;,&beta;,&gamma;,&delta;}";
+  new us = "I can write Greek: {&alpha;,&beta;,&gamma;,&delta;}";
   print us;
 return;
 </code></pre>
@@ -172,7 +173,7 @@ return;
 
 <pre class="fixed">I can write Greek: {&alpha;,&beta;,&gamma;,&delta;}.</pre>
 
-<p>To edit Eve source code containing Unicode literals one must use a specific font and UTF-8 source files. The preferred font for Eve programming is "DejaVu Sans Mono". In this case it is not necessary to use &code; convention. You can copy paste the real Unicode Symbol from character map. Not all Unicode characters have an HTML code, so Eve supports both forms: the &code; convention and the notation <code>\u{H...}</code> with 1 to 6 hexadecimal digits, for example <code>"\u{3B1}"</code> is the letter alpha.</p>
+<p>To edit Eve source code containing Unicode literals one must use a specific font and UTF-8 source files. The preferred font for Eve programming is "DejaVu Sans Mono". In this case it is not necessary to use &code; convention. You can copy paste the real Unicode Rune from character map. Not all Unicode characters have an HTML code, so Eve supports both forms: the &code; convention and the notation <code>\u{H...}</code> with 1 to 6 hexadecimal digits, for example <code>"\u{3B1}"</code> is the letter alpha.</p>
 
 <h4>Tips &amp; Tricks</h4>
 
@@ -181,8 +182,8 @@ return;
 <pre class="line-numbers"><code class="language-eve"># create list from string
 process main is
   ** ASCII string buffers
-  let str1  = "test";
-  let str2  = () &lt;+ str1; ** feed the list with Symbols
+  new str1  = "test";
+  new str2  = () &lt;+ str1; ** feed the list with Runes
 
   ** check list elements
   expect str2[1]  == 't';
@@ -192,15 +193,15 @@ return;
 
 <h3 id="using-strings">Using strings:</h3>
 
-<p>In next examples we use type inference to create strings. The length of the string is the number of symbols. You can use operator "*" to initialize a long string with the same Symbol or a String pattern.</p>
+<p>In next examples we use type inference to create strings. The length of the string is the number of symbols. You can use operator "*" to initialize a long string with the same Rune or a String pattern.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # string generators
 process main is
   ** examples of empty strings
-  let short_string := "short string";** most common form of literal
-  let long_line := '-' * 80;         ** a long line of 80 dashes
-  let dash_dot  := "-&middot;" * 40; ** a long line "-&middot;-&middot;-&middot;";
+  new short_string := "short string";** most common form of literal
+  new long_line := '-' * 80;         ** a long line of 80 dashes
+  new dash_dot  := "-&middot;" * 40; ** a long line "-&middot;-&middot;-&middot;";
 return;
 </code></pre>
 
@@ -223,7 +224,7 @@ return;
 
     process main is
       ** set string value using different operators
-      let str := " this " + "string";
+      new str := " this " + "string";
       expect str == " this string";
 
       ** use string interpolation \s{str} is recognized
@@ -243,21 +244,21 @@ return;
 
 <p><b>symbols & numbers</b></p>
 
-<p>You can concatenate a Symbol (character) or a string with number: <code>'a' + 1</code> and <code>"a" + 1</code> are both the String "a1". There is an implicit coercion that will transform the number into a string before concatenation. However, to concatenate two numbers you must explicitly join the numbers together using a function join() that will produce a string.</p>
+<p>Two strings are concatenated with <code>+</code>, which is the same as <code>&lt;+</code> (append) and <code>+&gt;</code> (put in front): <code>"a" + "b"</code>, <code>"a" &lt;+ "b"</code> and <code>"a" +&gt; "b"</code> are all <code>"ab"</code>. Between a string and a number, <code>+</code> is a compile-time type error: Eve prefers explicit over implicit. Use <code>&lt;+</code> to append a number converted to a string, and <code>+&gt;</code> to put it in front. To concatenate two numbers, join them with the method join(), which produces a string.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # numeric concatenation
 process main is
-  ** implicit conversion
-  let s := 'a' + 1;
+  ** append a number to a string
+  new s := "a" &lt;+ 1;
   expect s == "a1"; ** is a string
 
-  ** implicit conversion, number first
-  let c := 1 + 'a';
+  ** put a number in front of a string
+  new c := 1 +&gt; "a";
   expect c == "1a"; ** is a string
 
-  ** explicit join list elements with empty Symbol
-  let test = (1,2,3).join('');
+  ** explicit join list elements with empty Rune
+  new test = (1,2,3).join('');
   expect test == "123";
 return;
 
@@ -271,15 +272,15 @@ return;
 # different ways to convert data into string
 process main is
   ** Range conversion
-  let str1 := (0..9) +&gt; "";
+  new str1 := (0..9) +&gt; "";
   expect str1 == "0123456789";
 
   ** DataSet conversion
-  let str2 := "" &lt;+ ("A".."F");
+  new str2 := "" &lt;+ ("A".."F");
   expect str2 == "ABCDEF";
 
   ** Join a set created with set builder in place
-  let str2 := {"0x1" + a | a in ("A".."F")}.join(',');
+  new str2 := {"0x1" + a | a in ("A".."F")}.join(',');
   expect str2 == "0x1A,0x1B,0x1C,0x1D,0x1E,0x1F";
 return;
 </code></pre>
@@ -316,10 +317,10 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 process main is
-  let pi   := 3.14159;
-  let n    := 42;
-  let name := "Eve";
-  let ok   := True;
+  new pi   := 3.14159;
+  new n    := 42;
+  new name := "Eve";
+  new ok   := True;
   print "pi = \#{pi:f8.2}|";
   print "n  = \#{n:i5}|\#{n:0&gt;i5}|\#{n:&lt;i5}|";
   print "big = \#{1234567:,i9}";
@@ -348,8 +349,8 @@ alpha = &alpha;
 
 <pre class="line-numbers"><code class="language-eve">
 process main is
-  let str   := "one two three";
-  let words := str.split(" ");
+  new str   := "one two three";
+  new words := str.split(" ");
   print words;
 return;
 </code></pre>
@@ -370,7 +371,7 @@ driver text_literal is
 
   process main is
     ** multiline text literal is possible in Eve
-    let my_text:="""
+    new my_text:="""
     "Opportunity is missed by most people
     because it is dressed in overalls
     and looks like work."
@@ -410,17 +411,17 @@ and looks like work."
 
 <h3 id="regex-operators">Regex operators</h3>
 
-<p>Eve has support for two operators: "=~" and "!~". These are logic operators. Represent "is like" respective "is not like". It require a string for the left operand and a regular expression for the right operand. The symbol "!" has more than one meaning in Eve; here it negates the match.</p>
+<p>Eve has one match operator, "=~", read "is like". It is a logic operator: it requires a string for the left operand and a regular expression for the right operand. The negation is written with <code>not</code>: <code>not (s =~ "/regex/")</code>. The same operator compares numbers with a tolerance: <code>x =~ b +- 0.01</code>. <code>==</code> is the exact match, <code>=~</code> the approximate one.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # compare regular expression
 process main is
   ** search " is " in the string
-  let found := "this is like" =~ "/\sis\s/";
+  new found := "this is like" =~ "/\sis\s/";
   expect found; ** True
 
-  ** check if string start with "not"
-  let not_found := "this is not like" !~ "/^not/";
+  ** check that the string does not start with "not"
+  new not_found := not ("this is not like" =~ "/^not/");
   expect not_found; ** True
 return;
 </code></pre>

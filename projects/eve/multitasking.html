@@ -62,7 +62,7 @@ Multitasking means that several pieces of work make progress together. Eve has t
 ** produce the numbers 1 to n, one at a time
 method count_to(n: Integer) =&gt; (@x: Integer) is
   for i in (1..n) do
-    x := i;           ** set the result
+    let x := i;           ** set the result
     yield;            ** give x to the caller, wait here
   done;
 return;               ** no more values
@@ -70,9 +70,9 @@ return;               ** no more values
 
 <ul>
 <li><code>yield;</code> gives the current value of the result to the caller and suspends the generator. This is the explicit form;</li>
-<li><code>yield expression;</code> is the short form of <code>x := expression; yield;</code>. Both forms are valid;</li>
+<li><code>yield expression;</code> is the short form of <code>let x := expression; yield;</code>. Both forms are valid;</li>
 <li><code>return;</code> ends the generator: the caller sees that there are no more values;</li>
-<li>A generator can be infinite, with <code>while True do … yield; done;</code>: the caller decides when to stop;</li>
+<li>A generator can be infinite, with <code>loop do … yield; repeat;</code>: the caller decides when to stop;</li>
 <li>A generator can be a method of a class: <code>method walk(@self) =&gt; (@node: Node) is … return;</code>.</li>
 </ul>
 
@@ -87,10 +87,10 @@ for v in count_to(5) do
 done;
 
 ** 2. a comprehension collects all the values
-let squares := (v * v | v in count_to(5));   ** (1, 4, 9, 16, 25)
+new squares := (v * v | v in count_to(5));   ** (1, 4, 9, 16, 25)
 
 ** 3. a generator object driven step by step
-let g := count_to(3);              ** nothing runs yet
+new g := count_to(3);              ** nothing runs yet
 while g.next() do                  ** run to the next yield
   print g.value;                   ** the value given by yield
 done;
@@ -108,7 +108,7 @@ done;
 </tbody>
 </table>
 
-<p>A generator object is not created with <code>new</code>: <code>new</code> is for the objects of a class. A generator called as a statement, <code>count_to(5);</code>, is an error, because its values would be lost.</p>
+<p>A generator object is created by calling the generator method, like any value: <code>new g := count_to(3);</code>. A generator called as a statement, <code>count_to(5);</code>, is an error, because its values would be lost.</p>
 
 <h3 id="generator-rules">Rules</h3>
 
@@ -143,8 +143,8 @@ driver ping_pong is
   return;
 
   process main is
-    let a := ping(3);
-    let b := pong(3);
+    new a := ping(3);
+    new b := pong(3);
     while not (a.done and b.done) do
       a.next() if not a.done;
       b.next() if not b.done;
@@ -196,7 +196,7 @@ end ping_pong;
 <h4>Syntax:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-[label:] parallel
+[label:] parallel [on error cancel] [within time]
   ** declarations, local to the group
 do
   start aspect_name(arguments);
@@ -266,7 +266,7 @@ end parallel_demo;
 # compute one result
 aspect square is
   process main(n: Integer, @result: Integer) is
-    result := n * n;
+    let result := n * n;
   return;
 end square;
 </code></pre>
@@ -275,7 +275,7 @@ end square;
 ## create parallel work
 driver parallel_loop is
   process main is
-    let s: [4]Integer; ** one result for each worker
+    new s: [4]Integer; ** one result for each worker
 
     ** start the same aspect 4 times
     demo: parallel
@@ -299,21 +299,23 @@ end parallel_loop;
 <li><b>One owner for each output:</b> an output argument (<code>@</code>) is passed by reference and belongs to one task. Two tasks of the same group can't receive the same variable, the same element or two overlapping slices as output. The compiler rejects what it can prove; the virtual machine checks the rest at <code>start</code> and raises an error;</li>
 <li><b>Channels are the exception:</b> a channel is the only object that several tasks of a group can receive with "@". It is built for that: its operations are safe when tasks use it at the same time;</li>
 <li><b>Encapsulated:</b> an aspect sees no globals of the driver and has no public members; its state belongs to one task. It calls its methods by name, and they run on the same worker. It can print, but the lines of different tasks come in any order;</li>
-<li><b>No nesting:</b> only the driver opens parallel groups; an aspect can't apply or start another aspect.</li>
-<li><b>Modules are shared:</b> all the tasks use the same copy of a module. Its public constants, classes, functions and methods are safe to share, and a public channel of a module connects tasks without being passed as a parameter. A started aspect can't change the private variables of a module (see <a href="/projects/eve/modules.html#modules-and-aspects">Modules and parallel aspects</a>).</li>
+<li><b>One level:</b> the driver opens parallel groups. An aspect started by the driver may open its own parallel group and start at most 2 <em>leaf</em> aspects; a leaf aspect starts none. An aspect can't apply another aspect, so recursion between aspects is impossible.</li>
+<li><b>Modules are shared:</b> all the tasks use the same copy of a module. Its public constants, classes, functions and methods are safe to share, and a public channel of a module connects tasks without being passed as a parameter. Only an unsafe method, whose name ends with <code>!</code>, changes the private variables of a module; an aspect that calls one, directly or through other calls, can't be started (see <a href="/projects/eve/modules.html#modules-and-aspects">Modules and parallel aspects</a>).</li>
 </ul>
 
 <h3 id="errors-and-timeout">Errors and time-out</h3>
 
 <ul>
-<li>A parallel group behaves like a job. When a task raises an error, the other tasks go on; <code>done</code> waits for all of them, then raises the first error in the driver, where <code>$error.job</code> is the label of the group. In <code>recover</code>, <code>retry</code> runs the whole group again and <code>resume</code> continues after it; without <code>recover</code> the next groups do not begin;</li>
-<li>A task that waits on a channel longer than <code>$timeout</code> (60 seconds by default, set in the configuration file of the driver) raises a time-out error;</li>
+<li>A parallel group behaves like a job. A failing aspect never blocks its siblings: the other tasks go on, and <code>done</code> waits for all of them. Then the group raises one error, <code>ParallelError</code>, in the driver, where <code>$error.job</code> is the label of the group and <code>$error.errors</code> lists every failed aspect, in the order of <code>start</code>: <code>{index, aspect, code, message, line}</code>. No error is lost and the order does not depend on the scheduling. In <code>recover</code>, <code>retry</code> runs the whole group again and <code>resume</code> continues after it; without <code>recover</code> the next groups do not begin;</li>
+<li><code>on error cancel</code> changes the policy: after the first error, the aspects not yet finished are cancelled. Without it, the group waits for all (the default);</li>
+<li><code>within time</code> sets a deadline for the group: <code>parallel within 30s do … done;</code> raises a time-out error for the aspects still running after 30 seconds;</li>
+<li>A task that waits on a channel longer than <code>$timeout</code> (60 seconds by default, set in the configuration file of the driver) raises a time-out error. An aspect may set its own value, <code>set $timeout = 5s;</code>, which shadows the driver value inside that aspect only;</li>
 <li>When every unfinished task of a group waits on a channel, nothing can move any more: this is a deadlock. The virtual machine detects it and raises a deadlock error at <code>done</code>.</li>
 </ul>
 
 <h3 id="workers">Workers</h3>
 
-<p>The number of started aspects is not limited by the number of cores. The virtual machine keeps a pool of worker threads, one for each core, and queues the extra tasks. The pool size is the system variable <code>$cores</code>: by default the number of hardware cores, it can be set in the configuration file of the driver.</p>
+<p>The number of started aspects is not limited by the number of cores. The virtual machine keeps a pool of worker threads, one for each core, and queues the extra tasks: when no core is free, a <code>start</code> waits until one is. Two system variables, set in the configuration file of the driver, bound the work: <code>$cores</code>, the size of the pool (by default the number of hardware cores, at most 16), and <code>$max_parallel</code>, the number of aspects one parallel group of the driver may start (8 by default). The compiler detects, when it can, a group that starts too many aspects and reports a warning.</p>
 
 <p><b>A waiting aspect gives its core away.</b> A started aspect that waits, for a file, the network, a database, a <code>wait 10ms;</code> or a channel, releases its worker to another task and continues when the wait is over. The virtual machine does this; the code of the aspect stays plain sequential code. So a group can start more aspects than there are cores and overlap their waits: calling 50 services is one group of 50 started aspects on a few cores, and a pipeline with more stages than cores still works.</p>
 
@@ -339,9 +341,9 @@ end parallel_loop;
 # local computation: one slice in, one partial sum out
 aspect partial_sum is
   process main(data: []Integer, @partial: Integer) is
-    partial := 0;
+    let partial := 0;
     for x in data do
-      partial += x;
+      let partial += x;
     done;
   return;
 end partial_sum;
@@ -354,28 +356,28 @@ driver parallel_sum is
   set size = 1000 :Integer; ** elements for one worker
 
   process main is
-    let data: [workers * size]Integer;
-    let partials: [workers]Integer;
+    new data: [workers * size]Integer;
+    new partials: [workers]Integer;
 
     ** produce the data
     for i in (1..workers * size) do
-      data[i] := (0..99).random();
+      let data[i] := (0..99).random();
     done;
 
     ** superstep: 32 workers, one slice each
     sums: parallel
-      let first: Integer;
+      new first: Integer;
     do
       for w in (1..workers) do
-        first := (w - 1) * size + 1;
+        let first := (w - 1) * size + 1;
         start partial_sum(data[first..first + size - 1], @partials[w]);
       done;
     done sums; ** barrier: all the partial sums are ready
 
     ** combine on the main core
-    let total := 0;
+    new total := 0;
     for p in partials do
-      total += p;
+      let total += p;
     done;
     print total;
   return;
@@ -401,8 +403,8 @@ end parallel_sum;
 aspect smooth is
   process main(cur: []Real, first: Integer, @part: []Real) is
     for k in (1..part.count()) do
-      let i := first + k - 1;
-      part[k] := (cur[i - 1] + cur[i] + cur[i + 1]) / 3;
+      new i := first + k - 1;
+      let part[k] := (cur[i - 1] + cur[i] + cur[i + 1]) / 3;
     done;
   return;
 end smooth;
@@ -415,24 +417,24 @@ driver heat_bar is
   set width = 100 :Integer; ** cells for one worker
 
   process main is
-    let cur: [workers * width + 2]Real;
-    let nxt: [workers * width + 2]Real;
-    cur[1] := 100.0; ** hot end, the cold end stays 0
-    nxt[1] := 100.0;
+    new cur: [workers * width + 2]Real;
+    new nxt: [workers * width + 2]Real;
+    let cur[1] := 100.0; ** hot end, the cold end stays 0
+    let nxt[1] := 100.0;
 
     for n in (1..500) do
       ** compute in parallel
       superstep: parallel
-        let first: Integer;
+        new first: Integer;
       do
         for w in (1..workers) do
-          first := (w - 1) * width + 2;
+          let first := (w - 1) * width + 2;
           start smooth(cur, first, @nxt[first..first + width - 1]);
         done;
       done superstep; ** barrier
 
       ** communicate: the next state becomes the current state
-      cur :: nxt; ** clone: cur is a new copy of nxt
+      let cur :: nxt; ** clone: cur is a new copy of nxt
     done;
     print cur[2..11]; ** temperature near the hot end
   return;
@@ -448,8 +450,8 @@ end heat_bar;
 <p><code>Channel(:T)</code> is a generic class of the core library. The type parameter is the type of the values; the constructor takes the capacity and, optionally, the number of senders.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-  let jobs := new Channel(:Integer)(capacity: 100);
-  let results := new Channel(:Real)(capacity: 100, senders: 4);
+  new jobs := Channel(:Integer)(capacity: 100);
+  new results := Channel(:Real)(capacity: 100, senders: 4);
 </code></pre>
 
 <h4>Operations</h4>
@@ -515,9 +517,9 @@ end square;
 # stage 3: collect the results
 aspect collect is
   process main(@results: Channel(:Integer), @total: Integer) is
-    total := 0;
+    let total := 0;
     for y in results do ** ends after the 4th close
-      total += y;
+      let total += y;
     done;
   return;
 end collect;
@@ -529,9 +531,9 @@ driver pipeline is
   set workers = 4 :Integer;
 
   process main is
-    let total: Integer;
-    let jobs := new Channel(:Integer)(capacity: 100);
-    let results := new Channel(:Integer)(capacity: 100, senders: workers);
+    new total: Integer;
+    new jobs := Channel(:Integer)(capacity: 100);
+    new results := Channel(:Integer)(capacity: 100, senders: workers);
 
     flow: parallel
     do

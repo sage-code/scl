@@ -80,12 +80,12 @@ driver process_demo is
               param2 = 0: Integer,
               @result: Integer) is
     print "I have two parameters: param1 and param2";
-    result := param1 + param2;                    
+    let result := param1 + param2;                    
   return;
 
   process main is
     foo; ** call method without arguments
-    let output:=0; ** prepare a variable to receive output
+    new output:=0; ** prepare a variable to receive output
 
     ** execute method with 2 arguments and receiver
     bar(1, 2, @output);
@@ -119,19 +119,25 @@ driver side_effect is
 
   ** method with side effects
   method add_numbers is
-    test := p1 + p2; ** first side-effect
+    let test := p1 + p2; ** first side-effect
     print test;          ** second side-effect
   return;
 
   ** define main process
   process main is
-    p1 := 10;
-    let p2 := 20;
+    let p1 := 10;
+    new p2 := 20;
     add_numbers; **  method call without arguments
     expect test == 30;
   return;
 end side_effect;
 </code></pre>
+
+<h3 id="unsafe-methods">Unsafe methods</h3>
+
+<p>A method whose name ends with <code>!</code> is an <em>unsafe method</em>: <code>method tick!() is … return;</code>, called <code>tick!();</code>. It is the only kind of method that may change the private variables of a module after its <code>initialize</code> region. Because it changes shared state, it is unsafe for parallel processing: an aspect that calls an unsafe method, directly or through other calls, can be applied but not started in a parallel group. A method without <code>!</code> may still print, write files or change its <code>@</code> parameters.</p>
+
+<p>A method, like a function or a process, can release its resources with <code>defer</code> (see <a href="/projects/eve/processing.html#defer">Defer</a>).</p>
 
 <p>Note: In Eve it is not required to use empty parenthesis() to call a method. Only functions require empty brackets. We will talk about functions later. This feature enable us to extend Eve using Eve scripts.</p>
 
@@ -163,7 +169,7 @@ end side_effect;
 </ol>
 
 <p><b>Vararg parameters</b></p>
-<p>One method can receive multiple arguments of the same type into a single collection parameter. This can be a List, DataSet or HashMap, depending on declaration.</p>
+<p>One method can receive multiple arguments of the same type into a single collection parameter. This can be a List, DataSet or DataMap, depending on declaration.</p>
 
 <ul>
 <li>First arguments can be captured using named parameters,</li>
@@ -185,7 +191,7 @@ driver test is
   ** list all arguments
   process main(*args: ()String) is
     loop
-      let arg :String;
+      new arg :String;
     for arg in args do
       print arg;  ** expect 1,2,3
     done;
@@ -206,11 +212,11 @@ driver output_params is
 
   ** private method
   method add(p1 = 0, p2 = 1: Integer, @op: Integer) is
-    op := p1 + p2;
+    let op := p1 + p2;
   return;
 
   process main is
-    let result: Integer;
+    new result: Integer;
 
     ** input/output argument requires a reference to a variable
     add(1, 2, op: @result);

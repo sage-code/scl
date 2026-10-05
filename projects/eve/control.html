@@ -228,7 +228,7 @@ This is a multi-path selector similar to switch also named: jump table. It has t
 class Type = {V1, V2, V3, V4} &lt;&#58; Ordinal;
 ...
 process main is
-  let s := V1;
+  new s := V1;
 
   ** create match selector
   match s [one | all]
@@ -264,7 +264,7 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">#match with ranges
 process main is
-  let n := 7;
+  new n := 7;
   match n
     when (1..5) do
       print "low";
@@ -280,7 +280,7 @@ return;
 
 
 <h2 id="while">While Loop</h2>
-<p>Execute a block of code as long as one condition is true. When the condition become false the repetitive block ends. If the condition is false the first time, only the "else" block is executed. If the condition was true at least once, the else block is not executed. The "then" block is executed every time the loop ends, also after a <code>break</code>. There is no separate infinite loop: use the condition <code>True</code>, as in <code>while True do</code>, and leave the loop with <code>break</code>.</p>
+<p>Execute a block of code as long as one condition is true. When the condition become false the repetitive block ends. If the condition is false the first time, only the "else" block is executed. If the condition was true at least once, the else block is not executed. The "then" block is executed every time the loop ends, also after a <code>break</code>. A loop that must run at least once, or that runs until <code>break</code>, is the <a href="#repeat">Repeat Loop</a>.</p>
 
 
 <div class="text-center">
@@ -296,10 +296,8 @@ return;
   ** declare control variables (optional header)
   ...
 while condition do
-  ** jump to the start of the cycle: verify the condition and run again
-  repeat if condition;
-  ** the same, at most 3 times in a row
-  repeat 3 times if condition;
+  ** go back to the condition: skip the rest of the cycle
+  skip if condition;
   ...
   ** early interruption
   break if condition;
@@ -324,11 +322,11 @@ driver while_demo is
   process main is
     ** start an unlabeled loop: i survives until then
     loop
-      let i = 1 :Integer;
+      new i = 1 :Integer;
     while i &lt;= letters.length() do
       ** e is created again at every iteration
-      let e = letters[i] :String;
-      i += 1;
+      new e = letters[i] :String;
+      let i += 1;
       if e &gt;= "c" do
         write e;
         write "," if i &lt;= letters.length();
@@ -353,28 +351,43 @@ iterations 5
 <h4>Notes:</h4>
 <ul>
 <li>The <code>loop</code> header is optional. It holds the label and the declarations of the loop. These variables live in the loop scope, survive all iterations and are available in the <code>then</code> region. Without a header, the loop body has no private scope: it uses the parent scope;</li>
-<li>The <code>do</code> keyword starts the executable region. A variable created there with <code>let</code> is created on the stack at every iteration. Declare in the header what must survive until <code>then</code>;</li>
-<li><code>repeat [label] [N times] [if condition];</code> jumps to the beginning of the cycle: the loop condition is verified again and, if it is true, the body is executed again. The compiler turns it into a jump to the start of the loop. It is allowed in every loop, <code>while</code> and <code>for</code>. Section <a href="#for">For Loop</a> shows how it works with an index;</li>
-<li><code>N times</code> limits the repetitions. <code>N</code> is an integer expression. After <code>N</code> consecutive repeats of the same cycle, the <code>repeat</code> statement is ignored and the execution continues after it. The count starts again when a cycle ends without a repeat. Without <code>times</code> the number is not limited, and the condition must become false by itself, or the loop never ends;</li>
-<li>Some other languages use {break &amp; continue}, we use {break &amp; repeat} and {break &amp; next};</li>
-<li>With the condition <code>True</code> the compiler accepts the loop without a warning and the <code>else</code> block never runs;</li>
-<li>Every block is closed with <code>done</code>. A labeled loop closes with <code>done label;</code>, an unlabeled loop with <code>done;</code>. There is no <code>repeat</code> that closes a loop. The keyword <code>repeat</code> is a statement of the <code>for</code> loop, see below;</li>
+<li>The <code>do</code> keyword starts the executable region. A variable created there with <code>new</code> is created on the stack at every iteration. Declare in the header what must survive until <code>then</code>;</li>
+<li><code>skip [label] [if condition];</code> ends the current cycle early and goes back to the condition. It works in every loop: see <a href="#repeat">Repeat Loop</a> and <a href="#for">For Loop</a>;</li>
+<li>Some other languages use {break &amp; continue}, we use {break &amp; skip};</li>
+<li><code>while True do</code> is accepted without a warning and its <code>else</code> block never runs, but a loop without a condition is written <code>loop do … repeat;</code> (<a href="#repeat">Repeat Loop</a>);</li>
+<li>A <code>while</code> loop is closed with <code>done</code>: <code>done label;</code> for a labeled loop, <code>done;</code> otherwise;</li>
 <li>The <code>then</code> clause is executed when the loop ends, also after <code>break</code>. <code>stop</code> is used only for jobs and <code>break</code> only for loops.</li>
 </ul>
 
-<h4>Example: test at the end of the body</h4>
+<h2 id="repeat">Repeat Loop</h2>
+<p>The repeat loop tests its condition at the end, so its body runs at least once. It starts with <code>loop</code>, may declare variables in its header, runs the body after <code>do</code>, and ends with <code>repeat</code>. <code>repeat while condition;</code> starts another cycle while the condition is true. A bare <code>repeat;</code> always starts another cycle: the loop ends only with <code>break</code>. This is the infinite loop of Eve.</p>
 
-<p>A loop that runs at least once, like a do-while, leaves the loop with <code>break</code> as the last statement:</p>
+<h4>Syntax:</h4>
+<pre class="line-numbers"><code class="language-eve">#loop tested at the end
+[label:] loop
+  ** declare control variables (optional header)
+  ...
+do
+  ...
+  ** go to the test at the end: the condition is still verified
+  skip if condition;
+  ...
+  ** early interruption
+  break if condition;
+  ...
+repeat [label] [while condition];
+</code></pre>
+
+<h4>Example:</h4>
 
 <pre class="line-numbers"><code class="language-eve">#test at the end
 process main is
-  let n = 0 :Integer;
-  while True do
-    n += 1;
+  new n = 0 :Integer;
+  loop do
+    let n += 1;
     write n;
     write "," if n &lt; 3;
-    break if n &gt;= 3;
-  done;
+  repeat while n &lt; 3;
   print;
 return;
 </code></pre>
@@ -384,6 +397,51 @@ return;
 <pre class="output">
 1,2,3
 </pre>
+
+<p>A <code>skip</code> in a repeat loop goes to the test at the end. The condition is verified after every cycle, also a skipped one:</p>
+
+<pre class="line-numbers"><code class="language-eve">#skip the even numbers
+process main is
+  loop
+    new i = 0 :Integer;
+  do
+    let i += 1;
+    skip if i % 2 == 0;
+    write i;
+    write "," if i &lt; 5;
+  repeat while i &lt; 6;
+  print;
+return;
+</code></pre>
+
+<h4>Output:</h4>
+
+<pre class="output">
+1,3,5
+</pre>
+
+<p>A loop without a condition ends with <code>break</code>:</p>
+
+<pre class="line-numbers"><code class="language-eve">#loop until break
+process main is
+  new line = "" :String;
+  loop do
+    read(@line, "command:");
+    break if line == "quit";
+    skip if line == "";
+    print ("you said", line, separator: " ");
+  repeat;
+return;
+</code></pre>
+
+<h4>Notes:</h4>
+<ul>
+<li><code>repeat</code> closes the loop. It is not a statement inside the body;</li>
+<li>The body always runs once, so a repeat loop has no <code>else</code>. It has no <code>then</code> either: the code after <code>repeat</code> runs when the loop ends;</li>
+<li>The header variables live in the loop scope, survive all the cycles and are visible in the condition after <code>repeat while</code>;</li>
+<li><code>skip</code> goes to the test at the end, so the condition is verified also after a skipped cycle. With a bare <code>repeat;</code>, <code>skip</code> starts the next cycle;</li>
+<li><code>break</code> leaves the loop at once, without the test.</li>
+</ul>
 
 
 
@@ -403,11 +461,8 @@ return;
 [label:] for var in (min..max) do
     ** block statements;
     ...
-    ** next iteration
-    next if condition;
-    ...
-    ** same index again
-    repeat [N times] if condition;
+    ** go to the next element
+    skip if condition;
     ...
     ** early interruption
     break if condition;
@@ -421,8 +476,8 @@ done [label]; ** you can't use "if" here
 <ul>
 <li>Control variable is auto-incremented at end of each iteration;</li>
 <li>Control variable is declared in the <code>loop</code> header. If the loop has no header, the <code>for</code> statement creates an implicit scope for it; if the header exists, <code>for</code> uses that scope and creates none;</li>
-<li><code>repeat [label] [N times] [if condition];</code> jumps to the beginning of the cycle without incrementing the control variable: the same value is verified against the range and the body is executed again. <code>next</code> advances the index, <code>repeat</code> does not. The rules of <code>N times</code> are the ones from the <a href="#while">While Loop</a>;</li>
-<li>Variables created by <code>let</code> in the <code>do</code> region are created again at every repetition. Declare in the header what must survive, for example a counter of attempts;</li>
+<li><code>skip [label] [if condition];</code> ends the current cycle and advances the control variable to the next element. It is the <code>continue</code> of other languages;</li>
+<li>Variables created by <code>new</code> in the <code>do</code> region are created again at every cycle. Declare in the header what must survive, for example a counter;</li>
 <li>Control variable is available in the <code>then</code> region, but not after <code>done</code>;</li>
 <li><code>break</code> leaves the loop (or the outer loop, when a label is used) and <code>then</code> is still executed;</li>
 <li>Inside a loop that is inside a job, <code>stop</code> ends the job and <code>break</code> ends only the loop.</li>
@@ -436,7 +491,7 @@ for i in (1..10)(2) do
     ** write only odd numbers
     write i;
     write ',' if (i &lt; 9);
-done`;
+done;
 
 print;
 </code></pre>
@@ -466,46 +521,21 @@ done;
 last index 5
 </pre>
 
-<p>Repeat an iteration with the same index, at most 2 times in a row:</p>
+<p>Skip an element: <code>skip</code> ends the cycle and the control variable takes the next value:</p>
 
-<pre class="line-numbers"><code class="language-eve">#repeat N times
-for i in (1..3) do
-    print ("index", i);
-    repeat 2 times if (i &gt; 1);
+<pre class="line-numbers"><code class="language-eve">#skip an element
+for i in (1..6) do
+    skip if i % 3 == 0;
+    write i;
+    write "," if i &lt; 5;
 done;
+print;
 </code></pre>
 
 <h4>Output:</h4>
 
 <pre class="output">
-index 1
-index 2
-index 2
-index 2
-index 3
-index 3
-index 3
-</pre>
-
-<p>Repeat with a condition that changes. The counter <code>tries</code> is declared in the header, so it survives the repetition:</p>
-
-<pre class="line-numbers"><code class="language-eve">#repeat an iteration
-attempts: loop
-    let tries = 0 :Integer;
-for i in (1..3) do
-    tries += 1;
-    print ("index", i, "try", tries, separator: " ");
-    repeat if (i &gt; 1) and (tries &lt; 3);
-done attempts;
-</code></pre>
-
-<h4>Output:</h4>
-
-<pre class="output">
-index 1 try 1
-index 2 try 2
-index 2 try 3
-index 3 try 4
+1,2,4,5
 </pre>
 
 <h2 id="summary">Block summary</h2>
@@ -525,16 +555,17 @@ index 3 try 4
 <tr><th scope="row">job</th><td class="kw">name: job</td><td class="kw">do</td><td class="kw">done name;</td><td>mandatory</td></tr>
 <tr><th scope="row">if</th><td class="kw">if c do</td><td class="kw">else if c do<br>else</td><td class="kw">done;</td><td>no</td></tr>
 <tr><th scope="row">match</th><td class="kw">[label:] match s</td><td class="kw">when v do<br>when other do<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
-<tr><th scope="row">while</th><td class="kw">[label:] loop</td><td class="kw">while c do<br>repeat [N times] [if c]<br>else<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
-<tr><th scope="row">for</th><td class="kw">[label:] loop</td><td class="kw">for x in r do<br>next [if c]<br>repeat [N times] [if c]<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
+<tr><th scope="row">while</th><td class="kw">[label:] loop</td><td class="kw">while c do<br>skip [if c]<br>break [if c]<br>else<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
+<tr><th scope="row">repeat</th><td class="kw">[label:] loop</td><td class="kw">do<br>skip [if c]<br>break [if c]</td><td class="kw">repeat [label] [while c];</td><td>optional</td></tr>
+<tr><th scope="row">for</th><td class="kw">[label:] loop</td><td class="kw">for x in r do<br>skip [if c]<br>break [if c]<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
 <tr><th scope="row">parallel</th><td class="kw">[name:] parallel</td><td class="kw">do</td><td class="kw">done [name];</td><td>optional</td></tr>
 </tbody>
 </table>
 </div>
 
-<p>Closers: every block ends with <code>done</code>. A block that has a label ends with <code>done label;</code>; a block without a label ends with <code>done;</code>. There is no <code>done if</code>, <code>done while</code>, <code>done loop</code> or <code>done job</code>, and <code>if</code> cannot follow <code>done</code>.</p>
+<p>Closers: blocks end with <code>done</code>, except the repeat loop, which ends with <code>repeat [label] [while c];</code>. A block that has a label ends with <code>done label;</code>; a block without a label ends with <code>done;</code>. There is no <code>done if</code>, <code>done while</code>, <code>done loop</code> or <code>done job</code>, and <code>if</code> cannot follow <code>done</code>. Eve is not regular for its own sake: subprograms end with <code>return</code>, classes and modules with <code>end</code>, and a loop tested at the end with <code>repeat</code>.</p>
 
-<p>Interruptions: <code>repeat</code> jumps to the start of the cycle of a <code>while</code> or <code>for</code> loop without advancing the index, <code>next</code> advances a <code>for</code> loop, <code>break</code> leaves a loop, <code>stop</code> ends a job without error.</p>
+<p>Interruptions: <code>skip</code> ends the current cycle of a loop and goes to its continuation point (the next element of a <code>for</code>, the condition of a <code>while</code>, the test of a <code>repeat</code>), <code>break</code> leaves a loop, <code>stop</code> ends a job without error.</p>
 
 <hr>
 <p><b>Read next:</b>

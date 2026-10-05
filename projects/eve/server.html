@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Sage-Code Eve server: the Eve machine, command channels, machine setup, remote control, local HTTP serving, services and routes, the Eve API for AI.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, server, machine, remote control, listen, serve, service, route, MCP, API">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Server</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-server">Eve Server</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Eve is one language for a local client and a server backend. The same program, the Eve machine <code>eve</code>, runs on a workstation and on a server: it executes scripts, receives commands from scripts and from other machines, serves web pages and data over HTTP, and offers an API to AI assistants. This chapter shows how a machine is set up, how it is controlled from far away, how it serves HTTP with <code>service</code> scripts, and how two projects, a client and a server, work together.
+</div>
+
+<div class="alert alert-warning">Planned: the server features are designed for version 0.5 of Eve and are not in the virtual machine yet. The design is in <code>plan/design-service.md</code> of the Eve repository.</div>
+
+<h2 id="machine">The Eve Machine</h2>
+
+<p>There is one Eve machine, the program <code>eve</code>, and it has one mode. It starts <b>locally</b>, on the computer of the user, or <b>remotely</b>, on a server; in both places it is the same program with the same commands. What a machine does depends only on the commands it receives and on its configuration.</p>
+
+<ul>
+<li>A local machine runs scripts, answers the prompt <code>eve:&gt;</code>, and may serve web pages on <code>localhost</code>;</li>
+<li>A remote machine is an <code>eve</code> that listens on a port: it waits for commands, runs uploaded projects, schedules drivers and serves HTTP to other computers;</li>
+<li>A machine talks to another machine by sending it commands and reading the answers.</li>
+</ul>
+
+<h3 id="channels">Command channels</h3>
+
+<p>A machine is driven by <b>commands</b>: <code>load</code>, <code>run</code>, <code>check</code>, <code>doc</code>, <code>serve</code>, <code>setup</code> and the others listed in <a href="#commands">Commands</a>. The same commands arrive through several channels, and a command gives the same answer whatever its channel:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Channel</th><th>Example</th><th>What happens</th></tr>
+</thead>
+<tbody>
+<tr><td>Execute a file</td><td><code>eve -x sales.eve</code></td><td>a new machine parses and executes the script, then exits</td></tr>
+<tr><td>Prompt</td><td><code>eve</code>, then <code>eve:&gt; load sales.eve</code></td><td>the machine waits for commands typed by a person</td></tr>
+<tr><td>Command</td><td><code>eve -c "run sales.eve"</code></td><td>the command is sent to a running machine, which answers</td></tr>
+<tr><td>Another machine</td><td><code>send prod "run sales.eve"</code></td><td>a machine sends a command to another machine</td></tr>
+<tr><td>AI assistant</td><td><code>eve --api</code></td><td>the commands become tools of an MCP server (see <a href="#api">Eve API for AI</a>)</td></tr>
+</tbody>
+</table>
+
+<h3 id="scripts">Commands from scripts</h3>
+
+<p>A shell script or a Python script controls a running machine with <code>eve -c</code>. Each call sends one command, prints the answer and ends with the exit status of that command. A sequence of commands is a sequence of calls to the same machine, which keeps its state between them:</p>
+
+<pre class="fixed">
+eve --listen &amp;                    ** start a machine that waits for commands
+eve -c "load sales.eve"           ** first command
+eve -c "run sales.eve"            ** a new command, same machine, same state
+eve -c "report"
+eve -c "stop"                     ** the machine ends
+</pre>
+
+<pre class="line-numbers"><code class="language-python"># drive an Eve machine from Python
+import subprocess
+
+for command in ["load sales.eve", "run sales.eve", "report"]:
+    result = subprocess.run(["eve", "-c", command], capture_output=True, text=True)
+    print(result.stdout)
+    if result.returncode != 0:
+        break
+</code></pre>
+
+<h2 id="setup">Machine Setup</h2>
+
+<p>A machine <b>is its configuration</b>, and its configuration lives in a folder: the machine folder. Without any configuration, <code>eve</code> still works: the default values are built in, and it does its best to execute the command.</p>
+
+<h3 id="machine-folder">Machine folder</h3>
+
+<p><code>eve --setup &lt;folder&gt;</code> (short <code>-s</code>) chooses the machine. If the folder holds a configuration, the machine reads it. If not, <code>--setup</code> creates the folder, the configuration file <code>eve.cfg</code> and the sub-folders: a new machine, named after the folder, with the default values and ports that are free on this computer.</p>
+
+<pre class="fixed">
+eve --setup ./evemachine/local              ** creates the machine "local", or reads it
+eve --setup ./evemachine/server --listen    ** creates or reads "server", then starts it
+</pre>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Item</th><th>Content</th></tr>
+</thead>
+<tbody>
+<tr><td><code>eve.cfg</code></td><td>the configuration of the machine</td></tr>
+<tr><td><code>web/</code></td><td>the pages that <code>serve</code> returns: HTML, CSS, images, WebAssembly</td></tr>
+<tr><td><code>out/</code></td><td>output: run logs, files written by drivers, the checksum of the configuration</td></tr>
+<tr><td><code>data/</code></td><td>input data</td></tr>
+<tr><td><code>lib/</code>, <code>asp/</code></td><td>modules and aspects of the project</td></tr>
+</tbody>
+</table>
+
+<p>A machine folder is a project folder: the drivers, aspects, modules and services of one project, and the one machine that runs them. Another project is another machine.</p>
+
+<h3 id="configuration">Configuration</h3>
+
+<p>The configuration file holds system variables, one per line. Every value has a default built into <code>eve</code>:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Variable</th><th>Meaning</th><th>Default</th></tr>
+</thead>
+<tbody>
+<tr><td><code>$EVE_NAME</code></td><td>the label of the machine, used by people, logs and remote commands</td><td>the folder name, or <code>eve</code></td></tr>
+<tr><td><code>$EVE_DOMAIN</code></td><td>where the machine lives: <code>localhost</code>, a domain name or an IP address</td><td><code>localhost</code></td></tr>
+<tr><td><code>$EVE_PORT</code></td><td>port for commands, uploads and data</td><td>4042</td></tr>
+<tr><td><code>$EVE_HTTP_PORT</code></td><td>port of <code>serve</code>, for HTML</td><td>8042</td></tr>
+<tr><td><code>$EVE_WEB</code></td><td>folder of the pages that <code>serve</code> returns</td><td><code>web</code></td></tr>
+<tr><td><code>$EVE_OUT</code></td><td>output folder</td><td><code>out</code></td></tr>
+<tr><td><code>$EVE_TOKEN</code></td><td>the secret a remote client must present</td><td>none: only local commands</td></tr>
+</tbody>
+</table>
+
+<h3 id="identity">Identity</h3>
+
+<p>The identity of a machine is its address, <b>domain and port</b>: <code>localhost:4042</code>, <code>etl1.example.com:4142</code>. Two programs can't use the same port on one computer, so the address is unique. <code>$EVE_NAME</code> is only a label.</p>
+
+<ul>
+<li><b>Start:</b> <code>--listen</code> or <code>--serve</code> first checks that the domain and the ports are free. If one is taken, by another machine or another program, <code>eve</code> ends with an error;</li>
+<li><b>Checksum:</b> when a machine reads its configuration, it keeps a checksum of the file outside the file, in <code>out/&lt;name&gt;.sum</code>, and never writes into <code>eve.cfg</code>. So the file can be kept under version control;</li>
+<li><b>Changes:</b> a running machine reads its configuration again on the command <code>setup</code>. It applies the changes without a restart, as long as its identity stays the same. A new domain or port describes another machine, which is started on its own.</li>
+</ul>
+
+<h3 id="projects">Client and server projects</h3>
+
+<p>A client/server application is two projects, a client and a server, each with its machine. They can stay in the same repository, with the README at its root:</p>
+
+<pre class="fixed">
+sales_app/                  ** one repository
+  README.md                 ** what the application does, how to start both machines
+  client/                   ** project and machine "client"
+    eve.cfg                 ** localhost:4042, serve 8042
+    sales_load.eve          ** driver: reads files, sends batches to the server
+    asp/  lib/  data/  out/  web/
+  server/                   ** project and machine "server"
+    eve.cfg                 ** etl1.example.com:4142, serve 8142
+    orders_api.eve          ** service
+    asp/  lib/  data/  out/  web/
+</pre>
+
+<p>To test on one computer, both machines use <code>localhost</code> with different ports. In production, the configuration of the server names its domain.</p>
+
+<h2 id="remote">Remote Control</h2>
+
+<p>A machine that listens on a port can be controlled from far away: by a script, by a person at the prompt of another machine, or by another machine.</p>
+
+<h3 id="listen">Listening</h3>
+
+<p><code>eve --listen</code> (or <code>eve:&gt; listen</code>) starts a machine that stays active and accepts commands on <code>$EVE_PORT</code>, 4042 by default. It keeps running until it receives <code>stop</code>. It binds to <code>$EVE_DOMAIN</code>, which is <code>localhost</code> unless the configuration names another address, and a remote client must present the token <code>$EVE_TOKEN</code>.</p>
+
+<h3 id="send">Sending commands</h3>
+
+<p><code>eve -c &lt;command&gt;</code> (or <code>--command</code>) sends one command to the machine of the configuration and prints its answer. <code>-r</code> (<code>--remote</code>) names another machine, by its address or by a name defined in the configuration:</p>
+
+<pre class="fixed">
+eve -s ./evemachine/server -c "run sales.eve"      ** the machine of that folder
+eve -c "run sales.eve" -r etl1.example.com:4142    ** a remote machine by address
+eve -c "run sales.eve" -r prod                     ** a remote machine by name
+</pre>
+
+<p>A machine can do the same: it keeps one connection to each partner and sends them commands, on different ports and domain names. At the prompt: <code>eve:&gt; send prod "report"</code>. The first version of the protocol is plain: one command per line, the same text as at the prompt; the answer is the text the prompt would show, followed by the exit status.</p>
+
+<h3 id="upload">Upload and run</h3>
+
+<p><code>eve -u &lt;file&gt;</code> (or <code>--upload</code>) sends a source file to a machine, like a <code>load</code> on that machine. The remote machine compiles the file itself, under its own rules, and keeps it for the next commands:</p>
+
+<pre class="fixed">
+eve -u sales_load.eve -r prod             ** upload: the remote machine compiles it
+eve -c "run sales_load.eve" -r prod       ** run it there
+eve -c "dismiss sales_load.eve" -r prod   ** free its memory
+</pre>
+
+<h3 id="sessions">Sessions</h3>
+
+<p>One machine has one state, shared by all the commands it receives. Two independent sessions in parallel are two machines, with two configurations. Inside a machine, every driver has its own <b>driver memory space</b> (DMS): its globals, its modules and the state of its aspects.</p>
+
+<ul>
+<li><code>load sales.eve</code> creates the DMS of the driver. It stays until <code>dismiss sales.eve</code>, so a second <code>run</code> sees what the first one left: open connections, caches;</li>
+<li><code>run other.eve</code> for a driver that is not loaded creates a temporary DMS, runs the driver and frees the DMS at the end;</li>
+<li>A machine can hold several loaded drivers; they never see each other's memory.</li>
+</ul>
+
+<h3 id="remote-rules">Rules of a remote machine</h3>
+
+<p>Code received by a machine runs under the rules of that machine. A machine that listens is stricter than a person at the prompt:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Rule</th><th>At the prompt or <code>eve -x</code></th><th>Listening machine</th></tr>
+</thead>
+<tbody>
+<tr><td>Console</td><td><code>print</code> and <code>read</code> work</td><td><code>print</code> goes to the log; <code>read</code> is an error</td></tr>
+<tr><td><code>panic</code></td><td>at the prompt: back to the prompt; with <code>eve -x</code>: the process ends, exit code 1</td><td>ends the request or the job; the machine goes on listening, and <code>eve -c</code> ends with exit code 1</td></tr>
+<tr><td><code>halt</code>, debug mode</td><td>allowed</td><td>never</td></tr>
+<tr><td>Shell (<code>call</code>)</td><td>allowed</td><td>only if the configuration allows it</td></tr>
+<tr><td>Files</td><td>any path the user can open</td><td>only the folders of the machine</td></tr>
+<tr><td>Network, databases</td><td>any</td><td>only those listed in the configuration</td></tr>
+</tbody>
+</table>
+
+<h2 id="serve">Serving HTTP</h2>
+
+<p><code>eve:&gt; serve</code> (or <code>eve --serve</code>) starts an HTTP server inside the machine, at <code>http://localhost:8042</code> by default (<code>$EVE_HTTP_PORT</code>). The prompt stays usable while the machine serves, and <code>serve stop</code> ends the HTTP server.</p>
+
+<h3 id="static">Static pages</h3>
+
+<p>Without any code, <code>serve</code> returns the files of the web folder: a request for <code>/reports/today.html</code> returns <code>web/reports/today.html</code>. A driver that writes an HTML report into <code>web/</code> publishes it at once to every browser that can reach the machine.</p>
+
+<h3 id="services">Services</h3>
+
+<p>A <b>service</b> is a script that answers requests. It is a fourth kind of script, next to driver, aspect and module. It has no <code>process main</code>: it declares <b>routes</b>. A route joins an HTTP method and a path to the code that answers. Every request gets a new state, so two requests never share variables. A service has the shape of a module: declarations, <code>initialize</code> and <code>finalize</code>, closed by <code>end name;</code>.</p>
+
+<p>A route has two forms. The block form holds the code that answers, with the request and the response as its parameters:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# orders service
+service orders_api is
+  from "lib" use (orders);
+
+  route get_order(req: Request, @res: Response) on get "/orders/{id}" is
+    new o := orders.find(req.params["id"]);
+    if o == null do
+      let res.status := 404;
+    else
+      let res.body := o.json();
+    done;
+  end get_order;
+
+  route create_order(req: Request, @res: Response) on post "/orders" is
+    new id := orders.create!(req.json());
+    let res.status := 201;
+    let res.body := {"id": id}.json();
+  end create_order;
+
+  initialize
+    orders.connect($ORDERS_DB);
+  finalize
+    orders.disconnect();
+end orders_api;
+</code></pre>
+
+<p>The one-line form names an aspect, written in its own file, that answers the request. The same aspect can also be applied by a driver:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+  route get "/orders" apply list_orders;
+</code></pre>
+
+<h4>Notes</h4>
+<ul>
+<li>The method is any HTTP method: <code>get</code> (read), <code>post</code> (create), <code>put</code> (replace), <code>patch</code> (change a part), <code>delete</code>;</li>
+<li><code>{id}</code> in the path becomes <code>req.params["id"]</code>; the body of a <code>post</code>, <code>put</code> or <code>patch</code> is <code>req.body</code>, and <code>req.json()</code> reads it as a DataMap;</li>
+<li>The routes of a service run in parallel, one per request. A request that waits for a database gives its core away;</li>
+<li>The private state of a service is shared by all requests: it follows the rule of modules, written in <code>initialize</code> and then only by unsafe methods (<code>!</code>). Most services keep their state in a database;</li>
+<li>An error that a route does not recover becomes the response <code>500</code>; the message goes to the log, not to the browser.</li>
+</ul>
+
+<h2 id="api">Eve API for AI</h2>
+
+<p><code>eve --api</code> starts the machine as an MCP server (Model Context Protocol, an open protocol based on JSON-RPC 2.0). An AI assistant connects to it, on its standard input and output, or over HTTP on the path <code>/mcp</code> of the <code>serve</code> port, and works with Eve directly: it checks a script, runs it, reads the errors and the run log, and generates the documentation. Every command of the machine is a tool of the API, for example:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Tool</th><th>Command</th><th>Result</th></tr>
+</thead>
+<tbody>
+<tr><td><code>eve_check</code></td><td><code>check</code></td><td>ok, or the syntax errors with line and column</td></tr>
+<tr><td><code>eve_run</code></td><td><code>run</code></td><td>exit code, output and errors</td></tr>
+<tr><td><code>eve_doc</code></td><td><code>doc</code></td><td>the documentation pages written</td></tr>
+<tr><td><code>eve_inspect</code></td><td><code>inspect</code></td><td>the introspection report of a loaded script</td></tr>
+<tr><td><code>eve_runlog</code></td><td>(read)</td><td>the lines of a run log</td></tr>
+</tbody>
+</table>
+
+<p>The API follows the rules of the machine: an AI gets the same rights as a person at the prompt of that machine, no more.</p>
+
+<h2 id="security">Security</h2>
+
+<ul>
+<li><b>Local first:</b> <code>--listen</code>, <code>serve</code> and the API bind to <code>localhost</code> unless the configuration opens them to the network;</li>
+<li><b>Authentication:</b> a remote client presents the token of the machine, <code>$EVE_TOKEN</code>; over a network the connection uses TLS;</li>
+<li><b>Authorization:</b> the configuration says which routes are public and who may upload and run code;</li>
+<li><b>Secrets:</b> passwords and keys are never written in scripts; the machine gives them to a project from its configuration, and they never travel back to a client.</li>
+</ul>
+
+<h2 id="commands">Commands</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Command</th><th>Option</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>setup</code></td><td><code>-s</code>, <code>--setup &lt;folder&gt;</code></td><td>choose the machine of a folder, create it when missing, or read its configuration again</td></tr>
+<tr><td><code>execute</code></td><td><code>-x &lt;file&gt;</code></td><td>parse and execute a script, then exit</td></tr>
+<tr><td>(any command)</td><td><code>-c</code>, <code>--command "&lt;command&gt;"</code></td><td>send one command to a running machine and print its answer</td></tr>
+<tr><td><code>upload</code></td><td><code>-u</code>, <code>--upload &lt;file&gt;</code></td><td>send a source file to a machine, which compiles and keeps it</td></tr>
+<tr><td>—</td><td><code>-r</code>, <code>--remote &lt;machine&gt;</code></td><td>the machine that receives <code>-c</code> or <code>-u</code>: an address or a name of the configuration</td></tr>
+<tr><td><code>listen</code></td><td><code>--listen</code></td><td>wait for commands on <code>$EVE_PORT</code></td></tr>
+<tr><td><code>serve</code></td><td><code>--serve</code></td><td>serve HTTP on <code>$EVE_HTTP_PORT</code>; <code>serve stop</code> ends it</td></tr>
+<tr><td><code>api</code></td><td><code>--api</code></td><td>start the MCP server for AI assistants</td></tr>
+<tr><td><code>send</code></td><td>—</td><td>send a command to another machine: <code>send prod "report"</code></td></tr>
+<tr><td><code>load</code>, <code>dismiss</code></td><td>—</td><td>create, or free, the memory space of a driver</td></tr>
+<tr><td><code>stop</code></td><td>—</td><td>end the machine</td></tr>
+</tbody>
+</table>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/compiler.html">Compiler Implementation</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>

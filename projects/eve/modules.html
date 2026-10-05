@@ -64,13 +64,13 @@ module module_name is
   set .VERSION = "1.0" :String;          ** public constant
   class .Point = {x, y :Real} &lt;&#58; Object;  ** public class
   function .square(x: Real) =&gt; (@result: Real) is
-    result := x * x;
+    let result := x * x;
   return;
 
   ** private members: no prefix
-  let count = 0 :Integer;                ** private variable
+  new count = 0 :Integer;                ** private variable
   method trace(message: String) is
-    count += 1;
+    let count += 1;
     print message;
   return;
 
@@ -104,8 +104,8 @@ end module_name;
 <tr><td>class</td><td><code>class .Name = {…} &lt;&#58; Object;</code></td><td>yes</td><td>a class is a type; its objects belong to the code that creates them</td></tr>
 <tr><td>function</td><td><code>function .name(…) =&gt; (…) is</code></td><td>yes</td><td>a function has no side effects</td></tr>
 <tr><td>method</td><td><code>method .name(…) is</code></td><td>yes</td><td>a method works on its parameters</td></tr>
-<tr><td>channel</td><td><code>set .name := new Channel(:T)(capacity: n);</code></td><td>yes</td><td>a channel is made for several tasks: its operations are safe when tasks use it at the same time</td></tr>
-<tr><td>variable</td><td><code>let name = value :Type;</code></td><td>no, only private</td><td>a module is shared by the whole program; a public variable could be changed by two tasks at the same time</td></tr>
+<tr><td>channel</td><td><code>set .name := Channel(:T)(capacity: n);</code></td><td>yes</td><td>a channel is made for several tasks: its operations are safe when tasks use it at the same time</td></tr>
+<tr><td>variable</td><td><code>new name = value :Type;</code></td><td>no, only private</td><td>a module is shared by the whole program; a public variable could be changed by two tasks at the same time</td></tr>
 </tbody>
 </table>
 
@@ -114,12 +114,14 @@ end module_name;
 <pre class="line-numbers"><code class="language-eve">
   ** extension method: Point gets the method shift in this module
   method _shift(@self: Point, dx, dy: Real) is
-    self.x := self.x + dx;
-    self.y := self.y + dy;
+    let self.x := self.x + dx;
+    let self.y := self.y + dy;
   return;
 </code></pre>
 
-<p>A module has <b>no public variables</b>. <code>let .counter = 0 :Integer;</code> is an error. A value that other scripts need to change is passed to a method of the module as a parameter, or sent through a channel. A public channel is declared with <code>set</code>: the reference to the channel is a constant, while the values that flow through it change.</p>
+<p>A module has <b>no public variables</b>. <code>new .counter = 0 :Integer;</code> is an error. A value that other scripts need to change is passed to a method of the module as a parameter, or sent through a channel. A public channel is declared with <code>set</code>: the reference to the channel is a constant, while the values that flow through it change.</p>
+
+<p>A private variable of a module is written in its <code>initialize</code> region, and after that only by an <b>unsafe method</b>, whose name ends with <code>!</code>: <code>method .tick!() is … return;</code>. A method without <code>!</code> can read the private variables but not change them. An unsafe method can't be used by aspects that run in parallel (see <a href="#modules-and-aspects">Modules and parallel aspects</a>).</p>
 
 <h2 id="singleton">Modules are singletons</h2>
 
@@ -129,7 +131,7 @@ end module_name;
 <li><b>Loaded once:</b> the first import loads the module. Every later import, by the driver, by an aspect or by another module, uses the same copy;</li>
 <li><b>Initialized once:</b> the region <code>initialize</code> runs once, right after the module is loaded, before the importer continues;</li>
 <li><b>Finalized once:</b> the region <code>finalize</code> runs once, when the driver ends, after the process of the driver has finished. Modules are finalized in the reverse order of their initialization;</li>
-<li><b>No instances:</b> a module is not a class. <code>let m := new module_name;</code> is an error. To have several objects with their own state, declare a public class in the module and create objects of it with <code>new</code>.</li>
+<li><b>No instances:</b> a module is not a class. <code>new m := module_name();</code> is an error. To have several objects with their own state, declare a public class in the module and create objects of it: <code>new c := counter.Counter();</code>.</li>
 </ul>
 
 <h4>Example: life cycle</h4>
@@ -138,16 +140,16 @@ end module_name;
 # a module that counts its users
 module counter is
   set .LIMIT = 100 :Integer;     ** public constant
-  let total = 0 :Integer;        ** private state
+  new total = 0 :Integer;        ** private state
 
-  ** public method: count one more call
-  method .tick() is
-    total += 1;
+  ** public unsafe method: changes the private state
+  method .tick!() is
+    let total += 1;
   return;
 
   ** public method: read the private state
   method .count() =&gt; (@result: Integer) is
-    result := total;
+    let result := total;
   return;
 
   initialize
@@ -163,8 +165,8 @@ driver count_demo is
   from "lib" use (counter);
 
   process main is
-    counter.tick();
-    counter.tick();
+    counter.tick!();
+    counter.tick!();
     expect counter.count() == 2;
     expect counter.LIMIT == 100;
   return;
@@ -189,8 +191,8 @@ counter: 2 ticks
 <tbody>
 <tr><td><code>use (m);</code></td><td>the module <code>m</code></td><td><code>m.name</code></td></tr>
 <tr><td><code>use (m as x);</code></td><td>the module <code>m</code>, under the alias <code>x</code></td><td><code>x.name</code></td></tr>
-<tr><td><code>use (m(*));</code></td><td>the public members of <code>m</code>, into the scope</td><td><code>name</code>, without prefix</td></tr>
-<tr><td><code>use (*);</code></td><td>every module of the folder, their names merged into the scope</td><td><code>name</code>, without prefix</td></tr>
+<tr><td><code>use (m(*));</code></td><td>the public members of <code>m</code>, into the scope (debug mode: a warning)</td><td><code>name</code>, without prefix</td></tr>
+<tr><td><code>use (*);</code></td><td>every module of the folder, their names merged into the scope (debug mode: a warning)</td><td><code>name</code>, without prefix</td></tr>
 </tbody>
 </table>
 
@@ -218,7 +220,7 @@ end script_name;
 <li>A module knows nothing of the script that imports it: it can't read the globals of the driver. Values go in and out through the parameters of its methods and functions;</li>
 <li>A library is searched with the system variable <code>$EVE_LIB</code>. If the module is not found, the import fails with the error <code>$err_module</code>;</li>
 <li>Circular imports are possible: a module that is being loaded is not loaded again;</li>
-<li>The standard modules, such as <code>io</code> and <code>exception</code>, are imported by default.</li>
+<li>The standard modules, such as <code>io</code> and <code>exception</code>, form the system library: a fixed list, imported by default, with no <code>use</code>. Every other library is imported by name. In debug mode the compiler warns on the forms that bring names without a prefix, <code>(m(*))</code> and <code>(*)</code>, because a name of the library can later hide or collide with a local name.</li>
 </ul>
 
 <h2 id="modules-and-aspects">Modules and parallel aspects</h2>
@@ -228,7 +230,7 @@ end script_name;
 <pre class="line-numbers"><code class="language-eve">
 # a shared log for parallel workers
 module journal is
-  set .lines := new Channel(:String)(capacity: 1000);
+  set .lines := Channel(:String)(capacity: 1000);
 end journal;
 </code></pre>
 
@@ -244,7 +246,7 @@ aspect worker is
 end worker;
 </code></pre>
 
-<p>The private variables of a module are shared too, so a started aspect can't change them, like it can't change the globals of the driver. In the example of the previous section, a started aspect can read <code>counter.count()</code> but can't call <code>counter.tick()</code>: the virtual machine raises an error. A module method that changes private state is called by the driver, or by an aspect that is applied, never started.</p>
+<p>The private variables of a module are shared too, so a started aspect can't change them, like it can't change the globals of the driver. In the example of the previous section, a started aspect can read <code>counter.count()</code> but can't call <code>counter.tick!()</code>. The rule is checked by the compiler on the call graph: an aspect that calls an unsafe method (<code>!</code>), directly or through other calls, can be run with <code>apply</code> but not started in a parallel group. State that parallel aspects must share goes through a channel.</p>
 
 <div class="alert alert-warning">Not in Eve 0.1: parallel groups and channels are planned for a later version (see <a href="/projects/eve/multitasking.html">Multitasking</a>). In version 1 a module is used by one process at a time.</div>
 
@@ -266,7 +268,7 @@ module io is
 end io;
 </code></pre>
 
-<p>The comment lines above a declaration are its documentation: the tool <code>eved</code> generates the library reference from them. See <a href="/projects/eve/library.html">Standard Library</a> and <a href="/projects/eve/exceptions.html">Exceptions</a> for the modules <code>io</code> and <code>exception</code>.</p>
+<p>The comment lines above a declaration are its documentation: the command <code>eve --doc</code> generates the library reference from them. See <a href="/projects/eve/library.html">Standard Library</a> and <a href="/projects/eve/exceptions.html">Exceptions</a> for the modules <code>io</code> and <code>exception</code>.</p>
 
 <h2 id="compared">Scripts compared</h2>
 
@@ -278,7 +280,7 @@ end io;
 <tr><td>Header</td><td><code>driver name is</code></td><td><code>aspect name is</code></td><td><code>module name is</code></td></tr>
 <tr><td>Executable</td><td>yes: <code>process main</code>, run from the command line</td><td>yes: <code>process main</code>, run with <code>apply</code> or <code>start</code></td><td>no process; <code>initialize</code> and <code>finalize</code></td></tr>
 <tr><td>Copies at run time</td><td>one, the program</td><td>one for each call; the state is dropped when <code>main</code> returns</td><td>one, a singleton, from the first import to the end of the driver</td></tr>
-<tr><td>Instances with <code>new</code></td><td>no</td><td>no</td><td>no</td></tr>
+<tr><td>Instances (class call)</td><td>no</td><td>no</td><td>no</td></tr>
 <tr><td>Public members</td><td>none</td><td>none</td><td>constants, classes, functions, methods, channels; no variables</td></tr>
 <tr><td>Global variables</td><td>yes, the only script with globals</td><td>no: private state for one call</td><td>private variables, shared by all users</td></tr>
 <tr><td>Can import modules</td><td>yes</td><td>yes</td><td>yes</td></tr>

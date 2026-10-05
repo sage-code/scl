@@ -76,7 +76,7 @@
 # define process with jobs
 process main is
   ** local declarations
-  let tries := 0;
+  new tries := 0;
   ...
   ** preconditions: end the process prematurely
   ** over skips the recover and finalize regions
@@ -108,7 +108,7 @@ process main is
 recover
   ** decide what to do next in case of error
   if $error.job == "c1" and tries &lt; 3 do
-    tries := tries + 1;
+    let tries := tries + 1;
     retry;  ** run job c1 again
   else if $error.job == "c2" do
     print $error.message;
@@ -143,13 +143,43 @@ return;
 <li>Any driver or aspect, can and must implement one single process, <code>main</code>;</li>
 <li>A process create a local scope, but also has access to a global context;</li>
 <li>Before first job there is a region for preparation/preconditions</li>
-<li>Preconditions can end the process with <code>over</code>, which skips the recover and finalize regions</li>
+<li>Preconditions can end the process with <code>over</code>, which skips the recover region; the finalize region still runs</li>
 <li>Jobs can't be nested, they are all on same level with the process</li>
 <li>All jobs of a single process are execute sequential from top down;</li>
 <li>When the project finish the local variables are released from memory;</li>
 <li>You can create local variables, lambda expressions and new objects;</li>
 <li>You can't define local functions, classes or methods in processes;</li>
 </ul>
+
+<h3 id="run-log">Run log</h3>
+
+<p>Every run of a driver writes a run log in the output folder (<code>$EVE_OUT</code>, <code>out</code> by default). The file name is <code>run_&lt;driver&gt;_&lt;datetime&gt;.log</code>, for example <code>run_sales_load_20261005_143012.log</code>: the date and time of the start of the run, so a new run never overwrites an older log. Every job and every <code>apply</code> writes one line when it starts and one when it ends. A line is a JSON object with these fields:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Field</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>time</td><td>date and time of the event, ISO 8601 with milliseconds, UTC: <code>"2026-10-05T14:30:12.405Z"</code></td></tr>
+<tr><td>driver</td><td>name of the driver of the run</td></tr>
+<tr><td>process</td><td>the script that runs the process: the driver, or the aspect that was applied or started</td></tr>
+<tr><td>job</td><td>label of the job or of the parallel group; empty for an <code>apply</code> outside a job</td></tr>
+<tr><td>kind</td><td><code>"job"</code>, <code>"apply"</code>, <code>"start"</code> or <code>"parallel"</code></td></tr>
+<tr><td>event</td><td><code>"start"</code> or <code>"end"</code></td></tr>
+<tr><td>status</td><td>at the end: <code>"pass"</code> or <code>"fail"</code>; for a retried job, one end line per attempt</td></tr>
+<tr><td>attempt</td><td>1 for the first run of a job, 2 after the first <code>retry</code>, and so on</td></tr>
+<tr><td>duration</td><td>at the end: milliseconds since the start event</td></tr>
+<tr><td>line</td><td>line of the job label or of the <code>apply</code> statement</td></tr>
+<tr><td>code, message</td><td>at the end of a failed job: the code and the message of the error</td></tr>
+</tbody>
+</table>
+
+<pre class="output">
+{"time":"2026-10-05T14:30:12.405Z","driver":"sales_load","process":"sales_load","job":"extract","kind":"job","event":"start","attempt":1,"line":12}
+{"time":"2026-10-05T14:30:13.910Z","driver":"sales_load","process":"sales_load","job":"extract","kind":"job","event":"end","status":"pass","attempt":1,"duration":1505,"line":12}
+</pre>
+
+<p>The <code>finalize</code> region still reads the <code>jobs</code> map of its own process; the run log is the trace of the whole run, for ETL lineage and, later, for the server.</p>
 
 <h2 id="execution">Aspect execution</h2>
 
@@ -169,7 +199,7 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 
 <h3 id="process-interruption">Process interruption</h3>
 
-<p>A process normal ends with keyword return. When the process of an aspect is terminated, program execution continues with the statement after <code>apply</code>, in the process of the driver. Interruption keywords (exit, over, panic) can be used to interrupt a process. The <em>exit</em> or <em>raise</em> trigger the finalization region while "over", "panic" and "abort" skip the finalization region.</p>
+<p>A process normal ends with keyword return. When the process of an aspect is terminated, program execution continues with the statement after <code>apply</code>, in the process of the driver. Interruption keywords (exit, over, abort, panic) can be used to interrupt a process. Every way out of a process runs the finalization region, except <code>panic</code> and an unexpected stop: a clean exit never skips cleanup.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -177,16 +207,17 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 </thead>
 <tbody>
 <tr><td><code>return</code></td><td>0</td><td>no</td><td>runs</td></tr>
-<tr><td><code>over;</code></td><td>0</td><td>no</td><td>skipped</td></tr>
+<tr><td><code>over;</code></td><td>0</td><td>no</td><td>runs</td></tr>
 <tr><td><code>panic;</code></td><td>1</td><td>no, ends the whole application</td><td>skipped</td></tr>
-<tr><td>failed <code>expect</code></td><td>2</td><td>runs</td><td>runs, except after <code>abort</code></td></tr>
+<tr><td>failed <code>expect</code>, not recovered</td><td>2</td><td>runs</td><td>runs</td></tr>
 <tr><td>failed <code>assert</code></td><td>3, a warning</td><td>no: the process goes on</td><td>runs at the end</td></tr>
-<tr><td><code>raise</code></td><td>4 by default, or the code of the exception</td><td>runs</td><td>runs, except after <code>abort</code></td></tr>
-<tr><td><code>abort</code> in recover</td><td>the code of the error</td><td>-</td><td>skipped</td></tr>
+<tr><td><code>raise</code> or run-time error, not recovered</td><td>4</td><td>runs</td><td>runs</td></tr>
+<tr><td><code>abort</code> in recover</td><td>2 or 4, as the error</td><td>-</td><td>runs</td></tr>
+<tr><td>unexpected stop: Ctrl+C or <code>stop</code> at a <code>halt</code> breakpoint (debug mode), recursion too deep, out of memory, hard time-out</td><td>5</td><td>no</td><td>skipped</td></tr>
 </tbody>
 </table>
 
-<p>The code of an exception is also the exit code: an exception is an object <code>{code: x, message: y}</code>. The standard codes are listed in <a href="/projects/eve/exceptions.html">Exceptions</a>.</p>
+<p>The exit code of a process is a small number, 0 to 5 (table above). The code of an exception is a different thing: it identifies the error, <code>$error.code</code>, and is never used as an exit code. An exception is an object of a class derived from <code>Error</code>, with a code and a message. The standard classes and codes are listed in <a href="/projects/eve/exceptions.html">Exceptions</a>.</p>
 
 <h4 id="aspect-errors">Errors of an aspect</h4>
 
@@ -215,7 +246,7 @@ driver process_call is
   process main(*args ()String) is
     ** number of arguments received:
     loop
-      let arg: String;
+      new arg: String;
     for arg in args do
       apply print_this(arg);
     done;
@@ -353,12 +384,12 @@ expect condition2, "user defined message";
 <tbody>
 <tr><td><code>retry</code></td><td>run the failed job again, from the start of its declarations</td></tr>
 <tr><td><code>resume</code></td><td>the error is handled: the job stays failed and the process continues after its <code>done</code></td></tr>
-<tr><td><code>abort</code></td><td>end the process without running the finalize region, the error propagates to the calling process</td></tr>
+<tr><td><code>abort</code></td><td>end the process: the finalize region runs, then the error propagates to the calling process</td></tr>
 </tbody>
 </table>
 
 <ul>
-<li>If the recover region ends without one of these, the error is handled: the finalize region runs and the process ends normally. An aspect in a parallel group that fails does not stop the others: the closing <code>done</code> waits for all of them, then raises the error, and the recover region runs, or the finalize region when there is no recover region.</li>
+<li>If the recover region ends without one of these, the error is handled: the finalize region runs and the process ends normally. An aspect in a parallel group that fails does not stop the others: the closing <code>done</code> waits for all of them, then raises one error that lists every failed aspect in <code>$error.errors</code> (see <a href="/projects/eve/multitasking.html#errors-and-timeout">Multitasking</a>), and the recover region runs, or the finalize region when there is no recover region.</li>
 <li><code>retry</code> and <code>resume</code> need a failed job. An error raised outside any job can only be aborted.</li>
 <li>Raising another error in the recover region aborts with the new error.</li>
 <li>A process without a recover region aborts on every error. If the driver aborts, the application ends with an error exit code.</li>
@@ -373,7 +404,7 @@ expect condition2, "user defined message";
 driver recover_demo is
   set a = 0.00;
   process main is
-    a := 1/0;
+    let a := 1/0;
   recover
     print $error.message;
   return;
@@ -386,9 +417,23 @@ end recover_demo;
 
 <h3 id="finalize">Finalize</h3>
 
-<p>The finalize region is optional. It runs once, when the process ends: after <code>return</code> or <code>exit</code>, or when the recover region ends normally. It is skipped by <code>over</code>, <code>panic</code> and <code>abort</code>. After <code>retry</code> or <code>resume</code> the process continues, so finalize runs later, when the process ends.</p>
+<p>The finalize region is optional. It runs once, when the process ends, by any path: <code>return</code>, <code>exit</code>, <code>over</code>, <code>abort</code>, or the normal end of the recover region. Only <code>panic</code> and an unexpected stop skip it. After <code>retry</code> or <code>resume</code> the process continues, so finalize runs later, when the process ends.</p>
 
 <p>In finalization region developer can close resources, tear down data of test cases, archive the logs, send signals, prepare output parameters or just print debug messages. Whatever is required after all code is execute just before process termination.</p>
+
+<h3 id="defer">Defer</h3>
+
+<p>The statement <code>defer</code> registers a statement that runs when the enclosing method, function or process ends, by any path: <code>return</code>, <code>over</code>, an error, <code>abort</code>. Several <code>defer</code> statements run in reverse order: the last registered runs first. They do not run after <code>panic</code>. A <code>defer</code> keeps the release of a resource next to the line that acquires it, so it is never forgotten:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+method load(path: String) is
+  new f := fs.open(path);
+  defer f.close();          ** runs at the end, also after an error
+  ...
+return;
+</code></pre>
+
+<p>The finalize region is for the whole process; <code>defer</code> is for one resource of one subprogram.</p>
 
 <!-- work in progress-->
 

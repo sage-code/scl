@@ -64,7 +64,7 @@ return;
 
 <ul>
 <li>A function result is mandatory and explicit. A subprogram without a result is a method, because a function must be usable in expressions,</li>
-<li>Result type is declared using prefix @. The prefix forces a reference: <code>let v := f(x);</code> is valid because <code>v</code> is a variable, <code>2 := f(x);</code> is not,</li>
+<li>Result type is declared using prefix @. The prefix forces a reference: <code>new v := f(x);</code> is valid because <code>v</code> is a variable, <code>2 := f(x);</code> is not,</li>
 <li>A function can return a list of results <code>=&gt; (@r1:Type, @r2:Type)</code>. In this case <code>$result</code> is a list <code>(result1, result2)</code>,</li>
 <li>A function can have input/output parameters,</li>
 <li>A function can receive parameters of type function,</li>
@@ -87,19 +87,19 @@ driver function_ex is
 
   ** declare functions
   function name1(param :Type,...) =&gt; (@result:Type) is
-    result := expression;
+    let result := expression;
   return;
 
   function name2(param = value,...) =&gt; (@result:Type) is
-    result := expression;
+    let result := expression;
   return;
 
   process main is
     ** execute using argument list
-    let result1 := name1(arguments);
+    new result1 := name1(arguments);
 
     ** execute using parameter names with pair operator (:)
-    let result2 := name2(param:arg,....);
+    new result2 := name2(param:arg,....);
   return;
 end function_ex;
 </code></pre>
@@ -127,7 +127,7 @@ end function_ex;
 driver function_params is
 
   function sum(a, b: Integer) =&gt; (@result:Integer) is
-    result := (a + b);
+    let result := (a + b);
   return;
 
   process main is
@@ -150,19 +150,19 @@ driver test_closure is
 
   # declare a method that creates a generator
   method generator(start:Integer) =&gt; (@next!:Function) is
-    let current := start; 
+    new current := start; 
 
     ** define an enclosed function using let: it changes state, so its name ends with !
-    let next! := Function() =&gt; (@result:Integer): 
-        current += 1;
-        result := current;
+    new next! := Function() =&gt; (@result:Integer): 
+        let current += 1;
+        let result := current;
     return; 
   return;
 
   process main is
     ** instantiate two closures
-    let index1! := generator(0);
-    let index2! := generator(10);
+    new index1! := generator(0);
+    new index2! := generator(10);
   
     ** interlace the two calls
     print index1!(), index1!(); ** 1, 2
@@ -184,7 +184,7 @@ end test_closure;
 
 <p>Lambda is a notation, not a type: a lambda expression creates a function in a single statement from one or more expressions. Parentheses are mandatory, a list of expressions creates several results, and the type goes after the parentheses: <code>():Type</code> or <code>():(Type, Type)</code>. A lambda assigned to an identifier that is not defined is just a pointer; it can be sent to a parameter that receives a pointer <code>@param</code>.</p>
 
-<p>Lambda expressions are simpler functions that respect arithmetic rules. These can receive several arguments and can produce one result. A lambda expression is created with keywords "set" or "let". Lambda expressions do not have local variables or states and do not have side effects.</p>
+<p>Lambda expressions are simpler functions that respect arithmetic rules. These can receive several arguments and can produce one result. A lambda expression is created with keywords "set" or "new". Lambda expressions do not have local variables or states and do not have side effects.</p>
 
 <p>Lambda expressions can be declared in the global scope but also in a process. Lambda expressions are associated to a variable, sometimes can be associated to a member in a collection.</p>
 
@@ -238,12 +238,12 @@ driver shared_states is
   set trunc = (x:Real) =&gt; floor(x* 10^decimals)/10^decimals;
 
   process main is
-    let x := 10/3;
+    new x := 10/3;
     ** call the lambda expression
     print trunc(x); ** expected 3.33
 
     ** overwrite the initial settings 
-    decimals := 4;
+    let decimals := 4;
     print trunc(x); ** expected 3.3333
   return;
 end shared_states;
@@ -275,6 +275,7 @@ end shared_states;
 <tr><td>function</td><td><code>function</code></td><td>yes</td><td>mandatory</td><td>no</td><td>no, the process does</td><td><code>f(x)</code>, in an expression</td></tr>
 <tr><td>function with side effects or randomness</td><td><code>function name!</code></td><td>yes, ends with <code>!</code></td><td>mandatory</td><td>yes</td><td>no, the process does</td><td><code>f!(x)</code></td></tr>
 <tr><td>method</td><td><code>method</code></td><td>yes</td><td>optional</td><td>yes</td><td>no, the process does</td><td><code>m(x);</code>, as a statement</td></tr>
+<tr><td>unsafe method (changes module state, never run in parallel)</td><td><code>method name!</code></td><td>yes, ends with <code>!</code></td><td>optional</td><td>yes</td><td>no, the process does</td><td><code>m!(x);</code>, as a statement</td></tr>
 <tr><td>lambda</td><td><code>(params) =&gt; (expression)</code></td><td>only if assigned to a function identifier</td><td>one per expression</td><td>as the function it creates</td><td>no</td><td>through the function it creates</td></tr>
 </tbody>
 </table>
