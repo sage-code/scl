@@ -44,14 +44,14 @@ Eve has basic interaction with relational databases. We design Eve to connect to
 <ul>
 <li>Read and update tables in a database;</li>
 <li>Provide easy way to map data in ETL;</li>
-<li>Provide data reporting in file formating;</li>
+<li>Provide data reporting in file format;</li>
 <li>Backup and archive data using compression;</li>
 <li>Transfer data & upload data in the cloud;</li>
 </ul>
 
 
 <h2 id="models">Models</h2>
-<p>Eve must read and update a database structure using an internal <em>data model</em>. A model is a map between Eve a relational data model and an object oriented model. This is called&nbsp; ORM = <em>Object Relational Model</em>. An ORM model is connecting to one or multiple databases using vendor specific database modules.</p>
+<p>Eve must read and update a database structure using an internal <em>data model</em>. A model is a map between Eve a relational data model and an object oriented model. This is called&nbsp; ORM = <em>Object Relational Mapping</em>. An ORM model is connecting to one or multiple databases using vendor specific database modules.</p>
 
 <h4>Importing</h4>
 
@@ -67,33 +67,33 @@ from $EVE_LIB/db use (core as db, oracle as orcl);
 <p><b>pattern:</b></p>
 <pre class="line-numbers"><code class="language-eve">
 ** create a database session
-class OracleSession = {user,password,name: String} &lt;&#58; orcl.Database is
-  new _credentials: String;
+class OracleSession = {location,user,password,name: String} &lt;&#58; orcl.Database is
+  private set credentials: String;
 
   destructor(@self) is
     orcl.disconnect();
   return;
 
-  constructor(@self)(location,user,password:String) is
-    let self := new db.Session();
+  constructor(location, user, password: String) =&gt; (@self) is
+    let self := orcl.Database();
     ** prepare credentials
-    new self.location = location;
-    new self.user = user;
-    new self.password = password;
+    let self.location := location;
+    let self.user := user;
+    let self.password := password;
     ** prepare credentials
-    self.connect(self._credentials);
+    self.connect(self.credentials);
     orcl.connect();
   return;
 end OracleSession;
 
 process main is
   ** create database connection
-  new demoDB =  set db := OracleSession(user:$user,password:$password,location:$location);
+  set db := OracleSession(user:$user,password:$password,location:$location);
   ...
 return;
 </code></pre>
 
-<p><b>Note:</b>&nbsp;Usually a database has a security protocol based on user-name and password. These credentials can not be encoded in the Eve scripts, they need to be received as input parameters by the main process or set using configuration files that are secret, safly stored on the server. Once a connection is established it can be used to manipulate data, using Eve statements.</p>
+<p><b>Note:</b>&nbsp;Usually a database has a security protocol based on user-name and password. These credentials can not be encoded in the Eve scripts, they need to be received as input parameters by the main process or set using configuration files that are secret, safely stored on the server. Once a connection is established it can be used to manipulate data, using Eve statements.</p>
 
 <h2 id="databases">Database API</h2>
 
@@ -146,7 +146,7 @@ return;
 
 <h2 id="concepts">Concepts</h2>
 
-<p>One database provide a complex framework to organize data in tables and documents. An application can read database structure and map it to an internal memory model. Then we can perform operations on this model: {search, append, update, delete}. The opperations are mirrored automaticly in the database.</p>
+<p>One database provide a complex framework to organize data in tables and documents. An application can read database structure and map it to an internal memory model. Then we can perform operations on this model: {search, append, update, delete}. The operations are mirrored automatically in the database.</p>
 
 <ul>
 <li><a href="#mapping">Mapping</a></li>
@@ -159,7 +159,7 @@ return;
 
 <p>A database table has records. Eve strategy is to define one <em>memory table</em> as a collection of objects for each <em>database table</em>. The <em>memory table</em> is mapped to <em>database table</em>. Mapping is <em>one to one</em>. Field names are case sensitive.</p>
 
-<p>Data cashing. The memory table do not store all the database data. Instead, the memory table store a small buffer. On rare ocasions, user can store all data in memory tables for small crytical tables to improve performance when a table is used very often. Usually these tables are metadata tables.</p>
+<p>Data caching. The memory table do not store all the database data. Instead, the memory table store a small buffer. On rare occasions, user can store all data in memory tables for small critical tables to improve performance when a table is used very often. Usually these tables are metadata tables.</p>
 
 <h3 id="tables">Tables</h3>
 <p>Internal <em>memory tables</em> are mixed collections of objects having same name as <em>database tables</em>. We can read a database table record by record on demand. A <em>memory table</em> can load one or multiple <em>records</em> in memory. Developer/user has full control over what data is stored in memory buffer, can refresh the buffer or can clear the buffer and load other data set with a different filter.</p>
@@ -173,7 +173,7 @@ class TableName = {name: String} &lt: DB_Name.Table;
 </code></pre>
 
 <h3 id="records">Records</h3>
-<p>Records are <em>object instances</em> representing in memory table structure. A record has a <em>status</em> property that can be used in conditionals. One record is the current record. Several records are cached in memory for a table. A record id identified by a numeric id. Records are "bound" to database data. A record has information about its origin.</p>
+<p>Records are <em>object instances</em> representing in memory table structure. A record has a <em>status</em> property that can be used in conditionals. One record is the current record. Several records are cached in memory for a table. A record is identified by a numeric id. Records are "bound" to database data. A record has information about its origin.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 class RecordName = {id: Integer} &lt;&#58; Record;
@@ -206,7 +206,7 @@ class RecordName = {id: Integer} &lt;&#58; Record;
 <p>Eve can add new data records into one table using <em>append()</em> method of a table. This create new records.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-method update_tables(value1,value2 ...) is
+function update_tables(value1,value2 ...) is
   ** create empty records
   new record1 := table_name1.append();
   new record2 := table_name2.append();
@@ -241,7 +241,7 @@ process main is
 return;
 </code></pre>
 
-<p><b>Note </b> A process or method will start a new isolated transaction. In case of error, you can issue a rollback. The issue can be in the database, if you issue a rollback the database changes are not commited but the record remain modified in memory. You must refresh the record if you want the see the old values.</p>
+<p><b>Note </b> A process or method will start a new isolated transaction. In case of error, you can issue a rollback. The issue can be in the database, if you issue a rollback the database changes are not committed but the record remain modified in memory. You must refresh the record if you want the see the old values.</p>
 
 <h3 id="delete">Delete</h3>
 <p>This statement will remove one or more records from a table.</p>
@@ -259,8 +259,8 @@ finalize
   expect deleted1 &gt;  0;
   expect deleted2 &gt;= 0;
   ** print status
-  print (deleded1, "records deleted")
-  print (deleded2, "records deleted")
+  print deleted1, "records deleted";
+  print deleted2, "records deleted";
 return;
 </code></pre>
 
@@ -270,7 +270,7 @@ return;
 
 <pre class="line-numbers"><code class="language-eve">
 ** using a loop to create a single session  
-method delete_records(value) is
+function delete_records(value) is
   ** delete current record using: loop
   for record in table_name do
     record.delete() if record.field_name == value;
@@ -288,12 +288,12 @@ return;
   new query_result := db.query(query_template ? source)
 </code></pre>
 
-<p>Working with Direct SQL is not our purpose. Eve has enaugh power to enable developers handle processes. Using direct SQL is a backup, offered for special opperations Eve is not capable of. Examples will be provided for testing.</p>
+<p>Working with Direct SQL is not our purpose. Eve can handle most data processes without SQL. Using direct SQL is a backup, offered for special operations Eve is not capable of. Examples will be provided for testing.</p>
 
 
 <h2 id="procedures">Procedures</h2>
 
-<p>Some databases have support for stored procedures. It will be a challenge to engage these procedures from EVE. Since not all databases have stored procedures, these are extra features that we can implement in Eve. Most of the time, Eve scripts are self contained and depend only on database row data and do not use extra layers like views, snapshots or stored procedures to read data. However just in case data is not available in any other way we can call stored procedures to retrive data.</p>
+<p>Some databases have support for stored procedures. Calling stored procedures from Eve is planned. Since not all databases have stored procedures, these are extra features that we can implement in Eve. Most of the time, Eve scripts are self contained and depend only on database row data and do not use extra layers like views, snapshots or stored procedures to read data. However just in case data is not available in any other way we can call stored procedures to retrieve data.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 driver main is
@@ -326,7 +326,7 @@ end main;
 <hr>
 
 <p><b>Read next:</b>
-<a href="/projects/eve/server.html">Eve Server</a></p>
+<a href="/projects/eve/multitasking.html">Multitasking</a></p>
 <!-- Footer -->
     </main>
   </div>

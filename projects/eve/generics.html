@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve generics: generic classes, type parameters, Optional and collections.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, generics">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Generics</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-generics">Eve Generics</h1>
+
+<div class="alert alert-secondary shadow-sm">
+A generic class has type parameters, so one class works for many types: <code>Number(:i32)</code>, <code>Number(:Real)</code>. Collections and the Optional type are generics too.</div>
+
+<h2 id="generics">Generics in Eve</h2>
+
+
+<p>Eve supports generics, allowing for the creation of flexible, reusable code structures that can work with different types while maintaining type safety. Generics are used in Eve system libraries. You can create sub-types using a generic. Next generics are pre-defined: {Array, List, DataSet, DataMap}. We will describe these data types in next chapter.</p>
+
+<h3 id="generic-syntax">Generic Syntax</h3>
+
+<p>The basic syntax for defining a generic class in Eve is as follows:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+class GenericClass(:T) &lt;&#58; SuperType is
+    ** Generic method
+    method genericMethod(value: T) =&gt; (@result: T) is
+        ** Implementation
+    return;
+end GenericClass;
+</code></pre>
+
+<p>In this syntax:</p>
+<ul>
+    <li><code>(:T)</code> is a type parameter. It can be any valid identifier.</li>
+    <li>You can use <code>T</code> as a type within the class definition.</li>
+    <li>When instantiating the class, you specify the actual type:<br>
+        <code>new instance := GenericClass(:Integer)(constructor_arguments);</code></li>
+</ul>
+
+<h3 id="optional-type">Optional Type</h3>
+
+<p>Eve provides an Optional type, which is a variant that can be either a value of a specific type or <code>null</code>. This is particularly useful for handling nullable values in a type-safe manner. The built-in short form is the optional type <code>T?</code> (see Data Types).</p>
+
+<h4>Example: Using Optional with Generics</h4>
+
+<p>Here's an example demonstrating the use of Optional with a generic class:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# Define an Optional type
+class Optional(:T) = {T | Null} &lt;&#58; Variant;
+
+# Define a generic processor class using Optional
+class Processor(:T) is
+    method process(value: Optional(:T)) =&gt; (@result: Optional(:T)) is
+        if value is Null do
+            let result := null;
+        else
+            ** Type-specific processing
+            if type(value) is Integer do
+                let result := value + 1;
+            else if type(value) is String do
+                let result := value + " processed";
+            else
+                let result := value;  ** Default case
+            done;
+        done;
+    return;
+end Processor;
+
+# Usage example
+driver test_optional_processor is
+  ** Create processor instances
+  new intProcessor := Processor(:Integer);
+  new stringProcessor := Processor(:String);
+
+  process main is
+    ** Test with non-null values
+    new intResult := intProcessor.process(Optional(:Integer)(5));
+    print intResult;  ** Output: Optional(6)
+
+    new stringResult := stringProcessor.process(Optional(:String)("Hello"));
+    print stringResult;  ** Output: Optional("Hello processed")
+
+    ** Test with null
+    new nullResult := intProcessor.process(null);
+    print nullResult;  ** Output: null
+  return;
+end test_optional_processor;
+</code></pre>
+
+<p>This example demonstrates how to use generics with the Optional type to create flexible, type-safe code that can handle optional values.</p>
+
+<h3 id="generic-constructor">Generic constructor</h3>
+
+<p>The syntax for the generic constructor follows the same pattern as the class. We use special notation (:T) to receive the type, then use the type inside the constructor body and in the parameter list. The type list (:T) belongs to the class. The constructor has no name; its parameters follow the type list in the call: <code>new Number(:i32)(42)</code>, and its result is <code>@self</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** generic Number class that can work with different integer types
+class Number(:T) = {value: T} &lt;&#58; Object is
+    ** generic constructor: the result is the new number
+    constructor(initialValue: T) =&gt; (@self) is
+        let self := Object();
+        let self.value := initialValue;
+    return;
+
+    ** get the value
+    public method getValue(@self) =&gt; (@result: T) is
+        let result := self.value;
+    return;
+
+    ** set the value
+    public method setValue(@self, newValue: T) is
+        let self.value := newValue;
+    return;
+
+    ** add to the value
+    public method add(@self, addend: T) is
+        let self.value += addend;
+    return;
+
+    ** multiply the value
+    public method multiply(@self, factor: T) is
+        let self.value *= factor;
+    return;
+
+    ** print the value
+    public method print(@self) is
+        print "Number value: \#{self.value}";
+    return;
+end Number;
+
+  ** Usage example
+  driver test_generic_number is
+      process main is
+          ** Create a Number with i32
+          new num32 := Number(:i32)(42);
+          num32.print();  ** Output: Number value: 42
+
+          ** Create a Number with i64
+          new num64 := Number(:i64)(4000000000);
+          num64.print();  ** Output: Number value: 4000000000
+
+          ** Use the methods
+          num32.add(10);
+          expect num32.getValue() == 52;
+
+          num64.multiply(2);
+          expect num64.getValue() == 8000000000;
+
+          ** Test with Integer (boxed i64)
+          new numInteger := Number(:Integer)(1000);
+          numInteger.print();  ** Output: Number value: 1000
+          numInteger.add(500);
+          expect numInteger.getValue() == 1500;
+      return;
+  end test_generic_number;
+</code></pre>
+
+<h3 id="generics-use-cases">Generics Use cases</h3>
+
+<p>Eve implement at least 4 generic types. If more generic types are required in the future we will modify the language to add fundamental generic libraries and improve the language over time. We will describe generics for collections next. All these generics are "Iterable" Objects where "Iterable" will be a partial.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** making an array
+class UserArray = []Type &lt;&#58; Array;
+
+** making a list
+class UserList = ()Type &lt;&#58; List;
+
+** making a data set
+class UserSet = {}Type &lt;&#58; DataSet;
+
+** making a dictionary
+class UserMap = {:}(Type,Type) &lt;&#58; DataMap;
+</code></pre>
+
+<h4>List of DataSet</h4>
+
+<p>First we define the ElementType, then we define a collection UserList. After this we define a new instance of type UserList and we create new elements in this list.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# Using a generic type to create a table
+driver test_generic is
+
+  ** making an element type
+  class ElementType = {a,b,c: Integer} &lt;&#58; Object;
+
+  ** making a list of elements
+  class UserList = ()ElementType &lt;&#58; List;
+
+  process main is
+    ** instantiate UserList object
+    new myList := UserList();
+
+    ** enqueue one member
+    let myList += ElementType(1,2,3);
+
+    ** append one member
+    let myList := myList + ElementType(7,8,9);
+
+    print myList;  ** ({1,2,3},{7,8,9})
+  return;
+end test_generic;
+</code></pre>
+
+<h4>Type Inference</h4>
+
+<p>Using a  constant literal you can shortcut the design and create simpler code. This is possible due to type inference. Eve create the types for you. After a collection is created you can add new elements.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** define object using type inference
+   new myList := ({1,2,3},{7,8,9});
+
+** using introspection to find the type
+   print type(myList);       ** List
+   print type(myList[1]);    ** DataSet
+   print type(myList[1][1]); ** Integer
+</code></pre>
+
+<p><b>Note:</b> There is more to left unexplained about classes. We need to enable operator kind of method to be able to extend the language. Also we need to define traits, abstract classes and method chaining. These things are very important.</p>
+
+
+
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/partials.html">Partials</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>

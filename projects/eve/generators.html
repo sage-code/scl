@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve generators: functions that give their values one at a time.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, generators">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Generators</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-generators">Eve Generators</h1>
+
+<div class="alert alert-secondary shadow-sm">
+A generator is a function that gives its values one at a time. It is the tool for long or infinite sequences, for reading data step by step and for tasks that take turns. This page is about the generator as a function; how generators work as cooperative tasks and how they feed parallel work is in <a href="/projects/eve/multitasking.html">Multitasking</a>.
+</div>
+
+<h2 id="generator-kinds">Generator, function and closure</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th></th><th>Function</th><th>Closure</th><th>Generator</th></tr>
+</thead>
+<tbody>
+<tr><td>Keyword</td><td><code>function</code></td><td>made by a function</td><td><code>generator</code></td></tr>
+<tr><td>Results of one call</td><td>one (or a list)</td><td>one (or a list)</td><td>any number, one for each request</td></tr>
+<tr><td>Remembers between calls</td><td>no</td><td>yes, the state of its creator</td><td>yes, its local variables and its place in the body</td></tr>
+<tr><td>Marked with <code>!</code></td><td>if stochastic</td><td>if it changes its state</td><td>no: the call is deterministic, the object moves on</td></tr>
+<tr><td>Used with</td><td>a call</td><td>a call</td><td><code>for … in</code>, <code>next()</code></td></tr>
+</tbody>
+</table>
+
+
+<div class="alert alert-warning">Designed, not in Eve 0.1: generators and the module <code>task</code> are specified and implemented in version 2. The keyword <code>yield</code> is reserved.</div>
+
+<p>A generator is a subprogram, declared with the keyword <code>generator</code>, that produces its values one at a time. It gives a value to its caller, waits, and continues from the same place when the caller asks for the next value. Its local variables keep their values between two requests. A generator is useful for long or infinite sequences, for reading data step by step, and for tasks that take turns on one core.</p>
+
+<h2 id="generator-declaration">Declaration</h2>
+
+<p>A generator is declared with the keyword <code>generator</code>, like a function or a method: <code>generator name(parameters) =&gt; (@x: T) is … return;</code>. It declares one result, the value it produces. <code>yield</code> is allowed only in the body of a generator: in a function or a method it is a compile error, so a reader always knows from the header that a call creates a generator.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** produce the numbers 1 to n, one at a time
+generator count_to(n: Integer) =&gt; (@x: Integer) is
+  for i in (1..n) do
+    let x := i;           ** set the result
+    yield;            ** give x to the caller, wait here
+  done;
+return;               ** no more values
+</code></pre>
+
+<ul>
+<li><code>yield;</code> gives the current value of the result to the caller and suspends the generator. This is the explicit form;</li>
+<li><code>yield expression;</code> is the short form of <code>let x := expression; yield;</code>. Both forms are valid;</li>
+<li><code>return;</code> ends the generator: the caller sees that there are no more values;</li>
+<li>A generator can be infinite, with <code>loop do … yield; repeat;</code>: the caller decides when to stop;</li>
+<li>A generator can be declared where a function or a method can: in a class, with <code>public</code> or <code>private</code> (<code>public generator walk(@self) =&gt; (@node: Node) is … return;</code>); in a module, exported with <code>export (count_to);</code> or private to it; or in a driver or an aspect, private to that script;</li>
+<li>Calling a generator is deterministic: for the same arguments it returns an equivalent generator object and changes nothing, so a generator has no <code>!</code>. The generator object is what moves on, step by step.</li>
+</ul>
+
+<h2 id="generator-use">Use</h2>
+
+<p>A call of a generator does not run its body. It creates a generator object of the core class <code>Generator(:T)</code>, where <code>T</code> is the type of the result. The body runs only when the caller asks for a value. There are three ways to ask:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** 1. a for loop takes the values one by one
+for v in count_to(5) do
+  print v;                         ** 1 2 3 4 5
+done;
+
+** 2. a comprehension collects all the values
+new squares := (v * v | v in count_to(5));   ** (1, 4, 9, 16, 25)
+
+** 3. a generator object driven step by step
+new g := count_to(3);              ** nothing runs yet
+while g.next() do                  ** run to the next yield
+  print g.value;                   ** the value given by yield
+done;
+</code></pre>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Member</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>g.next()</code></td><td>run the body to the next <code>yield</code>: <code>True</code> and a new <code>g.value</code>; <code>False</code> when the body has returned</td></tr>
+<tr><td><code>g.value</code></td><td>the last value given by <code>yield</code>; reading it before the first <code>next()</code> is an error</td></tr>
+<tr><td><code>g.done</code></td><td><code>True</code> after the body has returned or after <code>close()</code></td></tr>
+<tr><td><code>g.close()</code></td><td>stop the generator early and drop its state</td></tr>
+</tbody>
+</table>
+
+<p>A generator object is created by calling the generator, like any value: <code>new g := count_to(3);</code>. A generator called as a statement, <code>count_to(5);</code>, is an error, because its values would be lost.</p>
+
+<h2 id="generator-rules">Rules</h2>
+
+<ol>
+<li><b>One level:</b> <code>yield</code> is allowed only in the body of the generator itself, not in a method or function it calls, not in a lambda and not in a process. A method called by the generator runs to completion. A generator that uses the values of another one loops over it and gives them again: <code>for c in child.walk() do yield c; done;</code>. This rule makes a generator simple: it is not a coroutine, and Eve has no coroutines;</li>
+<li><b>Lazy:</b> the arguments are evaluated when the generator object is created; the body begins at the first request;</li>
+<li><b>State:</b> the parameters and the local variables live in the generator object between two requests. They are dropped when the body returns, at <code>close()</code>, or when nobody refers to the object any more. A <code>for</code> loop left with <code>break</code> closes its generator;</li>
+<li><b>Parameters:</b> a generator receives inputs only, by value. It has no "@" parameters other than its result;</li>
+<li><b>Errors:</b> an error raised in the body ends the generator and is raised in the caller, at the <code>next()</code> or at the <code>for</code> line, where the recover region of the process can handle it;</li>
+<li><b>Where it is declared:</b> a generator in a driver or an aspect is private to it and needs no thread safety; a generator exported by a module must be thread safe (see <a href="/projects/eve/multitasking.html#generators-and-threads">Generators and threads</a>);</li>
+<li><b>One owner:</b> a generator object is never copied. Passing it to a method shares the same object. It can't be an argument of <code>apply</code> or <code>start</code>: it belongs to one process and runs on the core of its caller.</li>
+</ol>
+
+<h2 id="cooperative-tasks">Cooperative tasks</h2>
+
+<p>Generators are also the cooperative tasks of Eve. Each generator is a task, and each <code>yield</code> is a point where the task lets the others run. A loop in the caller gives the turns. Everything runs on one core, in a fixed order, so the result is the same on every run and no data needs protection.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# two tasks take turns on one core
+driver ping_pong is
+  generator ping(n: Integer) =&gt; (@step: Integer) is
+    for i in (1..n) do
+      print "ping";
+      yield i;                     ** let the other task run
+    done;
+  return;
+
+  generator pong(n: Integer) =&gt; (@step: Integer) is
+    for i in (1..n) do
+      print "pong";
+      yield i;
+    done;
+  return;
+
+  process main is
+    new a := ping(3);
+    new b := pong(3);
+    while not (a.done and b.done) do
+      a.next() if not a.done;
+      b.next() if not b.done;
+    done;                          ** ping pong ping pong ping pong
+  return;
+end ping_pong;
+</code></pre>
+
+<p>The library module <code>task</code> (version 2) gives the turns for you:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Method</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>task.round_robin(tasks);</code></td><td>run a list of generators in turns, one step each, until all of them are done</td></tr>
+<tr><td><code>task.until(g, condition);</code></td><td>run one generator step by step until the condition is true or the generator is done</td></tr>
+</tbody>
+</table>
+
+<pre class="line-numbers"><code class="language-eve">
+  task.round_robin((ping(3), pong(3)));   ** same output as the loop above
+</code></pre>
+
+<h2 id="generators-and-channels">Generators and channels</h2>
+
+<p>A generator runs on the core of its caller, so it can't feed a started aspect directly. To send the values of a generator to parallel workers, a started producer aspect creates the generator and sends its values into a channel: <code>for v in source() do jobs.send(v); done;</code>. Channels are explained below.</p>
+
+
+<h2 id="generator-examples">More examples</h2>
+
+<h3 id="generator-fibonacci">An infinite generator</h3>
+
+<p>A generator can be infinite. The caller decides when to stop, with <code>break</code>; the generator is closed and its state is dropped.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** the Fibonacci numbers, without end
+generator fibonacci() =&gt; (@x: Integer) is
+  new a := 0;
+  new b := 1;
+  loop do
+    yield a;
+    let t := a + b;
+    let a := b;
+    let b := t;
+  repeat;
+return;
+
+process main is
+  for n in fibonacci() do
+    if n &gt; 100 do break; done;
+    print n;                          ** 0 1 1 2 3 5 8 13 21 34 55 89
+  done;
+return;
+</code></pre>
+
+<h3 id="generator-file">A generator reads step by step</h3>
+
+<p>A generator does not read everything at once: each request reads one more piece, so a large file never has to fit in memory. This is the base of the streams of Eve (see the plan of the data client).</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** one line at a time (the module fs is planned: see System Library)
+generator lines(path: String) =&gt; (@line: String) is
+  new f := fs.open(path);
+  defer f.close();                    ** also when the caller leaves the loop with break
+  for text in f.lines() do
+    yield text;
+  done;
+return;
+</code></pre>
+
+<div class="alert alert-info"><b>TODO:</b> the module <code>fs</code> is a design (Q-024); replace this example when it is decided.</div>
+<div class="alert alert-info"><b>TODO:</b> write the rules of a generator written in a class (<code>public generator walk(@self)</code>) with a complete tree-walking example.</div>
+<div class="alert alert-info"><b>TODO:</b> decide whether a generator can take another generator as an argument (<code>take(n, source)</code>, <code>map</code>, <code>filter</code>) and how the stream operators of the data client relate to them (plan Q on <code>Stream(:T)</code>).</div>
+<div class="alert alert-info"><b>TODO:</b> document <code>close()</code>, <code>next()</code> and the state "finished" of a generator object in a table.</div>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/closures.html">Closures</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve asynchronous work: waiting, start, groups and futures, without async and await.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, asynchronous">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Asynchronous Functions</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-async">Eve Asynchronous Functions</h1>
+
+<div class="alert alert-secondary shadow-sm">
+An asynchronous function does not make the caller wait for its result: the caller goes on, and takes the result later, when it needs it. Many languages mark such a function with <code>async</code> and wait with <code>await</code>. Eve has a different answer: <b>the code stays sequential</b>, and the machine overlaps the waiting. This page explains how, and lists what is still open.
+</div>
+
+<div class="alert alert-warning">Not in Eve 0.1. Parallel groups, channels and generators are designed for later versions. The keywords <code>async</code>, <code>await</code> and <code>suspend</code> are not used in Eve (D-051, D-067).</div>
+
+<h2 id="async-waiting">Waiting gives the core away</h2>
+
+<p>An aspect that waits for a file, the network, a database, a <code>wait 10ms;</code> or a channel releases its worker core to another task and continues when the wait is over. The code does not change: it reads like code that waits. There is no second kind of function, and no function "colored" by <code>async</code> that can be called only from another one.</p>
+
+<h2 id="async-start">Several things at once: start</h2>
+
+<p>To do several slow things at the same time, the driver starts several aspects in a parallel group. Each aspect is the "asynchronous function"; <code>done</code> is the "await".</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# call 50 services at the same time
+driver fetch_all is
+  process main is
+    new answers: [50]String;
+
+    parallel
+    do
+      for i in (1..50) do
+        start fetch(i, @answers[i]);   ** each call waits for its own service
+      done;
+    done;                              ** all answers are ready here
+
+    print answers[1];
+  return;
+end fetch_all;
+</code></pre>
+
+<h2 id="async-compare">Eve and async and await</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Need</th><th>In languages with async</th><th>In Eve</th></tr>
+</thead>
+<tbody>
+<tr><td>overlap many waits</td><td><code>await all(f1(), f2())</code></td><td>a parallel group of started aspects</td></tr>
+<tr><td>take a result later</td><td>a future or promise</td><td>an output parameter <code>@</code>, ready at <code>done</code></td></tr>
+<tr><td>stream of results</td><td>an async iterator</td><td>a generator, or a channel between stages</td></tr>
+<tr><td>time-out</td><td>a timer and a race</td><td><code>parallel within 30s</code>, <code>$timeout</code></td></tr>
+<tr><td>cancel</td><td>a cancellation token</td><td><code>on error cancel</code></td></tr>
+<tr><td>colored functions</td><td>yes: <code>async</code> everywhere</td><td>no</td></tr>
+</tbody>
+</table>
+
+<h2 id="async-callbacks">Callbacks and completion</h2>
+
+<p>A callback (<a href="/projects/eve/callbacks.html">Callbacks</a>) runs in serial mode, in the receiver. It is not called "later, from another thread": that would bring data races into plain code. When a result arrives from a parallel task, the driver reads it after <code>done</code>, or receives it from a channel.</p>
+
+<div class="alert alert-info"><b>TODO:</b> author decision (Q-025): keep Eve without <code>async</code> and <code>await</code>, as written here, or add asynchronous functions. Alternatives to consider: (a) none, as today; (b) <code>start</code> of a <em>function</em> that returns a future-like <code>Result(:T)</code> read with <code>.get()</code>; (c) an <code>async function</code> that can only be called with <code>start</code> in a group.</div>
+<div class="alert alert-info"><b>TODO:</b> write the example "50 services" with the real aspect <code>fetch</code> and the module <code>http</code> when it exists (level 6).</div>
+<div class="alert alert-info"><b>TODO:</b> add a section on timers and periodic work: <code>wait 10ms;</code>, a driver that wakes every minute, and how this fits the server (<a href="/projects/eve/server.html">Server</a>).</div>
+<div class="alert alert-info"><b>TODO:</b> add a section on errors in parallel work with an example of <code>$error.errors</code> (see Errors and time-out in Multitasking).</div>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/algorithms.html">Algorithms</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>

@@ -3,10 +3,12 @@ const keywordMap = {
     // Global declarations
     'import': 'keyword', 'alias': 'keyword', 'class': 'keyword', 'global': 'keyword',
     'constant': 'keyword', 'return': 'keyword', 'create': 'keyword', 'release': 'keyword',
-    'method': 'keyword', 'function': 'keyword',
+    'method': 'keyword', 'function': 'keyword', 'generator': 'keyword',
+    'export': 'keyword', 'public': 'keyword', 'private': 'keyword', 'protected': 'keyword',
+    'service': 'keyword', 'route': 'keyword',
 
     // Optional keywords
-    'routine': 'keyword', 'driver': 'keyword', 'module': 'keyword', 'aspect': 'keyword',
+    'routine': 'keyword', 'driver': 'keyword', 'module': 'keyword', 'aspect': 'keyword', 'exclusive': 'keyword', 'concurrent': 'keyword',
     'recover': 'keyword', 'finalize': 'keyword', 'process': 'keyword', 'initialize': 'keyword',
 
     // Mandatory 2 space indentation
@@ -36,10 +38,11 @@ const keywordMap = {
     // Data types
     'Byte': 'types', 'Short': 'types', 'Integer': 'types', 'Natural': 'types',
     'Real': 'types', 'Float': 'types', 'Rational': 'types', 'String': 'types',
-    'Logic': 'types', 'Table': 'types', 'Symbol': 'types', 'Record': 'types',
+    'Logic': 'types', 'Table': 'types', 'Rune': 'types', 'Record': 'types',
+    'Decimal': 'types', 'Huge': 'types',
     'Ordinal': 'types', 'Variant': 'types', 'Date': 'types', 'Time': 'types',
     'Array': 'types', 'List': 'types', 'Object': 'types', 'Class': 'types',
-    'Lambda': 'types', 'Function': 'types', 'DataSet': 'types', 'HashMap': 'types',
+    'Lambda': 'types', 'Function': 'types', 'DataSet': 'types', 'DataMap': 'types',
     'Folder': 'types', 'File': 'types',
 
     // Reserved types

@@ -26,15 +26,16 @@
         job do repeat when case on loop while for match if then else done
         parallel`);
     define("type", `
-        Byte Short Integer Natural Real Float Rational String Logic Table Symbol
+        Byte Short Integer Natural Huge Real Float Decimal Rational String Logic Table Rune
         Record Ordinal Variant Date Time Array List Object Class Lambda Function
-        DataSet HashMap Folder File Null True False Type`);
+        DataSet DataMap Folder File Null True False Type`);
     define("constant", "any other all one label self args super");
 
     // declaration keywords are highlighted only when they open a line
     const DECLARATIONS = new Set(`
-        class driver module aspect process initialize
-        recover finalize trait constructor destructor function end`.trim().split(/\s+/));
+        class driver module aspect exclusive concurrent process initialize
+        recover finalize trait constructor destructor function generator end
+        export public private protected service route`.trim().split(/\s+/));
 
     const TOKEN = new RegExp([
         /(\(\*\*.*?(?:\*\*\)|$)|\*\*.*)/,           // 1: (** expression **) or ** end-of-line comment

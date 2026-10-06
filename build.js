@@ -1483,6 +1483,7 @@ function shouldCopyProjectStaticAsset(fileName) {
     ".js",
     ".json",
     ".pdf",
+    ".eve",
     ".woff",
     ".woff2",
     ".ttf",

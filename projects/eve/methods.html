@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Sage-Code Eve methods: declaration, side effects, input and output parameters.">
+  <meta name="description" content="Sage-Code Eve methods: methods belong to classes; extension methods, static and safe, not monkey patching; unsafe methods.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, method, subprogram, side effects, parameters, output parameter">
+  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, method, extension method, class, static, unsafe method">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Cache-Control" content="no-cache" />
   <meta http-equiv="Pragma" content="no-cache" />
@@ -45,203 +45,161 @@
 <h1 id="eve-methods">Eve Methods</h1>
 
 <div class="alert alert-secondary shadow-sm">
-A method is a subprogram that does work and can have side effects. It is called as a statement, receives input parameters and gives results back through output parameters marked with <code>@</code>. Functions, shown in the previous chapter, compute a value; methods change things. This chapter shows how to declare and call a method, what side effects are, and how parameters work.
+In Eve a method belongs to a class. An <b>object method</b> is declared in the body of its class and receives the object as its parameter <code>@self</code> (see <a href="/projects/eve/classes.html">Classes</a>). An <b>extension method</b> adds a method to a class from outside its body, in a module or an aspect, without changing the class. Code that does not belong to a class is written as functions (see <a href="/projects/eve/functions.html">Functions</a>). This chapter is about extension methods: how they are declared, where they can be used, and why they are safe.
 </div>
 
-<h2 id="declaration">Declaration</h2>
+<h2 id="extension">Extension methods</h2>
 
-<p>Methods are the subprograms that do the work inside a driver or an aspect; they always run in serial mode. In Eve we create a subprogram that can receive parameters and can have side-effects. You can call a method by name, with or without arguments enumerated in a list. A method is created with keyword "method" and is ending with keyword "return". Method do not have to be follow by empty parenthesis when it has no arguments. A method can be declared in a class or at module level, outside any class. A module-level method is public when its name starts with a dot (<code>method .name</code>) and private when it starts with an underscore (<code>method _name</code>). A method can also return a result.</p>
+<p>An extension method is declared at the level of a module or an aspect. Its first parameter is <code>@self</code> with the type of the class it extends; the other parameters follow. It is called like a method of that class: <code>p.shift(1, 2)</code>.</p>
 
 <h4>Syntax:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-# define a method
-method name(parameter_list) is
-    ** method statements
-    ...
+** extension method: Class gets the method name
+method name(@self: Class, parameters) is
+  ** statements that use self
+  ...
 return;
-</code></pre>  
-
-<h4>Example</h4>
-
-<p>Next example demonstrate two methods: "foo" and "bar". We declare the methods and then call the methods. One of method has no parameters, the other has 3 parameters. Two input and one output parameter.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# demonstrate two methods
-driver process_demo is
-
-  ** foo has no parameters
-  method foo is
-    print "I have no arguments";
-  return;
-
-  ** bar has 3 parameters
-  method bar(param1:Integer, 
-              param2 = 0: Integer,
-              @result: Integer) is
-    print "I have two parameters: param1 and param2";
-    let result := param1 + param2;                    
-  return;
-
-  process main is
-    foo; ** call method without arguments
-    new output:=0; ** prepare a variable to receive output
-
-    ** execute method with 2 arguments and receiver
-    bar(1, 2, @output);
-    expect output == 3; ** the value of output should be 3.
-    print ("output=", output);
-  return;
-end process_demo;
 </code></pre>
-
-
-<h2 id="side-effects">Side Effects</h2>
-
-<p>A process can use process states and can have side-effects. When a global state is changed by a method this is called side-effect. This may be useful but potential unsafe. Some side effects may be harder to debug. It is safer to use input/output parameters than side effects.</p>
-
-<p>these are side effects...</p>
-
-<ul>
-  <li>modify a global variable or system state;</li>
-  <li>open and write into an external file;</li>
-  <li>print a message or accept input from console;</li>
-  <li>upload something on internet or network;</li>
-</ul>
-
-<h4>Examples</h4>
-
-<p>Next method: "add_numbers" has side effects:</p>
-<pre class="line-numbers"><code class="language-eve">
-driver side_effect is
-  set test   :Integer;
-  set p1, p2 :Integer;
-
-  ** method with side effects
-  method add_numbers is
-    let test := p1 + p2; ** first side-effect
-    print test;          ** second side-effect
-  return;
-
-  ** define main process
-  process main is
-    let p1 := 10;
-    new p2 := 20;
-    add_numbers; **  method call without arguments
-    expect test == 30;
-  return;
-end side_effect;
-</code></pre>
-
-<h3 id="unsafe-methods">Unsafe methods</h3>
-
-<p>A method whose name ends with <code>!</code> is an <em>unsafe method</em>: <code>method tick!() is … return;</code>, called <code>tick!();</code>. It is the only kind of method that may change the private variables of a module after its <code>initialize</code> region. Because it changes shared state, it is unsafe for parallel processing: an aspect that calls an unsafe method, directly or through other calls, can be applied but not started in a parallel group. A method without <code>!</code> may still print, write files or change its <code>@</code> parameters.</p>
-
-<p>A method, like a function or a process, can release its resources with <code>defer</code> (see <a href="/projects/eve/processing.html#defer">Defer</a>).</p>
-
-<p>Note: In Eve it is not required to use empty parenthesis() to call a method. Only functions require empty brackets. We will talk about functions later. This feature enable us to extend Eve using Eve scripts.</p>
-
-<h2 id="parameters">Parameters</h2>
-
-<p><b>Parameters</b>&nbsp; are defined in round brackets () separated by comma. Each parameter must have type and name. Parameters are optional. Eve offer a range of advanced features: optional arguments, default values, variable number of arguments and input/output arguments.</p>
-
-<h4>Parameter Syntax:</h4>
-
-<p>Mandatory parameters do not have initial values but only declared type. Optional parameters have initial value that is assign using operator "=" with explicit :type, or ":=" with type inference. Arguments can be pass by position or by name.</p>
-
-<ul>
-<li>parameter :Type</li>
-<li>parameter  = value :Type</li>
-<li>parameter := expression</li>
-<li>@parameter :Type</li>
-</ul>
-
-<p>A parameter without "@" receives its argument by value, also a collection: the method works on its own copy and the caller's variable does not change. A parameter with "@" is an input/output parameter: it receives a reference to the caller's variable, so the method reads its value and can change it. An "@" parameter can't have a default value, so it is never optional.</p>
-
-<h4>Notes:</h4>
-
-<ol>
-<li>One method can receive one or more parameters,</li>
-<li>Parameters having initial values are optional,</li>
-<li>Values used for parameters at runtime, are called "arguments",</li>
-<li>You can assign arguments by position using a list of values,</li>
-<li>You can assign arguments by name using <code>(name:value)</code> pairs;</li>
-</ol>
-
-<p><b>Vararg parameters</b></p>
-<p>One method can receive multiple arguments of the same type into a single collection parameter. This can be a List, DataSet or DataMap, depending on declaration.</p>
-
-<ul>
-<li>First arguments can be captured using named parameters,</li>
-<li>The rest of arguments are captured into vararg parameter,</li>
-<li>A method can have one single vararg parameter,</li>
-<li>The vararg parameter name is declared using prefix: "*",</li>
-<li>You can use any name but "*args" is the usual name for it.</li>
-</ul>
-
-<div class="alert alert-info">Note: Also the process <code>main</code> of a driver or aspect can receive parameters. The same convention apply for aspects, drivers, functions and methods. Eve offer same features for all subprograms. The only difference are the call concentions.</div>
 
 <h4>Example:</h4>
 
-<p>Next driver can have a list of arguments. The arguments have no names, so it will just print all the arguments it has received. Drivers receive argument values from command line or REPL console using "run" command.</p>
-
-<pre class="line-numbers"><code class="language-eve"># print all arguments
-driver test is
-
-  ** list all arguments
-  process main(*args: ()String) is
-    loop
-      new arg :String;
-    for arg in args do
-      print arg;  ** expect 1,2,3
-    done;
-  return;
-end test;
-</code></pre>
-
-<pre><code class="output">
-eve:&gt;run test.eve 1 2 3
-</code></pre>
-
-<h4>Output Parameters</h4>
-<p>To avoid overuse of global variables you must use input/output parameters. We prefix output parameters using symbol "@", and the caller writes "@" before the argument too: <code>add(1, 2, @result)</code>, or by name <code>add(1, 2, op: @result)</code>. The "@" asks for pass by reference; without it the argument is passed by value. An output argument must be a variable, an element or a slice, otherwise you will not be able to capture the output value. The compiler will complain if you do not send a valid reference to an output parameter.</p>
+<p>The module <code>geometry</code> declares the class <code>Point</code> and extends it with the method <code>shift</code>. It exports both, so a driver that imports the module can create points and shift them:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-#demo output parameters
-driver output_params is
+# geometry: points and how to move them
+module geometry is
+  export (Point, shift, distance);
 
-  ** private method
-  method add(p1 = 0, p2 = 1: Integer, @op: Integer) is
-    let op := p1 + p2;
+  class Point = {x, y :Real} &lt;&#58; Object;
+
+  ** extension method: Point gets the method shift
+  method shift(@self: Point, dx, dy: Real) is
+    let self.x += dx;
+    let self.y += dy;
   return;
+
+  ** a function, not a method: it belongs to no object
+  function distance(a, b: Point) =&gt; (@result: Real) is
+    let result := sqrt((b.x - a.x)^2 + (b.y - a.y)^2);
+  return;
+end geometry;
+</code></pre>
+
+<pre class="line-numbers"><code class="language-eve">
+# use the extension method
+driver move_points is
+  from "lib" use (geometry(*));
 
   process main is
-    new result: Integer;
-
-    ** input/output argument requires a reference to a variable
-    add(1, 2, op: @result);
-    print result;  ** expected value 3
-
-    ** negative tests, will fail
-    add(1, 2, result); ** error, "op" requires @
-    add(1, 2, @4);     ** error, "op" requires a variable
+    new p := Point(x: 1, y: 2);       ** Point has no constructor: filled by name
+    p.shift(2, 3);                     ** the extension method
+    expect p.x == 3 and p.y == 5;
+    print distance(p, Point(x: 0, y: 0));
   return;
-end output_params;
+end move_points;
 </code></pre>
- 
-<h4>Notes:</h4>
+
+<h3 id="visibility">Where an extension method can be used</h3>
+
 <ul>
-<li>Output parameters are usually the last parameters;</li>
-<li>Output parameters are having "@" prefix, and so are their arguments;</li>
-<li>An output parameter has no default value;</li>
-<li>Method invocation is done using name of method as a statement;</li>
+<li>Inside the module or the aspect that declares it, always;</li>
+<li>In another script only when a module exports it, <code>export (shift);</code>, and the script imports that module. An aspect can't export: its extension methods stay inside it;</li>
+<li>A driver can declare extension methods too, for its own use.</li>
 </ul>
 
-<!-- work in progress-->
+<h2 id="static">Static, not monkey patching</h2>
+
+<p>Some languages let a program add or replace the methods of a class while it runs ("monkey patching"): the class changes for everybody, and a method can be replaced without the authors of the class knowing it. Eve extension methods are different. They are <b>static</b>:</p>
+
+<ul>
+<li>The class itself never changes. An extension method is resolved by the compiler, from the declarations and the imports of the script that calls it;</li>
+<li>Only the scripts that declare or import the extension see it. Two modules can extend the same class with different methods without any conflict, until one script imports both; then the import fails with a name conflict, as for any two members with the same name;</li>
+<li>An extension method can't hide or replace a method of the class: a method of the class with the same name is a compile error;</li>
+<li>An extension method sees only the <code>public</code> members of the class, like any other code outside the class: it can't reach the private or protected state.</li>
+</ul>
+
+<p>So an extension method is safe: it adds behavior where it is imported, and nothing else in the program changes.</p>
+
+<h2 id="unsafe-methods">Unsafe methods</h2>
+
+<p>A method whose name ends with <code>!</code> is an <em>unsafe method</em>: <code>public method record!(@self) is … return;</code>, called <code>s.record!();</code>. It changes shared state: the properties of its class, which all objects of the class share, or the variables of a module, through the functions of that module. Because it changes shared state, it is unsafe for parallel processing: an aspect that calls an unsafe method, directly or through other calls, can be applied but not started in a parallel group. A method without <code>!</code> works on its own object and its parameters only: it may change <code>self</code>, its <code>@</code> parameters, print or write files.</p>
+
+<p>A method, like a function or a process, can release its resources with <code>defer</code> (see <a href="/projects/eve/processing.html#defer">Defer</a>). The parameters of methods follow the rules of functions: defaults, varargs, named arguments and <code>@</code> parameters (see <a href="/projects/eve/functions.html#parameters">Parameters</a>).</p>
+
+<section id="method-chaining"><h2 id="method-chaining-in-eve">Method Chaining in Eve</h2>
+
+  <p>Method chaining is an advanced programming technique available in Eve that allows developers to call multiple methods on the same object in a single statement. This can lead to more concise and readable code, especially when performing a series of operations on an object.</p>
+
+  <div class="alert alert-info">
+    <strong>Note:</strong> Method chaining is an optional feature in Eve. Developers can choose whether to implement it based on their specific needs and coding style preferences.
+  </div>
+
+  <h3 id="how-method-chaining-works">How Method Chaining Works</h3>
+
+  <p>In method chaining, each method in the chain returns the object it was called on after performing its operation. In Eve such a method writes <code>@self</code> in its result list as well: <code>=&gt; (@self)</code> means "the result is the object itself", so there is nothing to assign. This allows the next method in the chain to be called on the same object.</p>
+
+  <h4>Example of Method Chaining</h4>
+
+  <pre class="line-numbers"><code class="language-eve">
+class Number(:T) = {value: T} &lt;&#58; Object is
+    constructor(initialValue: T) =&gt; (@self) is
+        let self := Object();
+        let self.value := initialValue;
+    return;
+
+    public method add(@self, addend: T) =&gt; (@self) is
+        let self.value += addend;
+    return;
+
+    public method multiply(@self, factor: T) =&gt; (@self) is
+        let self.value *= factor;
+    return;
+
+    public method print(@self) =&gt; (@self) is
+        print "Number value: \#{self.value}";
+    return;
+end Number;
+
+# Usage
+process main is
+    new num := Number(:i32)(10);
+    num.add(5).multiply(2).print();
+return;
+  </code></pre>
+
+  <h3 id="benefits-of-method-chaining">Benefits of Method Chaining</h3>
+
+  <ul>
+    <li>More concise code</li>
+    <li>Improved readability for sequences of operations</li>
+    <li>Fluent interface design</li>
+  </ul>
+
+  <h3 id="considerations">Considerations</h3>
+
+  <p>While method chaining can lead to more elegant code, it's important to use it judiciously. Very long chains can sometimes become difficult to read or debug. Developers should balance the benefits of conciseness with overall code clarity.</p>
+
+  <div class="alert alert-warning">
+    <strong>Best Practice:</strong> Consider breaking very long chains into multiple statements or using intermediate variables for better readability and easier debugging.
+  </div>
+
+  <h3 id="implementing-method-chaining">Implementing Method Chaining</h3>
+
+  <p>To implement method chaining in Eve, developers need to:</p>
+
+  <ol>
+    <li>Write <code>@self</code> in the parameter list (the object it receives) and in the result list (the object it returns): <code>method add(@self, x: T) =&gt; (@self) is</code></li>
+    <li>End the method with a plain <code>return;</code>: the result is already the object</li>
+    <li>Ensure that the method performs its operation before returning</li>
+  </ol>
+
+  <p>Remember, implementing method chaining is optional in Eve. Developers can choose to use traditional method calls if they prefer, or mix chained and non-chained methods as appropriate for their code structure.</p>
+</section>
 
 <hr>
 <p><b>Read next:</b>
-<a href="/projects/eve/modules.html">Modules</a></p>
+<a href="/projects/eve/processing.html">Processing</a></p>
 
 <!-- Footer -->
     </main>

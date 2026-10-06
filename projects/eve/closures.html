@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve closures: functions created by functions that keep their own state.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, closures">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Closures</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-closures">Eve Closures</h1>
+
+<div class="alert alert-secondary shadow-sm">
+A closure is a function that carries a piece of the place where it was created. Two closures made by the same function have separate states, so one function can create many counters, filters or handlers that each remember their own data.
+</div>
+
+<h2 id="closures">What is a closure</h2>
+
+<p>A closure is a function created by another function and enclosed in it. The closure has read/write access to the variables of the function that created it, which is its context. The context is replicated and bound to every closure instance. A function whose result can differ for the same arguments is stochastic and is marked with the suffix <code>!</code>: <code>name!()</code>. A closure that changes the state it encloses, like a counter, is such a function, so its name ends with <code>!</code>; a closure that always gives the same result needs no <code>!</code>. The function that creates a closure is deterministic: for the same arguments it returns an equivalent closure and changes nothing, so it needs no <code>!</code>, like <code>make_counter</code> below. A function that calls a <code>!</code> function is not deterministic itself, so its name ends with <code>!</code> too.</p>
+
+<h2 id="closure-why">Why closures?</h2>
+
+<p>Closures are enabled in Eve to offer a convenient way to create functions that return a different result for every call. For a sequence of values, a generator, declared with the keyword <code>generator</code> and using <code>yield</code>, is simpler: see <a href="/projects/eve/generators.html">Generators</a>. A closure is a light weight object. Like objects closures are dynamically created at runtime using "new" keyword.</p>
+
+<h3 id="closure-counter">Example: a counter</h3>
+
+<pre class="line-numbers"><code class="language-eve">
+driver test_closure is
+
+  ** declare a function that creates a closure
+  function make_counter(start:Integer) =&gt; (@next!:Function) is
+    new current := start; 
+
+    ** define an enclosed function using let: it changes state, so its name ends with !
+    new next! := Function() =&gt; (@result:Integer): 
+        let current += 1;
+        let result := current;
+    return; 
+  return;
+
+  process main is
+    ** instantiate two closures
+    new index1! := make_counter(0);
+    new index2! := make_counter(10);
+  
+    ** interlace the two calls
+    print index1!(), index1!(); ** 1, 2
+    print index2!(), index2!(); ** 11, 12
+    print index1!(), index1!(); ** 3, 4
+  return;
+end test_closure;
+</code></pre>
+
+<h3 id="closure-notes">Notes</h3>
+<ul>
+  <li>A closure that keeps a changing state is stochastic: its name ends with <code>!</code>, and the compiler makes no effort to optimize it. The function that creates it is deterministic and has no <code>!</code>.</li>
+  <li>Closures are created by functions: the function holds the state, the closure changes it.</li>
+  <li>One function can create multiple closures. This advanced feature will be demonstrated in examples of code later when we create the compiler.</li>
+</ul>
+
+
+
+<h2 id="closure-state">What a closure remembers</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Case</th><th>Result</th><th>Marked</th></tr>
+</thead>
+<tbody>
+<tr><td>reads a constant or an argument of its creator</td><td>always the same for the same arguments</td><td>no <code>!</code></td></tr>
+<tr><td>changes a variable of its creator (a counter)</td><td>differs at every call</td><td><code>!</code>: <code>next!()</code></td></tr>
+<tr><td>reads a variable of its creator that other code changes</td><td>can differ</td><td><code>!</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="closure-compare">Closure, object or generator?</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Need</th><th>Use</th></tr>
+</thead>
+<tbody>
+<tr><td>one small piece of state and one operation</td><td>a closure</td></tr>
+<tr><td>several operations on the same state, or a visible state</td><td>an object (<a href="/projects/eve/objects.html">Objects</a>)</td></tr>
+<tr><td>a sequence of values, one at a time</td><td>a generator (<a href="/projects/eve/generators.html">Generators</a>)</td></tr>
+<tr><td>a function to hand to other code</td><td>a closure, as a callback (<a href="/projects/eve/callbacks.html">Callbacks</a>)</td></tr>
+</tbody>
+</table>
+
+<h2 id="closure-threads">Closures and threads</h2>
+
+<p>A closure belongs to the task that created it. A closure that changes its state is not thread safe, so the compiler does not let two tasks use the same one (see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>). A task that needs a counter creates its own closure; a counter shared between tasks is an <code>Atomic</code> variable.</p>
+
+<div class="alert alert-info"><b>TODO:</b> the closure example has the old body form (<code>Function() =&gt; (@result:Integer):</code> with a colon and two <code>return;</code>). Write it again in the current dialect of functions, after the author confirms the syntax of a function made inside a function (Q-025).</div>
+<div class="alert alert-info"><b>TODO:</b> add the second example from the notes: one function that creates several closures that share one variable of their creator.</div>
+<div class="alert alert-info"><b>TODO:</b> explain what happens to the state of a closure when the creating function has returned (the state lives as long as a closure refers to it) and add a test.</div>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/lambdas.html">Expressions</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>
