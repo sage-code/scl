@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve protocols: HTTP, the Eve Wire Protocol and data formats.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, protocols">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Protocols</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-protocols">Eve Protocols</h1>
+
+<div class="alert alert-secondary shadow-sm">
+A protocol is an agreement about how two machines talk: who speaks first, what a message looks like, how an error is reported. Eve uses two. <b>HTTP</b> for browsers, REST clients and files; <b>EWP</b>, the Eve Wire Protocol, between Eve machines. Both carry the same data model.
+</div>
+
+<div class="alert alert-warning"><b>Not designed yet.</b> EWP is an idea from the review of the design (RNW-R04), not a decision. The frame layout below is a starting point for discussion (Q-028).</div>
+
+<h2 id="two-protocols">Two protocols, one data model</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Use</th><th>Protocol</th><th>Bodies</th></tr>
+</thead>
+<tbody>
+<tr><td>browsers, REST clients, HTML pages, files</td><td>HTTP/1.1 and HTTP/2 (HTTP/3 later)</td><td>JSON, HTML, bytes</td></tr>
+<tr><td>an Eve client calls an Eve server; server to server data</td><td>EWP over TCP and TLS (QUIC later); over WebSocket for browsers</td><td>Eve values, batches of a stream</td></tr>
+</tbody>
+</table>
+
+<h2 id="http">HTTP</h2>
+
+<p>HTTP is the language of the web. In Eve an HTTP service is a driver with routes: each route names an aspect that receives a request and writes a response (see <a href="/projects/eve/server.html#serve">Serving HTTP</a>). A page body is <code>Html</code> (see <a href="/projects/eve/templates.html">Templates</a>), a data body is JSON.</p>
+
+<h3 id="http-errors">Status and errors</h3>
+
+<p>A status of 400 or more is an error value: the client script handles it in <code>recover</code> like any other error, with the status in <code>$error.code</code>. A server aspect that raises an error answers 500; <code>expect</code> on a request answers 400.</p>
+
+<h2 id="ewp">EWP: the Eve Wire Protocol</h2>
+
+<p>EWP is a small binary protocol of <b>frames</b>. One connection carries many calls at the same time.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+frame = length (4 bytes) | type (1) | stream id (4) | flags (1) | payload
+</code></pre>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>HELLO</code></td><td>version, capabilities and authentication</td></tr>
+<tr><td><code>APPLY</code></td><td>apply an aspect on the remote machine: name, arguments, deadline, idempotency key</td></tr>
+<tr><td><code>RESULT</code></td><td>the output parameters (<code>@</code>) of the aspect</td></tr>
+<tr><td><code>ERROR</code></td><td>code, message, line and data of an error</td></tr>
+<tr><td><code>BATCH</code></td><td>a slice of a stream, with a sequence number</td></tr>
+<tr><td><code>CREDIT</code></td><td>how many batches the receiver accepts: the network form of the capacity of a channel</td></tr>
+<tr><td><code>CANCEL</code>, <code>PING</code>, <code>CLOSE</code></td><td>stop a call, check the line, end the connection</td></tr>
+</tbody>
+</table>
+
+<ul>
+<li><b>Back-pressure:</b> a sender sends only as many batches as the receiver granted with <code>CREDIT</code>, like <code>send</code> waits on a full channel (see <a href="/projects/eve/multitasking.html#channels">Channels</a>);</li>
+<li><b>Resume:</b> after a broken connection the client sends the number of the last batch it acknowledged, and the stream goes on from there: this is a checkpoint of a pipeline, on the wire;</li>
+<li><b>Payload:</b> a self-describing binary form of Eve values, starting from CBOR (RFC 8949), and a column layout for tables so that tools can read them without a conversion.</li>
+</ul>
+
+<h2 id="data-formats">Data formats</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Format</th><th>Used for</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td>JSON</td><td>REST bodies, configuration, records</td><td>planned, level 3</td></tr>
+<tr><td>CSV</td><td>files of rows with a header</td><td>planned, level 3</td></tr>
+<tr><td>HTML</td><td>pages, from templates</td><td>planned, 0.6</td></tr>
+<tr><td>CBOR and columns</td><td>EWP payloads</td><td>idea</td></tr>
+</tbody>
+</table>
+
+<div class="alert alert-warning"><b>Not designed yet.</b> The whole of EWP: the frame, the types, the encoding of values, security, versions. HTTP/3 and WebSocket are later.</div>
+<div class="alert alert-info"><b>TODO:</b> answer Q-028 and write the one example that crosses the line: a client driver applies a remote aspect and receives a stream, with the server written in serve mode.</div>
+<div class="alert alert-info"><b>TODO:</b> describe authentication (tokens as secrets, certificates) and what a server may expose: only aspects that are listed in the project file.</div>
+<div class="alert alert-info"><b>TODO:</b> write the versioning rule: what a server does with a client that speaks a newer or an older EWP.</div>
+<div class="alert alert-info"><b>TODO:</b> add the table of error codes that cross the network (<code>$err_net</code>, time-out, refused, cancelled) next to the table of Exceptions.</div>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/server.html">Server</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>

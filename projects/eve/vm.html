@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="The EVE virtual machine: running scripts, configuration, system variables and modes.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, virtual machine">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>EVE Virtual Machine</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-vm">EVE Virtual Machine</h1>
+
+<div class="alert alert-secondary shadow-sm">
+EVE is the machine that runs Eve programs: a virtual machine that compiles a script in memory, runs it, manages its memory and hands the exit code back to the operating system. In this tutorial, "EVE" is the machine, "eve" is the language and the command, and "Eve" starts a sentence. This page describes the machine as the language sees it; how to build one is on the <a href="/projects/eve/compiler.html">Compiler</a> page.
+</div>
+
+<h2 id="vm-run">Running a script</h2>
+
+<p>The machine is one program, <code>eve</code>. The official implementation is written in Zig, in the folder <code>evevm/</code> of the repository, and built to <code>bin/eve.exe</code>. Eve 0.1 does one thing: it runs a script.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+eve script.eve                 ** run a driver or a free script
+eve script.eve 5 -p x 10       ** values for the parameters of main
+eve script.eve -h              ** help, made from the ** @param comments above main
+</code></pre>
+
+<ul>
+<li>A short parameter name is written <code>-p value</code>, a long one <code>--param value</code>. A value is any Eve literal: it is parsed and converted to data;</li>
+<li>The comments above <code>main</code> of the form <code>** @param x: "description"</code> are the help text. Without them, <code>-h</code> lists the parameters;</li>
+<li>The machine returns the exit code of the process to the operating system: 0 for <code>return</code> and <code>over</code>, 1 for <code>panic</code>, 2 for a failed <code>expect</code>, 4 for <code>raise</code> or a run-time error, 5 for an unexpected stop (see <a href="/projects/eve/processing.html">Processing</a>).</li>
+</ul>
+
+<h3 id="vm-stages">What happens when a script runs</h3>
+
+<ol>
+<li><b>Load:</b> the machine reads the script and the modules it imports, searching them in <code>$EVE_LIB</code> and the folders of the project;</li>
+<li><b>Compile:</b> the scripts are compiled in memory, to a tree in version 0.1. The compiler stops with an error before anything runs when it finds a mistake, for example a <code>concurrent aspect</code> that calls a function that is not thread safe;</li>
+<li><b>Initialize:</b> every imported module is initialized once (<code>initialize</code>);</li>
+<li><b>Run:</b> the process <code>main</code> of the driver runs, and applies or starts aspects;</li>
+<li><b>Finish:</b> the modules are finalized in reverse order, the memory is released and the machine returns the exit code.</li>
+</ol>
+
+<h2 id="configuration">Configuration</h2>
+
+<p>EVE virtual machine can load system environment variables from a configuration file. These are stored as "$key = value" pairs, where the value is a valid Eve literal. Some system constants can be derived from environment variables using the smart concatenation operator "/".</p>
+
+<p>A configuration file have extension .cfg. One application can run with different configuration file. Application documentation must contain description of all variables required by the application.</p>
+
+<p>A good practice is to provide a configuration <em>template</em>&nbsp;. The template file may contain # comments and $key = value pairs. Values can be numeric, string, symbol, date, time or data literals: [],(),{}. Eve application will automatically parse configuration file to read values for the <em>system variables</em>.</p>
+
+
+<h2 id="vm-variables">System variables of the machine</h2>
+
+<p>The machine provides the system variables, which start with <code>$</code>. The folders below say where it looks for things; the full register, with types and status, is in <code>spec/semantics/variables.md</code>.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Variable</th><th>Meaning</th><th>Default</th></tr>
+</thead>
+<tbody>
+<tr><td><code>$EVE_LIB</code></td><td>folder of the installed libraries, searched by <code>from … use</code></td><td><code>$EVE_DIR/lib</code></td></tr>
+<tr><td><code>$EVE_ASP</code></td><td>folder of the aspects of a driver</td><td><code>asp</code>, then the project root, then <code>lib</code></td></tr>
+<tr><td><code>$EVE_OUT</code></td><td>output folder of the log files</td><td><code>out</code></td></tr>
+<tr><td><code>$cores</code></td><td>size of the worker pool for parallel aspects</td><td>number of cores, at most 16</td></tr>
+<tr><td><code>$max_parallel</code></td><td>aspects one parallel group may start</td><td>8</td></tr>
+<tr><td><code>$timeout</code></td><td>seconds a task waits on a channel</td><td>60</td></tr>
+</tbody>
+</table>
+
+<h2 id="execution">Modes of the machine</h2>
+
+<div class="alert alert-warning"><b>Planned, not in 0.1:</b> VM parameters, service mode, console REPL and exclusive mode are planned for a later version (about 0.9). Eve 0.1 only runs a script: <code>eve script.eve</code>.</div>
+
+<p>Eve scripts are executed using a virtual machine. You can start the virtual machine as a service or as console application. In console you can&nbsp;<em>run</em>&nbsp;only one driver script at a time. In service mode you can&nbsp;<em>run</em>&nbsp;multiple drivers in parallel. Each driver is independent, it has its own scope (memory location) and can't communicate with other drivers executed by EVE in the same time.</p>
+
+<p><b>Configuration: &nbsp;</b>Eve services using a general configuration file: eve.cfg. This file contains default settings for EVE machine. System variables are shared. A copy of EVE system variables is send to every new driver instance.</p> 
+
+<p>Configuration settings are loaded over the default values and have priority. In a process, you can temporary change the settings with an assignment. These changes do not propagate back into the configuration file.</p>
+
+<p><b>Memory allocation:&nbsp;</b>EVE service is in charge of allocating memory for each process. There is no shared memory between processes. When a process is terminated the memory is cleaned up of garbage and the machine continue to run until all processes are finished.</p>
+
+<p>To execute a driver there are these ways:</p>
+<ol>
+<li>Using the "eve" system command: <code>eve script.eve</code>,</li>
+<li>Planned: using console REPL commands: parse, debug and execute (see <code>manual/usage.md</code>),</li>
+<li>Planned: EVE virtual machine can be run as a daemon,</li>
+<li>Planned: you can control EVE virtual machine using command: eve with parameters</li>
+</ol>
+
+<h3 id="exclusive-mode">Exclusive Mode</h3>
+
+<p>Planned, not in 0.1. When eve is executed, it can be started with parameter: -x or --exclusive. This is a signal that only one session can run at a time. In this mode a second driver is refused while any other driver is active. Asynchronous methods called inside a driver are not affected. You can use this more especially for debugging or tuning purpose.</p>
+
+
+    
+<h2 id="vm-tools">Tools around the machine</h2>
+
+<ul>
+<li><code>eve --doc</code> makes the documentation of a library from its <code>**</code> comments and signatures;</li>
+<li>The test runner <code>script/runtest.py</code> runs the conformance tests on any implementation (see <a href="/projects/eve/compiler.html">Compiler</a>);</li>
+<li>The machine can also run remotely and serve requests: see <a href="/projects/eve/server.html">Server</a>.</li>
+</ul>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/command.html">Shell Commands</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>

@@ -45,7 +45,7 @@
 <h1 id="modules">Eve Modules</h1>
 
 <div class="alert alert-secondary shadow-sm">
-A module is a script file that holds reusable code: constants, classes, functions, methods and channels. It is not executable: it has no process and it can't be applied or started. A module is a singleton: it is loaded once, initialized once and finalized once, and you can't create instances of it. Drivers, aspects and other modules import it and use its public members with the dot operator. This chapter explains the declaration of a module, its public and private members, its life cycle, the import, and how modules work with parallel aspects.
+A module is a script file that holds reusable code: constants, classes, functions, extension methods and channels. It is not executable: it has no process and it can't be applied or started. A module is a singleton: it is loaded once, initialized once and finalized once, and you can't create instances of it. Drivers, aspects and other modules import it and use its public members with the dot operator. This chapter explains the declaration of a module, its public and private members, its life cycle, the import, and how modules work with parallel aspects.
 </div>
 
 <h2 id="declaration">Module declaration</h2>
@@ -60,16 +60,24 @@ module module_name is
   ** imports: a module can use other modules
   from $path/library_name use (*);
 
-  ** public members: the name starts with "."
-  set .VERSION = "1.0" :String;          ** public constant
-  class .Point = {x, y :Real} &lt;&#58; Object;  ** public class
-  function .square(x: Real) =&gt; (@result: Real) is
+  ** exports: the members other scripts may use (symmetric to use)
+  export (VERSION, Point, square, shift);
+
+  set VERSION = "1.0" :String;           ** constant
+  class Point = {x, y :Real} &lt;&#58; Object;  ** class
+  function square(x: Real) =&gt; (@result: Real) is
     let result := x * x;
   return;
 
-  ** private members: no prefix
-  new count = 0 :Integer;                ** private variable
-  method trace(message: String) is
+  ** extension method: Point gets the method shift
+  method shift(@self: Point, dx, dy: Real) is
+    let self.x += dx;
+    let self.y += dy;
+  return;
+
+  ** private members: not in the export list
+  new count = 0 :Integer;                ** variable: always private
+  function trace(message: String) is     ** no result: it changes count and prints
     let count += 1;
     print message;
   return;
@@ -86,42 +94,47 @@ end module_name;
 <h4>Notes:</h4>
 <ul>
 <li>A module has no process: <code>process main is</code> belongs to drivers and aspects. A module can't be applied or started;</li>
-<li>The declarations can come in any order: they are hoisted. By convention: imports, constants, variables, classes, functions and methods, then <code>initialize</code> and <code>finalize</code>;</li>
+<li>The declarations can come in any order: they are hoisted. By convention: imports, exports, constants, variables, classes, functions and extension methods, then <code>initialize</code> and <code>finalize</code>;</li>
+<li>At module level there are functions and extension methods; a method that is not an extension method belongs to a class (see <a href="/projects/eve/classes.html">Classes</a>);</li>
 <li>Module names use lowercase letters, digits and underscore, no special characters and no Unicode. A name can be 30 characters long;</li>
 <li>A folder of modules is a <em>library</em>. Module names must be unique in a library.</li>
 </ul>
 
 <h2 id="members">Public and private members</h2>
 
-<p>A member is public when its name starts with "." in its declaration: <code>set .VERSION</code>, <code>function .square</code>, <code>class .Point</code>. Without the dot it is private: only the module itself can use it. The dot is written only in the declaration; the user of the module writes <code>module_name.member</code>.</p>
+<p>A module <b>exports</b> the members that other scripts may use, in one list, <code>export (VERSION, Point, square, shift);</code>, symmetric to the <code>use</code> list of an import. A member that is not in the list is private: only the module itself can use it. The user of the module writes <code>module_name.member</code>, or imports the members without prefix with <code>use (module_name(*))</code>.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
-<tr><th>Member</th><th>Declared with</th><th>Can be public</th><th>Why</th></tr>
+<tr><th>Member</th><th>Declared with</th><th>Can be exported</th><th>Why</th></tr>
 </thead>
 <tbody>
-<tr><td>constant</td><td><code>set .NAME = value :Type;</code></td><td>yes</td><td>a constant never changes, so every user can read it safely</td></tr>
-<tr><td>class</td><td><code>class .Name = {…} &lt;&#58; Object;</code></td><td>yes</td><td>a class is a type; its objects belong to the code that creates them</td></tr>
-<tr><td>function</td><td><code>function .name(…) =&gt; (…) is</code></td><td>yes</td><td>a function has no side effects</td></tr>
-<tr><td>method</td><td><code>method .name(…) is</code></td><td>yes</td><td>a method works on its parameters</td></tr>
-<tr><td>channel</td><td><code>set .name := Channel(:T)(capacity: n);</code></td><td>yes</td><td>a channel is made for several tasks: its operations are safe when tasks use it at the same time</td></tr>
-<tr><td>variable</td><td><code>new name = value :Type;</code></td><td>no, only private</td><td>a module is shared by the whole program; a public variable could be changed by two tasks at the same time</td></tr>
+<tr><td>constant</td><td><code>set NAME = value :Type;</code></td><td>yes</td><td>a constant never changes, so every user can read it safely</td></tr>
+<tr><td>class</td><td><code>class Name = {…} &lt;&#58; Object;</code></td><td>yes</td><td>a class is a type; its objects belong to the code that creates them</td></tr>
+<tr><td>function</td><td><code>function name(…) =&gt; (…) is</code></td><td>yes</td><td>a plain function has no side effects</td></tr>
+<tr><td>function without result</td><td><code>function name(…) is</code></td><td>yes</td><td>it does work; when it changes the state of the module, parallel aspects can't use it</td></tr>
+<tr><td>stochastic function</td><td><code>function name!(…) =&gt; (…) is</code></td><td>yes</td><td>its result can differ, for example because it reads the state of the module; it changes nothing</td></tr>
+<tr><td>extension method</td><td><code>method name(@self: Class, …) is</code></td><td>yes</td><td>it adds a method to a class, for the scripts that import the module</td></tr>
+<tr><td>channel</td><td><code>set name := Channel(:T)(capacity: n);</code></td><td>yes</td><td>a channel is made for several tasks: its operations are safe when tasks use it at the same time</td></tr>
+<tr><td>variable</td><td><code>new name = value :Type;</code></td><td>no, only private</td><td>a module is shared by the whole program; an exported variable could be changed by two tasks at the same time</td></tr>
 </tbody>
 </table>
 
-<p><b>Extension methods.</b> A module-level method whose name starts with <code>_</code> and whose first parameter is <code>@self</code> extends a class: it is called like a method of that class, <code>p.shift(1, 2)</code>, and it is private to the module that declares it.</p>
+<p><b>Extension methods.</b> At module level, a method is always an extension method: its first parameter is <code>@self</code> with the type of a class, and it is called like a method of that class, <code>p.shift(1, 2)</code>. An extension method can be used only inside the module or aspect that declares it. When a module exports it, every script that imports the module can use it.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-  ** extension method: Point gets the method shift in this module
-  method _shift(@self: Point, dx, dy: Real) is
-    let self.x := self.x + dx;
-    let self.y := self.y + dy;
+  export (shift);
+
+  ** extension method: Point gets the method shift
+  method shift(@self: Point, dx, dy: Real) is
+    let self.x += dx;
+    let self.y += dy;
   return;
 </code></pre>
 
-<p>A module has <b>no public variables</b>. <code>new .counter = 0 :Integer;</code> is an error. A value that other scripts need to change is passed to a method of the module as a parameter, or sent through a channel. A public channel is declared with <code>set</code>: the reference to the channel is a constant, while the values that flow through it change.</p>
+<p>A module has <b>no public variables</b>: a variable in the export list is an error. A value that other scripts need to change is passed to a function of the module as a parameter, or sent through a channel. A public channel is declared with <code>set</code>: the reference to the channel is a constant, while the values that flow through it change.</p>
 
-<p>A private variable of a module is written in its <code>initialize</code> region, and after that only by an <b>unsafe method</b>, whose name ends with <code>!</code>: <code>method .tick!() is … return;</code>. A method without <code>!</code> can read the private variables but not change them. An unsafe method can't be used by aspects that run in parallel (see <a href="#modules-and-aspects">Modules and parallel aspects</a>).</p>
+<p>A private variable of a module is written in its <code>initialize</code> region, and after that only by the functions of the module that have no result, <code>function tick() is … return;</code>: a function with a result changes nothing. A function that reads these variables is stochastic, because they change, so its name ends with <code>!</code>: <code>function count!() =&gt; (@result: Integer)</code>. A plain function can't read them. A function that changes them is thread safe only if the variables are atomic or guarded by a mutex (see <a href="#modules-and-aspects">Modules and parallel aspects</a>).</p>
 
 <h2 id="singleton">Modules are singletons</h2>
 
@@ -139,16 +152,18 @@ end module_name;
 <pre class="line-numbers"><code class="language-eve">
 # a module that counts its users
 module counter is
-  set .LIMIT = 100 :Integer;     ** public constant
+  export (LIMIT, tick, count!);
+
+  set LIMIT = 100 :Integer;      ** constant
   new total = 0 :Integer;        ** private state
 
-  ** public unsafe method: changes the private state
-  method .tick!() is
+  ** no result: changes the private state
+  function tick() is
     let total += 1;
   return;
 
-  ** public method: read the private state
-  method .count() =&gt; (@result: Integer) is
+  ** stochastic: reads the private state, which can change
+  function count!() =&gt; (@result: Integer) is
     let result := total;
   return;
 
@@ -165,9 +180,9 @@ driver count_demo is
   from "lib" use (counter);
 
   process main is
-    counter.tick!();
-    counter.tick!();
-    expect counter.count() == 2;
+    counter.tick();
+    counter.tick();
+    expect counter.count!() == 2;
     expect counter.LIMIT == 100;
   return;
 end count_demo;
@@ -225,18 +240,19 @@ end script_name;
 
 <h2 id="modules-and-aspects">Modules and parallel aspects</h2>
 
-<p>When several aspects run in a parallel group, they all use the same copy of a module. That is why the rules above matter: constants, classes, functions and methods are safe to share, and a public channel lets the aspects exchange data without passing the channel as a parameter.</p>
+<p>When several aspects run in a parallel group, they all use the same copy of a module. That is why the rules above matter: constants, classes and plain functions are safe to share, and a public channel lets the aspects exchange data without passing the channel as a parameter.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # a shared log for parallel workers
 module journal is
-  set .lines := Channel(:String)(capacity: 1000);
+  export (lines);
+  set lines := Channel(:String)(capacity: 1000);
 end journal;
 </code></pre>
 
 <pre class="line-numbers"><code class="language-eve">
 # a worker that writes into the shared log
-aspect worker is
+concurrent aspect worker is
   from "lib" use (journal);
 
   process main(n: Integer) is
@@ -246,7 +262,7 @@ aspect worker is
 end worker;
 </code></pre>
 
-<p>The private variables of a module are shared too, so a started aspect can't change them, like it can't change the globals of the driver. In the example of the previous section, a started aspect can read <code>counter.count()</code> but can't call <code>counter.tick!()</code>. The rule is checked by the compiler on the call graph: an aspect that calls an unsafe method (<code>!</code>), directly or through other calls, can be run with <code>apply</code> but not started in a parallel group. State that parallel aspects must share goes through a channel.</p>
+<p>The private variables of a module are shared too. The compiler decides which functions are thread safe, on the call graph: a function that reads or changes a plain module variable is not, and an aspect that calls it, directly or through other calls, can be run with <code>apply</code> but not started in a parallel group. In the example of the previous section, <code>counter.tick()</code> and <code>counter.count!()</code> become safe when <code>total</code> is declared atomic: <code>new total = Atomic(:Integer)(0);</code>. A channel, an atomic variable or a mutex is how parallel aspects share state: see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>. The functions of a module that are not thread safe stay available to the driver and to aspects run with <code>apply</code>.</p>
 
 <div class="alert alert-warning">Not in Eve 0.1: parallel groups and channels are planned for a later version (see <a href="/projects/eve/multitasking.html">Multitasking</a>). In version 1 a module is used by one process at a time.</div>
 
@@ -258,17 +274,32 @@ end worker;
 # standard output and error
 module io is
   ** write the arguments at the current position of stdout
-  external .write(*args: String, sep := " ", eol := False);
+  external write(*args: String, sep := " ", eol := False);
 
   ** write the arguments to stdout, then a new line
-  external .print(*args: String, sep := " ");
+  external print(*args: String, sep := " ");
 
   ** write an error message to stderr
-  external .error(message: String);
+  external error(message: String);
 end io;
 </code></pre>
 
 <p>The comment lines above a declaration are its documentation: the command <code>eve --doc</code> generates the library reference from them. See <a href="/projects/eve/library.html">Standard Library</a> and <a href="/projects/eve/exceptions.html">Exceptions</a> for the modules <code>io</code> and <code>exception</code>.</p>
+
+<h2 id="library">Library</h2>
+
+<p>A&nbsp;<em>library</em>&nbsp;is a set of reusable modules. A library can be installed in EVE environment or can be project specific. EVE machine is using a special system variable to search for a library: $EVE_LIB. If the library is not found the module can't be imported and the script fails.</p>
+
+<ul>
+<li>libraries contain generic functionality and can be shared between multiple projects;</li>
+<li>using import, several modules can be loaded from a library one by one or all using (*);</li>
+<li>circular import is possible, but EVE prevent infinite recursive reference;</li>
+<li>after import you can call public members of a module using&nbsp;<em>dot notation</em>;</li>
+</ul>
+
+<p><b>Note: </b>A library is a folder of module script files. A module is one script file and its name is the file name without the extension. By convention you can create intermediate subfolders but only the last folder is the library and module names must be unique in a library.</p>
+
+
 
 <h2 id="compared">Scripts compared</h2>
 
@@ -281,7 +312,7 @@ end io;
 <tr><td>Executable</td><td>yes: <code>process main</code>, run from the command line</td><td>yes: <code>process main</code>, run with <code>apply</code> or <code>start</code></td><td>no process; <code>initialize</code> and <code>finalize</code></td></tr>
 <tr><td>Copies at run time</td><td>one, the program</td><td>one for each call; the state is dropped when <code>main</code> returns</td><td>one, a singleton, from the first import to the end of the driver</td></tr>
 <tr><td>Instances (class call)</td><td>no</td><td>no</td><td>no</td></tr>
-<tr><td>Public members</td><td>none</td><td>none</td><td>constants, classes, functions, methods, channels; no variables</td></tr>
+<tr><td>Public members</td><td>none</td><td>none</td><td>the <code>export</code> list: constants, classes, functions, extension methods, channels; no variables</td></tr>
 <tr><td>Global variables</td><td>yes, the only script with globals</td><td>no: private state for one call</td><td>private variables, shared by all users</td></tr>
 <tr><td>Can import modules</td><td>yes</td><td>yes</td><td>yes</td></tr>
 </tbody>
@@ -289,7 +320,7 @@ end io;
 
 <hr>
 <p><b>Read next:</b>
-<a href="/projects/eve/classes/">Classes</a></p>
+<a href="/projects/eve/functions.html">Functions</a></p>
 
 <!-- Footer -->
     </main>

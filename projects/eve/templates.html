@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve templates: strings with placeholders and safe HTML templates.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, templates">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Templates</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eve-templates">Eve Templates</h1>
+
+<div class="alert alert-secondary shadow-sm">
+A template is a text with holes: a fixed form that is filled with values. Eve has two kinds. The <b>string templates</b> exist today: they put values into a message. The <b>HTML templates</b> are planned for the web (version 0.6): they build a page, and escape every value so that text from a user can never become code.
+</div>
+
+<h2 id="string-templates">String templates</h2>
+
+<p>A string with a placeholder is a template. The placeholder <code>\#{name}</code> puts the value of a variable into the text; it holds one variable name, no expression. Formats and the other placeholders (<code>\s{}</code>, <code>\n{}</code>) are explained in <a href="/projects/eve/strings.html">Strings</a>.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+new name := "Eve";
+new count := 3;
+print "Hello \#{name}, you have \#{count} new orders.";
+</code></pre>
+
+<p>This is enough for a message, a log line or a file name. It is <b>not</b> safe for HTML: the value is inserted as it is.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+new comment := "&lt;script&gt;steal()&lt;/script&gt;";
+write "&lt;p&gt;\#{comment}&lt;/p&gt;";     ** a script from a user reaches the page: an XSS hole
+</code></pre>
+
+<h2 id="html-templates">HTML templates</h2>
+
+<div class="alert alert-warning"><b>Proposed, planned for 0.6.</b> The names and forms below are a proposal for the author's review (Q-027).</div>
+
+<p>An HTML template is a file with the extension <code>.evh</code> (or a template literal in the code). A value is written <code>{expression}</code>. Eve escapes it <b>by the place where it stands</b>:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Place</th><th>Example</th><th>What the value becomes</th></tr>
+</thead>
+<tbody>
+<tr><td>text</td><td><code>&lt;p&gt;{o.customer}&lt;/p&gt;</code></td><td><code>&lt;</code>, <code>&gt;</code> and <code>&amp;</code> are replaced by entities</td></tr>
+<tr><td>attribute</td><td><code>&lt;a title="{o.note}"&gt;</code></td><td>as text, and the quotes are replaced too</td></tr>
+<tr><td>URL</td><td><code>&lt;a href="/orders/{o.id}"&gt;</code></td><td>percent-encoded; a scheme such as <code>javascript:</code> is refused</td></tr>
+<tr><td>script</td><td><code>&lt;script&gt;var id = {o.id};&lt;/script&gt;</code></td><td>written as a JSON literal</td></tr>
+</tbody>
+</table>
+
+<pre class="line-numbers"><code class="language-eve">
+** order.evh
+&lt;h1&gt;Order {o.id}&lt;/h1&gt;
+&lt;p class="{o.status}"&gt;Customer: {o.customer}&lt;/p&gt;
+&lt;a href="/orders/{o.id}"&gt;details&lt;/a&gt;
+</code></pre>
+
+<pre class="line-numbers"><code class="language-eve">
+# a page from a template
+driver report is
+  from "lib" use (html);
+  process main is
+    new o := Order(id: 42, customer: "Ann &lt;b&gt;", status: "open");
+    new page: Html := html.render("order.evh", o: o);   ** Html, not String
+    html.write("out/order42.html", page);
+  return;
+end report;
+</code></pre>
+
+<h3 id="html-type">The Html type</h3>
+
+<p>A value of type <code>Html</code> is made only by a template or by <code>html.escape</code>. A function that sends a page accepts <code>Html</code>, not <code>String</code>, so the compiler refuses to send a string that was glued by hand. This is how the rule "text from a user is never code" is checked before the program runs.</p>
+
+<h3 id="html-components">Components</h3>
+
+<p>A function that returns <code>Html</code> is a component: <code>function card(o: Order) =&gt; (@h: Html)</code>. A page is a template that calls components; the result of a component is already safe and is not escaped twice.</p>
+
+<div class="alert alert-warning"><b>Not designed yet.</b> Templates as separate files, as literals in the code, or both; the file extension; the syntax of loops and conditions inside a template (<code>{for o in orders}</code>?); and the module name are open.</div>
+<div class="alert alert-info"><b>TODO:</b> answer Q-027 (decision_level7.md) and write the example "daily report" for the data client: read the orders, fill <code>report.evh</code>, write <code>out/report.html</code>.</div>
+<div class="alert alert-info"><b>TODO:</b> add a table with the escaping contexts that are not in the first version (CSS, a JavaScript string, an HTML comment) and the rule for a value that is already <code>Html</code>.</div>
+<div class="alert alert-info"><b>TODO:</b> write the XSS test suite described in the version map: the templates must pass it before 0.6.</div>
+<div class="alert alert-info"><b>TODO:</b> plain text and e-mail templates: the same <code>{expr}</code> without escaping, and a type <code>Text</code>?</div>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/networking.html">Networking</a></p>
+
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>

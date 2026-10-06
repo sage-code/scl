@@ -45,133 +45,12 @@
 <h1 id="eve-multitasking">Eve Multitasking</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Multitasking means that several pieces of work make progress together. Eve has two tools for it. <b>Generators</b> produce values one at a time and let tasks take turns on one core, at the points marked with <code>yield</code>. <b>Parallel aspects</b> run on several cores: the driver starts them in a parallel group, and they exchange data through output parameters, at the barrier that closes the group, or through channels while they run. Methods and functions always run in serial mode, on the core of their caller. Eve has no coroutines, no <code>async</code> and no <code>await</code>. It assumes the <a href="/projects/eve/methods.html">Methods</a> chapter. This chapter explains generators, parallel groups, the data rules, Bulk Synchronous Parallel, channels and how to choose a model.
+Multitasking means that several pieces of work make progress together. Eve has two tools for it. <b>Generators</b> produce values one at a time and let tasks take turns on one core, at the points marked with <code>yield</code>. <b>Parallel aspects</b> run on several cores: the driver starts them in a parallel group, and they exchange data through output parameters, at the barrier that closes the group, or through channels while they run. Methods and functions always run in serial mode, on the core of their caller. Eve has no coroutines, no <code>async</code> and no <code>await</code>. It assumes the <a href="/projects/eve/functions.html">Functions</a> chapter: side effects and parameters. This chapter explains generators, parallel groups, the data rules, Bulk Synchronous Parallel, channels and how to choose a model.
 </div>
 
 <h2 id="generators">Generators</h2>
 
-<div class="alert alert-warning">Designed, not in Eve 0.1: generators and the module <code>task</code> are specified and implemented in version 2. The keyword <code>yield</code> is reserved.</div>
-
-<p>A generator is a method that produces its values one at a time. It gives a value to its caller, waits, and continues from the same place when the caller asks for the next value. Its local variables keep their values between two requests. A generator is useful for long or infinite sequences, for reading data step by step, and for tasks that take turns on one core.</p>
-
-<h3 id="generator-declaration">Declaration</h3>
-
-<p>A method becomes a generator when its body contains <code>yield</code>. It declares one result, the value it produces. A function can't contain <code>yield</code>: a function has no state.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-** produce the numbers 1 to n, one at a time
-method count_to(n: Integer) =&gt; (@x: Integer) is
-  for i in (1..n) do
-    let x := i;           ** set the result
-    yield;            ** give x to the caller, wait here
-  done;
-return;               ** no more values
-</code></pre>
-
-<ul>
-<li><code>yield;</code> gives the current value of the result to the caller and suspends the generator. This is the explicit form;</li>
-<li><code>yield expression;</code> is the short form of <code>let x := expression; yield;</code>. Both forms are valid;</li>
-<li><code>return;</code> ends the generator: the caller sees that there are no more values;</li>
-<li>A generator can be infinite, with <code>loop do … yield; repeat;</code>: the caller decides when to stop;</li>
-<li>A generator can be a method of a class: <code>method walk(@self) =&gt; (@node: Node) is … return;</code>.</li>
-</ul>
-
-<h3 id="generator-use">Use</h3>
-
-<p>A call of a generator does not run its body. It creates a generator object of the core class <code>Generator(:T)</code>, where <code>T</code> is the type of the result. The body runs only when the caller asks for a value. There are three ways to ask:</p>
-
-<pre class="line-numbers"><code class="language-eve">
-** 1. a for loop takes the values one by one
-for v in count_to(5) do
-  print v;                         ** 1 2 3 4 5
-done;
-
-** 2. a comprehension collects all the values
-new squares := (v * v | v in count_to(5));   ** (1, 4, 9, 16, 25)
-
-** 3. a generator object driven step by step
-new g := count_to(3);              ** nothing runs yet
-while g.next() do                  ** run to the next yield
-  print g.value;                   ** the value given by yield
-done;
-</code></pre>
-
-<table class="table table-bordered table-striped">
-<thead>
-<tr><th>Member</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>g.next()</code></td><td>run the body to the next <code>yield</code>: <code>True</code> and a new <code>g.value</code>; <code>False</code> when the body has returned</td></tr>
-<tr><td><code>g.value</code></td><td>the last value given by <code>yield</code>; reading it before the first <code>next()</code> is an error</td></tr>
-<tr><td><code>g.done</code></td><td><code>True</code> after the body has returned or after <code>close()</code></td></tr>
-<tr><td><code>g.close()</code></td><td>stop the generator early and drop its state</td></tr>
-</tbody>
-</table>
-
-<p>A generator object is created by calling the generator method, like any value: <code>new g := count_to(3);</code>. A generator called as a statement, <code>count_to(5);</code>, is an error, because its values would be lost.</p>
-
-<h3 id="generator-rules">Rules</h3>
-
-<ol>
-<li><b>One level:</b> <code>yield</code> is allowed only in the body of the generator itself, not in a method or function it calls, not in a lambda and not in a process. A method called by the generator runs to completion. A generator that uses the values of another one loops over it and gives them again: <code>for c in child.walk() do yield c; done;</code>. This rule makes a generator simple: it is not a coroutine, and Eve has no coroutines;</li>
-<li><b>Lazy:</b> the arguments are evaluated when the generator object is created; the body begins at the first request;</li>
-<li><b>State:</b> the parameters and the local variables live in the generator object between two requests. They are dropped when the body returns, at <code>close()</code>, or when nobody refers to the object any more. A <code>for</code> loop left with <code>break</code> closes its generator;</li>
-<li><b>Parameters:</b> a generator receives inputs only, by value. It has no "@" parameters other than its result;</li>
-<li><b>Errors:</b> an error raised in the body ends the generator and is raised in the caller, at the <code>next()</code> or at the <code>for</code> line, where the recover region of the process can handle it;</li>
-<li><b>One owner:</b> a generator object is never copied. Passing it to a method shares the same object. It can't be an argument of <code>apply</code> or <code>start</code>: it belongs to one process and runs on the core of its caller.</li>
-</ol>
-
-<h3 id="cooperative-tasks">Cooperative tasks</h3>
-
-<p>Generators are also the cooperative tasks of Eve. Each generator is a task, and each <code>yield</code> is a point where the task lets the others run. A loop in the caller gives the turns. Everything runs on one core, in a fixed order, so the result is the same on every run and no data needs protection.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# two tasks take turns on one core
-driver ping_pong is
-  method ping(n: Integer) =&gt; (@step: Integer) is
-    for i in (1..n) do
-      print "ping";
-      yield i;                     ** let the other task run
-    done;
-  return;
-
-  method pong(n: Integer) =&gt; (@step: Integer) is
-    for i in (1..n) do
-      print "pong";
-      yield i;
-    done;
-  return;
-
-  process main is
-    new a := ping(3);
-    new b := pong(3);
-    while not (a.done and b.done) do
-      a.next() if not a.done;
-      b.next() if not b.done;
-    done;                          ** ping pong ping pong ping pong
-  return;
-end ping_pong;
-</code></pre>
-
-<p>The library module <code>task</code> (version 2) gives the turns for you:</p>
-
-<table class="table table-bordered table-striped">
-<thead>
-<tr><th>Method</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>task.round_robin(tasks);</code></td><td>run a list of generators in turns, one step each, until all of them are done</td></tr>
-<tr><td><code>task.until(g, condition);</code></td><td>run one generator step by step until the condition is true or the generator is done</td></tr>
-</tbody>
-</table>
-
-<pre class="line-numbers"><code class="language-eve">
-  task.round_robin((ping(3), pong(3)));   ** same output as the loop above
-</code></pre>
-
-<h3 id="generators-and-channels">Generators and channels</h3>
-
-<p>A generator runs on the core of its caller, so it can't feed a started aspect directly. To send the values of a generator to parallel workers, a started producer aspect creates the generator and sends its values into a channel: <code>for v in source() do jobs.send(v); done;</code>. Channels are explained below.</p>
+<p>Generators moved to their own page: <a href="/projects/eve/generators.html">Generators</a>. Here is what matters for multitasking: a generator is a cooperative task, each <code>yield</code> lets the others run, and it runs on the core of its caller. It can't feed a started aspect directly; a started producer aspect creates the generator and sends its values into a <a href="#channels">channel</a>: <code>for v in source() do jobs.send(v); done;</code>. A generator declared in a driver or an aspect is private and needs no thread safety; one exported by a module must be thread safe (see <a href="#generators-and-threads">Generators and threads</a>).</p>
 
 <h2 id="parallel-model">Parallel aspects</h2>
 
@@ -217,7 +96,7 @@ done [label];
 
 <pre class="line-numbers"><code class="language-eve">
 # work done by one worker
-aspect task is
+concurrent aspect task is
   process main(n: Integer) is
     print ("task ", n, " is running");
   return;
@@ -264,7 +143,7 @@ end parallel_demo;
 
 <pre class="line-numbers"><code class="language-eve">
 # compute one result
-aspect square is
+concurrent aspect square is
   process main(n: Integer, @result: Integer) is
     let result := n * n;
   return;
@@ -300,7 +179,7 @@ end parallel_loop;
 <li><b>Channels are the exception:</b> a channel is the only object that several tasks of a group can receive with "@". It is built for that: its operations are safe when tasks use it at the same time;</li>
 <li><b>Encapsulated:</b> an aspect sees no globals of the driver and has no public members; its state belongs to one task. It calls its methods by name, and they run on the same worker. It can print, but the lines of different tasks come in any order;</li>
 <li><b>One level:</b> the driver opens parallel groups. An aspect started by the driver may open its own parallel group and start at most 2 <em>leaf</em> aspects; a leaf aspect starts none. An aspect can't apply another aspect, so recursion between aspects is impossible.</li>
-<li><b>Modules are shared:</b> all the tasks use the same copy of a module. Its public constants, classes, functions and methods are safe to share, and a public channel of a module connects tasks without being passed as a parameter. Only an unsafe method, whose name ends with <code>!</code>, changes the private variables of a module; an aspect that calls one, directly or through other calls, can't be started (see <a href="/projects/eve/modules.html#modules-and-aspects">Modules and parallel aspects</a>).</li>
+<li><b>Modules are shared:</b> all the tasks use the same copy of a module. Its exported constants, classes and plain functions are safe to share, and an exported channel of a module connects tasks without being passed as a parameter. The compiler decides which functions of a module are thread safe; an aspect that calls one that is not, directly or through other calls, can't be started. Module state that tasks share is atomic, guarded by a mutex or sent through a channel (see <a href="#thread-safety">Thread safety</a>).</li>
 </ul>
 
 <h3 id="errors-and-timeout">Errors and time-out</h3>
@@ -321,6 +200,137 @@ end parallel_loop;
 
 <p>The number of tasks can be dynamic. You can read it from the configuration file, compute it from the size of the data or from <code>$cores</code>, or hard code it as a constant inside the driver. This gives you flexibility to tune your driver.</p>
 
+<h2 id="thread-safety">Thread safety</h2>
+
+<div class="alert alert-warning">Not in Eve 0.1, like the rest of parallel work. <b>Proposed:</b> the types <code>Atomic</code> and <code>Mutex</code> and the exact checks of the compiler are a design waiting for the author's review.</div>
+
+<p>Two tasks that write the same variable at the same instant can lose an update: both read 5, both write 6, and one hit is gone. A function is <b>thread safe</b> when many tasks can call it at the same time and the result is always right. Thread safety is a different question from the one <code>!</code> answers. <code>!</code> marks a <b>stochastic</b> function, one whose result can differ for the same arguments, like <code>roll!()</code>. A function that is not stochastic is deterministic. A stochastic function can be thread safe, and a deterministic one may not be: what decides is the data it touches, not whether its result repeats.</p>
+
+<h3 id="who-decides">The compiler decides</h3>
+
+<p>You do not mark a function as thread safe. The compiler reads the call graph and decides for every function, in every module:</p>
+
+<ul>
+<li>A function that uses only its arguments and its own local variables is thread safe;</li>
+<li>A function that reads or changes a plain variable of a module is not;</li>
+<li>A function that uses a module variable only through an <b>atomic</b> variable, a <b>mutex</b> or a <b>channel</b> is thread safe;</li>
+<li>A function that calls another is thread safe only if every function it calls is.</li>
+</ul>
+
+<p>The check is made on the aspect, where it is written (see <a href="#marking-aspects">Marking an aspect</a>). For a <code>concurrent aspect</code> the compiler looks at everything the aspect can call, directly or through other calls. If one function in that set is not thread safe, the program does not compile, and the message names the function and the variable. An <code>exclusive aspect</code> has no such rule, because it is never started.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** a plain module variable: not thread safe
+module plain is
+  export (hit);
+  new total = 0 :Integer;
+  function hit() is
+    let total += 1;              ** read, add, write: two tasks can lose an update
+  return;
+end plain;
+</code></pre>
+
+<p>The whole example, with the aspect and the driver, is in <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/unsafe_counter/unsafe_counter.eve" target="_blank" rel="noopener noreferrer">unsafe_counter</a>: the aspect <code>worker</code> that calls <code>plain.hit()</code> compiles as an <code>exclusive aspect</code> and is applied; declared <code>concurrent aspect</code>, it does not compile.</p>
+
+<h3 id="marking-aspects">Marking an aspect</h3>
+
+<p>An aspect says what it wants to be, and the compiler holds it to its word. The keyword is not optional: <code>aspect</code> alone is an error.</p>
+
+<ul>
+<li><code>exclusive aspect name is</code>: runs alone, in serial mode. It is run with <code>apply</code>; <code>start</code> of an exclusive aspect is a compile error. It may call any function and use any module, thread safe or not;</li>
+<li><code>concurrent aspect name is</code>: may run beside other tasks, started in a parallel group (it can also be applied). The compiler checks the aspect at its declaration and signals an error for every call that is not thread safe, with the chain of calls that leads to it.</li>
+</ul>
+
+<pre class="line-numbers"><code class="language-eve">
+concurrent aspect worker is
+  from "lib" use (plain);
+  process main(jobs: Integer) is
+    plain.hit();     ** error: plain.hit() changes a plain module variable,
+                     ** it is not thread safe
+  return;
+end worker;
+</code></pre>
+
+<p>The mistake is found when the aspect is written, not later, at the place where somebody starts it. If the aspect really needs such a function, it is honest: write <code>exclusive aspect</code>, or make the module thread safe with an atomic variable or a mutex.</p>
+
+<h3 id="generators-and-threads">Generators and threads</h3>
+
+<ul>
+<li>A generator declared in a driver or in an aspect is private to it. It runs on the core of its task and has one owner, so it can use any variable of the aspect. It needs to be neither thread safe nor deterministic (<a href="/roadmap/code-viewer.html?file=/projects/eve/demo/local_generator/asp/squares.eve" target="_blank" rel="noopener noreferrer">squares</a>);</li>
+<li>A generator exported by a module is called by many tasks, so the compiler requires it to be thread safe, with the same rules as a function. The generator object itself still belongs to one task. A generator that hands out numbers from a shared counter uses an atomic variable (<a href="/roadmap/code-viewer.html?file=/projects/eve/demo/module_generator/lib/tickets.eve" target="_blank" rel="noopener noreferrer">tickets</a>).</li>
+</ul>
+
+<h3 id="atomic">Atomic variables</h3>
+
+<p>An <b>atomic</b> variable holds one value, and each operation on it is indivisible: the operating system and the processor guarantee that no other thread sees it half done. It needs no lock, so it can never be part of a deadlock. It is declared with the class <code>Atomic(:T)</code>, for Integer, Logic and Rune values:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+new total = Atomic(:Integer)(0);
+
+total.add(1);                      ** no result: add, nothing is lost
+let n := total.get!();             ** read: the value changes, so the name ends with !
+total.set(0);                      ** replace the value
+let old := total.swap!(7);         ** replace the value and return the previous one
+let done := total.compare_swap!(7, 8); ** set 8 only if the value is 7: True when it was set
+let first := total.fetch_add!(1);  ** add and return the previous value
+</code></pre>
+
+<p>Operations with a result read a value that other tasks change, so they are stochastic and end with <code>!</code>. The complete example is <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/atomic_counter/atomic_counter.eve" target="_blank" rel="noopener noreferrer">atomic_counter</a>: four workers count 4000 hits in a module <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/atomic_counter/lib/stats.eve" target="_blank" rel="noopener noreferrer">stats</a>.</p>
+
+<p><b>Advantage:</b> the fastest tool, no waiting, no deadlock. <b>Limit:</b> one variable at a time. Two atomic variables change one after the other, so another task can see one changed and the other not.</p>
+
+<h3 id="mutex">Mutex</h3>
+
+<p>A <b>mutex</b> (mutual exclusion) lets one task at a time into a piece of code. A task calls <code>acquire()</code> and the others wait until it calls <code>release()</code>. Use it when several variables must change together:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+new lock = Mutex();
+
+function transfer(amount: Integer) is
+  lock.acquire();                  ** waits while another task holds the mutex
+  defer lock.release();            ** runs on every path, also after an error
+  let alice -= amount;
+  let bob   += amount;             ** nobody sees alice changed and bob not yet
+return;
+</code></pre>
+
+<p>The complete example is <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/mutex_account/mutex_account.eve" target="_blank" rel="noopener noreferrer">mutex_account</a>, with the module <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/mutex_account/lib/bank.eve" target="_blank" rel="noopener noreferrer">bank</a>.</p>
+
+<h4>Rules that prevent deadlocks:</h4>
+<ul>
+<li>Write <code>defer lock.release();</code> right after <code>acquire()</code>: the mutex is never kept by mistake;</li>
+<li>A task holds <b>one mutex at a time</b>. The compiler rejects a function that acquires a second mutex while it holds the first, directly or through a call. Without a circle of tasks waiting for each other, a deadlock can't happen;</li>
+<li>A wait for a mutex ends after <code>$timeout</code> (see <a href="#errors-and-timeout">Errors and time-out</a>) with a time-out error, so a mistake becomes an error and not a frozen program;</li>
+<li>Keep the guarded code short: no input, output, network or other wait while the mutex is held.</li>
+</ul>
+
+<h3 id="other-measures">Other measures</h3>
+
+<ul>
+<li><b>Do not share.</b> Arguments passed by value are copies, and every task works on its own data. This costs a copy only when a task writes (copy on write) and never needs a lock;</li>
+<li><b>Channels</b> pass values from one task to another (see <a href="#channels">Channels</a>). Their operations are safe by design;</li>
+<li><b>One owner for each output</b> (<code>@</code>): two tasks never write the same variable (see <a href="#data-rules">Data rules</a>);</li>
+<li><b>Constants</b> and exported classes are read only, so any number of tasks can read them.</li>
+</ul>
+
+<h3 id="thread-cost">Choosing, with the cost</h3>
+
+<p>The costs are typical orders of magnitude on a desktop processor, not promises: measure your own program before you decide.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Measure</th><th>Use it for</th><th>Advantage</th><th>Penalty</th><th>Typical cost of one operation</th></tr>
+</thead>
+<tbody>
+<tr><td>no sharing (by value, one owner)</td><td>work that splits into independent parts</td><td>no waiting, nothing to get wrong</td><td>a copy when a task writes; results must be collected</td><td>none, or one copy</td></tr>
+<tr><td>Atomic</td><td>one counter, one flag, one number to hand out</td><td>no lock, no deadlock, very fast when alone</td><td>one variable only; many tasks on one atomic slow each other (the processor moves the memory line between cores)</td><td>about 5 to 20 ns, more under heavy contention</td></tr>
+<tr><td>Mutex</td><td>several variables that must change together; a longer piece of code</td><td>any code can be guarded</td><td>tasks wait in line; a long guarded code serializes the program; a mistake can freeze it (Eve limits this with one mutex at a time and a time-out)</td><td>about 20 to 50 ns without waiting; microseconds when tasks wait</td></tr>
+<tr><td>Channel</td><td>streams of values between stages</td><td>safe by design, a slow stage holds back a fast one</td><td>values are copied; a full or empty channel makes a task wait</td><td>about 100 ns to a few microseconds for each value</td></tr>
+</tbody>
+</table>
+
+<p>As a rule, take the first row that fits: do not share; else an atomic variable; else a channel; else a mutex. A mutex is the most general and the most expensive to get right.</p>
+
 <h2 id="bsp">Bulk Synchronous Parallel</h2>
 
 <p>The recommended pattern for parallel work is Bulk Synchronous Parallel (BSP). The computation is a sequence of supersteps. A superstep has three phases:</p>
@@ -339,7 +349,7 @@ end parallel_loop;
 
 <pre class="line-numbers"><code class="language-eve">
 # local computation: one slice in, one partial sum out
-aspect partial_sum is
+concurrent aspect partial_sum is
   process main(data: []Integer, @partial: Integer) is
     let partial := 0;
     for x in data do
@@ -400,7 +410,7 @@ end parallel_sum;
 
 <pre class="line-numbers"><code class="language-eve">
 # compute one slice of the next state
-aspect smooth is
+concurrent aspect smooth is
   process main(cur: []Real, first: Integer, @part: []Real) is
     for k in (1..part.count()) do
       new i := first + k - 1;
@@ -491,7 +501,7 @@ end heat_bar;
 
 <pre class="line-numbers"><code class="language-eve">
 # stage 1: produce the numbers
-aspect produce is
+concurrent aspect produce is
   process main(count: Integer, @jobs: Channel(:Integer)) is
     for i in (1..count) do
       jobs.send((0..99).random()); ** waits while jobs is full
@@ -503,7 +513,7 @@ end produce;
 
 <pre class="line-numbers"><code class="language-eve">
 # stage 2: square every number
-aspect square is
+concurrent aspect square is
   process main(@jobs, @results: Channel(:Integer)) is
     for x in jobs do ** ends when jobs is closed and empty
       results.send(x * x);
@@ -515,7 +525,7 @@ end square;
 
 <pre class="line-numbers"><code class="language-eve">
 # stage 3: collect the results
-aspect collect is
+concurrent aspect collect is
   process main(@results: Channel(:Integer), @total: Integer) is
     let total := 0;
     for y in results do ** ends after the 4th close
@@ -564,7 +574,7 @@ end pipeline;
 <tr><th>Model</th><th>Shape</th><th>Shared data</th><th>Result</th><th>Use it for</th></tr>
 </thead>
 <tbody>
-<tr><td>Generator</td><td>one method gives its values one at a time to its caller</td><td>none: the generator keeps its own state</td><td>deterministic</td><td>long or infinite sequences, reading data step by step, lazy pipelines in one process</td></tr>
+<tr><td>Generator</td><td>one generator gives its values one at a time to its caller</td><td>none: the generator keeps its own state</td><td>deterministic</td><td>long or infinite sequences, reading data step by step, lazy pipelines in one process</td></tr>
 <tr><td>Cooperative tasks</td><td>several generators take turns on one core, at each <code>yield</code></td><td>none: one core, a fixed order</td><td>deterministic</td><td>interleaved steps: simulations, protocols, polling several sources</td></tr>
 <tr><td>Task group</td><td>different aspects side by side, one barrier</td><td>none: inputs by value, one owner for each output</td><td>deterministic</td><td>independent jobs: read several files, call several services, build several reports</td></tr>
 <tr><td>Bulk Synchronous Parallel</td><td>the same aspect on slices of the data, a barrier after each superstep</td><td>none; data is exchanged by the driver between supersteps</td><td>deterministic</td><td>data in memory: aggregations, arrays and matrices, iterative algorithms</td></tr>
@@ -578,7 +588,7 @@ end pipeline;
 
 <hr>
 <p><b>Read next:</b>
-<a href="/projects/eve/algorithms/">Eve Algorithms</a></p>
+<a href="/projects/eve/templates.html">Templates</a></p>
 
 <!-- Footer -->
     </main>
