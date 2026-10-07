@@ -164,7 +164,7 @@ end null_string;
 <h4>Example:</h4>
 <pre class="line-numbers"><code class="language-eve"># text type has unicode support
 process main is
-  new us = "I can write Greek: {&alpha;,&beta;,&gamma;,&delta;}";
+  new us = "I can write Greek: \{&alpha;,&beta;,&gamma;,&delta;\}";   ** a literal brace is escaped
   print us;
 return;
 </code></pre>
@@ -213,7 +213,7 @@ return;
 <ul>
   <li>regular concatenation: "+"</li>
   <li>concatenation with modifier "+="</li>
-  <li>string interpolation: "\s{expr}", "\#{expr:format}" and "\b{expr}"</li>
+  <li>string interpolation: "{name}" and "{name % format}"</li>
   <li>string string pipe "&lt;+":</li>
   <li>collection join() method</li>
 </ul>
@@ -227,8 +227,8 @@ return;
       new str := " this " + "string";
       expect str == " this string";
 
-      ** use string interpolation \s{str} is recognized
-      print "I have insert \s{str} here!";
+      ** use string interpolation {str} is recognized
+      print "I have insert {str} here!";
 
       ** concatenate string with collection
       print "digits = " + (1,2,3).join(",");
@@ -237,7 +237,8 @@ return;
       print "" &lt;+ ("this ","is ","a "," string");
 
       ** interpolation with a format: i3 is an integer of width 3
-      print "these numbers \#{1:i3},\#{3:i3},\#{5:i3} are prime";
+      new (a, b, c) = (1, 3, 5);
+      print "these numbers {a % i3},{b % i3},{c % i3} are prime";
     return;
   end string_concat;
 </code></pre>
@@ -287,23 +288,27 @@ return;
 
 <h3 id="string-format">String interpolation and format</h3>
 
-<p>Values are inserted in a string with an escape sequence that starts with a backslash and has braces, like the Unicode escape <code>\u{...}</code>. The letter says what kind of value is inserted:</p>
+<p>Values are inserted in a string with a <b>placeholder</b>: a name in braces, <code>{name}</code>, or a name and a format, <code>{name % format}</code>. The value is written in the way its type asks for: a string as it is, a number in digits, a boolean as True or False. The braces of a string always mean a placeholder, so a literal brace is escaped: <code>\{</code> and <code>\}</code>.</p>
 
 <table class="table table-sm">
 <tr><th>Form</th><th>Inserts</th></tr>
-<tr><td><code>\s{expr}</code></td><td>any expression, as a string</td></tr>
-<tr><td><code>\#{expr}</code></td><td>a number (Integer, Natural, Real, Float...)</td></tr>
-<tr><td><code>\b{expr}</code></td><td>a boolean: True or False</td></tr>
-<tr><td><code>\u{H...}</code></td><td>a Unicode code point, 1 to 6 hexadecimal digits (no expression, no format)</td></tr>
+<tr><td><code>{name}</code></td><td>the value of the name, written by its type</td></tr>
+<tr><td><code>{name % format}</code></td><td>the value, with a format for its type (below)</td></tr>
+<tr><td><code>\{</code> <code>\}</code></td><td>a literal brace</td></tr>
+<tr><td><code>\u{H...}</code></td><td>a Unicode code point, 1 to 6 hexadecimal digits (an escape, not a placeholder)</td></tr>
 </table>
 
-<p>A format can follow the expression after a colon: <code>\#{expr:format}</code>. The number formats are adapted from Fortran; the alignment is borrowed from Python. A result is never truncated by the width: if the value is wider, the result is wider (only <code>.max</code> of a string cuts).</p>
+<p>A placeholder holds a <b>name</b>, not an expression: a variable, a constant, a system variable (<code>{$HOME}</code>), an attribute (<code>{p.x}</code>), or an element or a part selected with brackets (<code>{a[1]}</code>, <code>{a[-1]}</code>, <code>{a[i]}</code>, <code>{m[key]}</code>, <code>{m[\"key\"]}</code>, <code>{a[2..4]}</code>). An index is an integer, a name, a quoted key or a range; inside a string the quotes of the key are escaped, <code>\"</code>, as every double quote of a string is. There are no operators and no calls inside the braces. To insert the result of a calculation or of a call, put it in a variable first, or join the strings with <code>+</code>: <code>"p1: " + p1.string()</code>. A brace that does not open a valid placeholder, <code>"{1, 2}"</code> or <code>"{}"</code>, is a compile error: write <code>"\{1, 2\}"</code>.</p>
+
+<p>A format can follow the name after the format operator <code>%</code>: <code>{name % format}</code>. Inside a placeholder <code>%</code> has only this meaning (it is not the remainder, because there is no expression). The format depends on the type of the value. The number formats are adapted from Fortran; the alignment is borrowed from Python. A result is never truncated by the width: if the value is wider, the result is wider (only <code>.max</code> of a string cuts).</p>
 
 <pre class="fixed">
-\s{expr:[[fill]align][width][.max]}
-\#{expr:[[fill]align][flags][repeat]code[width][.digits]}
-\b{expr:[[fill]align][width][code]}
+string : {name % [[fill]align][width][.max]}
+number : {name % [[fill]align][flags][repeat]code[width][.digits]}
+boolean: {name % [[fill]align][width][code]}
 </pre>
+
+<p><b>Note:</b> a text literal <code>"""…"""</code> and a regex literal (a string that starts with <code>/</code>) are raw: they have no placeholders, so their braces need no escape. The character <code>#</code> is used only in comments.</p>
 
 <ul>
 <li><b>align</b>: <code>&lt;</code> left, <code>&gt;</code> right, <code>^</code> center. The default is left for strings and booleans, right for numbers;</li>
@@ -321,12 +326,14 @@ process main is
   new n    := 42;
   new name := "Eve";
   new ok   := True;
-  print "pi = \#{pi:f8.2}|";
-  print "n  = \#{n:i5}|\#{n:0&gt;i5}|\#{n:&lt;i5}|";
-  print "big = \#{1234567:,i9}";
-  print "hex = \#{255:0&gt;x4}";
-  print "name = \s{name:*^9}|\s{name:&gt;6}|\s{name:.2}|";
-  print "ok = \b{ok}, \b{ok:yn}, \b{ok:01}";
+  new big  := 1234567;
+  new code := 255;
+  print "pi = {pi % f8.2}|";
+  print "n  = {n % i5}|{n % 0&gt;i5}|{n % &lt;i5}|";
+  print "big = {big % ,i9}";
+  print "hex = {code % 0&gt;x4}";
+  print "name = {name % *^9}|{name % &gt;6}|{name % .2}|";
+  print "ok = {ok}, {ok % yn}, {ok % 01}";
   print "alpha = \u{3B1}";
 return;
 </code></pre>
@@ -341,7 +348,7 @@ ok = True, Yes, 1
 alpha = &alpha;
 </pre>
 
-<p>The older forms <code>#s</code>, <code>#n</code>, <code>#{a}</code>, <code>{a}</code> and the operator <code>?</code> do not exist. To write a literal brace use <code>\{</code> and <code>\}</code>.</p>
+<p>The older forms <code>#s</code>, <code>#n</code>, <code>#{a}</code>, <code>\#{a}</code>, <code>\s{a}</code>, <code>\n{a}</code>, <code>\b{a}</code>, the format after a colon and the operator <code>?</code> do not exist. To write a literal brace use <code>\{</code> and <code>\}</code>.</p>
 
 <h3 id="string-split">String split</h3>
 
@@ -406,7 +413,15 @@ and looks like work."
 
 <h2 id="regex">Regular Expressions</h2>
 
-<p>Regular expressions are special string templates useful to search inside strings. We implement regular expressions a la carte except the delimiter \" must be escaped. Regular expressions are enclosed in double quotes like strings: "/regex/g". A regular expression always start with "/" and ends with "/flags". A string that starts with "/" on the right of the operator "=~" is always a regular expression.</p>
+<p>Regular expressions are special string templates useful to search inside strings. They are enclosed in double quotes like strings: <code>"/regex/g"</code>. A regular expression starts with <code>/</code> and ends with <code>/flags</code>.</p>
+
+<p><b>Regex literal.</b> Every string literal that starts with <code>/</code> is a <em>regex literal</em>: it keeps its backslashes as they are, so <code>"/\sis\s/"</code> means what a regular expression tool expects. In a regex literal there are no escape sequences and no placeholders: <code>\s{2}</code> is the regular expression "two spaces", and <code>{2}</code> is a count, not a placeholder. The only escape is <code>\"</code>, the double quote. A regex literal is still a <code>String</code>: it can be stored in a variable, passed as an argument and concatenated with other strings. The rule is lexical: it says how the literal is read, not what the value is.</p>
+
+<ul>
+<li>A string that starts with <code>/</code>, such as a file path or a route, is also read this way. To insert a value in it, concatenate: <code>"/data/" + name + ".csv"</code>; a placeholder would stay as text;</li>
+<li>Only the literal that starts with <code>/</code> keeps its backslashes. Another part of a concatenation is an ordinary string, so its backslash is written twice: <code>"/\s" + word + "\\s/"</code>;</li>
+<li>On the right of <code>=~</code>, a string that starts with <code>/</code> is used as a regular expression, also when it was built by concatenation.</li>
+</ul>
 
 
 <h3 id="regex-operators">Regex operators</h3>
@@ -423,6 +438,16 @@ process main is
   ** check that the string does not start with "not"
   new not_found := not ("this is not like" =~ "/^not/");
   expect not_found; ** True
+
+  ** build a pattern: the first part is a regex literal, the last one an ordinary string
+  new word := "is";
+  new pattern := "/\s" + word + "\\s/";
+  expect "this is like" =~ pattern;
+
+  ** a path starts with "/" too: concatenate to insert a value
+  new name := "orders";
+  new path := "/data/" + name + ".csv";
+  expect path == "/data/orders.csv";
 return;
 </code></pre>
 

@@ -18,7 +18,7 @@
         object method shell return
         session update insert commit from use
         new let set def scrub delete
-        expect break halt skip alter make store start yield call wait exit stop
+        expect break halt skip alter make store start spawn await yield call wait exit stop
         print write read over panic pass fail raise retry resume abort
         apply to synchronise rollback`);
     define("operator", "in is as or eq and not xor");
@@ -34,7 +34,7 @@
     // declaration keywords are highlighted only when they open a line
     const DECLARATIONS = new Set(`
         class driver module aspect exclusive concurrent process initialize
-        recover finalize trait constructor destructor function generator end
+        recover finalize trait constructor destructor function procedure generator async end
         export public private protected service route`.trim().split(/\s+/));
 
     const TOKEN = new RegExp([

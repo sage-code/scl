@@ -50,7 +50,9 @@ A closure is a function that carries a piece of the place where it was created. 
 
 <h2 id="closures">What is a closure</h2>
 
-<p>A closure is a function created by another function and enclosed in it. The closure has read/write access to the variables of the function that created it, which is its context. The context is replicated and bound to every closure instance. A function whose result can differ for the same arguments is stochastic and is marked with the suffix <code>!</code>: <code>name!()</code>. A closure that changes the state it encloses, like a counter, is such a function, so its name ends with <code>!</code>; a closure that always gives the same result needs no <code>!</code>. The function that creates a closure is deterministic: for the same arguments it returns an equivalent closure and changes nothing, so it needs no <code>!</code>, like <code>make_counter</code> below. A function that calls a <code>!</code> function is not deterministic itself, so its name ends with <code>!</code> too.</p>
+<p>A closure is a function created by another function and enclosed in it. The closure has read/write access to the variables of the function that created it, which is its context. The context is replicated and bound to every closure instance. A function whose result can differ for the same arguments is stochastic and is marked with the suffix <code>!</code>: <code>name!()</code>. A closure that changes the state it encloses, like a counter, is such a function, so its name ends with <code>!</code>; a closure that always gives the same result needs no <code>!</code>. A function that calls a <code>!</code> function is not deterministic itself, so its name ends with <code>!</code> too.</p>
+
+<p><b>Only functions are closures, and only functions create them.</b> A closure is always a function, never a procedure. The function that creates a closure is a higher-order function and <b>always</b> ends with <code>!</code>, like <code>make_counter!</code> below, even when it could be called deterministic: Eve does not try to optimize these functions. A procedure can also create closures, several of them, and give them out through its <code>@</code> output parameters (see <a href="#closure-procedure">Closures from a procedure</a>).</p>
 
 <h2 id="closure-why">Why closures?</h2>
 
@@ -62,20 +64,21 @@ A closure is a function that carries a piece of the place where it was created. 
 driver test_closure is
 
   ** declare a function that creates a closure
-  function make_counter(start:Integer) =&gt; (@next!:Function) is
-    new current := start; 
+  function make_counter!(first: Integer) =&gt; (@next!: Function) is
+    new current := first;
 
-    ** define an enclosed function using let: it changes state, so its name ends with !
-    new next! := Function() =&gt; (@result:Integer): 
-        let current += 1;
-        let result := current;
-    return; 
+    ** the enclosed function: the same form as any function, with the name of the result;
+    ** it changes state, so its name ends with !
+    function next!() =&gt; (@result: Integer) is
+      let current += 1;
+      let result := current;
+    return;
   return;
 
   process main is
     ** instantiate two closures
-    new index1! := make_counter(0);
-    new index2! := make_counter(10);
+    new index1! := make_counter!(0);
+    new index2! := make_counter!(10);
   
     ** interlace the two calls
     print index1!(), index1!(); ** 1, 2
@@ -87,10 +90,42 @@ end test_closure;
 
 <h3 id="closure-notes">Notes</h3>
 <ul>
-  <li>A closure that keeps a changing state is stochastic: its name ends with <code>!</code>, and the compiler makes no effort to optimize it. The function that creates it is deterministic and has no <code>!</code>.</li>
-  <li>Closures are created by functions: the function holds the state, the closure changes it.</li>
-  <li>One function can create multiple closures. This advanced feature will be demonstrated in examples of code later when we create the compiler.</li>
+  <li>A closure that keeps a changing state is stochastic: its name ends with <code>!</code>, and the compiler makes no effort to optimize it. The function that creates it always ends with <code>!</code> too.</li>
+  <li>Closures are functions, created by functions or by procedures: the creator holds the state, the closure changes it.</li>
+  <li>The enclosed function becomes the result, or the output parameter, because it has the same name: <code>@next!</code> and <code>function next!()</code>.</li>
+  <li>A closure is declared with the same syntax as any function and ends with its own <code>return;</code>. When it is the last declaration of its creator, two <code>return;</code> lines follow each other: the inner one is indented two spaces more, aligned with the inner <code>function</code> keyword, the outer one with the outer keyword. This is why indentation is mandatory in Eve. Writing both on one line is possible, but it is not a good practice.</li>
+  <li>One function can create multiple closures; a procedure can create several at once, as output parameters (next section).</li>
 </ul>
+
+<h3 id="closure-procedure">Closures from a procedure</h3>
+
+<p>A procedure has no result, but it can create closures and give them out through its <code>@</code> output parameters. Closures made in the same call share the variables of their creator. The closures are functions.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+driver closure_pair is
+
+  ** two closures that share one counter, given out as output parameters
+  procedure make_pair(first: Integer, @up!: Function, @down!: Function) is
+    new current := first;
+
+    function up!() =&gt; (@r: Integer) is
+      let current += 1;
+      let r := current;
+    return;
+
+    function down!() =&gt; (@r: Integer) is
+      let current -= 1;
+      let r := current;
+    return;
+  return;
+
+  process main is
+    new up!, down! :Function;
+    make_pair(10, @up!, @down!);
+    print up!(), up!(), down!();   ** 11, 12, 11
+  return;
+end closure_pair;
+</code></pre>
 
 
 
@@ -125,8 +160,8 @@ end test_closure;
 
 <p>A closure belongs to the task that created it. A closure that changes its state is not thread safe, so the compiler does not let two tasks use the same one (see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>). A task that needs a counter creates its own closure; a counter shared between tasks is an <code>Atomic</code> variable.</p>
 
-<div class="alert alert-info"><b>TODO:</b> the closure example has the old body form (<code>Function() =&gt; (@result:Integer):</code> with a colon and two <code>return;</code>). Write it again in the current dialect of functions, after the author confirms the syntax of a function made inside a function (Q-025).</div>
-<div class="alert alert-info"><b>TODO:</b> add the second example from the notes: one function that creates several closures that share one variable of their creator.</div>
+
+
 <div class="alert alert-info"><b>TODO:</b> explain what happens to the state of a closure when the creating function has returned (the state lives as long as a closure refers to it) and add a test.</div>
 
 <hr>

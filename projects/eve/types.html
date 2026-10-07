@@ -221,6 +221,31 @@ The purpose of any programming language is to manipulate data. On the lowest lev
  initialized
  to zero value unless specified otherwise using a data literal. Runes have initial value <code>nil</code>, the empty rune <code>''</code>. A zero value is a value: the object exists. <code>null</code> is different: it means that no object exists, nothing is allocated (see <a href="#null">Null and Optional Types</a>).</div>
 
+<h4 id="zero-values">Zero values</h4>
+
+<p>Every type has a zero value. A declaration without a value, <code>new a, b :Integer;</code>, gives every name the zero value of its type.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Type</th><th>Zero value</th></tr>
+</thead>
+<tbody>
+<tr><td>Byte, Short, Integer, Natural, Huge</td><td><code>0</code></td></tr>
+<tr><td>Real, Float</td><td><code>0.0</code></td></tr>
+<tr><td>Decimal</td><td><code>0d</code></td></tr>
+<tr><td>Rune</td><td><code>nil</code>, the empty rune <code>''</code></td></tr>
+<tr><td>Logic</td><td><code>False</code></td></tr>
+<tr><td>Ordinal</td><td>its first element</td></tr>
+<tr><td>Time, Duration</td><td>0 milliseconds</td></tr>
+<tr><td>String, Text</td><td><code>""</code>, the empty string</td></tr>
+<tr><td>List</td><td><code>()</code></td></tr>
+<tr><td>Array</td><td><code>[]</code>; an array with a fixed capacity holds the zero value of its element type in every place</td></tr>
+<tr><td>DataSet</td><td><code>{}</code></td></tr>
+<tr><td>DataMap</td><td><code>{:}</code></td></tr>
+<tr><td>Object, record</td><td>an object whose attributes hold their zero values</td></tr>
+</tbody>
+</table>
+
 
 <h2 id="numeric-types">Numeric Types</h2>
 <p>In Eve we can have two categories of numbers:</p>
@@ -602,7 +627,7 @@ end boxing_demo;
 <p>In next example we create a range class. The new range is actually a sub-class of Range. We will learn later how to use ranges in different cases. We use .. for the limits and a second pair of parentheses for the ratio (step).</p>
 
 <pre class="language-out">
-Type range = (min..max)(ratio) &lt;: Range;
+class RangeName = (min..max)(ratio) &lt;: Range;
 </pre>
 
 <h4>Notes:</h4>
@@ -624,7 +649,7 @@ Type range = (min..max)(ratio) &lt;: Range;
 driver numeric_range is
 
   ** define a validation type
-  Type R5 = (0..5) &lt;&#58; Range;
+  class R5 = (0..5) &lt;&#58; Range;
 
   process main is
     ** test range limits
@@ -690,8 +715,8 @@ end fraction_range;
 <pre class="line-numbers"><code class="language-eve"># range demo
 driver random_demo is
 
-  Type Small = (0..1)(0.1) &lt;&#58; Range;
-  Type Large = (0..2^64 ) &lt;&#58; Range;
+  class Small = (0..1)(0.1) &lt;&#58; Range;
+  class Large = (0..2^64 ) &lt;&#58; Range;
 
   process main is
     ** you can call random() like this
@@ -1054,13 +1079,14 @@ driver print_type is
   process main is
     new i := 1.5;
     expect type(i) is Real;
-    print "type of i is \s{i.type()}";
+    new t := type(i);
+    print "type of i is {t}";
   return;
 end print_type;
 </code></pre>
 
 
-<p>String interpolation inserts values in a string with <code>\s{expr}</code> (string), <code>\#{expr}</code> (number) and <code>\b{expr}</code> (boolean), for example <code>"param1: \#{a}"</code>; after a colon you can give a format, for example <code>"\#{a:i5}"</code> (see Strings).</p>
+<p>String interpolation inserts the value of a name in a string with a placeholder, <code>{name}</code>, for example <code>"param1: {a}"</code>; after the format operator <code>%</code> you can give a format, for example <code>"{a % i5}"</code>. A placeholder holds a name, never an expression or a call; a literal brace is <code>\{</code> or <code>\}</code> (see Strings).</p>
 
 <h2 id="polymorphic-operators">Polymorphic Operators</h2>
 
@@ -1250,7 +1276,7 @@ driver variant_params is
 
   ** define a method that can swap two numbers
   ** requires input/output parameters marked with @
-  function swap(@x, @y: {Integer | Real} ) is
+  procedure swap(@x, @y: {Integer | Real} ) is
     ** check type to be the same
     expect type(x) == type(y);
 
@@ -1289,6 +1315,7 @@ end variant_params;
 
 <h3 id="pitfall-division">Division</h3>
 <p>The operator <code>/</code> always returns a Real, also for <code>4 / 2</code>. Enforce the type, as in <code>new x = a / b :Integer;</code>, to get an Integer.</p>
+<p>Division by zero is always an error (<code>$err_divide</code>), also for Real numbers: Eve has no infinity and no NaN, so <code>1 / 0</code> and <code>1.0 / 0.0</code> stop the process unless it is recovered. A Rational with a zero denominator, <code>1\0</code>, is not supported either.</p>
 
 <h3 id="pitfall-is">The "is" operator</h3>
 <p><code>is</code> does not compare values: use <code>==</code> for that. It checks a type, <code>x is Integer</code>. The same keyword can also introduce a block of code, so read the statement around it.</p>

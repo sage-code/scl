@@ -45,18 +45,67 @@
 <h1 id="eve-async">Eve Asynchronous Functions</h1>
 
 <div class="alert alert-secondary shadow-sm">
-An asynchronous function does not make the caller wait for its result: the caller goes on, and takes the result later, when it needs it. Many languages mark such a function with <code>async</code> and wait with <code>await</code>. Eve has a different answer: <b>the code stays sequential</b>, and the machine overlaps the waiting. This page explains how, and lists what is still open.
+An asynchronous function or procedure lets its caller go on while it waits for a file, the network or a database. Eve marks such a subprogram with <code>async</code>. Inside a job, <code>spawn</code> starts it as a task and the job goes on; <code>await</code> starts it and waits for it at once, in serial mode. The machine overlaps the waiting of the tasks of a job on one core.
 </div>
 
-<div class="alert alert-warning">Not in Eve 0.1. Parallel groups, channels and generators are designed for later versions. The keywords <code>async</code>, <code>await</code> and <code>suspend</code> are not used in Eve (D-051, D-067).</div>
+<div class="alert alert-warning">Author design (Q-033 c, 2026-10-06, D-104): the keywords <code>async</code>, <code>spawn</code> and <code>await</code>. They replace the "no async and await" of D-051 and D-067; <code>suspend</code> is still not used. The points marked TODO below are open.</div>
 
 <h2 id="async-waiting">Waiting gives the core away</h2>
 
-<p>An aspect that waits for a file, the network, a database, a <code>wait 10ms;</code> or a channel releases its worker core to another task and continues when the wait is over. The code does not change: it reads like code that waits. There is no second kind of function, and no function "colored" by <code>async</code> that can be called only from another one.</p>
+<p>A task or an aspect that waits for a file, the network, a database, a <code>wait 10ms;</code> or a channel releases its core to another task and continues when the wait is over. The code does not change: it reads like code that waits.</p>
 
-<h2 id="async-start">Several things at once: start</h2>
+<h2 id="async-procedures">Asynchronous functions and procedures</h2>
 
-<p>To do several slow things at the same time, the driver starts several aspects in a parallel group. Each aspect is the "asynchronous function"; <code>done</code> is the "await".</p>
+<p>The keyword <code>async</code> in front of <code>function</code> or <code>procedure</code> declares a subprogram that can be run as a task:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+async procedure name(parameters) is
+  ...
+return;
+
+async function name(parameters) =&gt; (@result: Type) is
+  ...
+return;
+</code></pre>
+
+<p>A job is split into tasks. <code>spawn</code> starts an asynchronous subprogram as a task: the job does not wait for it and the next statement runs at once. <code>await</code> starts one and waits at once until it has finished, in serial mode. All the tasks of one job share <b>one core</b>, the core of the job: a task works until it has to wait, then gives the core to the next one. The closer of the job, <code>done name;</code>, waits until every task spawned in the job has finished.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# read three files at the same time, on one core
+driver load_all is
+
+  ** an asynchronous procedure: no result, the text goes out by @text
+  async procedure load(path: String, @text: String) is
+    new f := fs.open(path);
+    defer f.close();
+    let text := f.read();   ** waits for the disk: the core goes to the next task
+  return;
+
+  process main is
+    new a, b, c :String;
+    loading: job
+    do
+      spawn load("one.csv", @a);     ** a task: the job goes on
+      spawn load("two.csv", @b);     ** a second task
+      await load("three.csv", @c);   ** starts and waits for this one
+    done loading;                    ** waits for every spawned task
+    print a.length(), b.length(), c.length();
+  return;
+end load_all;
+</code></pre>
+
+<h4>Rules</h4>
+<ul>
+<li><code>async</code> marks a function or a procedure that runs as a task;</li>
+<li><code>spawn</code> starts a task in a job of a driver or of an aspect and goes on; <code>await</code> starts it and waits for it, in serial mode;</li>
+<li>Inputs are passed by value; the outputs of a procedure are <code>@</code> parameters, ready after the <code>done</code> of the job (after the <code>await</code> for an awaited task);</li>
+<li>The tasks of one job run on the same core, one at a time: there is no data race between them, and no lock is needed;</li>
+<li>To use several cores, start aspects in a <code>parallel</code> group (next section): <code>start</code> is for aspects, <code>spawn</code> for tasks.</li>
+</ul>
+
+<h2 id="async-start">Several cores: parallel</h2>
+
+<p>To do several slow things at the same time on several cores, the driver starts several aspects in a parallel group. Each aspect runs on its own core; <code>done</code> is the "await".</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # call 50 services at the same time
@@ -83,12 +132,13 @@ end fetch_all;
 <tr><th>Need</th><th>In languages with async</th><th>In Eve</th></tr>
 </thead>
 <tbody>
-<tr><td>overlap many waits</td><td><code>await all(f1(), f2())</code></td><td>a parallel group of started aspects</td></tr>
-<tr><td>take a result later</td><td>a future or promise</td><td>an output parameter <code>@</code>, ready at <code>done</code></td></tr>
+<tr><td>overlap many waits</td><td><code>await all(f1(), f2())</code></td><td>a job that spawns <code>async</code> tasks (one core), or a parallel group of started aspects (several cores)</td></tr>
+<tr><td>take a result later</td><td>a future or promise</td><td>an output parameter <code>@</code>, ready at the <code>done</code> of the job or of the group</td></tr>
+<tr><td>wait for one call at once</td><td><code>await f()</code></td><td><code>await f();</code>, in serial mode</td></tr>
 <tr><td>stream of results</td><td>an async iterator</td><td>a generator, or a channel between stages</td></tr>
 <tr><td>time-out</td><td>a timer and a race</td><td><code>parallel within 30s</code>, <code>$timeout</code></td></tr>
 <tr><td>cancel</td><td>a cancellation token</td><td><code>on error cancel</code></td></tr>
-<tr><td>colored functions</td><td>yes: <code>async</code> everywhere</td><td>no</td></tr>
+<tr><td>colored functions</td><td>yes: <code>async</code> everywhere</td><td><code>async</code> marks the subprogram; whether only <code>spawn</code> and <code>await</code> may call it is open</td></tr>
 </tbody>
 </table>
 
@@ -96,7 +146,7 @@ end fetch_all;
 
 <p>A callback (<a href="/projects/eve/callbacks.html">Callbacks</a>) runs in serial mode, in the receiver. It is not called "later, from another thread": that would bring data races into plain code. When a result arrives from a parallel task, the driver reads it after <code>done</code>, or receives it from a channel.</p>
 
-<div class="alert alert-info"><b>TODO:</b> author decision (Q-025): keep Eve without <code>async</code> and <code>await</code>, as written here, or add asynchronous functions. Alternatives to consider: (a) none, as today; (b) <code>start</code> of a <em>function</em> that returns a future-like <code>Result(:T)</code> read with <code>.get()</code>; (c) an <code>async function</code> that can only be called with <code>start</code> in a group.</div>
+<div class="alert alert-info"><b>TODO (Q-035):</b> how a spawned <code>async function</code> gives its result (<code>new r := await f(x);</code> for an awaited one?); can an <code>async</code> subprogram be called without <code>spawn</code> or <code>await</code>; can <code>spawn</code> and <code>await</code> be used outside a job; what happens to the other tasks of a job when one fails.</div>
 <div class="alert alert-info"><b>TODO:</b> write the example "50 services" with the real aspect <code>fetch</code> and the module <code>http</code> when it exists (level 6).</div>
 <div class="alert alert-info"><b>TODO:</b> add a section on timers and periodic work: <code>wait 10ms;</code>, a driver that wakes every minute, and how this fits the server (<a href="/projects/eve/server.html">Server</a>).</div>
 <div class="alert alert-info"><b>TODO:</b> add a section on errors in parallel work with an example of <code>$error.errors</code> (see Errors and time-out in Multitasking).</div>

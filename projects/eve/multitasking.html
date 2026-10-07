@@ -208,13 +208,13 @@ end parallel_loop;
 
 <h3 id="who-decides">The compiler decides</h3>
 
-<p>You do not mark a function as thread safe. The compiler reads the call graph and decides for every function, in every module:</p>
+<p>You do not mark a function or a procedure as thread safe. The compiler reads the call graph and decides for every subprogram, in every module:</p>
 
 <ul>
-<li>A function that uses only its arguments and its own local variables is thread safe;</li>
-<li>A function that reads or changes a plain variable of a module is not;</li>
-<li>A function that uses a module variable only through an <b>atomic</b> variable, a <b>mutex</b> or a <b>channel</b> is thread safe;</li>
-<li>A function that calls another is thread safe only if every function it calls is.</li>
+<li>A subprogram that uses only its arguments and its own local variables is thread safe;</li>
+<li>A subprogram that reads or changes a plain variable of a module is not;</li>
+<li>A subprogram that uses a module variable only through an <b>atomic</b> variable, a <b>mutex</b> or a <b>channel</b> is thread safe;</li>
+<li>A subprogram that calls another is thread safe only if every subprogram it calls is.</li>
 </ul>
 
 <p>The check is made on the aspect, where it is written (see <a href="#marking-aspects">Marking an aspect</a>). For a <code>concurrent aspect</code> the compiler looks at everything the aspect can call, directly or through other calls. If one function in that set is not thread safe, the program does not compile, and the message names the function and the variable. An <code>exclusive aspect</code> has no such rule, because it is never started.</p>
@@ -224,7 +224,7 @@ end parallel_loop;
 module plain is
   export (hit);
   new total = 0 :Integer;
-  function hit() is
+  procedure hit() is
     let total += 1;              ** read, add, write: two tasks can lose an update
   return;
 end plain;
@@ -286,7 +286,7 @@ let first := total.fetch_add!(1);  ** add and return the previous value
 <pre class="line-numbers"><code class="language-eve">
 new lock = Mutex();
 
-function transfer(amount: Integer) is
+procedure transfer(amount: Integer) is
   lock.acquire();                  ** waits while another task holds the mutex
   defer lock.release();            ** runs on every path, also after an error
   let alice -= amount;
