@@ -89,7 +89,8 @@
       sml: { courseIds: ["sml-main", "sml"], labIds: ["sml"] },
       hpc: { courseIds: ["hpc-main", "hpc"], labIds: ["hpc"] },
       osd: { courseIds: ["osd-main", "osd"], labIds: ["osd"] },
-      dsl: { courseIds: ["dsl-main", "dsl"], labIds: ["dsl"] }
+      dsl: { courseIds: ["dsl-main", "dsl"], labIds: ["dsl"] },
+      eve: { courseIds: ["eve"], labIds: ["eve"] }
     };
 
     if (map[key]) {
