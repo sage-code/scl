@@ -133,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = String(labId || '').toLowerCase();
     if (value === 'engineering') return 'cse';
     if (value === 'programming') return 'csp';
+    if (value === 'eve') return 'eve';
     return value;
   }
 
