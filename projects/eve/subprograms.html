@@ -45,20 +45,7 @@
 <h1 id="subprograms">Eve Subprograms</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Eve is a multiparadigm programming language made on purpose for education and accuracy of terminology. Therefore Eve does not use the vague word "subroutine". A piece of code that can be called by name is a <b>subprogram</b>, and every subprogram has a precise name: a <b>procedure</b>, a <b>function</b>, a <b>generator</b> or a <b>method</b>. All these words are keywords of Eve. This page explains what they have in common, and above all how to write their <b>parameters</b>, because the paradigms of the next phases (functional, object oriented, and the others) all use the same rules. It is the only page of phase 3, Procedural Programming, and it ends with the explanation of the procedure.</div>
-
-<h2 id="phase-keywords">Keywords of this phase</h2>
-
-<p>The keywords that phase 3, Procedural Programming, adds to the core language (the core keywords are in <a href="/projects/eve/syntax.html#keywords">Syntax</a>). Each one is explained on the page in the last column.</p>
-
-<table class="table table-bordered table-striped">
-<thead>
-<tr><th>Keyword</th><th>Meaning</th><th>Explained in</th></tr>
-</thead>
-<tbody>
-<tr><td><code>procedure</code></td><td>declares a procedure: a subprogram outside a class that does work and returns no result; it is called as a statement</td><td><a href="#procedures">Procedures</a></td></tr>
-</tbody>
-</table>
+Eve is a multiparadigm programming language made on purpose for education and accuracy of terminology. Therefore Eve does not use the vague word "subroutine". A piece of code that can be called by name is a <b>subprogram</b>, and every subprogram has a precise name: a <b>procedure</b>, a <b>function</b>, a <b>generator</b> or a <b>method</b>. All these words are keywords of Eve. This page explains what they have in common, and above all how to write their <b>parameters</b>, because the paradigms of the next phases (functional, object oriented, and the others) all use the same rules. It is the last page of phase 2, Eve Code Topology, and it ends with the explanation of the procedure.</div>
 
 <h2 id="kinds">Kinds of subprograms</h2>
 
@@ -128,14 +115,14 @@ new total := sum(1, 2);                                  ** 1 and 2 are argument
 
 <h2 id="by-reference">Passing by reference</h2>
 
-<p>A parameter prefixed with <code>@</code> is an <b>input/output parameter</b>: it receives a <b>reference</b> to a variable of the caller. The subprogram reads the value that the caller had, and a procedure can change it. It behaves like the shared reference <code>:=</code>. The caller writes <code>@</code> before the argument too, so a reference is never taken by accident: <code>add(1, 2, @result)</code>, or by name <code>add(1, 2, op: @result)</code>. The argument must be a variable, an element or a slice: <code>@s[i]</code>, <code>@nxt[a..b]</code>.</p>
+<p>A parameter prefixed with <code>@</code> is an <b>input/output parameter</b>: it receives a <b>reference</b> to a variable of the caller. The subprogram reads the value that the caller had, and a procedure can change it. Eve has no pure output parameters: every <code>@</code> parameter is an input/output parameter. It behaves like the shared reference <code>:=</code>. The caller writes <code>@</code> before the argument too, so a reference is never taken by accident: <code>add(1, 2, @result)</code>, or by name <code>add(1, 2, op: @result)</code>. The argument must be a variable, an element or a slice: <code>@s[i]</code>, <code>@nxt[a..b]</code>.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 #demo input/output parameters
 driver output_params is
 
   ** a procedure gives its output through @op
-  procedure add(p1, p2: Integer, @op: Integer) is
+  procedure add(p1 = 0, p2 = 1: Integer, @op: Integer) is
     let op := p1 + p2;
   return;
 
@@ -162,7 +149,7 @@ end output_params;
 
 <h2 id="optional">Optional parameters</h2>
 
-<p>A parameter without a default value is mandatory. <b>Mandatory parameters come first and optional parameters follow</b>: a mandatory parameter after an optional one is a compile error. A parameter with a default value is optional: when the caller gives no argument, the default is used. The default is written with <code>=</code> and a type, or with <code>:=</code> and an expression that gives the type. An optional argument is <b>named</b> in the call with the pair operator <code>name: value</code>.</p>
+<p>A parameter without a default value is mandatory. Mandatory parameters usually come first and optional parameters follow; a mandatory parameter may also come after an optional one, and then the call must give it <b>by name</b> (see <a href="#order">Order of parameters and arguments</a>). A parameter with a default value is optional: when the caller gives no argument, the default is used. The default is written with <code>=</code> and a type, or with <code>:=</code> and an expression that gives the type. An optional argument is <b>named</b> in the call with the pair operator <code>name: value</code>.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 function box(width: Integer, height = 1, depth = 1: Integer) =&gt; (@v: Integer) is
@@ -202,7 +189,7 @@ eve -x test.eve 1 2 3
 
 <h2 id="order">Order of parameters and arguments</h2>
 
-<p>The order of the parameters in the declaration is the order of the positional arguments in the call. The rule is simple: <b>mandatory parameters first, optional parameters after them</b>. A mandatory parameter can't be written after an optional one, because the caller could not tell which argument belongs to which parameter. We write the parameters in this order:</p>
+<p>The order of the parameters in the declaration is the order of the positional arguments in the call. We write the parameters in this order:</p>
 
 <ol>
 <li>mandatory parameters, the ones every call needs;</li>
@@ -211,12 +198,17 @@ eve -x test.eve 1 2 3
 <li>input/output parameters <code>@</code>, usually the last ones.</li>
 </ol>
 
+<p>The order is not forced: a mandatory parameter can be declared after an optional one, as the input/output parameter <code>op</code> above. The price is in the call: <b>a mandatory parameter that follows an optional parameter is given by name</b>, <code>op: @result</code>, because a positional argument could be taken for the optional parameter before it.</p>
+
 <pre class="line-numbers"><code class="language-eve">
-function ok(a: Integer, b = 1: Integer) =&gt; (@r: Integer) is …    ** mandatory first, optional after
-function bad(b = 1: Integer, a: Integer) =&gt; (@r: Integer) is …   ** error: mandatory after optional
+function area(a: Integer, b = 1: Integer) =&gt; (@r: Integer) is …    ** mandatory first, optional after
+procedure add(p1 = 0, p2 = 1: Integer, @op: Integer) is …           ** mandatory after optional
+
+add(1, 2, op: @result);     ** op is named
+add(1, 2, @result);         ** error: op follows optional parameters, it must be named
 </code></pre>
 
-<p>In a call the <b>positional arguments go first</b>, in the order of the parameters. Mandatory parameters do not need a name. Optional parameters are given by name, in any order after the positional ones; naming a mandatory parameter is allowed and makes a long call easier to read. An argument of a <code>@</code> parameter carries the prefix <code>@</code>, by position (<code>swap(@a, @b)</code>) or by name (<code>op: @result</code>).</p>
+<p>In a call the <b>positional arguments go first</b>, in the order of the parameters. Mandatory parameters before the first optional one do not need a name. Optional parameters are given by name, in any order after the positional ones; naming any parameter is allowed and makes a long call easier to read. An argument of a <code>@</code> parameter carries the prefix <code>@</code>, by position (<code>swap(@a, @b)</code>) or by name (<code>op: @result</code>).</p>
 
 <h2 id="results">Result parameters</h2>
 
