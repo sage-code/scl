@@ -133,12 +133,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = String(labId || '').toLowerCase();
     if (value === 'engineering') return 'cse';
     if (value === 'programming') return 'csp';
+    if (value === 'eve') return 'eve';
     return value;
   }
 
   function canonicalizeTopicLinks() {
     const trackId = resolveTrackId();
-    const canonicalTracks = new Set(['tek', 'dsa', 'dba', 'dsl', 'sml']);
+    const canonicalTracks = new Set(['tek', 'dsa', 'dba', 'dsl', 'sml', 'eve']);
     if (!canonicalTracks.has(trackId)) {
       return;
     }
