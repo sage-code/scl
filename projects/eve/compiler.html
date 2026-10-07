@@ -112,20 +112,36 @@ Eve is an open language standard, not a single product. It is designed to have m
 
 <h3 id="status">Status of the Reference Implementation</h3>
 
-<p>The first implementation is the Eve virtual machine, written in Zig (<code>evevm/</code>, built to <code>bin/eve.exe</code>). <b>Compiler stage: Level 1 implemented.</b> It parses every script into a syntax tree and executes the tree with a tree-walking interpreter.</p>
+<p>The first implementation is the Eve virtual machine, written in Zig (<code>evevm/</code>, built to <code>bin/eve.exe</code>). <b>Compiler stage: Level 1 implemented.</b> It parses every script into a syntax tree, checks the whole tree (the static check, below), and only then executes it with a tree-walking interpreter.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
 <tr><th>Level</th><th>Status</th><th>Tests</th></tr>
 </thead>
 <tbody>
-<tr><td>1</td><td><b>Implemented</b></td><td>37 of 37 pass (<code>test/level1/</code>)</td></tr>
+<tr><td>1</td><td><b>Implemented</b></td><td>82 of 82 pass (<code>test/level1/</code>), 2026-10-07</td></tr>
 <tr><td>2</td><td>Started: the command files of the machine (<code>.vmc</code>) and the workflow commands</td><td>11 tests pass (<code>test/level2/</code>); modules, aspects and imports are not implemented</td></tr>
 <tr><td>3</td><td>Not started</td><td>-</td></tr>
 </tbody>
 </table>
 
-<p>Level 1 covers drivers and free scripts, <code>new</code>, <code>let</code> and <code>set</code>, operators and precedence, strings with interpolation and formats, <code>if</code>, <code>while</code>, <code>loop</code>, <code>for</code>, <code>match</code>, ordinals, lists, arrays, matrices, slices and views, DataSets, HashMaps, Objects, functions, methods, classes with constructors, regular expressions (a small subset), <code>expect</code>, <code>over</code>, <code>panic</code>, <code>raise</code>, <code>recover</code>, <code>finalize</code>, and jobs with <code>retry</code> and <code>resume</code>. Not done yet: type checking (types give only the default values), the chained matrix forms such as <code>mat[1..2][*]</code> (write <code>mat[1, *]</code> and <code>mat[*, 1]</code>), modules and aspects, the debugger commands (<code>debug</code>, <code>begin</code>, <code>enter</code>, <code>resume</code>) and the bytecode compiler.</p>
+<p>Level 1 covers drivers and free scripts, <code>new</code>, <code>let</code> and <code>set</code>, operators and precedence, strings with placeholders and formats, <code>if</code>, <code>while</code>, <code>loop</code>, <code>for</code>, <code>match</code>, labels, ordinals, lists, arrays, matrices, slices and views, DataSets, DataMaps, Objects, functions and procedures with their parameters, classes with constructors, inheritance and extension methods, regular expressions (a small subset), <code>expect</code> and <code>assert</code>, <code>over</code>, <code>exit</code>, <code>panic</code>, <code>raise</code>, <code>defer</code>, <code>recover</code>, <code>finalize</code>, and jobs with <code>retry</code>, <code>resume</code> and <code>stop</code>. Lambdas and closures (level 2), Date, Time and the operator <code>as</code> (level 3) are not part of level 1.</p>
+
+<h4 id="limitations">Known limitations of the reference implementation</h4>
+
+<p>These are the places where <code>bin/eve.exe</code> is simpler than the specification. The tests of level 1 pass with them; a later version removes them. Another implementation may do better, but it must pass the same tests.</p>
+
+<ul>
+  <li><b>Numbers.</b> <code>Decimal</code> and <code>Float</code> are stored as a 64-bit float, so a Decimal is not exact; <code>Huge</code> is a 64-bit integer, not an arbitrary-size number. The results of arithmetic on a typed number (<code>Byte</code>, <code>Short</code>, <code>Decimal</code>) are an <code>Integer</code> or a <code>Real</code>: the type suffix is kept only by the literal.</li>
+  <li><b>Text.</b> A value is a Text, not a String, only when it comes from a <code>"""</code> literal: the machine remembers the address of the literal, so <code>type(x)</code> may say String for a copy made by other means.</li>
+  <li><b>Static types.</b> The static check infers the type of a variable only from a literal, a declared type or a constructor call. A rule that needs a type is checked only then: the private methods of a class (<code>c.inc()</code> is refused when <code>c</code> is known to be a Counter, not when it comes from a parameter) and <code>"a" + 1</code>. When the check does not know, it says nothing and the interpreter raises the error when the line runs.</li>
+  <li><b>Types are not enforced.</b> A declared type gives the default value and converts a Real to an Integer or an Integer to a Real; it does not refuse a wrong assignment. A variant type <code>{Integer | Real}</code> accepts any value.</li>
+  <li><b>Regular expressions</b> support literals, <code>.</code>, <code>^</code>, <code>$</code>, classes, <code>\d \w \s</code>, the quantifiers <code>* + ?</code>, alternatives with <code>|</code> and the flag <code>i</code>; there are no groups.</li>
+  <li><b>Ranges.</b> A range with real limits, an open end or a real step is a domain: it answers <code>in</code> but can't be iterated. The step of a domain is a grid that starts at 0: <code>4 in (1..8)(2)</code> is true.</li>
+  <li><b>Entities.</b> The character references <code>&amp;name;</code> of a string know the five marked characters and the lower case Greek letters only.</li>
+  <li><b>Exit code 5</b> (unexpected stop: Ctrl+C, a time-out, an outage) is reserved; the machine does not set it yet, and no test checks it.</li>
+  <li><b>Levels 2 to 7</b> (modules, aspects, imports, parallel groups, databases, the server) are not implemented.</li>
+</ul>
 
 <p>The machine is also driven by command files. <code>eve -x -i level1.vmc</code> runs a <b>.vmc file</b> (Virtual Machine Command): one command per line, run in order from the first line. A workflow file loads one script at a time (<code>load</code>, <code>parse</code>, <code>run</code>, <code>errors</code>, <code>ast</code>, <code>inspect</code>, <code>status</code>), ends with <code>stop</code>, and leaves reports in a folder: the output, the errors, the syntax tree and an introspection report for every script. <code>python script/workflow.py 1</code> runs a whole level this way and compares it with <code>expect.json</code>. The commands are described in <code>manual/usage.md</code>.</p>
 
@@ -303,10 +319,12 @@ EOF
   <li><b>A Rune is one code point.</b> <code>'one'</code> is a syntax error; use <code>"one"</code>. The lexer should reject it with a clear message, not crash later.</li>
   <li><b>One index on a matrix is absolute.</b> <code>m[5]</code> counts the elements row by row; a row is <code>m[1, *]</code> and a column <code>m[*, 1]</code>.</li>
   <li><b>Errors carry a code.</b> every error has its own code (<code>raise</code> 4, an index error 10, a missing key 11, a division by zero 12, see Exceptions); the exit code of the process is another thing: 2 for a failed <code>expect</code>, 3 for a failed <code>assert</code>, 4 for any other unhandled error; <code>recover</code> catches all of them and reads <code>$error.message</code>, <code>$error.code</code> and <code>$error.job</code>. An unhandled error runs <code>finalize</code> and ends the process with the exit code of the table in Processing.</li>
-  <li><b>Recover has three exits.</b> <code>retry</code> runs the failed job again, <code>resume</code> goes on after it, and reaching the end of <code>recover</code> ends the process as handled. <code>over;</code> skips both <code>recover</code> and <code>finalize</code>; <code>panic;</code> ends at once with code 1.</li>
+  <li><b>Recover has three exits.</b> <code>retry</code> runs the failed job again, <code>resume</code> goes on after it, and reaching the end of <code>recover</code> ends the process as handled. <code>over;</code> skips <code>recover</code> but runs <code>finalize</code>; <code>panic;</code> ends at once with code 1 and runs neither.</li>
   <li><b><code>is</code> compares types and identity.</b> <code>type(x) is Real</code> compares two types; <code>a is b</code> is true only for the same list or object, while <code>==</code> compares the contents.</li>
   <li><b><code>print</code> and <code>write</code>.</b> <code>print (1, 2, 3)</code> joins with a comma, <code>write (1, 2)</code> joins with nothing, and a DataSet prints as <code>{1,2,3}</code>.</li>
-  <li><b>Parse first.</b> The machine always parses a script before it runs it, and a syntax error stops the run before any statement executes.</li>
+  <li><b>Parse and check first.</b> The machine always parses a script and checks the whole tree before it runs it. A syntax error, an undefined name, a name declared twice, a <code>let</code> of a name that was never declared, a procedure used in an expression and a mandatory parameter given by position after optional ones are compile errors: the script does not start and the exit code is 65.</li>
+  <li><b>An error code is not an exit code.</b> The error code identifies the error (<code>$error.code</code>); the exit code of the process is 0, 1, 2, 3, 4 or 5 (see Processing).</li>
+  <li><b><code>exit</code> and <code>over</code>.</b> <code>exit;</code> leaves the subprogram or the process it is written in, <code>over;</code> ends the whole process from any depth; both run <code>finalize</code> and <code>defer</code>.</li>
 </ul>
 
 <p>After M7, choose your direction: a faster back end, level 3 features (files, databases, network), or tooling such as a formatter or a language server.</p>
