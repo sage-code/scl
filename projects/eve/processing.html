@@ -53,6 +53,28 @@
 </ul>
 <hr>
 
+<h2 id="phase-keywords">Keywords of this phase</h2>
+
+<p>The keywords that phase 5, Enterprise &amp; System Features, adds to the core language (the core keywords are in <a href="/projects/eve/syntax.html#keywords">Syntax</a>). Each one is explained on the page in the last column.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Keyword</th><th>Meaning</th><th>Explained in</th></tr>
+</thead>
+<tbody>
+<tr><td><code>job</code></td><td>a labeled block of a process: <code>name: job</code> … <code>do</code> … <code>done name;</code></td><td><a href="/projects/eve/control.html">Control</a></td></tr>
+<tr><td><code>stop</code></td><td>ends a job without an error</td><td><a href="/projects/eve/processing.html">Processing</a></td></tr>
+<tr><td><code>raise</code></td><td>creates an error: <code>raise "message";</code>; the process jumps to <code>recover</code></td><td><a href="/projects/eve/exceptions.html">Exceptions</a></td></tr>
+<tr><td><code>recover</code></td><td>error region of a process: decides <code>retry</code>, <code>resume</code> or <code>abort</code></td><td><a href="/projects/eve/processing.html">Processing</a></td></tr>
+<tr><td><code>retry</code></td><td>in <code>recover</code>: runs the failed job again</td><td><a href="/projects/eve/processing.html">Processing</a></td></tr>
+<tr><td><code>resume</code></td><td>in <code>recover</code>: goes on after the failed job</td><td><a href="/projects/eve/processing.html">Processing</a></td></tr>
+<tr><td><code>abort</code></td><td>in <code>recover</code>: ends the process, runs <code>finalize</code>, passes the error on</td><td><a href="/projects/eve/processing.html">Processing</a></td></tr>
+<tr><td><code>parallel</code></td><td>a group of aspects that run in parallel, on several cores: <code>[name:] parallel … do … done [name];</code></td><td><a href="/projects/eve/multitasking.html">Multitasking</a></td></tr>
+<tr><td><code>start</code></td><td>in a parallel group: starts an aspect on a worker core (tasks of a job are started with <code>spawn</code>)</td><td><a href="/projects/eve/multitasking.html">Multitasking</a></td></tr>
+<tr><td><code>wait</code></td><td>pauses the process for a time: <code>wait 10ms;</code></td><td><a href="/projects/eve/multitasking.html">Multitasking</a></td></tr>
+</tbody>
+</table>
+
 <h2 id="main-process">Process Structure</h2>
 
 <p>A process can do one or more jobs. Jobs are sequential. A job has no error handlers: it passes or it fails. When an error is raised, in a job or anywhere else in the process, the process is interrupted and the workflow jumps into the recover region.</p>
@@ -210,9 +232,9 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 <tr><td><code>over;</code></td><td>0</td><td>no</td><td>runs</td></tr>
 <tr><td><code>panic;</code></td><td>1</td><td>no, ends the whole application</td><td>skipped</td></tr>
 <tr><td>failed <code>expect</code>, not recovered</td><td>2</td><td>runs</td><td>runs</td></tr>
-<tr><td>failed <code>assert</code></td><td>3, a warning</td><td>no: the process goes on</td><td>runs at the end</td></tr>
+<tr><td>failed <code>assert</code>, not recovered</td><td>3</td><td>runs</td><td>runs</td></tr>
 <tr><td><code>raise</code> or run-time error, not recovered</td><td>4</td><td>runs</td><td>runs</td></tr>
-<tr><td><code>abort</code> in recover</td><td>2 or 4, as the error</td><td>-</td><td>runs</td></tr>
+<tr><td><code>abort</code> in recover</td><td>2, 3 or 4, as the error</td><td>-</td><td>runs</td></tr>
 <tr><td>unexpected stop: Ctrl+C or <code>stop</code> at a <code>halt</code> breakpoint (debug mode), recursion too deep, out of memory, hard time-out</td><td>5</td><td>no</td><td>skipped</td></tr>
 </tbody>
 </table>
@@ -227,7 +249,7 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 <li><code>panic;</code> in an aspect ends the whole application: the driver panics too, the memory is released and the exit code is 1.</li>
 </ul>
 
-<p>A failed <code>assert</code> reports a warning and tries to continue the process. A failed <code>expect</code> raises an exception. The warnings collected by <code>assert</code> help to understand why a program crashes later.</p>
+<p>A failed <code>expect</code> and a failed <code>assert</code> are both run-time errors: the process stops and goes to <code>recover</code>. When the error is not recovered, the exit code is 2 for <code>expect</code> and 3 for <code>assert</code>.</p>
 
 
 <h4>Example:</h4>
@@ -426,7 +448,7 @@ end recover_demo;
 <p>The statement <code>defer</code> registers a statement that runs when the enclosing method, function or process ends, by any path: <code>return</code>, <code>over</code>, an error, <code>abort</code>. Several <code>defer</code> statements run in reverse order: the last registered runs first. They do not run after <code>panic</code>. A <code>defer</code> keeps the release of a resource next to the line that acquires it, so it is never forgotten:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-function load(path: String) is
+procedure load(path: String) is
   new f := fs.open(path);
   defer f.close();          ** runs at the end, also after an error
   ...

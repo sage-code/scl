@@ -78,7 +78,7 @@ driver syntax_elements is
 
   process main(a, b: Integer) is
     ** the process uses the arguments a and b
-    print "param1: \#{a}, param2: \#{b}";
+    print "param1: {a}, param2: {b}";
 
     ** define local variables
     new v1, v2 :Integer;
@@ -113,6 +113,8 @@ end syntax_elements;
 <ul>
 <li>Source files are UTF-8 text with the extension <code>.eve</code>.</li>
 <li>Lines end with LF or CR+LF; both are valid.</li>
+<li>Save files as UTF-8 without a byte order mark (BOM). A BOM at the start of a file is ignored; removing it is the job of a formatter.</li>
+<li>Names, keywords and operators are ASCII. Unicode is allowed in strings and comments.</li>
 <li>A statement ends with <code>;</code>, not with the end of the line, so it can span several lines.</li>
 </ul>
 
@@ -143,10 +145,10 @@ end syntax_elements;
 <tr><th>Form</th><th>Where it starts</th><th>Ends</th><th>Spans lines</th><th>Nests</th><th>Use</th></tr>
 </thead>
 <tbody>
-<tr><td><code>#!</code></td><td>line 1, column 0</td><td>end of line</td><td>no</td><td>no</td><td>shebang of a free script</td></tr>
-<tr><td><code>#</code></td><td>column 0 only</td><td>end of line</td><td>no</td><td>no</td><td>title</td></tr>
-<tr><td><code>##</code></td><td>column 0 only</td><td>end of line</td><td>no</td><td>no</td><td>subtitle</td></tr>
-<tr><td><code>**</code></td><td>anywhere: column 0, indented, or after code</td><td>end of line</td><td>no</td><td>no</td><td>line and end-of-line notes</td></tr>
+<tr><td><code>#!</code></td><td>line 1, indentation 0</td><td>end of line</td><td>no</td><td>no</td><td>shebang of a free script</td></tr>
+<tr><td><code>#</code></td><td>indentation 0 only</td><td>end of line</td><td>no</td><td>no</td><td>title</td></tr>
+<tr><td><code>##</code></td><td>indentation 0 only</td><td>end of line</td><td>no</td><td>no</td><td>subtitle</td></tr>
+<tr><td><code>**</code></td><td>anywhere: indentation 0, indented, or after code</td><td>end of line</td><td>no</td><td>no</td><td>line and end-of-line notes</td></tr>
 <tr><td><code>(** ... **)</code></td><td>inside an expression</td><td><code>**)</code></td><td>yes</td><td>no</td><td>expression comment</td></tr>
 <tr><td><code>/* ... */</code></td><td>anywhere</td><td>the first <code>*/</code></td><td>yes</td><td>no</td><td>block comment, notes, disabled code</td></tr>
 </tbody>
@@ -157,6 +159,7 @@ end syntax_elements;
 <li>Block comments do not nest: in <code>/* a /* b */ c */</code> the comment ends after <code>b</code>. To comment out code that holds comments, use <code>**</code> lines or expression comments inside it.</li>
 <li><code>//</code>, <code>--</code> and boxed <code>+--- ... ---+</code> comments are not Eve.</li>
 <li><code>**</code> always starts a comment, so the power operator is <code>^</code>.</li>
+<li><code>#</code> is used only for comments: <code>#!</code>, <code>#</code> and <code>##</code> start a line with indentation 0. Indentation is significant in Eve, so an indented <code>#</code> is an error.</li>
 <li>After the <code>return;</code> that ends a script, notes can follow in a block comment.</li>
 </ul>
 
@@ -259,8 +262,8 @@ file-name
 <tr><td><code>$cores</code></td><td><code>Integer</code></td><td>the size of the worker pool of parallel aspects, the number of hardware cores by default, at most 16 (not in version 1)</td></tr>
 <tr><td><code>$max_parallel</code></td><td><code>Integer</code></td><td>the number of aspects one parallel group of the driver may start, 8 by default (not in version 1)</td></tr>
 <tr><th colspan="3">Constants</th></tr>
-<tr><td><code>$err_name</code></td><td><code>Integer</code></td><td>error codes, for example <code>$err_expect</code> = 2, <code>$err_raise</code> = 4 (see <a href="/projects/eve/exceptions.html">Exceptions</a>)</td></tr>
-<tr><td><code>$wrn_name</code></td><td><code>Integer</code></td><td>warning codes, for example <code>$wrn_assert</code> = 3</td></tr>
+<tr><td><code>$err_name</code></td><td><code>Integer</code></td><td>error codes, for example <code>$err_expect</code> = 2, <code>$err_assert</code> = 3, <code>$err_raise</code> = 4 (see <a href="/projects/eve/exceptions.html">Exceptions</a>)</td></tr>
+<tr><td><code>$wrn_name</code></td><td><code>Integer</code></td><td>warning codes, for example <code>$wrn_truncate</code> = 6</td></tr>
 </tbody>
 </table>
 
@@ -296,15 +299,15 @@ file-name
 </thead>
 <tbody>
 <tr><td><code>'...'</code></td><td>Rune: one Unicode code point, stored in 4 bytes</td></tr>
-<tr><td><code>"..."</code></td><td>String: UTF-8 text of any length; <code>\s{name}</code>, <code>\#{n}</code> and <code>\b{flag}</code> insert values</td></tr>
+<tr><td><code>"..."</code></td><td>String: UTF-8 text of any length; <code>{name}</code> and <code>{name % format}</code> insert the value of a name; a literal brace is <code>\{</code> <code>\}</code></td></tr>
 <tr><td><code>"""..."""</code></td><td>Text literal on several lines; raw, no escape sequences</td></tr>
-<tr><td><code>"/.../g"</code></td><td>Regular expression pattern, used with <code>=~</code>; the negation is <code>not (s =~ "/…/")</code></td></tr>
+<tr><td><code>"/.../g"</code></td><td>Regex literal: a string that starts with <code>/</code> keeps its backslashes, with no escapes and no placeholders except <code>\"</code>; it is a String, used as a pattern by <code>=~</code>; the negation is <code>not (s =~ "/…/")</code></td></tr>
 </tbody>
 </table>
 
 <h3 id="escapes">Escape Sequences</h3>
 
-<p>Inside <code>"..."</code> and <code>'...'</code>, a backslash starts an escape sequence. Any other character after <code>\</code> is a lexical error.</p>
+<p>Inside <code>"..."</code> and <code>'...'</code>, a backslash starts an escape sequence. Any other character after <code>\</code> is a lexical error. Two literals have no escapes: the text literal <code>"""..."""</code>, and the regex literal, a string that starts with <code>/</code>, where only <code>\"</code> is an escape (see <a href="/projects/eve/strings.html#regex">Regular Expressions</a>).</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -342,7 +345,7 @@ file-name
 <pre class="fixed">-&gt; &lt;-</pre>
 
 <p><b>Delimiters:</b></p>
-<pre class="fixed">"_" '_' (...) [...] {...} \s{...} \#{...} \b{...}</pre>
+<pre class="fixed">"_" '_' (...) [...] {...} "{name}" \{ \}</pre>
 
 <h3 id="singles">Single Symbols</h3>
 
@@ -476,6 +479,8 @@ file-name
 
 <p>Operators on a higher row bind tighter. Operators on the same row are evaluated from left to right, except <code>^</code>, which is evaluated from right to left. Parentheses change the order.</p>
 
+<p><b>Unary minus first.</b> A minus with no term before it is unary and applies first, before <code>^</code>: <code>-2^2</code> is <code>(-2)^2</code>, that is <code>4</code>. A minus with a term before it is the subtraction: <code>4 - 2^2</code> is <code>0</code>, and <code>4 - -2^2</code> is <code>4 - (-2)^2</code>, also <code>0</code>. For the negative of a power write <code>-(2^2)</code>. Many languages give <code>-2^2 = -4</code>; Eve does not.</p>
+
 <table class="table table-bordered table-striped">
 <thead>
 <tr><th>Level</th><th>Operators</th></tr>
@@ -514,356 +519,117 @@ file-name
 
 <h2 id="keywords">Keywords</h2>
 
-<p>Eve reserves English words as keywords; a keyword cannot be used as an identifier. The table lists the reserved words of Eve 0.1. It will be generated from the specification (<code>spec/lexical/keywords.json</code>) once that file exists. Some words are reserved for later use.</p>
+<p>Eve reserves English words as keywords; a keyword cannot be used as an identifier. The tutorial does not list them all in one place: each phase lists its own keywords on one of its first pages, close to the pages that explain them. This page lists the keywords of the core language. Every keyword is reserved from the first version, also the ones that a later phase explains. The complete list for implementers is in the specification, <code>spec/lexical/keywords.json</code>.</p>
 
-<table class="table table-bordered table-dark table-hover table-sm shadow">
-<tr><th>Keyword</th><th>Used</th><th>Keyword</th><th>Used</th><th>Keyword</th><th>Used</th></tr>
-<tr><td>abort</td><td>yes</td><td>external</td><td>yes</td><td>pop</td><td>no</td></tr>
-<tr><td>add</td><td>yes</td><td>feature</td><td>yes</td><td>print</td><td>yes</td></tr>
-<tr><td>all</td><td>yes</td><td>fetch</td><td>no</td><td>private</td><td>yes</td></tr>
-<tr><td>alter</td><td>no</td><td>finalize</td><td>yes</td><td>process</td><td>yes</td></tr>
-<tr><td>analyze</td><td>no</td><td>for</td><td>yes</td><td>protected</td><td>yes</td></tr>
-<tr><td>and</td><td>yes</td><td>from</td><td>yes</td><td>public</td><td>yes</td></tr>
-<tr><td>any</td><td>yes</td><td>function</td><td>yes</td><td>raise</td><td>yes</td></tr>
-<tr><td>append</td><td>no</td><td>generator</td><td>yes</td><td>read</td><td>yes</td></tr>
-<tr><td>apply</td><td>yes</td><td>group</td><td>no</td><td>record</td><td>yes</td></tr>
-<tr><td>as</td><td>yes</td><td>halt</td><td>no</td><td>recover</td><td>yes</td></tr>
-<tr><td>ascend</td><td>no</td><td>if</td><td>yes</td><td>repeat</td><td>yes</td></tr>
-<tr><td>aspect</td><td>yes</td><td>in</td><td>yes</td><td>reset</td><td>no</td></tr>
-<tr><td>augment</td><td>no</td><td>initialize</td><td>yes</td><td>rest</td><td>yes</td></tr>
-<tr><td>break</td><td>yes</td><td>insert</td><td>yes</td><td>result</td><td>yes</td></tr>
-<tr><td>by</td><td>yes</td><td>into</td><td>no</td><td>resume</td><td>yes</td></tr>
-<tr><td>call</td><td>yes</td><td>is</td><td>yes</td><td>retry</td><td>yes</td></tr>
-<tr><td>cancel</td><td>yes</td><td>item</td><td>no</td><td>return</td><td>yes</td></tr>
-<tr><td>case</td><td>yes</td><td>job</td><td>yes</td><td>rollback</td><td>no</td></tr>
-<tr><td>class</td><td>yes</td><td>label</td><td>yes</td><td>select</td><td>no</td></tr>
-<tr><td>close</td><td>no</td><td>let</td><td>yes</td><td>set</td><td>yes</td></tr>
-<tr><td>commit</td><td>yes</td><td>limit</td><td>no</td><td>skip</td><td>yes</td></tr>
-<tr><td>constructor</td><td>yes</td><td>loop</td><td>yes</td><td>start</td><td>yes</td></tr>
-<tr><td>create</td><td>yes</td><td>match</td><td>yes</td><td>step</td><td>yes</td></tr>
-<tr><td>cursor</td><td>no</td><td>method</td><td>yes</td><td>stop</td><td>yes</td></tr>
-<tr><td>def</td><td>yes</td><td>module</td><td>yes</td><td>store</td><td>no</td></tr>
-<tr><td>defer</td><td>yes</td><td>new</td><td>yes</td><td>switch</td><td>no</td></tr>
-<tr><td>del</td><td>yes</td><td>not</td><td>yes</td><td>then</td><td>yes</td></tr>
-<tr><td>delete</td><td>no</td><td>object</td><td>yes</td><td>to</td><td>yes</td></tr>
-<tr><td>descend</td><td>no</td><td>offset</td><td>no</td><td>trait</td><td>yes</td></tr>
-<tr><td>destructor</td><td>yes</td><td>on</td><td>yes</td><td>trial</td><td>no</td></tr>
-<tr><td>discard</td><td>no</td><td>one</td><td>yes</td><td>use</td><td>yes</td></tr>
-<tr><td>do</td><td>yes</td><td>open</td><td>no</td><td>view</td><td>no</td></tr>
-<tr><td>done</td><td>yes</td><td>or</td><td>yes</td><td>wait</td><td>yes</td></tr>
-<tr><td>driver</td><td>yes</td><td>order</td><td>no</td><td>when</td><td>yes</td></tr>
-<tr><td>else</td><td>yes</td><td>other</td><td>yes</td><td>where</td><td>no</td></tr>
-<tr><td>end</td><td>yes</td><td>over</td><td>yes</td><td>while</td><td>yes</td></tr>
-<tr><td>eq</td><td>yes</td><td>package</td><td>no</td><td>with</td><td>yes</td></tr>
-<tr><td>exit</td><td>no</td><td>panic</td><td>yes</td><td>within</td><td>yes</td></tr>
-<tr><td>expect</td><td>yes</td><td>parallel</td><td>yes</td><td>write</td><td>yes</td></tr>
-<tr><td>generator</td>
-<td>declare a generator: a subprogram that gives its values one at a time with <code>yield</code>, <code>generator count_to(n: Integer) =&gt; (@x: Integer) is … return;</code> (version 2)</td>
-</tr>
-<tr>
-<td>export</td><td>yes</td><td>pass</td><td>yes</td><td>xor</td><td>no</td></tr>
-</table>
-<p>Two more words are reserved with <code>aspect</code>: <code>exclusive</code> and <code>concurrent</code>. Every aspect starts with one of them (D-090); see <a href="/projects/eve/aspects.html#aspects">Aspects</a>.</p>
-
-<p><b>Used:</b> "yes" when the word appears in an example of the tutorial, <code>demo/</code>, <code>pattern/</code> or <code>test/</code>; "no" when no example uses it yet. A word marked "no" is under review: it will be kept as reserved, defined in the specification or removed.</p>
-
-<h3 id="regions">Script Regions</h3>
 <table class="table table-bordered table-striped">
 <thead>
-<tr>
-<th>Keyword</th>
-<th>Description</th>
-</tr>
+<tr><th>Phase</th><th>Keywords listed in</th></tr>
 </thead>
 <tbody>
-<tr>
-  <td>process</td>
-  <td>define the executable region of a driver or aspect, its only process: <code>process main is … return;</code></td>
-</tr>  
-<tr>
-  <td>initialize</td>
-  <td>define initialization region for modules</td>
-</tr>  
-<tr>
-  <td>recover</td>
-  <td>error handling region after process: decides to <code>retry</code>, <code>resume</code> or <code>abort</code></td>
-</tr>  
-<tr>
-  <td>finalize</td>
-  <td>define final/tear-down region after process</td>
-</tr>  
+<tr><td>1 Core Language</td><td>this page</td></tr>
+<tr><td>2 Code Topology</td><td><a href="/projects/eve/scripts.html#phase-keywords">Scripts</a></td></tr>
+<tr><td>3 Functional Programming</td><td><a href="/projects/eve/functions.html#phase-keywords">Functions</a></td></tr>
+<tr><td>4 Object Oriented Features</td><td><a href="/projects/eve/classes.html#phase-keywords">Classes</a></td></tr>
+<tr><td>5 Enterprise &amp; System Features</td><td><a href="/projects/eve/processing.html#phase-keywords">Processing</a></td></tr>
+<tr><td>6 Internet Features</td><td>no keywords: the features are library modules</td></tr>
+<tr><td>7 Implementation &amp; Tools</td><td><a href="/projects/eve/compiler.html#phase-keywords">Compiler</a></td></tr>
 </tbody>
 </table>
 
-<h3 id="semantic">Semantic Keywords</h3>
+<h3 id="regions">Script Structure</h3>
+
+<p>The words that every driver uses.</p>
+
 <table class="table table-bordered table-striped">
 <thead>
-<tr>
-<th>Keyword</th>
-<th>Description</th>
-</tr>
+<tr><th>Keyword</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>module</td>
-<td>define a program file (module-name = file-name)</td>
-</tr>
-<tr>
-<td>function</td>
-<td>declare a function, every subprogram outside a class: with a result (<code>=&gt; (@r: T)</code>), or without a result, called as a statement</td>
-</tr>
-<tr>  
-<td>class</td>
-<td>define a composite data type for object oriented programming; closes with <code>end Name;</code></td>
-</tr>
-<tr>
-<td>trait</td>
-<td>define a stateless set of required and provided methods that classes adopt; closes with <code>end Name;</code></td>
-</tr>
-<tr>
-<td>constructor</td>
-<td>declare the constructor of a class, inside its body; its result is the new object: <code>constructor(x = 0 :Real) =&gt; (@self) is let self := Object(); … return;</code></td>
-</tr>
-<tr>
-<td>feature</td>
-<td>define a design pattern that can be&nbsp;<em>enabled</em>&nbsp;by a class</td>
-</tr>
-<tr>
-<td>augment</td>
-<td>define an augment for an existing class</td>
-</tr>
-<tr>
-<td>method</td>
-<td>declare a method of a class: in its body, or outside it as an extension method, <code>method shift(@self: Point, …)</code></td>
-</tr>
-<tr>
-<td>destructor</td>
-<td>define the cleanup of an object, inside the class body: <code>destructor(@self) is … return;</code></td>
-</tr>
-<tr>
-<td>return</td>
-<td>terminate a process, method, function, constructor or destructor</td>
-</tr>
-</tbody>
-</table>
-
-<h3 id="block">Blocks</h3>
-<table class="table table-bordered table-striped">
-<thead>
-<tr>
-<th>Keyword</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-  <td>job</td>
-  <td><code>name: job</code> … <code>do</code> … <code>done name;</code> a labeled block of a process, without error handlers; a failed job goes to <code>recover</code></td>
-</tr>
-<tr>
-  <td>do</td>
-  <td>starts the executable region of a job, a loop, an <code>if</code> branch or a <code>when</code> path</td>
-</tr>
-<tr>
-  <td>other</td>
-  <td><code>when other</code> is the default path of a match</td>
-</tr>
-<tr>
-  <td>if</td>
-  <td><code>if c do … [else if c do …] [else …] done;</code></td>
-</tr>
-<tr>
-  <td>else</td>
-  <td>starts the alternative branch</td>
-</tr>
-<tr>
-  <td>match</td>
-  <td><code>label: match s [one | all]</code> multi-path selector; closed by <code>done [label];</code></td>
-</tr>
-<tr>
-  <td>when</td>
-  <td>defines a path in a match selector: <code>when v1, v2 do</code></td>
-</tr>
-<tr>
-  <td>then</td>
-  <td>region executed after a match or a loop has completed</td>
-</tr>
-<tr>
-  <td>loop</td>
-  <td><code>[label:] loop</code> is the optional header of a <code>while</code> or <code>for</code> loop: its label and declaration region</td>
-</tr>
-<tr>
-  <td>while</td>
-  <td>conditional repetition: <code>while condition do</code></td>
-</tr>
-<tr>
-  <td>for</td>
-  <td>visitor iteration: <code>for x in collection do</code></td>
-</tr>
-<tr>
-  <td>done</td>
-  <td>closes an if (<code>done;</code>), or a labeled job, match or loop (<code>done label;</code>); an unlabeled match or loop closes with <code>done;</code></td>
-</tr>
-<tr>
-  <td>parallel</td>
-  <td><code>[name:] parallel</code> opens a group of aspects that run in parallel, on several cores, only in the process of the driver; the label is optional. Declarations come first, <code>do</code> starts the region where the aspects are launched with <code>start</code>, and <code>done [name];</code> waits for all of them (a barrier) and closes the group</td>
-</tr>
-
-</tbody>
-</table>
-
-<h3 id="operator-keywords">Operator Keywords</h3>
-<table class="table table-bordered table-striped">
-<thead>
-<tr>
-<th>Keyword</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>is</td>
-<td>check data type | reference identity</td>
-</tr>
-<tr>
-<td>in</td>
-<td>check element is belonging to a list/set</td>
-</tr>
-<tr>
-<td>not</td>
-<td>logical NOT operator</td>
-</tr>
-<tr>
-<td>and</td>
-<td>logical AND operator</td>
-</tr>
-<tr>
-<td>or</td>
-<td>logical OR operator</td>
-</tr>
-<tr>
-<td>xor</td>
-<td>logical XOR operator</td>
-</tr>
+<tr><td><code>driver</code></td><td>header of a script that runs: <code>driver name is</code> … <code>end name;</code></td></tr>
+<tr><td><code>process</code></td><td>the executable part of a driver or an aspect, its only process: <code>process main is</code> … <code>return;</code></td></tr>
+<tr><td><code>is</code></td><td>ends a declaration header (<code>procedure p is</code>); also the operators <code>x is T</code> and <code>a is b</code></td></tr>
+<tr><td><code>return</code></td><td>closes a process, function, method, constructor or destructor; it carries no value</td></tr>
+<tr><td><code>end</code></td><td>closes a driver, aspect, module, class or trait: <code>end name;</code></td></tr>
 </tbody>
 </table>
 
 <h3 id="assign-keywords">Assign Keywords</h3>
 
-<p>Every statement that binds a value starts with a keyword, so the reader sees what it does. <code>set</code> creates a constant and <code>new</code> creates a variable: <code>new a := 0;</code>. <code>let</code> executes an assignment or an expression on names that exist: <code>let a := a + 1;</code>, <code>let a += 2;</code>, <code>let lst -&gt; x;</code>. A statement can change one variable and create another one: <code>new x &lt;- lst;</code> creates <code>x</code> with the first element of <code>lst</code> and removes it from the list (no <code>let</code> needed); <code>let lst -&gt; new x;</code> removes the last element of <code>lst</code> into a new variable <code>x</code>. A class called like a function builds an object: <code>new p := Point(1, 2);</code>.</p>
+<p>Every statement that binds a value starts with a keyword, so the reader sees what it does. <code>set</code> creates a constant and <code>new</code> creates a variable: <code>new a := 0;</code>; <code>new</code> on a name that exists is an error. <code>let</code> executes an assignment or an expression: <code>let a := a + 1;</code>, <code>let a += 2;</code>, <code>let lst -&gt; x;</code>. One <code>let</code> can change several variables in one statement. It creates a missing name only in a capture, with the type inferred from the element: <code>let lst -&gt; x;</code> removes the last element of <code>lst</code> and puts it in <code>x</code>, which is created when it does not exist; in a loop, <code>x</code> is created on the first pass and assigned again on the next ones. <code>let y := 5;</code> on a missing <code>y</code> is an error. When <code>x</code> already holds a native value, the value is overwritten; when it holds a reference, the reference changes and the old object is released at the end of the scope. Writing <code>new</code> before such a name is the explicit form: <code>let lst -&gt; new x;</code>, <code>new x &lt;- lst;</code>. A class called like a function builds an object: <code>new p := Point(1, 2);</code>.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
-<tr>
-<th>Keyword</th>
-<th>Description</th>
-</tr>
+<tr><th>Keyword</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>let</td>
-<td>Execute an assignment or an expression on existing names: <code>let x := 1;</code>, <code>let x += 1;</code>, <code>let x &lt;&lt; 2;</code>, <code>let lst -&gt; new x;</code>, <code>let f(x);</code>. Works with unary and binary operators, and with method and function calls</td>
-</tr>
-<tr>
-<td>set</td>
-<td>Create global constant or class property</td>
-</tr>
-<tr>
-<td>new</td>
-<td>Create variables or object attributes: <code>new x := 0;</code>, <code>new copy :: original;</code>, <code>new self.x := x;</code>. Inside a statement, <code>new</code> before a name creates that name: <code>let lst -&gt; new x;</code>. A statement that starts with <code>new</code> may change the other names it uses: <code>new x &lt;- lst;</code> changes <code>lst</code>. Redeclaring a name in the same scope is an error</td>
-</tr>
-<tr>
-<td>pop</td>
-<td>Can create a new local variable from element of a collection</td>
-</tr>
+<tr><td><code>new</code></td><td>create variables or object attributes: <code>new x := 0;</code>, <code>new copy :: original;</code>, <code>new self.x := x;</code> (inside the class only). Inside a statement, <code>new</code> before a name creates that name: <code>let lst -&gt; new x;</code>. <code>new</code> on a name that exists is an error</td></tr>
+<tr><td><code>let</code></td><td>execute an assignment or an expression: <code>let x := 1;</code>, <code>let x += 1;</code>, <code>let lst -&gt; x;</code>, <code>let f(x);</code>. It may change several names; in a capture (<code>let lst -&gt; x;</code>, <code>let x &lt;- lst;</code>) it creates a missing name by type inference</td></tr>
+<tr><td><code>set</code></td><td>create a constant: <code>set pi = 3.14 :Real;</code>, or a class property</td></tr>
+<tr><td><code>def</code></td><td>declare an alias of a name</td></tr>
 </tbody>
 </table>
 
-<h3 id="interruption-statements">Interruption Statements</h3>
+<h3 id="block">Blocks</h3>
+
+<p>A block opens with a keyword and closes with <code>done</code> (or <code>repeat</code> for a loop tested at the end). See <a href="/projects/eve/control.html">Control</a>.</p>
+
 <table class="table table-bordered table-striped">
 <thead>
-<tr>
-<th>Keyword</th>
-<th>Description</th>
-</tr>
+<tr><th>Keyword</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr>
-  <td>panic</td>
-  <td>create an unrecoverable error and stop the application (exit code: see D-010)</td>
-</tr>
-<tr>
-  <td>break</td>
-  <td>leave the current loop and continue after its <code>done</code></td>
-</tr>
-<tr>
-  <td>skip</td>
-  <td>end the current cycle of a loop and go to its continuation point: the next element of a <code>for</code>, the condition of a <code>while</code>, the test of a <code>repeat</code>; <code>skip [label] [if condition];</code></td>
-</tr>
-<tr>
-  <td>repeat</td>
-  <td>close a loop tested at the end: <code>loop … do … repeat [label] [while condition];</code>; a bare <code>repeat;</code> loops until <code>break</code></td>
-</tr>
-<tr>
-  <td>stop</td>
-  <td>interrupt the current job without an error</td>
-</tr>
-<tr>
-  <td>raise</td>
-  <td>create an exception with an error code &gt; 0 (recoverable)</td>
-</tr>
-<tr>
-  <td>pass</td>
-  <td>do nothing: an empty statement</td>
-</tr>
-<tr>
-  <td>retry</td>
-  <td>in <code>recover</code>: run the failed job again</td>
-</tr>
-<tr>
-  <td>abort</td>
-  <td>in <code>recover</code>: end the process, run <code>finalize</code>, propagate the error</td>
-</tr>
-<tr>
-  <td>apply</td>
-  <td>run the process <code>main</code> of an aspect and wait for it to finish: <code>apply aspect_name(args);</code></td>
-</tr>
-<tr>
-  <td>start</td>
-  <td>start an aspect on a worker core, inside the <code>do</code> region of a <code>parallel</code> group of the driver: <code>start aspect_name(args, @output);</code>. Methods are not started, they run in serial mode</td>
-</tr>
-<tr>
-  <td>resume</td>
-  <td>in <code>recover</code>: continue after the failed job</td>
-</tr>
-<tr>
-  <td>yield</td>
-  <td>in a generator: give the result to the caller and wait for the next request, <code>yield;</code> or <code>yield expression;</code> (version 2)</td>
-</tr>
-<tr>
-  <td>wait</td>
-  <td>pause the process for a specified time: <code>wait 10ms;</code></td>
-</tr>
-<tr>
-  <td>defer</td>
-  <td>register a statement that runs when the enclosing subprogram ends, by any path except <code>panic</code>: <code>defer f.close();</code></td>
-</tr>
-<tr>
-  <td>call</td>
-  <td>execute a shell command in synchronous mode</td>
-</tr>
-<tr>
-  <td>halt</td>
-  <td>temporarily interrupt the process for debugging (breakpoint)</td>
-</tr>
-<tr>
-  <td>exit</td>
-  <td>interrupt a process or subprogram without raising an error</td>
-</tr>
-<tr>
-  <td>over</td>
-  <td>end the process it is in, with code 0 (no value: <code>over;</code>)</td>
-</tr>
+<tr><td><code>if</code></td><td><code>if c do … [else if c do …] [else …] done;</code>; also the statement suffix <code>break if c;</code> and the ternary <code>a if c else b</code></td></tr>
+<tr><td><code>else</code></td><td>the alternative branch of an <code>if</code>, of a ternary expression, or of a <code>while</code> loop</td></tr>
+<tr><td><code>do</code></td><td>starts the executable region of a job, a loop, an <code>if</code> branch or a <code>when</code> path</td></tr>
+<tr><td><code>done</code></td><td>closes an if, match, job, while or for: <code>done;</code> or <code>done label;</code></td></tr>
+<tr><td><code>while</code></td><td>loop tested at the start: <code>while c do … done;</code>; also the test of <code>repeat while c;</code></td></tr>
+<tr><td><code>for</code></td><td>visits a range or a collection: <code>for x in r do … done;</code></td></tr>
+<tr><td><code>loop</code></td><td><code>[label:] loop</code> is the header of a loop (its label and declarations), or a loop tested at the end: <code>loop … do … repeat;</code></td></tr>
+<tr><td><code>repeat</code></td><td>closes a loop tested at the end: <code>repeat [label] [while c];</code>; a bare <code>repeat;</code> loops until <code>break</code></td></tr>
+<tr><td><code>match</code></td><td><code>[label:] match s [one | all]</code> multi-path selector, closed by <code>done [label];</code></td></tr>
+<tr><td><code>when</code></td><td>a path of a match: <code>when v1, v2 do</code></td></tr>
+<tr><td><code>one</code></td><td>option of match: only the first matching path runs (the default)</td></tr>
+<tr><td><code>all</code></td><td>option of match: every matching path runs</td></tr>
+<tr><td><code>other</code></td><td><code>when other do</code>: the path taken when no other <code>when</code> matched</td></tr>
+<tr><td><code>then</code></td><td>region that runs after a match or a loop completed</td></tr>
+</tbody>
+</table>
+
+<h3 id="interruption-statements">Statements</h3>
+
+<p>Statements that check a condition or change the normal flow.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Keyword</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>break</code></td><td>leave a loop and continue after its closer: <code>break [label] [if c];</code></td></tr>
+<tr><td><code>skip</code></td><td>go to the continuation point of a loop: the next element of a <code>for</code>, the condition of a <code>while</code>, the test of a <code>repeat</code>; <code>skip [label] [if c];</code></td></tr>
+<tr><td><code>pass</code></td><td>the empty statement: do nothing</td></tr>
+<tr><td><code>expect</code></td><td>check a condition; a failed <code>expect</code> is an error with code 2</td></tr>
+<tr><td><code>assert</code></td><td>check a condition; a failed <code>assert</code> is an error with code 3: the process stops unless it is recovered</td></tr>
+<tr><td><code>over</code></td><td>end the process at once with code 0: <code>over;</code></td></tr>
+<tr><td><code>exit</code></td><td>end the process without an error; <code>finalize</code> runs</td></tr>
+<tr><td><code>panic</code></td><td>end the whole application at once with code 1</td></tr>
+</tbody>
+</table>
+
+<h3 id="operator-keywords">Operator Keywords</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Keyword</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>and</code></td><td>logical AND</td></tr>
+<tr><td><code>or</code></td><td>logical OR</td></tr>
+<tr><td><code>xor</code></td><td>logical exclusive OR</td></tr>
+<tr><td><code>not</code></td><td>logical NOT; also <code>is not</code>, <code>not in</code>, <code>not eq</code></td></tr>
+<tr><td><code>is</code></td><td>checks a type, <code>x is Integer</code>, or the identity of two references, <code>a is b</code></td></tr>
+<tr><td><code>in</code></td><td>membership, <code>x in collection</code>; also the source of <code>for</code> and of a builder</td></tr>
+<tr><td><code>eq</code></td><td>equivalence: the same value and the same type</td></tr>
+<tr><td><code>as</code></td><td>formats a value: <code>d as T24</code></td></tr>
 </tbody>
 </table>
 
@@ -904,7 +670,7 @@ return;
 
 <h3 id="zero-values">Zero Values</h3>
 
-<p>A variable declared without a value gets the <em>zero value</em> of its type: <code>0</code> for Integer, <code>0.0</code> for Real, <code>""</code> for String. Composite types start empty: <code>()</code>, <code>[]</code> or <code>{}</code>, the empty set ∅.</p>
+<p>A variable declared without a value gets the <em>zero value</em> of its type: <code>0</code> for Integer, <code>0.0</code> for Real, <code>""</code> for String. Composite types start empty: <code>()</code>, <code>[]</code> or <code>{}</code>, the empty set ∅. <code>new a, b :Integer;</code> gives both names the value <code>0</code>. The zero value of every type is in the table of <a href="/projects/eve/types.html#zero-values">Data Types</a>.</p>
 
 <h3 id="cascade">Several Variables</h3>
 
@@ -932,7 +698,7 @@ return;
 
 <h3 id="print">Printing Expressions</h3>
 
-<p><code>print</code> and <code>write</code> are methods. Their arguments are a list of expressions, mapped to parameters by position or by name. A method has one parameter list only. Optional parameters that follow the vararg parameter must be named in the call: <code>print</code> is declared <code>method print(*args, separator = ",")</code> and called <code>print (1, 2, 3, separator: " ");</code>. <code>print</code> separates values with its <code>separator</code> parameter (default <code>","</code>) and ends with a new line; <code>write</code> adds no separator and no new line.</p>
+<p><code>print</code> and <code>write</code> are procedures of the system library. Their arguments are a list of expressions, mapped to parameters by position or by name. A procedure has one parameter list only. Optional parameters that follow the vararg parameter must be named in the call: <code>print</code> is declared <code>procedure print(*args, sep := ",", eol := True)</code> and called <code>print (1, 2, 3, sep: " ");</code>. <code>print</code> separates its arguments with <code>sep</code> (default <code>","</code>) and ends with a new line; <code>write</code> adds no separator and no new line. <code>sep</code> works only between several arguments, not inside a list: a list variable is printed as a list.</p>
 
 <pre class="line-numbers"><code class="language-eve">## simple expressions
 process main is
@@ -946,7 +712,11 @@ process main is
 
   ** a list of expressions
   print (1, 2, 3);                            ** 1,2,3
-  print (1, 2, 3, separator: " ");            ** 1 2 3
+  print (1, 2, 3, sep: " ");                  ** 1 2 3
+
+  ** a list is one argument: sep does not apply
+  new lst := (1, 2, 3);
+  print lst;                                  ** (1,2,3)
 
   ** write does not add a new line
   write (1, 2);

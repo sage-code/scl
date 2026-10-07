@@ -62,7 +62,7 @@ driver callback_demo is
   return;
 
   ** the receiver calls "action" for every element
-  function each(items: ()Integer, action: Function) is
+  procedure each(items: ()Integer, action: Function) is
     for x in items do
       print action(x);
     done;
@@ -77,17 +77,17 @@ end callback_demo;
 
 <h2 id="callback-type">The type of a callback</h2>
 
-<p>A function signature can be declared as a data type using keyword "Type". Later, this type can be used to enforce a specific signature for a <em>call-back</em> argument, variable or collection element.</p>
+<p>A function signature can be declared as a class derived from <code>Function</code>, with the operator <code>&lt;:</code>. The signature fixes the parameter list and the result, and leaves the body to be written later. The class is then used as the type of a <em>call-back</em> parameter, variable or collection element. The compiler checks every function passed to such a parameter: a function whose signature does not match is rejected at compile time.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # define a lambda signature
 driver lam_sig is
 
   ** Define callback signature
-  Type BinEx = (p1, p2 :Integer):Integer &lt;&#58; Function;
+  class BinEx = (p1, p2 :Integer):Integer &lt;&#58; Function;
 
   ** Use lambda signature as parameter type
-  function useLambda(test :BinEx) is
+  procedure useLambda(test :BinEx) is
     print test(1, 2); ** execute callback
   return;
 
@@ -101,28 +101,116 @@ end lam_sig;
 
 <p><b>Note: </b>Lambda expressions can be created by a function or method as a result. Lambda expressions can't modify values of variable declared in the parent scope.</p>
 
+<p><b>Note: </b>A named function is passed by its name, without parentheses: <code>each(items, double)</code>. With parentheses, <code>double(2)</code>, it is a call and its result is passed. The type <code>Function</code> alone accepts any function; a class such as <code>BinEx</code> accepts only the functions with its signature.</p>
+
+<p><b>Note: </b>A callback is always a <b>function</b>. Eve holds no references to procedures and no references to methods: a procedure or a method can't be passed as an argument, stored in a variable or returned, and there are no procedure types and no method types. A procedure may <em>receive</em> a callback, like <code>each</code> above, but it is never one. To use a method of an object in a callback, pass a lambda that calls it: <code>shapes.map((s) =&gt; (s.area()))</code>.</p>
 
 <h2 id="callback-context">A callback with a state</h2>
 
-<p>A callback that must remember something is a closure: the function that creates it holds the state (see <a href="/projects/eve/closures.html">Closures</a>). A progress counter is the usual example.</p>
+<p>A callback that must remember something is a closure: the function that creates it holds the state (see <a href="/projects/eve/closures.html">Closures</a>). A closure is always a function, and the function that creates it always ends with <code>!</code>. A progress counter is the usual example: the closure counts the steps and says when it is time to report; the receiver, a procedure, does the printing.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-Type Reporter = (done: Integer) is Function;
+** the signature of the progress test
+class Due = (): Logic &lt;&#58; Function;
 
-** creates a reporter that prints every n-th step
-function every(n: Integer) =&gt; (@report!: Reporter) is
+** creates a closure that answers True every n-th call
+function every!(n: Integer) =&gt; (@due!: Due) is
   new seen := 0;
-  new report! := Function(done: Integer) is
+  function due!() =&gt; (@yes: Logic) is
     let seen += 1;
-    if seen mod n == 0 do print "done: \#{done}"; done;
+    let yes := seen % n == 0;
   return;
 return;
+
+** the receiver asks the callback, and prints by itself
+procedure load(rows: ()String, due!: Due) is
+  loop
+    new i := 0;
+  for r in rows do
+    let i += 1;
+    print "done: {i}" if due!();
+  done;
+return;
 </code></pre>
+
+<p>A call is <code>load(rows, every!(100))</code>: it prints a line after every hundred rows.</p>
+
+<h2 id="collection-callbacks">Collections and callbacks</h2>
+
+
+<p>The collections (List, Array, DataSet, DataMap) have methods that take a callback. They do the loop, the callback, a function, says what to do with one element. Every method returns a new collection or a value and does not change the collection it is called on. There is no <code>each</code> method: work done for every element is a procedure, and a procedure is not a callback, so it is called in a <code>for</code> loop.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Method</th><th>Callback signature</th><th>Result</th></tr>
+</thead>
+<tbody>
+
+<tr><td><code>c.map(f)</code></td><td><code>(x: T): U</code></td><td>a new collection of the same kind with <code>f(x)</code> for every element</td></tr>
+<tr><td><code>c.filter(test)</code></td><td><code>(x: T): Logic</code></td><td>a new collection with the elements for which <code>test</code> is True</td></tr>
+<tr><td><code>c.reduce(f, start)</code></td><td><code>(acc: U, x: T): U</code></td><td>one value: <code>f</code> is applied to <code>start</code> and the first element, then to that result and the next element, and so on</td></tr>
+<tr><td><code>c.sort(by)</code></td><td><code>(a, b: T): Logic</code>, True when <code>a</code> goes before <code>b</code></td><td>a new List in the order given by <code>by</code></td></tr>
+</tbody>
+</table>
+
+<p>For a DataMap the element is a pair <code>(key: value)</code>; <code>map</code> and <code>filter</code> keep the keys.</p>
+
+<h4>Example: orders</h4>
+
+<pre class="line-numbers"><code class="language-eve">
+# callbacks on a list of orders
+driver order_report is
+
+  class Order = {id: Integer, total: Decimal, paid: Logic} &lt;&#58; Object;
+
+  ** a test: one order in, True or False out
+  function is_paid(o: Order) =&gt; (@r: Logic) is
+    let r := o.paid;
+  return;
+
+  ** a procedure: it prints one order (not a callback: it is called in a loop)
+  procedure show(o: Order) is
+    print "order {o.id}: {o.total}";
+  return;
+
+  process main is
+    new orders := (Order(id: 1, total: 12.50d, paid: True),
+                   Order(id: 2, total: 99.00d, paid: False),
+                   Order(id: 3, total: 5.25d,  paid: True));
+
+    ** filter: keep the paid orders (a named function)
+    new paid := orders.filter(is_paid);
+
+    ** map: the totals only (a lambda)
+    new totals := paid.map((o) =&gt; (o.total));
+
+    ** reduce: the sum, starting from zero
+    new sum := totals.reduce((acc, t) =&gt; (acc + t), 0.00d);
+    expect sum == 17.75d;
+
+    ** sort: the biggest order first
+    new ranked := orders.sort((a, b) =&gt; (a.total &gt; b.total));
+
+    ** print every order: a for loop calls the procedure
+    for o in ranked do
+      show(o);
+    done;
+  return;
+end order_report;
+</code></pre>
+
+<pre class="output">
+order 2: 99.00
+order 1: 12.50
+order 3: 5.25
+</pre>
 
 <h2 id="callback-rules">Rules</h2>
 
 <ul>
 <li>A callback runs on the core of the receiver, in serial mode, at the point where it is called;</li>
+<li>A callback is a function: a named function, a lambda or a closure. A procedure or a method is never a callback;</li>
+<li>A parameter typed with a function class (<code>BinEx</code>, <code>Due</code>) accepts only functions with that signature; the check is done at compile time;</li>
 <li>A callback that changes state is stochastic and ends with <code>!</code>; the receiver declares the parameter with the same mark;</li>
 <li>An error raised in a callback goes to the receiver and from there to the caller, like any error in a function;</li>
 <li>A callback can't be passed to <code>start</code>: parallel work is done by aspects, not by callbacks (see <a href="/projects/eve/multitasking.html">Multitasking</a>);</li>
@@ -136,19 +224,19 @@ return;
 <tr><th>Pattern</th><th>The callback is</th><th>Example</th></tr>
 </thead>
 <tbody>
-<tr><td>apply to each</td><td>an action for one element</td><td><code>each(items, double)</code></td></tr>
-<tr><td>choose</td><td>a test that answers True or False (filter)</td><td><code>keep(items, (x) =&gt; (x &gt; 0))</code></td></tr>
-<tr><td>transform</td><td>a function from one value to another (map)</td><td><code>convert(items, double)</code></td></tr>
-<tr><td>order</td><td>a comparison of two elements (sort)</td><td><code>sort(people, (a, b) =&gt; (a.age &lt; b.age))</code></td></tr>
-<tr><td>report</td><td>a notification: progress, a finished step</td><td><code>load(file, every(100))</code></td></tr>
+<tr><td>apply to each</td><td>not a callback: a <code>for</code> loop calls a procedure</td><td><code>for x in items do show(x); done;</code></td></tr>
+<tr><td>choose</td><td>a test that answers True or False (filter)</td><td><code>items.filter((x) =&gt; (x &gt; 0))</code></td></tr>
+<tr><td>transform</td><td>a function from one value to another (map)</td><td><code>items.map(double)</code></td></tr>
+<tr><td>combine</td><td>a function of the result so far and one element (reduce)</td><td><code>items.reduce((s, x) =&gt; (s + x), 0)</code></td></tr>
+<tr><td>order</td><td>a comparison of two elements (sort)</td><td><code>people.sort((a, b) =&gt; (a.age &lt; b.age))</code></td></tr>
+<tr><td>report</td><td>a closure that tells when to report progress</td><td><code>load(rows, every!(100))</code></td></tr>
 <tr><td>decide on error</td><td>a handler that returns what to do</td><td>rare: Eve prefers <code>recover</code></td></tr>
 </tbody>
 </table>
 
-<div class="alert alert-info"><b>TODO:</b> the callback examples are a proposal: check the call with a function name (<code>each(items, double)</code>), the type <code>Function</code> and the declaration <code>Type Reporter = (…) is Function;</code> against the old form <code>Type BinEx = (…):Integer &lt;: Function;</code> shown above, and choose one (Q-026).</div>
-<div class="alert alert-info"><b>TODO:</b> write the complete examples for choose, transform and order with the real collection methods, when Q-026 is answered.</div>
+
 <div class="alert alert-info"><b>TODO:</b> explain why Eve prefers <code>recover</code>, <code>defer</code> and jobs to error callbacks, with a comparison to the style of other languages.</div>
-<div class="alert alert-info"><b>TODO:</b> a callback that is a method of an object (<code>obj.method</code> as a value): is it allowed, and does it keep <code>@self</code>?</div>
+
 
 <hr>
 <p><b>Read next:</b>

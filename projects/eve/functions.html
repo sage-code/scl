@@ -45,11 +45,31 @@
 <h1 id="functions">Eve Functions</h1>
 
 <div class="alert alert-secondary shadow-sm">
-A function is a relation between input and output values. A function makes a computation to establish the output. Eve functions are objects of type Function. Eve enable functional programming paradigm (FP). Functions are the main subprograms of Eve: every subprogram that does not belong to a class is a function, also one that only does work and returns nothing, like <code>print</code>. Methods belong to classes (see <a href="/projects/eve/methods.html">Methods</a>).</div>
+A function is a relation between input and output values. A function makes a computation to establish the output. Eve functions are objects of type Function. Eve enable functional programming paradigm (FP). Functions are the main subprograms of Eve. A subprogram that does not belong to a class is a <b>function</b> when it returns a result, and a <b>procedure</b> when it only does work and returns nothing, like <code>print</code>. The two words come from Ada. Methods belong to classes (see <a href="/projects/eve/methods.html">Methods</a>).</div>
+
+<h2 id="phase-keywords">Keywords of this phase</h2>
+
+<p>The keywords that phase 3, Functional Programming, adds to the core language (the core keywords are in <a href="/projects/eve/syntax.html#keywords">Syntax</a>). Each one is explained on the page in the last column.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Keyword</th><th>Meaning</th><th>Explained in</th></tr>
+</thead>
+<tbody>
+<tr><td><code>function</code></td><td>declares a function: a subprogram outside a class that returns a result</td><td><a href="/projects/eve/functions.html">Functions</a></td></tr>
+<tr><td><code>procedure</code></td><td>declares a procedure: a subprogram outside a class that does work and returns no result; it is called as a statement</td><td><a href="/projects/eve/functions.html#procedures">Functions</a></td></tr>
+<tr><td><code>generator</code></td><td>declares a function that gives its values one at a time with <code>yield</code></td><td><a href="/projects/eve/generators.html">Generators</a></td></tr>
+<tr><td><code>yield</code></td><td>in a generator: gives a value to the caller and waits for the next request</td><td><a href="/projects/eve/generators.html">Generators</a></td></tr>
+<tr><td><code>defer</code></td><td>registers a statement that runs when the enclosing subprogram ends: <code>defer f.close();</code></td><td><a href="/projects/eve/processing.html">Processing</a></td></tr>
+<tr><td><code>async</code></td><td>marks a function or a procedure that runs as a task: <code>async procedure load(…) is</code></td><td><a href="/projects/eve/async.html">Async</a></td></tr>
+<tr><td><code>spawn</code></td><td>in a job: starts an asynchronous subprogram as a task and goes on at once</td><td><a href="/projects/eve/async.html">Async</a></td></tr>
+<tr><td><code>await</code></td><td>starts an asynchronous subprogram and waits for it at once, in serial mode</td><td><a href="/projects/eve/async.html">Async</a></td></tr>
+</tbody>
+</table>
 
 <h2 id="declaration">Function declaration</h2>
 
-<p>Functions are declared with keyword: "function". A module exports the functions other scripts may use (<code>export (…)</code>, see <a href="/projects/eve/modules.html#members">Modules</a>); a driver or an aspect uses its functions itself.</p>
+<p>Functions are declared with keyword: "function", procedures with keyword: "procedure". A function always has a result; a procedure never has one. A module exports the functions and procedures other scripts may use (<code>export (…)</code>, see <a href="/projects/eve/modules.html#members">Modules</a>); a driver or an aspect uses its own.</p>
 
 <h4>Pattern:</h4>
 
@@ -59,13 +79,13 @@ function name(parameters) =&gt; (@result:TypeName) is
   ...
 return;
 
-#function without result: it does work
-function name(parameters) is
+#procedure: no result, it does work
+procedure name(parameters) is
   ...
 return;
 </code></pre>
 
-<h4>Three kinds of functions</h4>
+<h4>Two kinds of functions, and procedures</h4>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -74,23 +94,23 @@ return;
 <tbody>
 <tr><td>Plain function: a result, no side effects, deterministic</td><td><code>function area(r: Real) =&gt; (@a: Real) is</code></td><td>in an expression: <code>area(2)</code></td><td>the compiler decides (see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>)</td></tr>
 <tr><td>Stochastic function: a result that can differ for the same arguments (random, time, a changing module variable, a counting closure); it changes nothing</td><td><code>function next!() =&gt; (@n: Integer) is</code></td><td>in an expression: <code>next!()</code></td><td>the compiler decides (see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>)</td></tr>
-<tr><td>Function without result: it does work</td><td><code>function log(message: String) is</code></td><td>as a statement: <code>log("start");</code></td><td>not safe when it changes shared state</td></tr>
+<tr><td>Procedure: no result, it does work</td><td><code>procedure log(message: String) is</code></td><td>as a statement: <code>log("start");</code></td><td>not safe when it changes shared state</td></tr>
 </tbody>
 </table>
 
 <h4>Notes:</h4>
 
 <ul>
-<li>A function may have a result or none. A function with a result is used in expressions; a function without a result is a statement and needs no <code>!</code>, even when it has side effects (see <a href="#no-result">Functions without result</a>),</li>
+<li>A function always has a result and is used in expressions. A subprogram without a result is a procedure: it is a statement and needs no <code>!</code>, even when it has side effects (see <a href="#procedures">Procedures</a>). <code>function</code> without a result list, or <code>procedure</code> with one, is a compile error,</li>
 <li>Result type is declared using prefix @. The prefix forces a reference: <code>new v := f(x);</code> is valid because <code>v</code> is a variable, <code>2 := f(x);</code> is not,</li>
 <li>A function can return a list of results <code>=&gt; (@r1:Type, @r2:Type)</code>. In this case <code>$result</code> is a list <code>(result1, result2)</code>,</li>
-<li>A function without result can have input/output parameters (<code>@</code>) and change them; a function with a result changes nothing, also not its parameters,</li>
+<li>A procedure can have input/output parameters (<code>@</code>) and change them; a function changes nothing, also not its parameters,</li>
 <li>A function can receive parameters of type function,</li>
 <li>A function can create a function enclosed in it, called closure,</li>
 <li>A function has a name: the keyword <code>function</code> must be followed by an identifier. A lambda expression is a notation that creates a function in a single statement,</li>
 <li>A function can raise errors but it can't handle errors. Only a process can handle errors, so use preconditions to avoid runtime errors,</li>
 <li>A function has no state between two calls; a closure keeps the state of the function that created it,</li>
-<li>A function that returns a result changes nothing, and a function that changes something returns nothing (command–query separation). A plain function is also deterministic: the same arguments always give the same result. A function whose result can differ for the same arguments is <b>stochastic</b>; its name ends with <code>!</code>: <code>name!()</code>. <code>!</code> means only that: it says nothing about thread safety. The compiler decides for every function whether it is thread safe, deterministic or not (see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>).</li>
+<li>A function returns a result and changes nothing; a procedure changes something and returns nothing (command–query separation). A plain function is also deterministic: the same arguments always give the same result. A function whose result can differ for the same arguments is <b>stochastic</b>; its name ends with <code>!</code>: <code>name!()</code>. <code>!</code> means only that: it says nothing about thread safety. The compiler decides for every function whether it is thread safe, deterministic or not (see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>).</li>
 </ul>
 
 <p><b>Execute function</b>&nbsp;Function is executed in expressions using the name of the function followed by the list of arguments in round brackets (). Brackets are mandatory even if there are no arguments.</p>
@@ -163,7 +183,7 @@ end function_params;
 
 <ul>
 <li><b>In an expression</b>, when the function has a result: <code>new a := area(2);</code>, <code>print area(2) + 1;</code>, or as an argument of another call: <code>print area(sum(1, 2));</code>;</li>
-<li><b>As a statement</b>, when the function has no result: <code>log("start");</code>. A function with a result called as a statement is not an error, but its value is lost, and the compiler warns.</li>
+<li><b>As a statement</b>, when it is a procedure: <code>log("start");</code>. A function called as a statement is not an error, but its value is lost, and the compiler warns.</li>
 </ul>
 
 <h3 id="call-arguments">Positional and named arguments</h3>
@@ -198,7 +218,6 @@ return;
 
 <h2 id="anonymous">Anonymous and self-calling functions</h2>
 
-<div class="alert alert-warning"><b>Proposed:</b> the forms on this page are a proposal, waiting for the author's review (Q-025).</div>
 
 <p>A function with no name is a lambda expression (<a href="/projects/eve/lambdas.html">Expressions</a>). An <b>anonymous self-calling function</b> is a lambda that is created and called in the same place: the value of the whole expression is the result of the call. It is useful to compute a value that needs a few steps, without leaving a name behind.</p>
 
@@ -216,14 +235,20 @@ new (lo, hi) := ((a, b: Integer) =&gt; (min(a, b), max(a, b)))(7, 3);   ** 3, 7
 <li>For more than one expression of work, write a named function: it can be tested and reused.</li>
 </ul>
 
-<p>A lambda that calls <b>itself</b> needs a name for the call. A lambda has none, so a recursive function is written as a named function (<code>factorial</code> above).</p>
+<p>An anonymous function can't call <b>itself</b>: it has no name for the call, and Eve gives it none. A recursive function is written as a named function (<code>factorial</code> above).</p>
 
-<div class="alert alert-info"><b>TODO:</b> author decision (Q-025): is the form <code>(lambda)(arguments)</code> accepted for an anonymous self-calling function? Is a lambda allowed to call itself, and with which word?</div>
+<p>Because <code>(…)(…)</code> is the call of an anonymous function, a function never has two parameter lists. A function with optional parameters takes them by name at the call: <code>greet("Eve", greeting: "Hi")</code> (see <a href="#call-arguments">Positional and named arguments</a>).</p>
 <div class="alert alert-info"><b>TODO:</b> add an example of a self-calling function used as an initializer of a constant: <code>set LIMIT = (() =&gt; (compute()))();</code>.</div>
 <div class="alert alert-info"><b>TODO:</b> move the section "Subprograms compared" at the end of this page into a table that includes closures, lambdas, generators and callbacks, with a link to each page.</div>
-<h2 id="no-result">Functions without result</h2>
+<h2 id="procedures">Procedures</h2>
 
-<p>A function without a result does work: it prints, writes a file, changes its <code>@</code> parameters or the state of a module. It is called as a statement, by its name, and the parentheses can be left out when it has no arguments. It has no <code>!</code>: a function without a result is expected to have side effects, otherwise it would be useless. <code>print</code>, <code>write</code> and <code>read</code> of the system library are such functions.</p>
+<p>A procedure is a subprogram without a result, declared with the keyword <code>procedure</code>, as in Ada. It does work: it prints, writes a file, changes its <code>@</code> parameters or the state of a module. It is called as a statement, by its name, and the parentheses can be left out when it has no arguments. It has no <code>!</code>: a procedure is expected to have side effects, otherwise it would be useless. <code>print</code>, <code>write</code> and <code>read</code> of the system library are procedures.</p>
+
+<ul>
+<li>A procedure is never deterministic: it is made for side effects, so it never ends with <code>!</code>; <code>procedure p!()</code> is a compile error;</li>
+<li>Eve holds no references to procedures: a procedure is not a value, it can't be passed as a callback, stored or returned, and there are no procedure types;</li>
+<li>A procedure can create closures and give them out through <code>@</code> output parameters; the closures are functions (see <a href="/projects/eve/closures.html#closure-procedure">Closures</a>).</li>
+</ul>
 
 <p>These are side effects:</p>
 
@@ -234,24 +259,24 @@ new (lo, hi) := ((a, b: Integer) =&gt; (min(a, b), max(a, b)))(7, 3);   ** 3, 7
   <li>upload something on internet or network.</li>
 </ul>
 
-<p>It is safer to use input/output parameters than side effects. A function that changes state shared between threads must protect it with an atomic variable or a mutex; the compiler checks it, and rejects an aspect that calls a function that is not thread safe (see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>).</p>
+<p>It is safer to use input/output parameters than side effects. A procedure that changes state shared between threads must protect it with an atomic variable or a mutex; the compiler checks it, and rejects an aspect that calls a function that is not thread safe (see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>).</p>
 
 <h4>Example</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-# functions without result
+# procedures
 driver process_demo is
   new total = 0 :Integer;
 
   ** foo has no parameters
-  function foo is
+  procedure foo is
     print "I have no arguments";
   return;
 
   ** add has a side effect: it changes the global total
-  function add(value: Integer) is
+  procedure add(value: Integer) is
     let total += value;
-    print "total is now \#{total}";
+    print "total is now {total}";
   return;
 
   process main is
@@ -278,7 +303,7 @@ end process_demo;
 <li>@parameter :Type</li>
 </ul>
 
-<p>A parameter without "@" receives its argument by value, also a collection: the function works on its own copy and the caller's variable does not change. A parameter with "@" is an input/output parameter: it receives a reference to the caller's variable, so the function reads its value and can change it. An "@" parameter can't have a default value, so it is never optional.</p>
+<p>A parameter without "@" receives its argument by value, also a collection: the function works on its own copy and the caller's variable does not change. A parameter with "@" is an input/output parameter: it receives a reference to the caller's variable, so the subprogram reads its value, and a procedure can change it. An "@" parameter can't have a default value, so it is never optional.</p>
 
 <h4>Vararg parameters</h4>
 <p>One function can receive multiple arguments of the same type into a single collection parameter. This can be a List, DataSet or DataMap, depending on declaration.</p>
@@ -314,8 +339,8 @@ eve -x test.eve 1 2 3
 #demo output parameters
 driver output_params is
 
-  ** a function without result gives its output through @op
-  function add(p1 = 0, p2 = 1: Integer, @op: Integer) is
+  ** a procedure gives its output through @op
+  procedure add(p1 = 0, p2 = 1: Integer, @op: Integer) is
     let op := p1 + p2;
   return;
 
@@ -342,7 +367,7 @@ end output_params;
 
 <h2 id="compared">Subprograms compared</h2>
 
-<p>Eve has three subprogram keywords: <code>function</code> for every subprogram outside a class, <code>method</code> for the subprograms of a class, and <code>generator</code>. The lambda is a notation that creates a function.</p>
+<p>Eve has four subprogram keywords: <code>function</code> and <code>procedure</code> for the subprograms outside a class (with a result, without a result), <code>method</code> for the subprograms of a class, and <code>generator</code>. The lambda is a notation that creates a function.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -359,7 +384,7 @@ end output_params;
 <tbody>
 <tr><td>plain function</td><td><code>function</code></td><td>yes</td><td>yes</td><td>no</td><td>no, the process does</td><td><code>f(x)</code>, in an expression</td></tr>
 <tr><td>stochastic function</td><td><code>function name!</code></td><td>yes, ends with <code>!</code></td><td>yes</td><td>no</td><td>no, the process does</td><td><code>f!(x)</code>, in an expression</td></tr>
-<tr><td>function without result</td><td><code>function</code></td><td>yes</td><td>none</td><td>yes</td><td>no, the process does</td><td><code>f(x);</code>, as a statement</td></tr>
+<tr><td>procedure</td><td><code>procedure</code></td><td>yes</td><td>none</td><td>yes</td><td>no, the process does</td><td><code>f(x);</code>, as a statement</td></tr>
 <tr><td>object method</td><td><code>method</code>, in a class</td><td>yes</td><td>optional</td><td>on its object</td><td>no, the process does</td><td><code>o.m(x)</code></td></tr>
 <tr><td>extension method</td><td><code>method name(@self: Class, …)</code>, in a module or an aspect</td><td>yes</td><td>optional</td><td>on its object</td><td>no, the process does</td><td><code>o.m(x)</code></td></tr>
 <tr><td>unsafe method (changes shared state, never run in parallel)</td><td><code>method name!</code></td><td>yes, ends with <code>!</code></td><td>optional</td><td>yes</td><td>no, the process does</td><td><code>o.m!(x)</code></td></tr>
@@ -377,7 +402,7 @@ end output_params;
 <li><a href="/projects/eve/closures.html">Closures</a>: functions created by functions, with a state;</li>
 <li><a href="/projects/eve/lambdas.html">Lambda Expressions</a>: functions written as expressions;</li>
 <li><a href="/projects/eve/callbacks.html">Callbacks</a>: functions passed to other code;</li>
-<li><a href="/projects/eve/async.html">Asynchronous Functions</a>: waiting, start and groups.</li>
+<li><a href="/projects/eve/async.html">Asynchronous Functions</a>: <code>async</code>, <code>spawn</code> and <code>await</code>, tasks of a job, parallel groups.</li>
 </ul>
 
 <div class="alert alert-info"><b>TODO:</b> the page is long: consider moving "Parameters" into its own page after the review of <code>issues/functions.md</code>.</div>

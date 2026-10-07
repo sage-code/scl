@@ -46,7 +46,8 @@ Collections are composite types represents groups of elements of the same type. 
 
 <h2 id="ordinal">Ordinal</h2>
 
-<p>Ordinal is an generic class representing a set of unique ordered symbols. Each symbol represents an integer value starting from N to capacity C. Element values start with 0 or a specific number and grow with one for each element. For example in <code>{False, True}</code> we have False = 0 and True = 1.</p>
+<p>Ordinal is an generic class representing a set of unique ordered symbols. Each symbol represents an integer value starting from N to capacity C. Element values start with 1, or with a specific number, and grow with one for each element: <code>class Color = {Red, Green} &lt;: Ordinal;</code> is short for <code>class Color = {Red:1, Green:2} &lt;: Ordinal;</code>. The type Logic starts with 0: <code>{False:0, True}</code> gives False = 0 and True = 1.</p>
+<p>A brace literal with plain names is normally a DataSet. In a class declaration, <code>{Red, Green}</code> is the exception: it declares the elements of an ordinal. Every class names its superclass after <code>&lt;:</code>.</p>
 
 <h4>Pattern:</h4>
 <pre class="line-numbers"><code class="language-eve"># Define a Ordinal subtype
@@ -62,7 +63,7 @@ driver test_ordinal is
 end test_ordinal;
 </code></pre>
 
-<p><b>Note:</b>&nbsp;When an element name start with capital letter there is no need to use qualifiers for the individual values. This is a language rule: capitalized names become part of the scope where the ordinal is visible.</p>
+<p><b>Note:</b>&nbsp;When an element name start with capital letter there is no need to use qualifiers for the individual values. This is a language rule: capitalized names become part of the scope where the ordinal is visible. When a module exports the ordinal, the script that imports it with <code>Color(*)</code> gets <code>Red</code> and <code>Green</code> as constants of its own scope: it writes <code>Red</code>, not <code>Color.Red</code>, and the names are reserved there. The superclass <code>&lt;: Ordinal</code> is always written.</p>
 
 <pre class="line-numbers"><code class="language-eve">## Declare public elements in enumeration
 driver constant_ordinals is
@@ -224,6 +225,8 @@ end list_deconstruct;
 
 <p>List is using operator +&gt; or &lt;+ to grow. This operator represent insert or append. You can insert an element or many elements into a list at the beginning or you can add element or list of elements at the end but you can not insert elements in the middle of the list.</p>
 
+<p>In a statement, <code>let a &lt;+ b;</code> appends <code>b</code> to the list <code>a</code>, and <code>let x +&gt; a;</code> puts <code>x</code> in front of it. With <code>new</code>, <code>new a &lt;+ b;</code> creates a new list <code>a</code> that holds <code>b</code>; it is an error when <code>a</code> already exists.</p>
+
 <pre class="line-numbers"><code class="language-eve">
 #list demo concatenation
 driver list_concat is
@@ -245,7 +248,7 @@ end list_concat;
 
 <h3 id="alter-a-list">Alter a list</h3>
 
-<p>You can use operators { += } on a list variable, to append at end of list, or use { -= } to remove elements from of list in any position. All elements having specified value will be remove. To remove one single element you must use operator &lt;-, or -&gt;</p>
+<p>You can use operators { += } on a list variable, to append at end of list, or use { -= } to remove elements from of list in any position. All elements having specified value will be remove. To remove the first or the last element use the operator &lt;- or -&gt;. To remove one element by its value use the method <code>delete()</code>.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 #altering a list
@@ -267,26 +270,26 @@ driver list_alter is
     let lst &lt;+ 'x';
     expect lst ==  ('a','c','z','x');
 
-    ** remove last appearance of "x" from list
-    let lst -&gt; 'x';
+    ** remove the last element and drop it
+    let lst -&gt; _;
     expect lst ==  ('a','c','z');
 
     ** append some elements for further testing
     let lst += ('a','z','x');
     expect lst ==  ('a','c','z','a','z','x');
 
-    ** remove first appearance of "z" from list
-    let 'z' &lt;- lst;
-    expect lst ==  ('a','c','a','z','x');
+    ** delete every element equal to 'z'
+    lst.delete('z');
+    expect lst ==  ('a','c','a','x');
 
     ** remove all elements equal to the first element
     let lst -= lst[1];
-    expect lst ==  ('c','z','x');
+    expect lst ==  ('c','x');
   return;
 end list_alter;
 </code></pre>
 
-<p><b>Note:</b>&nbsp;The operator <code>-=</code> removes by value, so <code>lst -= lst[1]</code> removes every element equal to the first one. To remove the first element use <code>&lt;-</code> and to remove the last element use <code>-&gt;</code>: the arrow points to the side the element leaves from. The removed element can be captured in a new variable: <code>new e &lt;- lst;</code> takes the first element, <code>let lst -&gt; new e;</code> takes the last one. With a name that exists, the arrow removes by value: <code>let x &lt;- lst;</code> removes the first element equal to <code>x</code>, <code>let lst -&gt; x;</code> the last one. To drop the element, write <code>_</code>, which swallows the result: <code>let _ &lt;- lst;</code> removes the first element, <code>let lst -&gt; _;</code> the last one. The statement keyword belongs to the first name: <code>new</code> when it is created, <code>let</code> when it changes; an inline <code>new</code> marks a name created on the right side, while the list is changed.</p>
+<p><b>Note:</b>&nbsp;The operator <code>-=</code> removes by value, so <code>lst -= lst[1]</code> removes every element equal to the first one. To remove the first element use <code>&lt;-</code> and to remove the last element use <code>-&gt;</code>: the arrow points to the side the element leaves from, and the element goes into the name on the other side. <code>let x &lt;- lst;</code> removes the first element and puts it in <code>x</code>; <code>let lst -&gt; y;</code> removes the last element and puts it in <code>y</code>. When <code>x</code> or <code>y</code> does not exist yet, <code>let</code> creates it, with the type of the elements; in a loop it is created on the first pass and assigned again on the next ones. The explicit forms <code>new x &lt;- lst;</code> and <code>let lst -&gt; new y;</code> are also valid. To drop the element, write <code>_</code>, which swallows the result: <code>let _ &lt;- lst;</code> removes the first element, <code>let lst -&gt; _;</code> the last one. An arrow never removes by value: <code>lst.delete(v)</code> removes every element equal to <code>v</code>, like <code>-=</code> (on a DataMap, <code>delete(k)</code> removes the key <code>k</code>).</p>
 
 <div class="alert alert-info">The list is prepared to support queue and stack. It has all the operations required. We can implement a class wrapper with the suggestive method names.</div>
 
@@ -347,7 +350,7 @@ driver list_remove is
     expect stack ==  ('a','b','c','x');
 
     ** extract element from the end
-    let stack -&gt; new e;
+    let stack -&gt; e;
     expect stack ==  ('a','b','c');
     expect e == 'x';
   return;
@@ -625,7 +628,7 @@ end array_deconstruct;
 
 <h3 id="array-slicing">Array slicing</h3>
 
-<p>An array can be sliced using slice notation [n..m] (the form [n:m] does not exist). A negative index counts from the end: <code>[-1]</code> is the last element and <code>a[-x]</code> is <code>a[N + 1 - x]</code>, where <code>N</code> is the number of elements, so <code>a[-N]</code> is <code>a[1]</code>. <code>a[0]</code>, and any index outside <code>-N..N</code>, is an out-of-bounds error. A slice can mix both: <code>a[1..-1]</code> is the whole array. A slice is also an array and can be sliced. A slice assigned with <code>:=</code> is a view over the existing elements of the array; a slice assigned with the clone operator <code>::</code> is a new array with a copy of the elements. Before you can slice an array, it must be already initialized.</p>
+<p>An array can be sliced using slice notation [n..m] (the form [n:m] does not exist). A negative index counts from the end: <code>[-1]</code> is the last element and <code>a[-x]</code> is <code>a[N + 1 - x]</code>, where <code>N</code> is the number of elements, so <code>a[-N]</code> is <code>a[1]</code>. <code>a[0]</code>, and any index outside <code>-N..N</code>, is an out-of-bounds error. A slice can mix both: <code>a[1..-1]</code> is the whole array. A slice is also an array and can be sliced. A slice assigned with <code>:=</code> is a view over the existing elements of the array; a slice assigned with the clone operator <code>::</code> is a new array with a copy of the elements: <code>new view := v[2..4];</code> shares the elements of <code>v</code>, <code>new part :: v[2..4];</code> copies them (a deep copy). Before you can slice an array, it must be already initialized.</p>
 
 <h4>Named slices</h4>
 
@@ -898,9 +901,9 @@ driver matrix_demo is
       done;
     done;
     ** output matrix elements
-    print "\#{matrx:3i4}"; ** 3 columns, each element is an integer of width 4
+    print "{matrx % 3i4}"; ** 3 columns, each element is an integer of width 4
     print;
-    print "\#{matrx:9i4}"; ** 9 columns
+    print "{matrx % 9i4}"; ** 9 columns
   return;
 end matrix_demo;
 </code></pre>
@@ -1238,7 +1241,7 @@ driver map_iteration is
       new value: Integer;
     for (key: value) in my_map do
       ** print pairs (key:value)
-      print "(\s{key}:\#{value})";
+      print "({key}:{value})";
     done;
   return;
 end map_iteration;
@@ -1267,7 +1270,7 @@ driver map_generator is
       new value:Integer;
     for (key: value) in my_map do
       ** print pairs (key:value)
-      print "(\s{key}:\#{value})";
+      print "({key}:{value})";
     done;
   return;
 end map_generator;

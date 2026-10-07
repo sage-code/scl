@@ -3,7 +3,7 @@ const keywordMap = {
     // Global declarations
     'import': 'keyword', 'alias': 'keyword', 'class': 'keyword', 'global': 'keyword',
     'constant': 'keyword', 'return': 'keyword', 'create': 'keyword', 'release': 'keyword',
-    'method': 'keyword', 'function': 'keyword', 'generator': 'keyword',
+    'method': 'keyword', 'function': 'keyword', 'procedure': 'keyword', 'generator': 'keyword',
     'export': 'keyword', 'public': 'keyword', 'private': 'keyword', 'protected': 'keyword',
     'service': 'keyword', 'route': 'keyword',
 
@@ -55,7 +55,7 @@ const keywordMap = {
     // Interruption statements
     'expect': 'keytab', 'break': 'keytab', 'halt': 'keytab',
     'alter': 'keytab', 'make': 'keytab', 'store': 'keytab', 'apply': 'keytab',
-    'start': 'keytab', 'yield': 'keytab', 'run': 'keytab', 'call': 'keytab',
+    'start': 'keytab', 'spawn': 'keytab', 'await': 'keytab', 'async': 'keyword', 'yield': 'keytab', 'run': 'keytab', 'call': 'keytab',
     'wait': 'keytab', 'exit': 'keytab', 'stop': 'keytab', 'print': 'keytab',
     'write': 'keytab', 'read': 'keytab', 'over': 'keytab', 'panic': 'keytab',
     'pass': 'keytab', 'skip': 'keytab', 'fail': 'keytab', 'raise': 'keytab',
