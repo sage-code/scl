@@ -55,7 +55,7 @@
 
 <h2 id="phase-keywords">Keywords of this phase</h2>
 
-<p>The keywords that phase 6, Enterprise &amp; System Features, adds to the core language (the core keywords are in <a href="/projects/eve/syntax.html#keywords">Syntax</a>). Each one is explained on the page in the last column.</p>
+<p>The keywords that phase 5, Enterprise &amp; System Features, adds to the core language (the core keywords are in <a href="/projects/eve/syntax.html#keywords">Syntax</a>). Each one is explained on the page in the last column.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -101,7 +101,7 @@ process main is
   new tries := 0;
   ...
   ** preconditions: end the process prematurely
-  ** over skips the recover and finalize regions
+  ** over skips the recover region and runs finalize; panic skips both
   panic if condition;
 
   ** description of c1 job
@@ -229,7 +229,8 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 </thead>
 <tbody>
 <tr><td><code>return</code></td><td>0</td><td>no</td><td>runs</td></tr>
-<tr><td><code>over;</code></td><td>0</td><td>no</td><td>runs</td></tr>
+<tr><td><code>exit;</code> in the process</td><td>0</td><td>no</td><td>runs</td></tr>
+<tr><td><code>over;</code>, also from a function the process called</td><td>0</td><td>no</td><td>runs</td></tr>
 <tr><td><code>panic;</code></td><td>1</td><td>no, ends the whole application</td><td>skipped</td></tr>
 <tr><td>failed <code>expect</code>, not recovered</td><td>2</td><td>runs</td><td>runs</td></tr>
 <tr><td>failed <code>assert</code>, not recovered</td><td>3</td><td>runs</td><td>runs</td></tr>
@@ -245,7 +246,7 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 
 <ul>
 <li>An error that the aspect does not recover ends the aspect and is raised again in the driver, at the <code>apply</code> line. The recover region of the driver reads it in <code>$error</code>, an exception object with <code>code</code>, <code>message</code> and <code>line</code>. When <code>main</code> of the aspect returns normally the code is 0: no error;</li>
-<li><code>over;</code> in an aspect ends the aspect, and the driver goes on with the statement after <code>apply</code>. <code>over;</code> in the driver ends the program;</li>
+<li><code>over;</code> in an aspect ends the aspect, and the driver goes on with the statement after <code>apply</code>; <code>exit;</code> in the main process of an aspect does the same. <code>over;</code> and <code>exit;</code> in the driver end the program. The difference: <code>exit;</code> only leaves the subprogram or process it is written in (an early return), <code>over;</code> ends the whole process from any depth;</li>
 <li><code>panic;</code> in an aspect ends the whole application: the driver panics too, the memory is released and the exit code is 1.</li>
 </ul>
 
@@ -342,7 +343,7 @@ process main(x: Integer) is
 
 <p>Error handling in Eve is done at process level, in the recover region. A process can be interrupted by a system exception or it can create user-defined exceptions. We use special keywords to signal an exception from inside a job: {raise, expect}.</p>
 
-<p>The Exception module is part of the standard library. It is written in Eve. Its class <code>Error</code>, the system variables, the signatures and the table of standard exceptions with their codes and message patterns are in <a href="/projects/eve/exceptions.html">Exceptions</a>. An exception is an object <code>{code: x, message: y}</code>: its code is also the exit code of the application when nobody handles it.</p>
+<p>The Exception module is part of the standard library. It is written in Eve. Its class <code>Error</code>, the system variables, the signatures and the table of standard exceptions with their codes and message patterns are in <a href="/projects/eve/exceptions.html">Exceptions</a>. An exception is an object <code>{code: x, message: y}</code>: its code identifies the error. When nobody handles it, the application ends with the exit code 4 (see the table of interruptions).</p>
 
 <h3 id="run-time-errors">Runtime Errors</h3>
 
@@ -390,7 +391,7 @@ expect condition2, "user defined message";
 <ul>
 <li>can be used as inside any block statement including jobs, loops or decision blocks</li>
 <li>can be used as post-condition after jobs before the recover region in any process</li>
-<li>Exception create one single type of error: implicit error is AssertError</li>
+<li>A failed <code>expect</code> raises an <code>ExpectError</code> (code 2); a failed <code>assert</code> raises an <code>AssertError</code> (code 3)</li>
 </ul>
 
 <h3 id="recover-from-exception">Recover from exception</h3>
