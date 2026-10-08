@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", function () {
     initHeroVisibilityToggle();
     wireHomeLogoTypewriterTrigger();
     initTooltips();
+    forceCodeViewerSameTab();
 });
 
 /**
@@ -104,6 +105,19 @@ function renderBreadcrumbs() {
     const breadcrumbEl = document.getElementById('breadcrumb-nav');
     if (!breadcrumbEl) return;
     breadcrumbEl.innerHTML = generateBreadcrumbs();
+}
+
+function forceCodeViewerSameTab() {
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest('a[href*="code-viewer.html"]');
+        if (link) {
+            const href = link.getAttribute('href');
+            if (event.ctrlKey || event.metaKey || event.button === 1) {
+                event.preventDefault();
+                window.location.href = href;
+            }
+        }
+    }, true);
 }
 
 function normalizeLocalPublicLinks() {
