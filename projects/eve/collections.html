@@ -248,52 +248,48 @@ end list_concat;
 
 <h3 id="alter-a-list">Alter a list</h3>
 
-<p>You can use operators { += } on a list variable, to append at end of list, or use { -= } to remove elements from of list in any position. All elements having specified value will be remove. To remove the first or the last element use the operator &lt;- or -&gt;. To remove one element by its value use the method <code>delete()</code>.</p>
+<p>To grow a list use <code>&lt;+</code> (append at the end) or <code>+&gt;</code> (put in front). To shrink it use the arrows <code>&lt;-</code> or <code>-&gt;</code> (remove the first or the last element) or the method <code>delete()</code> (remove every element equal to a value). The operators <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>%=</code> and <code>^=</code> do not grow or shrink a list: with a scalar on the right they update <b>every element</b> (see <a href="#bulk-operations">Bulk operations</a>).</p>
 
 <pre class="line-numbers"><code class="language-eve">
 #altering a list
 driver list_alter is
-  set lst :()Rune;
+  new lst :()Rune;
   process main is
     ** initialized list
     let lst := ('a','b','c','b');
 
     ** append a new element at the end of list
-    let lst += 'z';
+    let lst &lt;+ 'z';
     expect lst ==  ('a','b','c','b','z');
 
     ** remove all "b" elements from list
-    let lst -= 'b';
+    lst.delete('b');
     expect lst ==  ('a','c','z');
 
-    ** append element to end of list
-    let lst &lt;+ 'x';
-    expect lst ==  ('a','c','z','x');
+    ** append several elements at the end
+    let lst &lt;+ ('a','z','x');
+    expect lst ==  ('a','c','z','a','z','x');
 
     ** remove the last element and drop it
     let lst -&gt; _;
-    expect lst ==  ('a','c','z');
-
-    ** append some elements for further testing
-    let lst += ('a','z','x');
-    expect lst ==  ('a','c','z','a','z','x');
+    expect lst ==  ('a','c','z','a','z');
 
     ** delete every element equal to 'z'
     lst.delete('z');
-    expect lst ==  ('a','c','a','x');
+    expect lst ==  ('a','c','a');
 
     ** remove all elements equal to the first element
-    let lst -= lst[1];
-    expect lst ==  ('c','x');
+    lst.delete(lst[1]);
+    expect lst ==  ('c',);
   return;
 end list_alter;
 </code></pre>
 
-<p><b>Note:</b>&nbsp;The operator <code>-=</code> removes by value, so <code>lst -= lst[1]</code> removes every element equal to the first one. To remove the first element use <code>&lt;-</code> and to remove the last element use <code>-&gt;</code>: the arrow points to the side the element leaves from, and the element goes into the name on the other side. <code>let x &lt;- lst;</code> removes the first element and puts it in <code>x</code>; <code>let lst -&gt; y;</code> removes the last element and puts it in <code>y</code>. When <code>x</code> or <code>y</code> does not exist yet, <code>let</code> creates it, with the type of the elements; in a loop it is created on the first pass and assigned again on the next ones. The explicit forms <code>new x &lt;- lst;</code> and <code>let lst -&gt; new y;</code> are also valid. To drop the element, write <code>_</code>, which swallows the result: <code>let _ &lt;- lst;</code> removes the first element, <code>let lst -&gt; _;</code> the last one. An arrow never removes by value: <code>lst.delete(v)</code> removes every element equal to <code>v</code>, like <code>-=</code> (on a DataMap, <code>delete(k)</code> removes the key <code>k</code>).</p>
+<p><b>Note:</b>&nbsp;To remove the first element use <code>&lt;-</code> and to remove the last element use <code>-&gt;</code>: the arrow points to the side the element leaves from, and the element goes into the name on the other side. <code>let x &lt;- lst;</code> removes the first element and puts it in <code>x</code>; <code>let lst -&gt; y;</code> removes the last element and puts it in <code>y</code>. When <code>x</code> or <code>y</code> does not exist yet, <code>let</code> creates it, with the type of the elements; in a loop it is created on the first pass and assigned again on the next ones. The explicit forms <code>new x &lt;- lst;</code> and <code>let lst -&gt; new y;</code> are also valid. To drop the element, write <code>_</code>, which swallows the result: <code>let _ &lt;- lst;</code> removes the first element, <code>let lst -&gt; _;</code> the last one. An arrow never removes by value: <code>lst.delete(v)</code> removes every element equal to <code>v</code> (on a DataMap, <code>delete(k)</code> removes the key <code>k</code>).</p>
 
 <div class="alert alert-info">The list is prepared to support queue and stack. It has all the operations required. We can implement a class wrapper with the suggestive method names.</div>
 
-<p><b>Note:</b>&nbsp;There is no protection about using a List as stack or queue. Is developer responsibility to append and remove correctly using one of the operators: {+=, -=} {:=, &lt;-, -&gt;}. </p>
+<p><b>Note:</b>&nbsp;There is no protection about using a List as stack or queue. Is developer responsibility to append and remove correctly using one of the operators: {&lt;+, +&gt;} {&lt;-, -&gt;}. </p>
 
 <h3 id="queue-fifo">Queue (FIFO)</h3>
 
@@ -388,6 +384,55 @@ process main is
   new lst := "1,2,3".split(',');
   expect lst == ("1","2","3");
 return;
+</code></pre>
+
+<h3 id="bulk-operations">Bulk operations</h3>
+
+<p>When the left operand is a List or an Array and the right operand is a scalar (a number, a boolean, a symbol or a string), the operator applies to <b>every element</b>. An expression returns a new collection of the same kind and leaves the operand unchanged; a modifier updates the elements in place.</p>
+
+<h4 id="bulk-arithmetic">Arithmetic operations</h4>
+
+<p>The operators <code>+ - * / % ^</code> apply the operation to each element. The expression <code>(1, 2, 3) * 2</code> is <code>(2, 4, 6)</code>. It is not an append and not a removal: to add an element use <code>&lt;+</code>, to remove one use <code>delete()</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+#a scalar applies to every element
+driver bulk_arithmetic is
+  process main is
+    new b := [1, 2, 3];
+    expect b * 10 == [10, 20, 30];
+    expect (b + 1) == [2, 3, 4];
+    expect (b ^ 2) == [1, 4, 9];
+    expect b == [1, 2, 3];       ** the operand does not change
+  return;
+end bulk_arithmetic;
+</code></pre>
+
+<p><b>Note:</b>&nbsp;Strings are not bulk. Arithmetic with a string element or a string scalar is an error, because it would build strings: <code>("a", "b") + "x"</code> raises an error. Create a new collection, or use a string builder, in a loop. A DataSet and a DataMap are not bulk either: their <code>+=</code> and <code>-=</code> add and remove, because a bulk update could merge two elements into one.</p>
+
+<h4 id="bulk-modifiers">Comparison with modifiers</h4>
+
+<p>The modifiers <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>%=</code> and <code>^=</code> are a bulk update of the list in place: <code>let a += 5;</code> adds 5 to every element. The comparisons <code>&lt; &gt; &lt;= &gt;=</code> and the match <code>=~</code> give a collection of booleans, one per element. <code>==</code> and <code>&lt;&gt;</code> still compare the whole collections.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+#bulk update and bulk tests
+driver bulk_modifiers is
+  process main is
+    new a := (1, 2, 3, 4);
+    let a += 5;                  ** a bulk update, not an append
+    expect a == (6, 7, 8, 9);
+    let a -= 1;
+    expect a == (5, 6, 7, 8);
+    let a *= 2;
+    expect a == (10, 12, 14, 16);
+
+    ** comparisons return one boolean per element
+    expect (a &gt; 12) == (False, False, True, True);
+
+    ** a regular expression is tested on every string
+    new w := ("cat", "dog", "cow");
+    expect (w =~ "/^c/") == (True, False, True);
+  return;
+end bulk_modifiers;
 </code></pre>
 
 <h2 id="collection-iteration">Collection iteration</h2>
