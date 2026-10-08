@@ -89,6 +89,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         setWrap(!wrapOn);
     });
 
+    /* ---- Close button: try history.back(), fall back to home ---- */
+    const closeBtn = document.getElementById('close-btn');
+    closeBtn.addEventListener('click', () => {
+        if (window.history.length > 1) {
+            window.history.back();
+        } else {
+            window.location.href = '/';
+        }
+    });
+
     /* ---- Restore saved preferences (zoom + wrap) from the last visit ---- */
     const prefs = loadPrefs();
     if (prefs && Number.isFinite(prefs.fontSize)) {
