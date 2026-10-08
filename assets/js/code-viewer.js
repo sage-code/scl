@@ -200,6 +200,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // grammar only adds JSX-aware tagging, and demo sources here are plain .ts.
     langMap['ts'] = 'typescript';
     langMap['tsx'] = 'typescript';
+    // EVE — custom grammar loaded via prism-loader.js (component file)
+    langMap['eve'] = 'eve';
 
     display.className = `language-${langMap[ext] || 'javascript'}`;
 
