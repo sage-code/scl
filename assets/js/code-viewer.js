@@ -222,8 +222,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         const text = await response.text();
         display.textContent = text;
 
-        // Re-run Prism highlighting
-        Prism.highlightAll();
+        if (ext === 'eve') {
+            // Eve has its own highlighter (the one the tutorial uses): it keeps the keyword
+            // list in step with the language and draws the line numbers with CSS.
+            // Prism has no up to date grammar for Eve, so Prism is not run for it.
+            const css = document.createElement('link');
+            css.rel = 'stylesheet';
+            css.href = '/assets/css/content-code.css';
+            document.head.appendChild(css);
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = '/projects/eve/js/eve1.js';
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Eve highlighter not found'));
+                document.head.appendChild(script);
+            });
+            window.eve_render(document);   // no-op if the script already rendered the block
+        } else {
+            // Re-run Prism highlighting
+            Prism.highlightAll();
+        }
 
         // Setup download
         const downloadBtn = document.getElementById('download-btn');
