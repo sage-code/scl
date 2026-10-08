@@ -1308,6 +1308,47 @@ end variant_params;
 
 <p>The types for dates, times, durations and the Quick Format moved to their own page: <a href="/projects/eve/datetime.html">Eve Date and Time</a>.</p>
 
+<h2 id="data-file-types">Data File Types</h2>
+
+<div class="alert alert-warning"><b>Proposed.</b> The names and the forms of this section are a proposal for the author's review (Q-038). They are planned for the data language (version 0.2) and are not implemented.</div>
+
+<p>A data client reads files: orders in a CSV, customers in a JSON, pages in HTML. Six types describe the content of such a file after it is loaded and parsed in memory. Each one is a class derived with <code>&lt;:</code>, and most of them will be written in Eve itself, in the standard library, at a later time.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Type</th><th>The file</th><th>A loop takes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Json</code></td><td>JSON text</td><td>one element (an object, an array, a value) at a time</td></tr>
+<tr><td><code>Csv</code></td><td>fields separated by a character, usually with a header row</td><td>one row at a time</td></tr>
+<tr><td><code>Dat</code></td><td>fixed width data: every field has a position and a width</td><td>one record (one row of the layout) at a time</td></tr>
+<tr><td><code>Xml</code></td><td>XML text</td><td>one element at a time</td></tr>
+<tr><td><code>Html</code></td><td>HTML text</td><td>one element at a time</td></tr>
+<tr><td><code>Htmlt</code></td><td>an HTML template: HTML with <code>{expression}</code> holes (<a href="/projects/eve/templates.html">Templates</a>)</td><td>one node of the template; rendering fills the holes</td></tr>
+</tbody>
+</table>
+
+<h3 id="buffered-load">Buffered load and traversal</h3>
+
+<p>Opening a file does not read all of it. The value keeps a <b>buffer</b>: the parser reads a block of the file, gives its units one by one to a loop, and reads the next block when the buffer is empty. A file larger than the memory can be processed, and the memory used does not depend on the size of the file. The loop is the <b>traversal</b>: row by row for <code>Csv</code> and <code>Dat</code>, element by element (object by object) for <code>Json</code>, <code>Xml</code> and <code>Html</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+from "lib" use (csv);
+process main is
+  new orders: Csv := csv.open("orders.csv");   ** nothing is read yet but the first block
+  new sum := 0.0;
+  for row in orders do                          ** one row at a time
+    let sum += row["total"].real();
+  done;
+  print "total = {sum % f10.2}";
+return;
+</code></pre>
+
+<p>A file that is not well formed raises an error when the loop <b>reaches</b> the bad unit, not when the file is opened: the units before it were already processed. The file is closed when the loop ends, also by <code>break</code> or by an error. The text of a unit is a String; a value becomes a number or a date only when the program asks for it.</p>
+
+<div class="alert alert-info"><b>TODO:</b> answer Q-038: the common ancestor of the six types and the traversal protocol; the names of the modules; <code>Html</code> as a parsed file or as the safe page of the templates; the layout of a <code>Dat</code> file; how a unit is read (<code>row["name"]</code>, <code>row.name</code>, <code>row[2]</code>); writing a file; the encoding.</div>
+<div class="alert alert-info"><b>TODO:</b> one example for each type, and a daily report that reads a <code>Csv</code> and fills an <code>Htmlt</code> (see Templates).</div>
+
 <h2 id="pitfalls">Pitfalls</h2>
 
 <h3 id="pitfall-real-integer">Real to Integer</h3>
