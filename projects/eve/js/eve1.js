@@ -28,7 +28,7 @@
         all one other`);
     // contextual declaration words are highlighted only when they open a line
     const DECLARATIONS = new Set(`
-        concurrent exclusive private protected public`.trim().split(/\s+/));
+        concurrent exclusive private protected public safe unsafe`.trim().split(/\s+/));
     // END GENERATED
 
     // not in keywords.json: library functions, words of the database level (not specified yet), types
