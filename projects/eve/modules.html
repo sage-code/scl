@@ -197,7 +197,7 @@ counter: 2 ticks
 
 <h2 id="import">Import</h2>
 
-<p>A driver, an aspect or a module imports modules with <code>from … use</code>. The path names the library folder. It is written without quotes, as folder names joined by <code>/</code> (<code>lib/db</code>, <code>$EVE_LIB/db</code>), or as a string expression when it is computed (<code>"lib"</code>, <code>$root_path/"lib"</code>). The list in parentheses says how the members are reached:</p>
+<p>A driver, an aspect or a module imports modules with <code>from … use</code>. The path names the library folder. It is written without quotes, as folder names joined by <code>/</code> (<code>lib/db</code>, <code>$EVE_LIB/db</code>), or as a string expression when it is computed (<code>"lib"</code>, <code>$root_path/"lib"</code>). A path that does <b>not</b> start with <code>/</code> is relative to <code>$EVE_HOME</code>, the home of the project (by default the folder of the driver): <code>"lib"</code> is <code>$EVE_HOME/lib</code>. A path that starts with <code>/</code> is absolute: <code>"/test/eve1/lib"</code>. The list in parentheses says how the members are reached:</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -233,7 +233,7 @@ end script_name;
 <li>With <code>use (m)</code> or an alias, two modules can have members with the same name without conflict;</li>
 <li>Members merged with <code>(*)</code> or <code>m(*)</code> must have different names: two members with the same name make the import fail. Then list the modules one by one, with <code>m(*)</code> for some and <code>m</code> or an alias for the others. This is how the standard modules give the language statements such as <code>print</code>;</li>
 <li>A module knows nothing of the script that imports it: it can't read the globals of the driver. Values go in and out through the parameters of its methods and functions;</li>
-<li>A library is searched with the system variable <code>$EVE_LIB</code>. If the module is not found, the import fails with the error <code>$err_module</code>;</li>
+<li>A module is searched in this order: the standard library; the folder <code>$EVE_LIB</code>, which is the <code>lib</code> folder of the project; then each folder of <code>$EVE_LIB_PATH</code>, where external modules are installed (see Library below). If the module is not found, the import fails with the error <code>$err_module</code> (code 30): the program ends with exit code 4, because nobody can recover an error that happens before the process starts;</li>
 <li>Circular imports are possible: a module that is being loaded is not loaded again;</li>
 <li>The standard modules, such as <code>io</code> and <code>exception</code>, form the system library: a fixed list, imported by default, with no <code>use</code>. Every other library is imported by name. In debug mode the compiler warns on the forms that bring names without a prefix, <code>(m(*))</code> and <code>(*)</code>, because a name of the library can later hide or collide with a local name.</li>
 </ul>
@@ -262,9 +262,30 @@ concurrent aspect worker is
 end worker;
 </code></pre>
 
-<p>The private variables of a module are shared too. The compiler decides which functions are thread safe, on the call graph: a function that reads or changes a plain module variable is not, and an aspect that calls it, directly or through other calls, can be run with <code>apply</code> but not started in a parallel group. In the example of the previous section, <code>counter.tick()</code> and <code>counter.count!()</code> become safe when <code>total</code> is declared atomic: <code>new total = Atomic(:Integer)(0);</code>. A channel, an atomic variable or a mutex is how parallel aspects share state: see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>. The functions of a module that are not thread safe stay available to the driver and to aspects run with <code>apply</code>.</p>
+<p>The private variables of a module are shared too. The compiler decides which functions and procedures are thread safe, on the call graph: one that reads or changes a plain module variable is not, and a concurrent aspect that calls it, directly or through other calls, is a compile error. An exclusive aspect, which is the default kind, can call anything. In the example of the previous section, <code>counter.tick()</code> and <code>counter.count!()</code> become safe when <code>total</code> is declared atomic: <code>new total = 0 :Atomic(:Integer);</code> (or with a class derived from it, <code>class SageInteger &lt;: Atomic(:Integer);</code>). A channel, an atomic variable or a mutex is how parallel aspects share state: see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>. The functions of a module that are not thread safe stay available to the driver and to aspects run with <code>apply</code>.</p>
 
 <div class="alert alert-warning">Not in Eve 0.1: parallel groups and channels are planned for a later version (see <a href="/projects/eve/multitasking.html">Multitasking</a>). In version 1 a module is used by one process at a time.</div>
+
+<h3 id="safe-modules">Safe and unsafe modules</h3>
+
+<p>The header of a module can promise that all of it is thread safe. A module is <code>unsafe</code> by default; <code>safe</code> is written in front of <code>module</code>:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# a safe module: no plain variable, no unsafe call
+safe module pure is
+  export (FACTOR, twice);
+
+  set FACTOR = 2 :Integer;
+
+  function twice(x: Integer) =&gt; (@result: Integer) is
+    let result := x * FACTOR;
+  return;
+end pure;
+</code></pre>
+
+<p>The compiler checks a <code>safe</code> module as a whole and <b>rejects</b> it if a variable is not atomic, or if it uses an unsafe function or procedure, also from another module. An <code>unsafe</code> module can hold plain variables; its members are checked one by one, so a concurrent aspect may still call the members that the compiler proves safe. The words <code>safe</code> and <code>unsafe</code> are keywords only in front of <code>module</code>.</p>
+
+<div class="alert alert-warning"><b>Proposed.</b> The position of the words <code>safe</code> and <code>unsafe</code> (in front of <code>module</code>, as <code>exclusive</code> is in front of <code>aspect</code>) is a proposal for the author's review (D-129).</div>
 
 <h2 id="library-modules">Library modules</h2>
 
@@ -288,7 +309,7 @@ end io;
 
 <h2 id="library">Library</h2>
 
-<p>A&nbsp;<em>library</em>&nbsp;is a set of reusable modules. A library can be installed in EVE environment or can be project specific. EVE machine is using a special system variable to search for a library: $EVE_LIB. If the library is not found the module can't be imported and the script fails.</p>
+<p>A&nbsp;<em>library</em>&nbsp;is a set of reusable modules. A library can be installed in EVE environment or can be project specific. EVE machine is using two system variables to search for a library: <code>$EVE_LIB</code> is the <code>lib</code> folder of the project, and <code>$EVE_LIB_PATH</code> is a list of folders, separated like the <code>PATH</code> of the operating system, where external modules are installed. They can be in different folders, for example <code>/eve/modules/&lt;module_name&gt;</code>, installed from GitHub with <code>npm install</code>. A relative folder is relative to <code>$EVE_HOME</code>, the home of the project, and a folder that starts with <code>/</code> is absolute. If the library is not found the module can't be imported and the script fails with <code>$err_module</code>.</p>
 
 <ul>
 <li>libraries contain generic functionality and can be shared between multiple projects;</li>
