@@ -288,17 +288,20 @@ return;
 
 <h3 id="string-format">String interpolation and format</h3>
 
-<p>Values are inserted in a string with a <b>placeholder</b>: a name in braces, <code>{name}</code>, or a name and a format, <code>{name % format}</code>. The value is written in the way its type asks for: a string as it is, a number in digits, a boolean as True or False. The braces of a string always mean a placeholder, so a literal brace is escaped: <code>\{</code> and <code>\}</code>.</p>
+<p>The braces of a string always open a <b>placeholder</b>: a place where Eve inserts something while it reads the string. A placeholder holds a name or a literal.</p>
 
 <table class="table table-sm">
-<tr><th>Form</th><th>Inserts</th></tr>
-<tr><td><code>{name}</code></td><td>the value of the name, written by its type</td></tr>
-<tr><td><code>{name % format}</code></td><td>the value, with a format for its type (below)</td></tr>
-<tr><td><code>\{</code> <code>\}</code></td><td>a literal brace</td></tr>
-<tr><td><code>{U+H...}</code></td><td>a Unicode code point, 1 to 6 hexadecimal digits (a placeholder that holds a code point, not a name)</td></tr>
+<tr><th>Form</th><th>Inserts</th><th>Example</th></tr>
+<tr><td><code>{name}</code></td><td>the value of the name, written by its type: a string as it is, a number in digits, a boolean as True or False</td><td><code>"n = {n}"</code></td></tr>
+<tr><td><code>{name % format}</code></td><td>the value, with a format for its type (below)</td><td><code>"{pi % f8.2}"</code></td></tr>
+<tr><td><code>{literal}</code></td><td>the literal, written by its type: a number, a string, a list, a symbol, a boolean</td><td><code>"{399}"</code>, <code>"{"test"}"</code>, <code>"{(1, 2, 3)}"</code>, <code>"{True}"</code></td></tr>
+<tr><td><code>{U+H...}</code></td><td>one Unicode character, by its code point: it is the symbol literal <code>U+03B1</code> (1 to 6 hexadecimal digits)</td><td><code>"{U+03B1}"</code> is α</td></tr>
+<tr><td><code>\{</code> <code>\}</code></td><td>a literal brace</td><td><code>"\{1, 2\}"</code></td></tr>
 </table>
 
-<p>A placeholder holds a <b>name</b>, not an expression: a variable, a constant, a system variable (<code>{$HOME}</code>), an attribute (<code>{p.x}</code>), or an element or a part selected with brackets (<code>{a[1]}</code>, <code>{a[-1]}</code>, <code>{a[i]}</code>, <code>{m[key]}</code>, <code>{m[\"key\"]}</code>, <code>{a[2..4]}</code>). An index is an integer, a name, a quoted key or a range; inside a string the quotes of the key are escaped, <code>\"</code>, as every double quote of a string is. There are no operators and no calls inside the braces. To insert the result of a calculation or of a call, put it in a variable first, or join the strings with <code>+</code>: <code>"p1: " + p1.string()</code>. A brace that does not open a valid placeholder, <code>"{1, 2}"</code> or <code>"{}"</code>, is a compile error: write <code>"\{1, 2\}"</code>.</p>
+<p>A literal inside the braces is written as it is anywhere else in Eve, and <b>its quotes are not escaped</b>: <code>"name: {"test"}"</code> is the string <code>name: test</code>. The string ends at the first double quote that is outside the braces. The code point <code>{U+0041}</code> is <code>A</code> and <code>{U+1F600}</code> is an emoji: it is the way to write a character that you cannot type, or that has no HTML name. For a character that has a name, the HTML reference <code>&amp;name;</code> is shorter and easier to read: <code>"&amp;alpha;"</code>. The old escapes <code>\xHH</code> and <code>\u{H...}</code> and the numeric references <code>&amp;#N;</code> and <code>&amp;#xH;</code> do not exist.</p>
+
+<p>A placeholder holds a <b>name</b>, a literal or a simple expression: a variable, a constant, a system variable (<code>{$HOME}</code>), an attribute (<code>{p.x}</code>), or an element or a part selected with brackets (<code>{a[1]}</code>, <code>{a[-1]}</code>, <code>{a[i]}</code>, <code>{m[key]}</code>, <code>{m["key"]}</code>, <code>{a[2..4]}</code>). An index is an integer, a name, a quoted key or a range; the quotes of the key are written as they are. A simple expression has operators and calls: <code>{n + 1}</code>, <code>{s.length()}</code>, <code>{a &gt; 2}</code>, <code>{s + "!"}</code>. A statement or an assignment is not allowed. The sign <code>%</code> always starts the format, so a remainder is written inside parentheses: <code>{((n + 1) % 3)}</code>. A brace that does not open a valid placeholder, <code>"{1, 2}"</code> or <code>"{}"</code>, is a compile error: write <code>"\{1, 2\}"</code>.</p>
 
 <p>A format can follow the name after the format operator <code>%</code>: <code>{name % format}</code>. Inside a placeholder <code>%</code> has only this meaning (it is not the remainder, because there is no expression). The format depends on the type of the value. The number formats are adapted from Fortran; the alignment is borrowed from Python. A result is never truncated by the width: if the value is wider, the result is wider (only <code>.max</code> of a string cuts).</p>
 
@@ -334,7 +337,9 @@ process main is
   print "hex = {code % 0&gt;x4}";
   print "name = {name % *^9}|{name % &gt;6}|{name % .2}|";
   print "ok = {ok}, {ok % yn}, {ok % 01}";
-  print "alpha = {U+03B1}";
+  print "alpha = {U+03B1} = &alpha;";
+  print "braces = \{{name}\}";
+  print "literals: {399} {"test"} {(1, 2, 3)} {True}";
 return;
 </code></pre>
 
@@ -345,10 +350,12 @@ big = 1,234,567
 hex = 00ff
 name = ***Eve***|   Eve|Ev|
 ok = True, Yes, 1
-alpha = &alpha;
+alpha = &alpha; = &alpha;
+braces = {Eve}
+literals: 399 test (1,2,3) True
 </pre>
 
-<p>The older forms <code>#s</code>, <code>#n</code>, <code>#{a}</code>, <code>\#{a}</code>, <code>\s{a}</code>, <code>\n{a}</code>, <code>\b{a}</code>, the format after a colon and the operator <code>?</code> do not exist. To write a literal brace use <code>\{</code> and <code>\}</code>.</p>
+<p>A placeholder must be written exactly: <code>"{U+03B1}"</code> is a character, but <code>"{U03B1}"</code> is a name that does not exist, and <code>"{}"</code> is an error. The older forms <code>#s</code>, <code>#n</code>, <code>#{a}</code>, <code>\#{a}</code>, <code>\s{a}</code>, <code>\n{a}</code>, <code>\b{a}</code>, the format after a colon and the operator <code>?</code> do not exist. To write a literal brace use <code>\{</code> and <code>\}</code>.</p>
 
 <h3 id="string-split">String split</h3>
 
