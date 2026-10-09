@@ -168,29 +168,55 @@ return;
 
 <p>Functions can be recursive; processes can not (see <a href="/projects/eve/aspects.html">Aspects</a>).</p>
 
-<h2 id="anonymous">Anonymous and self-calling functions</h2>
+<h2 id="anonymous">Anonymous functions</h2>
 
 
-<p>A function with no name is a lambda expression (<a href="/projects/eve/lambdas.html">Expressions</a>). An <b>anonymous self-calling function</b> is a lambda that is created and called in the same place: the value of the whole expression is the result of the call. It is useful to compute a value that needs a few steps, without leaving a name behind.</p>
+<p>A function with no name is a lambda expression (<a href="/projects/eve/lambdas.html">Expressions</a>). A lambda is passed as an argument (<a href="/projects/eve/callbacks.html">Callbacks</a>), returned by a function (<a href="/projects/eve/closures.html">Closures</a>) or assigned to a name. It is <b>never called where it is written</b>: a function is first defined, and later it can be run.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-** create and call at once: the lambda in brackets, then its arguments
-new area := ((r: Real) =&gt; (3.14159 * r * r))(2.0);     ** 12.56636
+** define the lambda, then call it by its name
+new area := (r: Real) =&gt; (3.14159 * r * r);
+print area(2.0);                                       ** 12.56636
 
-** the same with two results
-new (lo, hi) := ((a, b: Integer) =&gt; (min(a, b), max(a, b)))(7, 3);   ** 3, 7
+** not Eve: a lambda called where it is written
+** print ((r: Real) =&gt; (3.14159 * r * r))(2.0);      ** compile error
 </code></pre>
 
 <ul>
-<li>The lambda is in brackets, followed by the argument list in brackets: <code>(lambda)(arguments)</code>;</li>
-<li>It follows the rules of a lambda: expressions only, no state;</li>
+<li>A lambda follows its own rules: expressions only, no state;</li>
 <li>For more than one expression of work, write a named function: it can be tested and reused.</li>
 </ul>
 
 <p>An anonymous function can't call <b>itself</b>: it has no name for the call, and Eve gives it none. A recursive function is written as a named function (<code>factorial</code> above).</p>
 
-<p>Because <code>(…)(…)</code> is the call of an anonymous function, a function never has two parameter lists. A function with optional parameters takes them by name at the call: <code>greet("Eve", greeting: "Hi")</code> (see <a href="#call-arguments">Positional and named arguments</a>).</p>
-<div class="alert alert-info"><b>TODO:</b> add an example of a self-calling function used as an initializer of a constant: <code>set LIMIT = (() =&gt; (compute()))();</code>.</div>
+<p>Eve has no self-calling functions because <code>(…)(…)</code> is kept for a <b>second set of parameters</b>: the first set receives one or more data types and makes the type check flexible, for generic algorithms. It is the notation of the generic classes, <code>Box(:Integer)(5)</code> (see <a href="/projects/eve/generics.html#generic-functions">Generic functions and procedures</a>). Generic functions and procedures come with Version 0.4.</p>
+<pre class="line-numbers"><code class="language-eve">
+** a generic function: the first list receives the type (Version 0.4)
+function largest(:T &lt;: Comparable)(items: ()T) =&gt; (@result: T) is
+  ...
+return;
+
+new top := largest((3, 9, 2));               ** T is inferred: Integer
+new word := largest(:String)(("b", "a"));    ** T is written
+</code></pre>
+
+<p>The type list at the call is optional when Eve can infer the types from the arguments. Procedures, methods and processes take a type list too. A <b>lambda has no type list</b>: when the work differs by type, write overloaded functions, one per type, since the formula is most probably different anyway.</p>
+
+<p><b>Overloading</b> (details in <a href="/projects/eve/generics.html#overloading">Generics</a>). Functions, procedures and methods may share a name when their <b>signatures</b> differ. The signature is the number of parameters, their types and, for a function, the type of its result. Eve selects the signature at compile time, and the call must match exactly one, otherwise it is a compile error. A function and a procedure never share a name. Methods are the exception: a method without a result, called as a statement, and a method with a result, called in an expression, may share a name; they are different methods (Version 0.4).</p>
+
+<pre class="line-numbers"><code class="language-eve">
+function half(x: Integer) =&gt; (@result: Integer) is
+  new h := x / 2 :Integer;   ** / gives a Real; the type converts it
+  let result := h;
+return;
+
+function half(x: Real) =&gt; (@result: Real) is
+  let result := x / 2.0;
+return;
+
+print half(8);       ** the Integer signature: 4
+print half(9.0);     ** the Real signature: 4.5
+</code></pre>
 <h2 id="fp-pages">Functional programming in Eve</h2>
 
 <p>Functions are the first of the pages of this phase; the table that compares all the subprograms is in <a href="/projects/eve/subprograms.html#kinds">Subprograms</a>:</p>
