@@ -57,9 +57,7 @@ Eve is designed to quickly build a data processing app that can have jobs to be 
 <tr><th>Keyword</th><th>Meaning</th><th>Explained in</th></tr>
 </thead>
 <tbody>
-<tr><td><code>aspect</code></td><td>header of a script that a driver applies or starts; written <code>aspect</code> or <code>exclusive aspect</code> (the same) or <code>concurrent aspect</code></td><td><a href="/projects/eve/aspects.html">Aspects</a></td></tr>
-<tr><td><code>exclusive</code></td><td>an aspect that is not thread safe: one copy runs at a time</td><td><a href="/projects/eve/aspects.html">Aspects</a></td></tr>
-<tr><td><code>concurrent</code></td><td>an aspect that is thread safe: several copies may run in parallel</td><td><a href="/projects/eve/aspects.html">Aspects</a></td></tr>
+<tr><td><code>aspect</code></td><td>header of a script that a driver applies: <code>aspect name is</code></td><td><a href="/projects/eve/aspects.html">Aspects</a></td></tr>
 <tr><td><code>module</code></td><td>header of a library script; <code>end name;</code> closes it</td><td><a href="/projects/eve/modules.html">Modules</a></td></tr>
 <tr><td><code>from</code></td><td>starts an import: <code>from lib use (a, b);</code></td><td><a href="/projects/eve/modules.html">Modules</a></td></tr>
 <tr><td><code>use</code></td><td>lists the imported names of an import</td><td><a href="/projects/eve/modules.html">Modules</a></td></tr>
@@ -126,7 +124,7 @@ print "total: {total}";
 <li>A free script has <b>control statements</b>: <code>if</code>, <code>loop</code>, <code>for</code>, <code>while</code>, and also <code>expect</code>, <code>print</code> and calls of library functions;</li>
 <li>It has <b>no declarations of subprograms</b>: no functions, methods, classes or generators. To define them, write a driver or a module;</li>
 <li>It has <b>no jobs</b>: jobs, <code>recover</code> and <code>finalize</code> belong to processes (see <a href="/projects/eve/processing.html">Processing</a>), so an error that nobody handles ends the script, with the exit code of table in Processing;</li>
-<li>It can import modules with <code>from … use</code> and apply aspects, but it can't start parallel groups, which belong to the driver;</li>
+<li>It can import modules with <code>from … use</code> and apply aspects;</li>
 <li>It is the shortest way to a small tool, a test or an experiment, and the first step to a driver: when the script grows, move the statements into <code>process main is … return;</code> of a driver.</li>
 </ul>
 
@@ -139,8 +137,7 @@ print "total: {total}";
 <tbody>
 <tr><td>free script</td><td><code>#!</code></td><td>no</td><td>yes, <code>eve script.eve</code></td><td>its own variables</td></tr>
 <tr><td><a href="/projects/eve/drivers.html">driver</a></td><td><code>driver name is</code></td><td>yes, <code>main</code></td><td>yes</td><td>yes</td></tr>
-<tr><td><a href="/projects/eve/aspects.html">exclusive aspect</a></td><td><code>exclusive aspect name is</code> (or <code>aspect name is</code>)</td><td>yes, <code>main</code></td><td>applied by a driver</td><td>no</td></tr>
-<tr><td><a href="/projects/eve/aspects.html">concurrent aspect</a></td><td><code>concurrent aspect name is</code></td><td>yes, <code>main</code></td><td>applied or started by a driver</td><td>no</td></tr>
+<tr><td><a href="/projects/eve/aspects.html">aspect</a></td><td><code>aspect name is</code></td><td>yes, <code>main</code></td><td>applied by a driver</td><td>no</td></tr>
 <tr><td><a href="/projects/eve/modules.html">module</a></td><td><code>module name is</code></td><td>no, <code>initialize</code> and <code>finalize</code></td><td>imported</td><td>no, one private state</td></tr>
 </tbody>
 </table>
@@ -151,7 +148,7 @@ print "total: {total}";
 
 <ul>
 <li>Driver, created with keyword: "driver",</li>    
-<li>Aspect, created with the keywords: "exclusive aspect" or "concurrent aspect",</li>
+<li>Aspect, created with keyword: "aspect",</li>
 <li>Module, created with keyword: "module",</li>
 </ul>
 
@@ -161,7 +158,7 @@ print "total: {total}";
 
 <ul>
 <li>A driver can import one or more modules;</li>
-<li>A driver applies aspects in a sequence; parallel work is done by aspects started in a parallel block of the driver;</li>
+<li>A driver applies aspects in a sequence, each one an independent piece of the work;</li>
 <li>A driver or aspect define a single executable process, <code>main</code>;</li>
 <li>An aspect or driver can import modules;</li>
 <li>Only a driver defines global states; every driver has its own global scope;</li>
@@ -174,7 +171,7 @@ print "total: {total}";
 
 <h4>Driver skeleton:</h4>
 
-<p>An Eve script begins with one of these keywords: {"driver", "exclusive aspect", "concurrent aspect", "module"}. Script name is the same as the file name without the extension. A driver or aspect has no parameter list in its header: the parameters belong to its process, <code>process main(parameters) is</code>. The process is indented inside the driver or aspect. A module has no process and no parameters.</p>
+<p>An Eve script begins with one of these keywords: {"driver", "aspect", "module"}. Script name is the same as the file name without the extension. A driver or aspect has no parameter list in its header: the parameters belong to its process, <code>process main(parameters) is</code>. The process is indented inside the driver or aspect. A module has no process and no parameters.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 ** purpose of the driver
@@ -325,9 +322,9 @@ end script_name;
 
 <h2 id="process">Process</h2>
 
-<p>A process is the executable region of a script, mandatory for drivers and aspects. A driver and an aspect have the same shape: declarations, then one process, <code>process main is … return;</code>, and the script closes with <code>end script_name;</code>. <code>main</code> is the only process name and the entry point. An aspect is run with <code>apply aspect_name(args);</code>: the caller waits. The process of the driver can span several cores by starting aspects in a parallel block.</p>
+<p>A process is the executable region of a script, mandatory for drivers and aspects. A driver and an aspect have the same shape: declarations, then one process, <code>process main is … return;</code>, and the script closes with <code>end script_name;</code>. <code>main</code> is the only process name and the entry point. An aspect is run with <code>apply aspect_name(args);</code>: the caller waits.</p>
 
-<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". It can end with an error instead: the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> or <code>assert</code> is captured by the driver. The arguments are passed in a list, <code>apply reports(10, @sum);</code>. The caller waits, so the outputs are ready on the next statement. An aspect started in a parallel block has its outputs ready after the <code>done</code> of its group. Only the driver defines a global scope: its process reads and changes the driver globals. An aspect has its own state and no globals: it receives data by parameters. The scope of an imported module is bound to the scope of the driver or aspect that imports it.</p>
+<p>A process can receive parameters, input and output (<code>process name(n: Integer, @total: Integer) is</code>). A process returns no result: its outputs are the parameters marked with "@". It can end with an error instead: the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> or <code>assert</code> is captured by the driver. The arguments are passed in a list, <code>apply reports(10, @sum);</code>. The caller waits, so the outputs are ready on the next statement. Only the driver defines a global scope: its process reads and changes the driver globals. An aspect has its own state and no globals: it receives data by parameters. The scope of an imported module is bound to the scope of the driver or aspect that imports it.</p>
 
 <p> While modules don't use the 'process' keyword, they have an initialization region that serves a similar purpose. This initialization region is executed first when a process starts. For modules imported by a driver, the initialization runs within the driver's main process. When imported by an aspect, it runs in the process of that aspect, at each <code>apply</code>.</p> 
 
