@@ -74,6 +74,27 @@ eve script.eve -h              ** help, made from the ** @param comments above m
 <li><b>Finish:</b> the modules are finalized in reverse order, the memory is released and the machine returns the exit code.</li>
 </ol>
 
+<h3 id="vm-memory">How the machine manages memory</h3>
+
+<p>A program never frees memory itself: EVE does it while the program runs. Every value that needs memory (a string, a list, a map, an object, a function) counts the places that hold it: variables, elements of collections, attributes, closures. This is <b>reference counting</b>. When the count of a value falls to zero, nobody can use it any more and its memory is given back.</p>
+
+<p>The memory is given back at a <b>safe point</b>: at the end of a statement, at the end of each pass of a loop, and at <code>done</code>. A loop that makes a string and a list at each pass keeps only the last ones; a million passes need the memory of one.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+for i in (1..1000000) do
+  new line := "item {i}";        ** the previous line is freed at the end of the pass
+  new parts := (i, i + 1, i + 2);
+  let total += parts.length();
+done;
+</code></pre>
+
+<p>Reference counting cannot free a <b>cycle</b>: a function that closes over the scope that holds it counts that scope, and the scope counts the function. A <b>tracing collector</b> is the backup: it finds what the program can still reach and frees the rest. It runs at the <code>done</code> of a job, of a parallel group and of a process, and when the program has made many values since its last run. While the aspects of a parallel group run, nothing is freed; the memory they left is given back at <code>done</code>.</p>
+
+<ul>
+<li><code>EVE_MEMSTATS=1 eve script.eve</code> prints, at the end, how many values were made, how many were freed by counting and by tracing, and how many are left;</li>
+<li>The tests of the machine run with <code>EVE_GC_VERIFY=1</code>, which checks every free against a trace.</li>
+</ul>
+
 <h2 id="configuration">Configuration</h2>
 
 <p>EVE virtual machine can load system environment variables from a configuration file. These are stored as "$key = value" pairs, where the value is a valid Eve literal. Some system constants can be derived from environment variables using the smart concatenation operator "/".</p>

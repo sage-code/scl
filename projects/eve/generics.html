@@ -45,7 +45,7 @@
 <h1 id="eve-generics">Eve Generics</h1>
 
 <div class="alert alert-secondary shadow-sm">
-A generic class has type parameters, so one class works for many types: <code>Number(:i32)</code>, <code>Number(:Real)</code>. Collections and the Optional type are generics too.</div>
+A generic class has type parameters, so one class works for many types: <code>Number(:i32)</code>, <code>Number(:Real)</code>. Collections and the Optional type are generics too. Functions, procedures, methods and aspects can be generic as well, and a name can be overloaded with several signatures.</div>
 
 <h2 id="generics">Generics in Eve</h2>
 
@@ -191,6 +191,148 @@ end Number;
       return;
   end test_generic_number;
 </code></pre>
+
+<h3 id="generic-functions">Generic functions and procedures</h3>
+
+<p>A function or a procedure can have <b>two parameter lists</b>. The first list receives one or more data types, written <code>(:T)</code> like the type list of a class; the second list receives the values. One algorithm is written once and works for every type that fits. A type parameter can ask for a trait: <code>(:T &lt;: Comparable)</code> accepts only types that can be compared.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+driver generic_functions is
+  ** the largest element of any list of comparable values
+  function largest(:T &lt;: Comparable)(items: ()T) =&gt; (@result: T) is
+    let result := items[1];
+    for x in items do
+      let result := x if x.compare(result) &gt; 0;
+    done;
+  return;
+
+  ** a generic procedure: any type can be printed
+  procedure show_all(:T)(label: String, items: ()T) is
+    for x in items do
+      print "{label}: {x}";
+    done;
+  return;
+
+  process main is
+    print largest((3, 9, 2));                 ** 9: T is inferred, Integer
+    print largest(:String)(("b", "c", "a"));  ** c: T is written
+    show_all("n", (1, 2));                    ** n: 1  n: 2
+  return;
+end generic_functions;
+</code></pre>
+
+<ul>
+<li>The <b>type list is optional at the call</b>: Eve infers the types from the arguments. Write it when you want to be explicit, or when the arguments do not tell the type: <code>make(:Integer)()</code>;</li>
+<li>A lambda has <b>no type list</b>. When the work depends on the type, write overloaded functions (below);</li>
+<li>This is why Eve has no self-calling lambdas: <code>(…)(…)</code> after a name is a type list followed by the arguments (see <a href="/projects/eve/functions.html#anonymous">Anonymous functions</a>).</li>
+</ul>
+
+<h3 id="generic-methods">Generic methods</h3>
+
+<p>A method of a generic class uses the type of its class. It can also have its own type list, and so can a method of a plain class.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+class Box(:T) = {item: T} &lt;&#58; Object is
+  ** T comes from the class, U from the method
+  public method tagged(:U)(@self, tag: U) =&gt; (@result: String) is
+    let result := "{tag}: {self.item}";
+  return;
+end Box;
+
+new b := Box(:Integer)(item: 5);
+print b.tagged(1);                 ** 1: 5      U is inferred
+print b.tagged(:String)("box");    ** box: 5    U is written
+</code></pre>
+
+<h3 id="generic-aspects">Generic aspects</h3>
+
+<p>The process <code>main</code> of an aspect can have a type list. The driver applies the aspect with or without the types:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** asp/largest.eve
+exclusive aspect largest is
+  process main(:T &lt;: Comparable)(items: ()T) is
+    new top := items[1];
+    for x in items do
+      let top := x if x.compare(top) &gt; 0;
+    done;
+    print "largest: {top}";
+  return;
+end largest;
+
+** in the driver
+apply largest((4, 11, 6));                    ** largest: 11
+apply largest(:String)(("pear", "apple"));    ** largest: pear
+</code></pre>
+
+<p>The process <code>main</code> of a driver has no type list: nothing calls it.</p>
+
+<h3 id="overloading">Overloading</h3>
+
+<p>Functions, procedures and methods can <b>share a name</b> when their <b>signatures</b> differ. The signature is the number of parameters and their types and, for a function, the type of its result. Overloading is the answer to work that differs by type, where a generic would need a different formula for each type anyway.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** the type of the parameter selects
+function half(x: Integer) =&gt; (@result: Integer) is
+  new h := x / 2 :Integer;
+  let result := h;
+return;
+
+function half(x: Real) =&gt; (@result: Real) is
+  let result := x / 2.0;
+return;
+
+** the number of parameters selects
+function area(side: Integer) =&gt; (@result: Integer) is
+  let result := side * side;
+return;
+
+function area(w, h: Integer) =&gt; (@result: Integer) is
+  let result := w * h;
+return;
+
+** only the result differs: the expected type selects
+function unit() =&gt; (@result: Integer) is
+  let result := 1;
+return;
+
+function unit() =&gt; (@result: String) is
+  let result := "one";
+return;
+
+print half(8), half(9.0);          ** 4,4.5
+print area(3), area(2, 3);         ** 9,6
+new n := unit() :Integer;          ** 1
+new s := unit() :String;           ** one
+</code></pre>
+
+<p>The rules:</p>
+<ul>
+<li>Eve selects the signature at <b>compile time</b>, never at run time;</li>
+<li>The call must match <b>exactly one</b> signature. <code>print unit();</code> is a compile error: nothing says whether the result is an Integer or a String. A default value can also make two signatures match: <code>f(x: Integer)</code> and <code>f(x: Integer, y = 1 :Integer)</code> both accept <code>f(5)</code>;</li>
+<li>Two declarations with the same signature are a compile error;</li>
+<li>A function and a procedure <b>never share a name</b>;</li>
+<li>Methods are the exception: a method without a result and a method with a result can share a name and the same parameters. They are different methods. A call as a statement runs the first, a call in an expression runs the second.</li>
+</ul>
+
+<pre class="line-numbers"><code class="language-eve">
+class Counter = {n: Integer} &lt;&#58; Object is
+  public method step(@self) is                     ** called as a statement
+    let self.n += 1;
+  return;
+
+  public method step(@self) =&gt; (@result: Integer) is   ** called in an expression
+    let self.n += 1;
+    let result := self.n;
+  return;
+end Counter;
+
+new c := Counter(n: 0);
+c.step();             ** the method without a result
+print c.step();       ** the method with a result: 2
+</code></pre>
+
+<div class="alert alert-info"><b>Version:</b> generic functions, procedures, methods and aspects, and overloading, come with Version 0.4 (level 5 of the tests). Generic classes are in Version 0.3.</div>
 
 <h3 id="generics-use-cases">Generics Use cases</h3>
 
