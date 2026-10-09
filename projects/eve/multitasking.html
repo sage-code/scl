@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Sage-Code Eve multitasking: generators, cooperative tasks, parallel aspects, Bulk Synchronous Parallel and channels.">
+  <meta name="description" content="Eve multitasking: one process splits a job into tasks, asynchronous functions and procedures that take turns on one core with spawn, await and wait.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="sage-code, sage, code, EVE, Eve, multitasking, parallel, generator, yield, aspect, method, BSP, channel, pipeline, barrier">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, multitasking, asynchronous, async, spawn, await, job, task">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Cache-Control" content="no-cache" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
 
   <!-- Website title -->
-  <title>Multitasking</title>
+  <title>Eve Multitasking</title>
 
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -45,551 +45,258 @@
 <h1 id="eve-multitasking">Eve Multitasking</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Multitasking means that several pieces of work make progress together. Eve has two tools for it. <b>Generators</b> produce values one at a time and let tasks take turns on one core, at the points marked with <code>yield</code>. <b>Parallel aspects</b> run on several cores: the driver starts them in a parallel group, and they exchange data through output parameters, at the barrier that closes the group, or through channels while they run. Methods and functions always run in serial mode, on the core of their caller. Eve has no coroutines, no <code>async</code> and no <code>await</code>. It assumes the <a href="/projects/eve/functions.html">Functions</a> chapter: side effects and parameters. This chapter explains generators, parallel groups, the data rules, Bulk Synchronous Parallel, channels and how to choose a model.
+Multitasking is <b>one process that does several things by taking turns</b>. The process opens a job and splits it into tasks: asynchronous functions and procedures. The tasks share one core. One task runs; when it has to wait, for a timer, a file, the network or another task, it gives the turn to the next one. Nothing runs at the same instant, so the tasks need no lock and can't corrupt each other's data. Multitasking saves time when the work waits a lot, which is the usual case of enterprise code. Running aspects at the same time, on several cores, is a different subject: <a href="/projects/eve/concurrency.html">Concurrency</a>, the next page.
 </div>
 
-<h2 id="generators">Generators</h2>
+<h2 id="mt-why">Why take turns</h2>
 
-<p>Generators moved to their own page: <a href="/projects/eve/generators.html">Generators</a>. Here is what matters for multitasking: a generator is a cooperative task, each <code>yield</code> lets the others run, and it runs on the core of its caller. It can't feed a started aspect directly; a started producer aspect creates the generator and sends its values into a <a href="#channels">channel</a>: <code>for v in source() do jobs.send(v); done;</code>. A generator declared in a driver or an aspect is private and needs no thread safety; one exported by a module must be thread safe (see <a href="#generators-and-threads">Generators and threads</a>).</p>
+<p>Most enterprise work waits. A query waits for the database, a download for the network, a report for the disk. While a process waits, its core does nothing. If a driver reads three files of 100 ms each, one after the other, it needs 300 ms, and the core is idle almost all that time. With three tasks, the waits overlap: the first task asks for its file and gives the turn away, the second asks for its file, then the third. The three answers arrive in about 100 ms.</p>
 
-<h2 id="parallel-model">Parallel aspects</h2>
+<p>The code does not change shape for this. A task reads like plain sequential code that waits; the machine gives the core away at each wait and brings the task back when its wait is over. There are no callbacks, no promises and no event loop to write.</p>
 
-<div class="alert alert-warning">Not in Eve 0.1. Parallel groups and channels are designed but not implemented in version 1; their keywords are reserved. In version 1 an aspect is only applied, and it runs on the core of its caller.</div>
+<h2 id="mt-async">Asynchronous functions and procedures</h2>
 
-<p>Eve does parallel work with aspects. An aspect is an encapsulated machine: it has one process, <code>main</code>, and nothing public. <code>apply name(args);</code> runs it in serial mode and the caller waits. <code>start name(args);</code>, written in a parallel group of the driver, runs it on a worker core. Methods and functions always run in serial mode, on the core of their caller: they can't be started. These are the concepts:</p>
-
-<ul>
-<li><b>Driver:</b> the master. Its process <code>main</code> runs on one core and is the only place where parallel groups are allowed; it opens them one after the other;</li>
-<li><b>Parallel group:</b> a block <code>parallel … do … done</code> that starts aspects and waits for all of them;</li>
-<li><b>Task:</b> one aspect started with <code>start</code>. It runs on a worker core with its own state, created at <code>start</code> and dropped when its <code>main</code> returns, and with its own copy of the input arguments;</li>
-<li><b>Barrier:</b> the closing <code>done</code>. The driver waits there until every task of the group has returned; then the outputs (<code>@</code>) are ready;</li>
-<li><b>Channel:</b> a queue that connects tasks running at the same time. A task sends values into it, another task receives them.</li>
-</ul>
-
-<p>With these elements Eve supports three models of parallel work: <b>task groups</b> (different aspects side by side), <b>Bulk Synchronous Parallel</b> (the same aspect on slices of the data, in supersteps) and <b>pipelines</b> (stages connected by channels). An aspect can't apply or start another aspect, so the work of a task is done by its own methods and functions, and by the modules it imports.</p>
-
-<h2 id="parallel-groups">Parallel groups</h2>
-
-<p>A parallel group starts aspects that run at the same time. The driver executes the groups one by one: a group begins after the previous group has finished. Each group can have an optional label.</p>
-
-<h4>Syntax:</h4>
+<p>The keyword <code>async</code> in front of <code>function</code> or <code>procedure</code> declares a subprogram that runs as a task:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-[label:] parallel [on error cancel] [within time]
-  ** declarations, local to the group
-do
-  start aspect_name(arguments);
+async procedure name(parameters) is
   ...
-done [label];
-</code></pre>
+return;
 
-<!-- a regular diagram -->
-<div class="text-center">
-  <img src="/projects/eve/img/eve-parallel.svg" alt="Two parallel groups: aspects started on worker cores, done waits for all of them"
-    width="540" class="img-fluid protect rounded shadow border" >
-  <p>parallel … do … start … done</p>
-</div>
-
-<h4>Example: task group</h4>
-
-<p>The work of one worker is an aspect, in its own file <code>task.eve</code>:</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# work done by one worker
-concurrent aspect task is
-  process main(n: Integer) is
-    print ("task ", n, " is running");
-  return;
-end task;
-</code></pre>
-
-<p>The driver starts it four times, in two groups:</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# parallel groups demo
-driver parallel_demo is
-  process main is
-    ** the driver is a series of sequential groups
-    group1: parallel
-      ** local variables for group1
-    do
-      start task(1);
-      start task(2);
-    done group1;
-
-    ** group1 is now complete, group2 starts
-    group2: parallel
-      ** local variables for group2
-    do
-      start task(3);
-      start task(4);
-    done group2;
-
-    ** Both groups are now complete
-  return;
-end parallel_demo;
-</code></pre>
-
-<h4>Notes:</h4>
-<ul>
-  <li>Each group executes sequentially. Within a group, the started aspects run at the same time, on several cores;</li>
-  <li>A parallel group is allowed only in the process <code>main</code> of the driver, and groups are not nested. <code>start</code> is allowed only in the <code>do</code> region of a group, and it starts only aspects: <code>start method()</code> is an error;</li>
-  <li>The <code>do</code> region can use control statements, for example a loop that starts the same aspect several times;</li>
-  <li>The closing <code>done</code> waits for all the aspects started in the group, and it is always for a single group;</li>
-  <li>The label of a group is optional. A group without a label starts with <code>parallel</code> and ends with a naked <code>done;</code>; a labeled group ends with <code>done label;</code>.</li>
-</ul>
-
-<p>The driver can start the same aspect several times with different arguments, to compute different parts of the data. Every started aspect writes its own element of the array <code>s</code>: two started aspects never receive the same output variable.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# compute one result
-concurrent aspect square is
-  process main(n: Integer, @result: Integer) is
-    let result := n * n;
-  return;
-end square;
-</code></pre>
-
-<pre class="line-numbers"><code class="language-eve">
-## create parallel work
-driver parallel_loop is
-  process main is
-    new s: [4]Integer; ** one result for each worker
-
-    ** start the same aspect 4 times
-    demo: parallel
-    do
-      for i in (1..4) do
-        start square(i, @s[i]); ** runs in parallel
-      done;
-    done demo;
-    ** all started aspects have finished, s is ready
-    print s; ** [1,4,9,16]
-  return;
-end parallel_loop;
-</code></pre>
-
-<h2 id="data-rules">Data rules</h2>
-
-<p>Tasks run at the same instant, so two tasks must never write the same data. Eve guarantees this with a few rules; it needs no locks and no shared mutable objects, except channels.</p>
-
-<ul>
-<li><b>Inputs by value:</b> the arguments are evaluated at <code>start</code>. An argument without "@" is passed by value, also a collection: the task works on its own copy, and the driver can go on changing its variables. The virtual machine shares a large collection and copies it only when one side writes into it (copy on write), so passing by value is cheap;</li>
-<li><b>One owner for each output:</b> an output argument (<code>@</code>) is passed by reference and belongs to one task. Two tasks of the same group can't receive the same variable, the same element or two overlapping slices as output. The compiler rejects what it can prove; the virtual machine checks the rest at <code>start</code> and raises an error;</li>
-<li><b>Channels are the exception:</b> a channel is the only object that several tasks of a group can receive with "@". It is built for that: its operations are safe when tasks use it at the same time;</li>
-<li><b>Encapsulated:</b> an aspect sees no globals of the driver and has no public members; its state belongs to one task. It calls its methods by name, and they run on the same worker. It can print: the lines of each task are kept and written at <code>done</code>, task after task in the order of <code>start</code>, so the output is the same at every run;</li>
-<li><b>One level:</b> the driver opens parallel groups. An aspect started by the driver may open its own parallel group and start at most 2 <em>leaf</em> aspects; a leaf aspect starts none. An aspect can't apply another aspect, so recursion between aspects is impossible.</li>
-<li><b>Modules are shared:</b> all the tasks use the same copy of a module. Its exported constants, classes and plain functions are safe to share, and an exported channel of a module connects tasks without being passed as a parameter. The compiler decides which functions of a module are thread safe; an aspect that calls one that is not, directly or through other calls, can't be started. Module state that tasks share is atomic, guarded by a mutex or sent through a channel (see <a href="#thread-safety">Thread safety</a>).</li>
-</ul>
-
-<h3 id="errors-and-timeout">Errors and time-out</h3>
-
-<ul>
-<li>A parallel group behaves like a job. A failing aspect never blocks its siblings: the other tasks go on, and <code>done</code> waits for all of them. Then the group raises one error, <code>ParallelError</code>, in the driver, where <code>$error.job</code> is the label of the group and <code>$error.errors</code> lists every failed aspect, in the order of <code>start</code>: <code>{index, aspect, code, message, line}</code>. No error is lost and the order does not depend on the scheduling. In <code>recover</code>, <code>retry</code> runs the whole group again and <code>resume</code> continues after it; without <code>recover</code> the next groups do not begin;</li>
-<li><code>on error cancel</code> changes the policy: after the first error, the aspects not yet finished are cancelled. Without it, the group waits for all (the default);</li>
-<li><code>within time</code> sets a deadline for the group: <code>parallel within 30s do … done;</code> raises a time-out error for the aspects still running after 30 seconds;</li>
-<li>A task that waits on a channel longer than <code>$timeout</code> (60 seconds by default, set in the configuration file of the driver) raises a time-out error. An aspect may set its own value, <code>set $timeout = 5s;</code>, which shadows the driver value inside that aspect only;</li>
-<li>When every unfinished task of a group waits on a channel, nothing can move any more: this is a deadlock. The virtual machine detects it and raises a deadlock error at <code>done</code>.</li>
-</ul>
-
-<h3 id="workers">Workers</h3>
-
-<p>The number of started aspects is not limited by the number of cores. The virtual machine keeps a pool of worker threads, one for each core, and queues the extra tasks: when no core is free, a <code>start</code> waits until one is. Two system variables, set in the configuration file of the driver, bound the work: <code>$cores</code>, the size of the pool (by default the number of hardware cores, at most 16), and <code>$max_parallel</code>, the number of aspects one parallel group of the driver may start (8 by default). The compiler detects, when it can, a group that starts too many aspects and reports a warning.</p>
-
-<p><b>A waiting aspect gives its core away.</b> A started aspect that waits, for a file, the network, a database, a <code>wait 10ms;</code> or a channel, releases its worker to another task and continues when the wait is over. The virtual machine does this; the code of the aspect stays plain sequential code. So a group can start more aspects than there are cores and overlap their waits: calling 50 services is one group of 50 started aspects on a few cores, and a pipeline with more stages than cores still works.</p>
-
-<p>The number of tasks can be dynamic. You can read it from the configuration file, compute it from the size of the data or from <code>$cores</code>, or hard code it as a constant inside the driver. This gives you flexibility to tune your driver.</p>
-
-<h2 id="thread-safety">Thread safety</h2>
-
-<div class="alert alert-warning">Not in Eve 0.1, like the rest of parallel work. <b>Proposed:</b> the types <code>Atomic</code> and <code>Mutex</code> and the exact checks of the compiler are a design waiting for the author's review.</div>
-
-<p>Two tasks that write the same variable at the same instant can lose an update: both read 5, both write 6, and one hit is gone. A function is <b>thread safe</b> when many tasks can call it at the same time and the result is always right. Thread safety is a different question from the one <code>!</code> answers. <code>!</code> marks a <b>stochastic</b> function, one whose result can differ for the same arguments, like <code>roll!()</code>. A function that is not stochastic is deterministic. A stochastic function can be thread safe, and a deterministic one may not be: what decides is the data it touches, not whether its result repeats.</p>
-
-<h3 id="who-decides">The compiler decides</h3>
-
-<p>You do not mark a function or a procedure as thread safe. The compiler reads the call graph and decides for every subprogram, in every module:</p>
-
-<ul>
-<li>A subprogram that uses only its arguments and its own local variables is thread safe;</li>
-<li>A subprogram that reads or changes a plain variable of a module is not;</li>
-<li>A subprogram that uses a module variable only through an <b>atomic</b> variable, a <b>mutex</b> or a <b>channel</b> is thread safe;</li>
-<li>A subprogram that calls another is thread safe only if every subprogram it calls is.</li>
-</ul>
-
-<p>The check is made on the aspect, where it is written (see <a href="#marking-aspects">Marking an aspect</a>). For a <code>concurrent aspect</code> the compiler looks at everything the aspect can call, directly or through other calls. If one function in that set is not thread safe, the program does not compile, and the message names the function and the variable. An <code>exclusive aspect</code> has no such rule, because it is never started.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-** a plain module variable: not thread safe
-module plain is
-  export (hit);
-  new total = 0 :Integer;
-  procedure hit() is
-    let total += 1;              ** read, add, write: two tasks can lose an update
-  return;
-end plain;
-</code></pre>
-
-<p>The whole example, with the aspect and the driver, is in <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/unsafe_counter/unsafe_counter.eve">unsafe_counter</a>: the aspect <code>worker</code> that calls <code>plain.hit()</code> compiles as an <code>exclusive aspect</code> and is applied; declared <code>concurrent aspect</code>, it does not compile.</p>
-
-<h3 id="marking-aspects">Marking an aspect</h3>
-
-<p>An aspect says what it wants to be, and the compiler holds it to its word. The keyword is not optional: <code>aspect</code> alone is an error.</p>
-
-<ul>
-<li><code>exclusive aspect name is</code>: runs alone, in serial mode. It is run with <code>apply</code>; <code>start</code> of an exclusive aspect is a compile error. It may call any function and use any module, thread safe or not;</li>
-<li><code>concurrent aspect name is</code>: may run beside other tasks, started in a parallel group (it can also be applied). The compiler checks the aspect at its declaration and signals an error for every call that is not thread safe, with the chain of calls that leads to it.</li>
-</ul>
-
-<pre class="line-numbers"><code class="language-eve">
-concurrent aspect worker is
-  from "lib" use (plain);
-  process main(jobs: Integer) is
-    plain.hit();     ** error: plain.hit() changes a plain module variable,
-                     ** it is not thread safe
-  return;
-end worker;
-</code></pre>
-
-<p>The mistake is found when the aspect is written, not later, at the place where somebody starts it. If the aspect really needs such a function, it is honest: write <code>exclusive aspect</code>, or make the module thread safe with an atomic variable or a mutex.</p>
-
-<h3 id="generators-and-threads">Generators and threads</h3>
-
-<ul>
-<li>A generator declared in a driver or in an aspect is private to it. It runs on the core of its task and has one owner, so it can use any variable of the aspect. It needs to be neither thread safe nor deterministic (<a href="/roadmap/code-viewer.html?file=/projects/eve/demo/local_generator/asp/squares.eve">squares</a>);</li>
-<li>A generator exported by a module is called by many tasks, so the compiler requires it to be thread safe, with the same rules as a function. The generator object itself still belongs to one task. A generator that hands out numbers from a shared counter uses an atomic variable (<a href="/roadmap/code-viewer.html?file=/projects/eve/demo/module_generator/lib/tickets.eve">tickets</a>).</li>
-</ul>
-
-<h3 id="atomic">Atomic variables</h3>
-
-<p>An <b>atomic</b> variable holds one value, and each operation on it is indivisible: the operating system and the processor guarantee that no other thread sees it half done. It needs no lock, so it can never be part of a deadlock. It is declared with the class <code>Atomic(:T)</code> of the standard library, where <code>T</code> is a Logic, a number, a reference or an ordinal. The class is a wrapper of the atomic of the machine. A variable is initialized with a value, and a type is declared by derivation:</p>
-
-<pre class="line-numbers"><code class="language-eve">
-new total = 0 :Atomic(:Integer);    ** a variable
-class SageInteger <: Atomic(:Integer);   ** a type, a class derived from Atomic(:Integer)
-
-total.add(1);                      ** no result: add, nothing is lost
-let n := total.get!();             ** read: the value changes, so the name ends with !
-total.set(0);                      ** replace the value
-let old := total.swap!(7);         ** replace the value and return the previous one
-let done := total.compare_swap!(7, 8); ** set 8 only if the value is 7: True when it was set
-let first := total.fetch_add!(1);  ** add and return the previous value
-</code></pre>
-
-<p>Operations with a result read a value that other tasks change, so they are stochastic and end with <code>!</code>. The complete example is <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/atomic_counter/atomic_counter.eve">atomic_counter</a>: four workers count 4000 hits in a module <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/atomic_counter/lib/stats.eve">stats</a>.</p>
-
-<p><b>Advantage:</b> the fastest tool, no waiting, no deadlock. <b>Limit:</b> one variable at a time. Two atomic variables change one after the other, so another task can see one changed and the other not.</p>
-
-<h3 id="mutex">Mutex</h3>
-
-<p>A <b>mutex</b> (mutual exclusion) lets one task at a time into a piece of code. A task calls <code>acquire()</code> and the others wait until it calls <code>release()</code>. Use it when several variables must change together:</p>
-
-<pre class="line-numbers"><code class="language-eve">
-new lock = Mutex();
-
-procedure transfer(amount: Integer) is
-  lock.acquire();                  ** waits while another task holds the mutex
-  defer lock.release();            ** runs on every path, also after an error
-  let alice -= amount;
-  let bob   += amount;             ** nobody sees alice changed and bob not yet
+async function name(parameters) =&gt; (@result: Type) is
+  ...
 return;
 </code></pre>
 
-<p>The complete example is <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/mutex_account/mutex_account.eve">mutex_account</a>, with the module <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/mutex_account/lib/bank.eve">bank</a>.</p>
+<p>An asynchronous subprogram is called only with <code>spawn</code> or <code>await</code>, never as a plain call. The word is a promise to the reader: wherever <code>async</code> appears, the caller can see that this call may give the turn away. A plain call is a compile error:</p>
 
-<h4>Rules that prevent deadlocks:</h4>
-<ul>
-<li>Write <code>defer lock.release();</code> right after <code>acquire()</code>: the mutex is never kept by mistake;</li>
-<li>A task holds <b>one mutex at a time</b>. The compiler rejects a function that acquires a second mutex while it holds the first, directly or through a call. Without a circle of tasks waiting for each other, a deadlock can't happen;</li>
-<li>A wait for a mutex ends after <code>$timeout</code> (see <a href="#errors-and-timeout">Errors and time-out</a>) with a time-out error, so a mistake becomes an error and not a frozen program;</li>
-<li>Keep the guarded code short: no input, output, network or other wait while the mutex is held.</li>
-</ul>
+<pre class="line-numbers"><code class="language-eve">
+load("one.csv", @a);    ** error: load is async: use spawn or await
+</code></pre>
 
-<h3 id="other-measures">Other measures</h3>
+<h2 id="mt-job">Tasks in a job</h2>
+
+<p>A job is the region that owns the tasks. Inside its <code>do</code> region:</p>
 
 <ul>
-<li><b>Do not share.</b> Arguments passed by value are copies, and every task works on its own data. This costs a copy only when a task writes (copy on write) and never needs a lock;</li>
-<li><b>Channels</b> pass values from one task to another (see <a href="#channels">Channels</a>). Their operations are safe by design;</li>
-<li><b>One owner for each output</b> (<code>@</code>): two tasks never write the same variable (see <a href="#data-rules">Data rules</a>);</li>
-<li><b>Constants</b> and exported classes are read only, so any number of tasks can read them.</li>
+<li><code>spawn</code> creates a task from an <code>async procedure</code> and goes on at once, with the next statement;</li>
+<li><code>await</code> runs an asynchronous subprogram and waits for it at once, in serial mode. For a function, <code>await</code> is written in an expression and gives the result: <code>new n := await measure(path);</code>. For a procedure it is a statement: <code>await load(path, @text);</code>;</li>
+<li>the closer of the job, <code>done name;</code>, waits until every task spawned in the job has ended. After it, every output of the tasks is ready.</li>
 </ul>
 
-<h3 id="thread-cost">Choosing, with the cost</h3>
+<pre class="line-numbers"><code class="language-eve">
+# read three files at the same time, on one core
+driver load_all is
 
-<p>The costs are typical orders of magnitude on a desktop processor, not promises: measure your own program before you decide.</p>
+  ** an asynchronous procedure: no result, the text goes out by @text
+  async procedure load(path: String, @text: String) is
+    new f := fs.open(path);
+    defer f.close();
+    let text := f.read();   ** waits for the disk: the turn goes to the next task
+  return;
 
-<table class="table table-bordered table-striped">
-<thead>
-<tr><th>Measure</th><th>Use it for</th><th>Advantage</th><th>Penalty</th><th>Typical cost of one operation</th></tr>
-</thead>
-<tbody>
-<tr><td>no sharing (by value, one owner)</td><td>work that splits into independent parts</td><td>no waiting, nothing to get wrong</td><td>a copy when a task writes; results must be collected</td><td>none, or one copy</td></tr>
-<tr><td>Atomic</td><td>one counter, one flag, one number to hand out</td><td>no lock, no deadlock, very fast when alone</td><td>one variable only; many tasks on one atomic slow each other (the processor moves the memory line between cores)</td><td>about 5 to 20 ns, more under heavy contention</td></tr>
-<tr><td>Mutex</td><td>several variables that must change together; a longer piece of code</td><td>any code can be guarded</td><td>tasks wait in line; a long guarded code serializes the program; a mistake can freeze it (Eve limits this with one mutex at a time and a time-out)</td><td>about 20 to 50 ns without waiting; microseconds when tasks wait</td></tr>
-<tr><td>Channel</td><td>streams of values between stages</td><td>safe by design, a slow stage holds back a fast one</td><td>values are copied; a full or empty channel makes a task wait</td><td>about 100 ns to a few microseconds for each value</td></tr>
-</tbody>
-</table>
+  process main is
+    new a, b, c :String;
+    loading: job
+    do
+      spawn load("one.csv", @a);     ** a task: the job goes on
+      spawn load("two.csv", @b);     ** a second task
+      await load("three.csv", @c);   ** runs this one and waits for it
+    done loading;                    ** waits for every spawned task
+    print a.length(), b.length(), c.length();
+  return;
+end load_all;
+</code></pre>
 
-<p>As a rule, take the first row that fits: do not share; else an atomic variable; else a channel; else a mutex. A mutex is the most general and the most expensive to get right.</p>
+<h4>Rules</h4>
+<ul>
+<li><code>spawn</code> is allowed only in the <code>do</code> region of a job, of a driver or of an aspect. <code>await</code> is allowed in a process, in a job and in another asynchronous subprogram;</li>
+<li><code>spawn</code> starts only procedures. Spawning a function is a compile error, <code>double is a function: use await, a spawned result would be lost</code>: a spawned task has nobody to receive its result. A procedure gives its results through <code>@</code> output parameters, which stay in the variables of the job;</li>
+<li>Inputs are passed by value: a task works on its own copy of each argument, so the job may go on changing its variables;</li>
+<li>One <code>@</code> output belongs to one task. Two tasks never write the same variable;</li>
+<li>The outputs of a spawned task are ready after the <code>done</code> of the job; the outputs of an awaited one, on the next statement.</li>
+</ul>
 
-<h2 id="bsp">Bulk Synchronous Parallel</h2>
+<h2 id="mt-turns">How the tasks take turns</h2>
 
-<p>The recommended pattern for parallel work is Bulk Synchronous Parallel (BSP). The computation is a sequence of supersteps. A superstep has three phases:</p>
+<p>Knowing exactly when a task gives the turn away is what makes multitasking easy to read. Eve keeps the rule small:</p>
 
 <ol>
-<li><b>Compute:</b> every worker computes on its own part of the data, without talking to the others;</li>
-<li><b>Communicate:</b> every worker writes its results into its own output;</li>
-<li><b>Synchronize:</b> a barrier waits for all the workers. After the barrier, all the results are visible.</li>
+<li><b>spawn does not run the task.</b> It records the task and its arguments; the main flow of the job keeps the turn and goes on;</li>
+<li><b>A task gives the turn away only when it waits:</b> <code>wait duration;</code>, an <code>await</code> of a subprogram that waits, the <code>done</code> of the job, a full or empty channel, and the input and output of the system library (files, network, databases);</li>
+<li><b>The next task is the next ready one, in the order of spawn.</b> The tasks form a circle: after the last one comes the main flow of the job, then the first task again. A task whose wait is not over is skipped;</li>
+<li><b>A task that never waits runs to its end.</b> There is no time slice: a long computation keeps the core until it is finished, and the other tasks wait. Long computations belong to aspects that run at the same time (<a href="/projects/eve/concurrency.html">Concurrency</a>).</li>
 </ol>
 
-<p>In Eve, one parallel block is one superstep, and its <code>done</code> is the barrier. Between two blocks the driver runs alone: it combines the partial results or prepares the data for the next superstep. An iterative algorithm puts the parallel block in a loop.</p>
+<p>So between two waits, a task is alone: no other task can see its variables half changed. This is why the tasks of a job need no lock, no atomic variable and no mutex.</p>
 
-<h4>Example: parallel sum</h4>
-
-<p>Next driver computes the sum of 32,000 random numbers with 32 workers. The data is split into 32 slices, one for each worker, and every worker writes one element of the array <code>partials</code>. The worker is the aspect <code>partial_sum</code>:</p>
+<h4>Example: two clocks</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-# local computation: one slice in, one partial sum out
-concurrent aspect partial_sum is
-  process main(data: []Integer, @partial: Integer) is
-    let partial := 0;
-    for x in data do
-      let partial += x;
+# two tasks take turns while they wait
+driver mt_turns is
+  async procedure tick(name: String, times: Integer) is
+    for i in (1..times) do
+      print "{name} {i}";
+      wait 10ms;                    ** gives the turn away for 10 ms
     done;
   return;
-end partial_sum;
-</code></pre>
 
-<pre class="line-numbers"><code class="language-eve">
-# parallel sum with one BSP superstep
-driver parallel_sum is
-  set workers = 32 :Integer;
-  set size = 1000 :Integer; ** elements for one worker
+  async function slow_double(n: Integer) =&gt; (@result: Integer) is
+    wait 50ms;
+    let result := n * 2;
+  return;
 
   process main is
-    new data: [workers * size]Integer;
-    new partials: [workers]Integer;
-
-    ** produce the data
-    for i in (1..workers * size) do
-      let data[i] := (0..99).random();
-    done;
-
-    ** superstep: 32 workers, one slice each
-    sums: parallel
-      new first: Integer;
+    clock: job
     do
-      for w in (1..workers) do
-        let first := (w - 1) * size + 1;
-        start partial_sum(data[first..first + size - 1], @partials[w]);
-      done;
-    done sums; ** barrier: all the partial sums are ready
-
-    ** combine on the main core
-    new total := 0;
-    for p in partials do
-      let total += p;
-    done;
-    print total;
+      spawn tick("a", 3);           ** recorded, not run yet
+      spawn tick("b", 2);
+      print "main goes on";         ** the main flow still has the turn
+      new d := await slow_double(21); ** waits: a and b get their turns
+      print "double {d}";
+    done clock;                     ** waits for a and b
+    print "all done";
   return;
-end parallel_sum;
+end mt_turns;
 </code></pre>
 
-<p>The same job can be written as a pipeline, with a producer, 32 consumers and channels between them (see <a href="#channels">Channels</a>). For data that is already in memory, the BSP version is simpler and safer:</p>
+<pre class="output">
+main goes on
+a 1
+b 1
+a 2
+b 2
+a 3
+double 42
+all done
+</pre>
 
-<ul>
-<li>no shared object: every worker reads its own slice and writes its own element;</li>
-<li>no blocking: a worker never waits for another worker, only the driver waits, at <code>done</code>. There is no buffer that can fill up, so there is no deadlock;</li>
-<li>deterministic: the partial results are combined in index order, so the result is the same on every run, also for floating point numbers, where the order of a sum changes the rounding;</li>
-<li>one error point: errors arrive at the barrier, where the recover region of the driver can handle them;</li>
-<li>predictable cost: a superstep lasts as long as its slowest worker, plus the barrier.</li>
-</ul>
+<p>"main goes on" comes first, because <code>spawn</code> only records the tasks. The <code>await</code> makes the main flow wait 50 ms; in that time <code>a</code> and <code>b</code> take turns, every 10 ms. When two tasks are ready at the same moment, they run in the order of spawn: <code>a</code> before <code>b</code>.</p>
 
-<h4>Example: iterative supersteps</h4>
+<div class="alert alert-info"><b>Timers and order.</b> The order of tasks that are ready together is fixed: the order of spawn. The order of tasks that wake up from timers depends on the clock. With waits of 10 ms and 15 ms, which one wakes first can change from one run to the next, because starting a task and printing also take a few milliseconds. Do not build a result on the race between two timers: give the waits a clear margin, or pass the values through the outputs and combine them after <code>done</code>.</div>
 
-<p>Next driver simulates the heat that flows along a bar. The bar is an array of 1002 cells. The first cell is hot and the last cell is cold; they don't change. At every step, a cell takes the average of itself and its two neighbors. The 1000 inner cells are split into 10 slices. A worker, the aspect <code>smooth</code>, receives the current state <code>cur</code> by value and writes its slice of the next state <code>nxt</code> by reference. After the barrier the driver clones <code>nxt</code> into <code>cur</code> with <code>::</code>; an assignment <code>:=</code> would share the array instead of copying it, and the next superstep would read and write the same cells. This copy is the communication between supersteps: in the next superstep every worker sees the new values of its neighbor slices.</p>
+<h2 id="mt-wait">Timers: wait</h2>
+
+<p><code>wait duration;</code> suspends the current task and gives the turn away. A duration is an integer with a unit written right after it: <code>ms</code>, <code>s</code>, <code>m</code>, <code>h</code> (<code>10ms</code>, <code>30s</code>, <code>2m</code>, <code>1h</code>). Outside a job, <code>wait</code> simply pauses the process.</p>
+
+<p>Periodic work is a loop with a <code>wait</code>. A driver that checks a folder every minute, while a second task sends a heartbeat every 10 seconds:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-# compute one slice of the next state
-concurrent aspect smooth is
-  process main(cur: []Real, first: Integer, @part: []Real) is
-    for k in (1..part.count()) do
-      new i := first + k - 1;
-      let part[k] := (cur[i - 1] + cur[i] + cur[i + 1]) / 3;
+# periodic work: two tasks with their own rhythm
+driver watcher is
+  async procedure scan(rounds: Integer) is
+    for i in (1..rounds) do
+      print "scan {i}";
+      wait 1m;
     done;
   return;
-end smooth;
-</code></pre>
 
-<pre class="line-numbers"><code class="language-eve">
-# heat diffusion with iterative BSP supersteps
-driver heat_bar is
-  set workers = 10 :Integer;
-  set width = 100 :Integer; ** cells for one worker
+  async procedure heartbeat(rounds: Integer) is
+    for i in (1..rounds) do
+      print "alive";
+      wait 10s;
+    done;
+  return;
 
   process main is
-    new cur: [workers * width + 2]Real;
-    new nxt: [workers * width + 2]Real;
-    let cur[1] := 100.0; ** hot end, the cold end stays 0
-    let nxt[1] := 100.0;
-
-    for n in (1..500) do
-      ** compute in parallel
-      superstep: parallel
-        new first: Integer;
-      do
-        for w in (1..workers) do
-          let first := (w - 1) * width + 2;
-          start smooth(cur, first, @nxt[first..first + width - 1]);
-        done;
-      done superstep; ** barrier
-
-      ** communicate: the next state becomes the current state
-      let cur :: nxt; ** clone: cur is a new copy of nxt
-    done;
-    print cur[2..11]; ** temperature near the hot end
+    watch: job
+    do
+      spawn scan(60);          ** one hour of scans
+      spawn heartbeat(360);    ** one hour of heartbeats
+    done watch;
   return;
-end heat_bar;
+end watcher;
 </code></pre>
 
-<h2 id="channels">Channels</h2>
+<p>A server that runs for days uses the same shape, with a condition instead of a count (see <a href="/projects/eve/server.html">Server</a>).</p>
 
-<p>A channel is a queue with a fixed capacity that connects tasks running in the same group. A producer task sends values into the channel; a consumer task receives them in the same order. When the channel is full, the sender waits; when it is empty, the receiver waits. In this way a fast stage can't run away from a slow one, and data flows through the tasks while it is produced. This is the right tool for streams: data that arrives over time or does not fit in memory.</p>
+<h2 id="mt-errors">Errors in a job</h2>
 
-<h4>Create a channel</h4>
-
-<p><code>Channel(:T)</code> is a generic class of the core library. The type parameter is the type of the values; the constructor takes the capacity and, optionally, the number of senders.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-  new jobs := Channel(:Integer)(capacity: 100);
-  new results := Channel(:Real)(capacity: 100, senders: 4);
-</code></pre>
-
-<h4>Operations</h4>
+<p>A failing task never stops the other tasks. They go on, and <code>done</code> waits for all of them. Then the job raises one error, <code>ParallelError</code> (code 45), that lists every failed task. No error is lost, and the list is in the order of spawn, whatever task failed first:</p>
 
 <table class="table table-bordered table-striped">
 <thead>
-<tr><th>Operation</th><th>Meaning</th></tr>
+<tr><th>Member</th><th>Value</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ch.send(value);</code></td><td>put a value at the end of the channel; wait while the channel is full. Sending into a closed channel is an error</td></tr>
-<tr><td><code>for x in ch do … done;</code></td><td>receive the values one by one, waiting for each; the loop ends when the channel is closed and empty</td></tr>
-<tr><td><code>ch.receive(@x);</code></td><td>receive one value into <code>x</code>; wait while the channel is empty. Receiving from a closed, empty channel is an error</td></tr>
-<tr><td><code>ch.close();</code></td><td>a sender has finished. With <code>senders: n</code> the channel closes after the n-th <code>close</code>; without it, after the first</td></tr>
-<tr><td><code>ch.count()</code></td><td>the number of values waiting in the channel, for monitoring</td></tr>
+<tr><td><code>$error.message</code></td><td><code>{n} of {m} tasks failed</code></td></tr>
+<tr><td><code>$error.job</code></td><td>the label of the job</td></tr>
+<tr><td><code>$error.errors</code></td><td>one record <code>{index, aspect, code, message, job, line}</code> for each failed task; <code>index</code> is the spawn number, from 1; <code>aspect</code> is empty for a task of a job</td></tr>
 </tbody>
 </table>
 
-<h4>Rules:</h4>
-<ul>
-<li>A channel is created by the driver, before the group or in the declarations of the group, and it is passed to the tasks with "@": <code>start produce(@jobs);</code>. The parameter of <code>main</code> is declared <code>@jobs: Channel(:Integer)</code>;</li>
-<li>Every sender must <code>close</code> the channel when it has finished, otherwise its receivers wait forever (until the time-out). With several senders, create the channel with <code>senders: n</code>, so the receivers stop after the last sender;</li>
-<li>Values sent into a channel are copied, like arguments passed by value: a receiver never shares data with the sender;</li>
-<li>The order of the values from one sender is kept. With several senders the values are interleaved in any order, so a result that depends on the order is not deterministic;</li>
-<li>After <code>done</code> all the tasks have finished. The driver can still read what is left in a closed channel with <code>for x in ch do</code>, but it is better to collect the results inside the group, as below.</li>
-</ul>
-
-<h4>Example: pipeline</h4>
-
-<p>Next driver has three stages, each one an aspect. One producer sends 10,000 random numbers into <code>jobs</code>. Four workers receive from <code>jobs</code>, square every number and send it into <code>results</code>. One collector receives from <code>results</code> and adds the values into <code>total</code>. The three stages run at the same time, and the barrier <code>done flow</code> waits for all six tasks.</p>
-
-<!-- a regular diagram -->
-<div class="text-center">
-  <img src="/projects/eve/img/eve-pipeline.svg" alt="Pipeline: a producer sends into the channel jobs, four workers send into the channel results, a collector computes the total"
-    width="540" class="img-fluid protect rounded shadow border" >
-  <p>produce → jobs → square ×4 → results → collect</p>
-</div>
-
 <pre class="line-numbers"><code class="language-eve">
-# stage 1: produce the numbers
-concurrent aspect produce is
-  process main(count: Integer, @jobs: Channel(:Integer)) is
-    for i in (1..count) do
-      jobs.send((0..99).random()); ** waits while jobs is full
-    done;
-    jobs.close(); ** no more numbers
+# a failing task does not stop the others
+driver job_errors is
+  async procedure check(n: Integer, @r: Integer) is
+    wait 5ms;
+    raise "bad {n}" if n == 2;
+    let r := n;
   return;
-end produce;
-</code></pre>
-
-<pre class="line-numbers"><code class="language-eve">
-# stage 2: square every number
-concurrent aspect square is
-  process main(@jobs, @results: Channel(:Integer)) is
-    for x in jobs do ** ends when jobs is closed and empty
-      results.send(x * x);
-    done;
-    results.close(); ** one of the 4 senders has finished
-  return;
-end square;
-</code></pre>
-
-<pre class="line-numbers"><code class="language-eve">
-# stage 3: collect the results
-concurrent aspect collect is
-  process main(@results: Channel(:Integer), @total: Integer) is
-    let total := 0;
-    for y in results do ** ends after the 4th close
-      let total += y;
-    done;
-  return;
-end collect;
-</code></pre>
-
-<pre class="line-numbers"><code class="language-eve">
-# pipeline: producer, 4 workers and a collector
-driver pipeline is
-  set workers = 4 :Integer;
 
   process main is
-    new total: Integer;
-    new jobs := Channel(:Integer)(capacity: 100);
-    new results := Channel(:Integer)(capacity: 100, senders: workers);
-
-    flow: parallel
+    new a, b, c :Integer;
+    work: job
     do
-      start produce(10000, @jobs);
-      for w in (1..workers) do
-        start square(@jobs, @results);
-      done;
-      start collect(@results, @total);
-    done flow; ** barrier: all the stages have finished
-
-    print total;
+      spawn check(1, @a);
+      spawn check(2, @b);              ** this one fails
+      await check(3, @c);              ** an awaited procedure, as a statement
+    done work;                         ** raises ParallelError
+    print "never";
+  recover
+    print $error.message;
+    print "job: {$error.job}";
+    print "{$error.errors[1].index}: {$error.errors[1].message}";
+    print "{a} {c}";                   ** the tasks that did not fail have their outputs
   return;
-end pipeline;
+end job_errors;
 </code></pre>
 
-<h4>Notes:</h4>
-<ul>
-<li>The capacity limits the memory: at most 100 numbers wait in each channel, whatever the size of the stream;</li>
-<li>The collector runs inside the group. If the driver tried to read <code>results</code> after <code>done</code>, the workers would wait on a full channel and the group would never end: the virtual machine would report a deadlock;</li>
-<li>Only the collector writes <code>total</code>, so the output rule (one owner) holds;</li>
-<li>A sum does not depend on the order of the values. For results that do, send an index with each value, or use BSP.</li>
-</ul>
+<pre class="output">
+1 of 2 tasks failed
+job: work
+2: bad 2
+1 3
+</pre>
 
-<h2 id="choosing">Choosing a model</h2>
+<p>An error of the main flow of the job ends the main flow, but the job still waits for its tasks: then it raises that error, or a <code>ParallelError</code> that holds it as item 0 when tasks failed too. A task is never abandoned half done. In <code>recover</code>, <code>retry</code> runs the whole job again and <code>resume</code> goes on after it (see <a href="/projects/eve/processing.html">Processing</a>).</p>
+
+<h2 id="mt-generators">Generators</h2>
+
+<p>A generator is the lightest form of multitasking: a function that gives its values one at a time with <code>yield</code> and keeps its place between two values (see <a href="/projects/eve/generators.html">Generators</a>). It takes turns with its caller only, at each <code>yield</code>, on the core of the caller. Use a generator for one sequence that is produced step by step, and tasks in a job for several pieces of work that wait.</p>
+
+<h2 id="mt-compare">Eve and async and await</h2>
+
+<p>Many languages have <code>async</code> and <code>await</code>. Eve keeps the two words and drops what makes them hard to read: a task is not a value, there are no futures to pass around, and the results arrive in variables at a known place, the <code>done</code> of the job.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
-<tr><th>Model</th><th>Shape</th><th>Shared data</th><th>Result</th><th>Use it for</th></tr>
+<tr><th>Need</th><th>In languages with async</th><th>In Eve</th></tr>
 </thead>
 <tbody>
-<tr><td>Generator</td><td>one generator gives its values one at a time to its caller</td><td>none: the generator keeps its own state</td><td>deterministic</td><td>long or infinite sequences, reading data step by step, lazy pipelines in one process</td></tr>
-<tr><td>Cooperative tasks</td><td>several generators take turns on one core, at each <code>yield</code></td><td>none: one core, a fixed order</td><td>deterministic</td><td>interleaved steps: simulations, protocols, polling several sources</td></tr>
-<tr><td>Task group</td><td>different aspects side by side, one barrier</td><td>none: inputs by value, one owner for each output</td><td>deterministic</td><td>independent jobs: read several files, call several services, build several reports</td></tr>
-<tr><td>Bulk Synchronous Parallel</td><td>the same aspect on slices of the data, a barrier after each superstep</td><td>none; data is exchanged by the driver between supersteps</td><td>deterministic</td><td>data in memory: aggregations, arrays and matrices, iterative algorithms</td></tr>
-<tr><td>Pipeline</td><td>stages connected by channels, running at the same time</td><td>channels only</td><td>order not guaranteed with several senders</td><td>streams: data that arrives over time or does not fit in memory, input and output overlapped with computing</td></tr>
+<tr><td>overlap many waits</td><td><code>await all(f1(), f2())</code></td><td>a job that spawns <code>async</code> procedures</td></tr>
+<tr><td>take a result later</td><td>a future or a promise</td><td>an output parameter <code>@</code>, ready at the <code>done</code> of the job</td></tr>
+<tr><td>wait for one call at once</td><td><code>await f()</code></td><td><code>await f()</code>, in serial mode</td></tr>
+<tr><td>stream of results</td><td>an async iterator</td><td>a generator, or a channel</td></tr>
+<tr><td>errors of many tasks</td><td>the first error, the others are often lost</td><td>one <code>ParallelError</code> with every failed task, in the order of spawn</td></tr>
+<tr><td>colored functions</td><td><code>async</code> spreads to every caller</td><td><code>async</code> marks the subprogram; it is called only with <code>spawn</code> or <code>await</code>, and a plain process may <code>await</code> it</td></tr>
+<tr><td>data races</td><td>possible when tasks run on a thread pool</td><td>none: the tasks of a job share one core and switch only when they wait</td></tr>
 </tbody>
 </table>
 
-<p>Inside one process, use a generator for a sequence and cooperative tasks for steps that take turns. For work that needs several cores, or many waits at the same time, start with a task group or BSP: a worker never waits for another worker, so they can't deadlock and they give the same result on every run. Use channels when the data is a stream. A driver can combine the models: for example a pipeline that reads a large file in one group, then BSP supersteps on the data it has collected.</p>
+<h2 id="mt-callbacks">Callbacks and completion</h2>
 
-<!-- work in progress-->
+<p>A callback (<a href="/projects/eve/callbacks.html">Callbacks</a>) runs in serial mode, in the receiver, at the moment it is called. It is never called "later, from somewhere else": that would bring hidden order into plain code. When a task has a result, the job reads it after <code>done</code>, from the output parameters.</p>
+
+<h2 id="mt-status">Status</h2>
+
+<div class="alert alert-info">Implemented in the virtual machine, version 0.3 (level 4, tests d17, d18, d19 and d33): <code>async</code>, <code>spawn</code>, <code>await</code>, <code>wait</code>, the job barrier and its <code>ParallelError</code>. The waits of the system library (files, network, databases) give the turn away when these modules are implemented (levels 5 and 6).</div>
+<div class="alert alert-info"><b>TODO:</b> write the example "read three files" with the real module <code>fs</code>, and an example that calls several web services with the module <code>http</code>, when they exist (level 6).</div>
 
 <hr>
 <p><b>Read next:</b>
-<a href="/projects/eve/templates.html">Templates</a></p>
+<a href="/projects/eve/concurrency.html">Concurrency</a></p>
 
 <!-- Footer -->
     </main>

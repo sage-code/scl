@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Sage-Code Eve modules: declaration, public and private members, singletons, initialize and finalize, import, modules and parallel aspects.">
+  <meta name="description" content="Sage-Code Eve modules: declaration, public and private members, singletons, initialize and finalize, import and libraries.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, modules, module, import, singleton, initialize, finalize, library">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -45,7 +45,7 @@
 <h1 id="modules">Eve Modules</h1>
 
 <div class="alert alert-secondary shadow-sm">
-A module is a script file that holds reusable code: constants, classes, functions, extension methods and channels. It is not executable: it has no process and it can't be applied or started. A module is a singleton: it is loaded once, initialized once and finalized once, and you can't create instances of it. Drivers, aspects and other modules import it and use its public members with the dot operator. This chapter explains the declaration of a module, its public and private members, its life cycle, the import, and how modules work with parallel aspects.
+A module is a script file that holds reusable code: constants, classes, functions and extension methods. It is not executable: it has no process and it can't be applied. A module is a singleton: it is loaded once, initialized once and finalized once, and you can't create instances of it. Drivers, aspects and other modules import it and use its public members with the dot operator. This chapter explains the declaration of a module, its public and private members, its life cycle, the import and the library.
 </div>
 
 <h2 id="declaration">Module declaration</h2>
@@ -93,7 +93,7 @@ end module_name;
 
 <h4>Notes:</h4>
 <ul>
-<li>A module has no process: <code>process main is</code> belongs to drivers and aspects. A module can't be applied or started;</li>
+<li>A module has no process: <code>process main is</code> belongs to drivers and aspects. A module can't be applied;</li>
 <li>The declarations can come in any order: they are hoisted. By convention: imports, exports, constants, variables, classes, functions and extension methods, then <code>initialize</code> and <code>finalize</code>;</li>
 <li>At module level there are functions and extension methods; a method that is not an extension method belongs to a class (see <a href="/projects/eve/classes.html">Classes</a>);</li>
 <li>Module names use lowercase letters, digits and underscore, no special characters and no Unicode. A name can be 30 characters long;</li>
@@ -112,11 +112,11 @@ end module_name;
 <tr><td>constant</td><td><code>set NAME = value :Type;</code></td><td>yes</td><td>a constant never changes, so every user can read it safely</td></tr>
 <tr><td>class</td><td><code>class Name = {…} &lt;&#58; Object;</code></td><td>yes</td><td>a class is a type; its objects belong to the code that creates them</td></tr>
 <tr><td>function</td><td><code>function name(…) =&gt; (…) is</code></td><td>yes</td><td>a plain function has no side effects</td></tr>
-<tr><td>procedure</td><td><code>procedure name(…) is</code></td><td>yes</td><td>it does work; when it changes the state of the module, parallel aspects can't use it</td></tr>
+<tr><td>procedure</td><td><code>procedure name(…) is</code></td><td>yes</td><td>it does work; it may change the private state of the module</td></tr>
 <tr><td>stochastic function</td><td><code>function name!(…) =&gt; (…) is</code></td><td>yes</td><td>its result can differ, for example because it reads the state of the module; it changes nothing</td></tr>
 <tr><td>extension method</td><td><code>method name(@self: Class, …) is</code></td><td>yes</td><td>it adds a method to a class, for the scripts that import the module</td></tr>
-<tr><td>channel</td><td><code>set name := Channel(:T)(capacity: n);</code></td><td>yes</td><td>a channel is made for several tasks: its operations are safe when tasks use it at the same time</td></tr>
-<tr><td>variable</td><td><code>new name = value :Type;</code></td><td>no, only private</td><td>a module is shared by the whole program; an exported variable could be changed by two tasks at the same time</td></tr>
+
+<tr><td>variable</td><td><code>new name = value :Type;</code></td><td>no, only private</td><td>a module is shared by the whole program; an exported variable could be changed from anywhere, and the module could no longer keep its state right</td></tr>
 </tbody>
 </table>
 
@@ -132,9 +132,9 @@ end module_name;
   return;
 </code></pre>
 
-<p>A module has <b>no public variables</b>: a variable in the export list is an error. A value that other scripts need to change is passed to a function of the module as a parameter, or sent through a channel. A public channel is declared with <code>set</code>: the reference to the channel is a constant, while the values that flow through it change.</p>
+<p>A module has <b>no public variables</b>: a variable in the export list is an error. A value that other scripts need to change is passed to a function or a procedure of the module as a parameter.</p>
 
-<p>A private variable of a module is written in its <code>initialize</code> region, and after that only by the procedures of the module, <code>procedure tick() is … return;</code>: a function changes nothing. A function that reads these variables is stochastic, because they change, so its name ends with <code>!</code>: <code>function count!() =&gt; (@result: Integer)</code>. A plain function can't read them. A procedure that changes them is thread safe only if the variables are atomic or guarded by a mutex (see <a href="#modules-and-aspects">Modules and parallel aspects</a>).</p>
+<p>A private variable of a module is written in its <code>initialize</code> region, and after that only by the procedures of the module, <code>procedure tick() is … return;</code>: a function changes nothing. A function that reads these variables is stochastic, because they change, so its name ends with <code>!</code>: <code>function count!() =&gt; (@result: Integer)</code>. A plain function can't read them.</p>
 
 <h2 id="singleton">Modules are singletons</h2>
 
@@ -238,55 +238,6 @@ end script_name;
 <li>The standard modules, such as <code>io</code> and <code>exception</code>, form the system library: a fixed list, imported by default, with no <code>use</code>. Every other library is imported by name. In debug mode the compiler warns on the forms that bring names without a prefix, <code>(m(*))</code> and <code>(*)</code>, because a name of the library can later hide or collide with a local name.</li>
 </ul>
 
-<h2 id="modules-and-aspects">Modules and parallel aspects</h2>
-
-<p>When several aspects run in a parallel group, they all use the same copy of a module. That is why the rules above matter: constants, classes and plain functions are safe to share, and a public channel lets the aspects exchange data without passing the channel as a parameter.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# a shared log for parallel workers
-module journal is
-  export (lines);
-  set lines := Channel(:String)(capacity: 1000);
-end journal;
-</code></pre>
-
-<pre class="line-numbers"><code class="language-eve">
-# a worker that writes into the shared log
-concurrent aspect worker is
-  from "lib" use (journal);
-
-  process main(n: Integer) is
-    journal.lines.send("worker {n} started");
-    ...
-  return;
-end worker;
-</code></pre>
-
-<p>The private variables of a module are shared too. The compiler decides which functions and procedures are thread safe, on the call graph: one that reads or changes a plain module variable is not, and a concurrent aspect that calls it, directly or through other calls, is a compile error. An exclusive aspect, which is the default kind, can call anything. In the example of the previous section, <code>counter.tick()</code> and <code>counter.count!()</code> become safe when <code>total</code> is declared atomic: <code>new total = 0 :Atomic(:Integer);</code> (or with a class derived from it, <code>class SageInteger &lt;: Atomic(:Integer);</code>). A channel, an atomic variable or a mutex is how parallel aspects share state: see <a href="/projects/eve/multitasking.html#thread-safety">Thread safety</a>. The functions of a module that are not thread safe stay available to the driver and to aspects run with <code>apply</code>.</p>
-
-<div class="alert alert-warning">Not in Eve 0.1: parallel groups and channels are planned for a later version (see <a href="/projects/eve/multitasking.html">Multitasking</a>). In version 1 a module is used by one process at a time.</div>
-
-<h3 id="managed-modules">Managed and direct modules</h3>
-
-<p>The header of a module can promise that all of it is thread safe. A module is <code>direct</code> by default; <code>managed</code> is written in front of <code>module</code>:</p>
-
-<pre class="line-numbers"><code class="language-eve">
-# a managed module: no plain variable, no unsafe call
-managed module pure is
-  export (FACTOR, twice);
-
-  set FACTOR = 2 :Integer;
-
-  function twice(x: Integer) =&gt; (@result: Integer) is
-    let result := x * FACTOR;
-  return;
-end pure;
-</code></pre>
-
-<p>The compiler checks a <code>managed</code> module as a whole and <b>rejects</b> it if a variable is not atomic, or if it uses an unsafe function or procedure, also from another module. A <code>direct</code> module can hold plain variables; its members are checked one by one, so a concurrent aspect may still call the members that the compiler proves safe. The words <code>managed</code> and <code>direct</code> are keywords only in front of <code>module</code>.</p>
-
-<div class="alert alert-warning"><b>Proposed.</b> The position of the words <code>managed</code> and <code>direct</code> (in front of <code>module</code>, as <code>exclusive</code> is in front of <code>aspect</code>) is a proposal for the author's review (D-129).</div>
-
 <h2 id="library-modules">Library modules</h2>
 
 <p>The standard library of Eve is a set of modules written in Eve. A function or method that needs the virtual machine is declared with the keyword <code>external</code>: the module keeps only its signature, and the body is implemented by the machine. For example the module <code>io</code>:</p>
@@ -330,10 +281,10 @@ end io;
 </thead>
 <tbody>
 <tr><td>Header</td><td><code>driver name is</code></td><td><code>aspect name is</code></td><td><code>module name is</code></td></tr>
-<tr><td>Executable</td><td>yes: <code>process main</code>, run from the command line</td><td>yes: <code>process main</code>, run with <code>apply</code> or <code>start</code></td><td>no process; <code>initialize</code> and <code>finalize</code></td></tr>
+<tr><td>Executable</td><td>yes: <code>process main</code>, run from the command line</td><td>yes: <code>process main</code>, run with <code>apply</code></td><td>no process; <code>initialize</code> and <code>finalize</code></td></tr>
 <tr><td>Copies at run time</td><td>one, the program</td><td>one for each call; the state is dropped when <code>main</code> returns</td><td>one, a singleton, from the first import to the end of the driver</td></tr>
 <tr><td>Instances (class call)</td><td>no</td><td>no</td><td>no</td></tr>
-<tr><td>Public members</td><td>none</td><td>none</td><td>the <code>export</code> list: constants, classes, functions, extension methods, channels; no variables</td></tr>
+<tr><td>Public members</td><td>none</td><td>none</td><td>the <code>export</code> list: constants, classes, functions, extension methods; no variables</td></tr>
 <tr><td>Global variables</td><td>yes, the only script with globals</td><td>no: private state for one call</td><td>private variables, shared by all users</td></tr>
 <tr><td>Can import modules</td><td>yes</td><td>yes</td><td>yes</td></tr>
 </tbody>
