@@ -1,0 +1,27 @@
+# networking: Eve as a client calls a REST service
+** chapter: 31 Networking (networking.html)
+** preview: level 5 (version 0.4, F-NET-01, HTTP client); the VM does not run it yet
+driver http_client is
+  from "lib" use (http);
+
+  process main is
+    ** a request waits for the network; the task gives its turn away meanwhile
+    new answer := http.get("https://api.example.com/orders", timeout: 10s);
+    expect answer.status == 200;
+    print answer.body;
+
+    ** two requests overlap in a job
+    new a, b: Integer;
+    calls: job
+    do
+      spawn size_of("https://api.example.com/orders", @a);
+      spawn size_of("https://api.example.com/customers", @b);
+    done calls;
+    print "sizes {a} and {b}";
+  return;
+
+  async procedure size_of(url: String, @size: Integer) is
+    new r := http.get(url, timeout: 10s);
+    let size := r.body.length();
+  return;
+end http_client;

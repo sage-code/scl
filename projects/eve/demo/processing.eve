@@ -1,0 +1,48 @@
+# processing: jobs, retry, resume, stop, finalize and defer
+** chapter: 25 Processing (processing.html)
+driver processing is
+
+  procedure step(name: String) is
+    defer print "  {name}: cleaned up";   ** runs on every path out of the procedure
+    print "  {name}: working";
+  return;
+
+  process main is
+    new tries := 0;
+
+    ** a job is a unit of work: an error in it goes to recover with $error.job
+    load: job
+    do
+      let tries += 1;
+      print "load, try {tries}";
+      raise "connection lost" if tries < 3;
+      step("load");
+    done load;
+
+    ** a job that fails is skipped with resume
+    report: job
+    do
+      raise "no printer";
+    done report;
+
+    ** stop ends a job early without an error
+    check: job
+    do
+      stop if tries == 3;
+      print "never";
+    done check;
+
+    print "after the jobs: {tries} tries";
+  recover
+    if $error.job == "load" and tries < 3 do
+      retry;                          ** run the failed job again
+    else if $error.job == "report" do
+      print "report failed: {$error.message}";
+      resume;                         ** go on after the failed job
+    else
+      abort;
+    done;
+  finalize
+    print "finalize: always runs";
+  return;
+end processing;

@@ -1,0 +1,24 @@
+# the VM frees memory as it goes: run with EVE_MEMSTATS=1 to see what was made and freed
+** chapter: 37 EVE VM (vm.html)
+** run: EVE_MEMSTATS=1 eve vm_memory.eve
+driver vm_memory is
+
+  process main is
+    new total := 0;
+    ** each pass makes a string and a list; the previous ones are freed at the end of the pass
+    for i in (1..100000) do
+      new line := "item {i}";
+      new parts := (i, i + 1, i + 2);
+      let total += parts.count();         ** line is made and dropped: only memory work
+    done;
+    expect total == 300000;
+
+    ** a job is a region: what it made is collected at done
+    work: job
+    do
+      new big := (x * 2 | x in (1..50000));
+      let total += big.count();
+    done work;
+    print "total: {total}";           ** total: 350000
+  return;
+end vm_memory;

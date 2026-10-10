@@ -1,0 +1,50 @@
+# generators: values made one at a time, on demand
+** chapter: 15 Generators (generators.html)
+** preview: level 5 (version 0.4, F-LNG-12); the VM does not run it yet
+driver generators is
+
+  ** produce the numbers 1 to n, one at a time
+  generator count_to(n: Integer) => (@x: Integer) is
+    for i in (1..n) do
+      let x := i;
+      yield;                          ** give x to the caller and wait here
+    done;
+  return;
+
+  ** the Fibonacci numbers, without end
+  generator fibonacci() => (@x: Integer) is
+    new a := 0;
+    new b := 1;
+    loop do
+      yield a;
+      new t := a + b;
+      let a := b;
+      let b := t;
+    repeat;
+  return;
+
+  process main is
+    ** 1. a for loop takes the values one by one
+    for v in count_to(5) do
+      write "{v} ";
+    done;
+    print;
+
+    ** 2. a builder collects all the values
+    new squares := (v * v | v in count_to(5));
+    print squares;                    ** (1,4,9,16,25)
+
+    ** 3. a generator object driven step by step
+    new g := count_to(3);
+    while g.next() do
+      print g.value;
+    done;
+
+    ** an endless generator is left with break
+    for n in fibonacci() do
+      break if n > 100;
+      write "{n} ";
+    done;
+    print;
+  return;
+end generators;

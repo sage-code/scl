@@ -1,0 +1,47 @@
+# a transfer changes two shared variables: a mutex makes them change together
+** chapter: 29 Concurrency (concurrency.html#mutex)
+** preview: level 5 (version 0.4); the VM has no Mutex class yet
+
+new alice = 100 :Integer;
+new bob   = 100 :Integer;
+
+** one mutex guards both variables: an atomic variable can't change two values together
+new lock = Mutex();
+
+** moves an amount from alice to bob; thread safe because of the mutex
+procedure transfer(amount: Integer) is
+  lock.acquire();                     ** waits while another task holds the mutex
+  defer lock.release();               ** released on every path, also after an error
+  let alice -= amount;
+  let bob   += amount;
+return;
+
+** the sum of both accounts, read while no transfer is half done
+function total!() => (@result: Integer) is
+  lock.acquire();
+  defer lock.release();
+  let result := alice + bob;
+return;
+
+concurrent aspect teller is
+  process main(count, amount: Integer) is
+    for i in (1..count) do
+      transfer(amount);
+    done;
+  return;
+end teller;
+
+driver mutex_account is
+  process main is
+    parallel
+    do
+      start teller(500, 3);           ** moves 3 from alice to bob, 500 times
+      start teller(500, -2);          ** moves 2 from bob to alice, 500 times
+    done;
+
+    ** the sum never changes: no transfer was seen half done
+    new sum := total!();
+    expect sum == 200;
+    print "total: {sum}";
+  return;
+end mutex_account;

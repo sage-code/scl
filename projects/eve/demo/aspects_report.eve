@@ -1,0 +1,43 @@
+# aspects: independent machines that a driver applies, in one file (an Eve macro)
+** chapter: 10 Aspects (aspects.html)
+** shows: apply, inputs by value, @ outputs, a fresh state at every apply, an error that crosses apply
+
+** measure: the statistics of a list of numbers
+exclusive aspect measure is
+  new seen := 0;                      ** state of the aspect: new at every apply
+
+  process main(values: ()Integer, @total: Integer, @largest: Integer) is
+    let total := 0;
+    let largest := values[1];
+    for v in values do
+      let seen += 1;
+      let total += v;
+      let largest := v if v > largest;
+    done;
+    print "measure saw {seen} values";
+  return;
+end measure;
+
+** check: fails when a value is negative; the error reaches the driver
+exclusive aspect check is
+  process main(values: ()Integer) is
+    for v in values do
+      raise "negative value {v}" if v < 0;
+    done;
+  return;
+end check;
+
+driver aspects_report is
+  process main is
+    new total, largest :Integer;
+    apply measure((4, 11, 6), @total, @largest);
+    print "total {total}, largest {largest}";
+    apply measure((1, 2), @total, @largest);    ** a new state: seen starts at 0 again
+    expect total == 3;
+
+    apply check((1, -5, 3));
+    print "never";
+  recover
+    print "check failed: {$error.message}";
+  return;
+end aspects_report;
