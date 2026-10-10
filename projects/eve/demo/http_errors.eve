@@ -1,0 +1,27 @@
+# protocols: an HTTP status of 400 or more is an error, handled in recover
+** chapter: 32 Protocols (protocols.html)
+** preview: level 5 (version 0.4, F-NET-01); remote apply over EWP is level 6; the VM does not run it yet
+driver http_errors is
+  from "lib" use (http);
+
+  process main is
+    new tries := 0;
+    fetch: job
+    do
+      let tries += 1;
+      new r := http.get("https://api.example.com/orders/42", timeout: 5s);
+      print r.body;
+    done fetch;
+  recover
+    ** the status is the code of the error
+    if $error.code == 503 and tries < 3 do
+      print "service busy, try {tries}";
+      retry;
+    else if $error.code == 404 do
+      print "order 42 does not exist";
+      resume;
+    else
+      abort;
+    done;
+  return;
+end http_errors;

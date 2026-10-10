@@ -1,0 +1,49 @@
+# a shared generator is called by every task: it must be thread safe
+** chapter: 29 Concurrency (concurrency.html#generators-and-threads)
+** preview: level 5 (version 0.4, generators); the VM does not run it yet
+
+** shared state: atomic, so the generator is thread safe
+new last = 0 :Atomic(:Integer);
+
+** every request takes the next number; two tasks never get the same number
+generator numbers(count: Integer) => (@ticket: Integer) is
+  for i in (1..count) do
+    let ticket := last.fetch_add!(1) + 1;
+    yield;
+  done;
+return;
+
+** how many tickets were given
+function taken!() => (@result: Integer) is
+  let result := last;
+return;
+
+** a clerk takes tickets and keeps the first one
+concurrent aspect clerk is
+  process main(count: Integer, @first: Integer) is
+    new got := False;
+    for t in numbers(count) do
+      if not got do
+        let first := t;
+        let got := True;
+      done;
+    done;
+  return;
+end clerk;
+
+driver shared_generator is
+  process main is
+    new first: [3]Integer;
+    parallel
+    do
+      for i in (1..3) do
+        start clerk(5, @first[i]);    ** every clerk takes 5 tickets
+      done;
+    done;
+
+    ** the 15 tickets are 1 to 15, no number was given twice
+    new n := taken!();
+    expect n == 15;
+    print "tickets taken: {n}";
+  return;
+end shared_generator;

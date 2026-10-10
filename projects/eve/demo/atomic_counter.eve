@@ -1,0 +1,40 @@
+# four workers, one shared atomic counter, in one file (an Eve macro)
+** chapter: 29 Concurrency (concurrency.html#atomic)
+** shows: an atomic variable makes the shared procedure thread safe: no hit is lost
+
+** shared: every task sees the same counter; += on an atomic variable is indivisible
+new hits = 0 :Atomic(:Integer);
+
+procedure hit() is
+  let hits += 1;
+return;
+
+** stochastic: the value changes while the workers run
+function total!() => (@result: Integer) is
+  let result := hits;
+return;
+
+** a worker counts its jobs; the compiler accepts hit() because it is thread safe
+concurrent aspect worker is
+  process main(jobs: Integer) is
+    for i in (1..jobs) do
+      hit();
+    done;
+  return;
+end worker;
+
+driver atomic_counter is
+  process main is
+    parallel
+    do
+      for w in (1..4) do
+        start worker(1000);           ** four tasks, each one counts 1000 jobs
+      done;
+    done;
+
+    ** all the tasks have finished: no hit is lost
+    new n := total!();
+    expect n == 4000;
+    print "hits: {n}";
+  return;
+end atomic_counter;

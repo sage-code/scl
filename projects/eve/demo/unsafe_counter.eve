@@ -1,0 +1,38 @@
+# a plain shared variable is not thread safe: only an exclusive aspect may change it
+** chapter: 29 Concurrency (concurrency.html#thread-safety)
+** shows: the compiler decides thread safety; an exclusive aspect is applied, never started
+
+** shared: a plain variable; two tasks could both read 5 and both write 6
+new count = 0 :Integer;
+
+procedure hit() is
+  let count += 1;                     ** read, add, write: not indivisible
+return;
+
+function total!() => (@result: Integer) is
+  let result := count;
+return;
+
+** exclusive: it runs alone, so it may call hit()
+exclusive aspect worker is
+  process main(jobs: Integer) is
+    for i in (1..jobs) do
+      hit();
+    done;
+  return;
+end worker;
+
+driver unsafe_counter is
+  process main is
+    for w in (1..4) do
+      apply worker(1000);             ** one after the other
+    done;
+    print "count: {total!()}";        ** count: 4000
+
+    ** two ways to get a compile error:
+    ** 1. start an exclusive aspect:
+    **      parallel do start worker(1000); done;      -> worker is exclusive
+    ** 2. declare it "concurrent aspect worker":
+    **      the concurrent aspect 'worker' calls 'hit', which is not thread safe
+  return;
+end unsafe_counter;

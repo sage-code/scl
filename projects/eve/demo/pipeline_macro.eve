@@ -1,0 +1,49 @@
+#!/usr/bin/env eve
+# pipeline: two workers in parallel, one file
+** chapter: 11 Macros (macro.html)
+** shows: an Eve macro: a shared class, two concurrent aspects and the driver that starts them
+
+** shared declarations: seen by the aspects and by the driver
+class Result = {name :String, count :Integer} <: Object is
+  constructor(name = "" :String, count = 0 :Integer) => (@self) is
+    let self := Object();
+    let self.name := name;
+    let self.count := count;
+  return;
+end Result;
+
+concurrent aspect job_worker_1 is
+  process main(@res: Result) is
+    ** internal sequential job logic
+    new n := 0;
+    for i in (1..10) do
+      let n += 1;
+    done;
+    let res := Result("worker 1", n);
+  return;
+end job_worker_1;
+
+concurrent aspect job_worker_2 is
+  process main(@res: Result) is
+    ** internal sequential job logic
+    new n := 0;
+    for i in (1..20) do
+      let n += 1;
+    done;
+    let res := Result("worker 2", n);
+  return;
+end job_worker_2;
+
+# driver executing parallel tasks
+driver pipeline_driver is
+  process main is
+    new r1 := Result();
+    new r2 := Result();
+    p_exec: parallel
+    do
+      start job_worker_1(@r1);
+      start job_worker_2(@r2);
+    done p_exec;
+    print "{r1.name}: {r1.count}, {r2.name}: {r2.count}";   ** worker 1: 10, worker 2: 20
+  return;
+end pipeline_driver;

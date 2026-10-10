@@ -1,0 +1,53 @@
+# a pipeline: a producer, four workers and a collector connected by two channels
+** chapter: 29 Concurrency (concurrency.html#channels)
+** shows: channels are the only objects that tasks share; a for loop reads until the channel is closed
+
+set workers = 4 :Integer;
+
+** produce: sends the numbers 1 to count, then closes the channel
+concurrent aspect produce is
+  process main(count: Integer, @jobs: Channel(:Integer)) is
+    for i in (1..count) do
+      jobs.send(i);                   ** waits while jobs is full
+    done;
+    jobs.close();
+  return;
+end produce;
+
+** square: receives numbers and sends their squares
+concurrent aspect square is
+  process main(@jobs: Channel(:Integer), @results: Channel(:Integer)) is
+    for x in jobs do                  ** ends when jobs is closed and empty
+      results.send(x * x);
+    done;
+    results.close();                  ** one of the senders has finished
+  return;
+end square;
+
+** collect: adds every value of the channel
+concurrent aspect collect is
+  process main(@results: Channel(:Integer), @total: Integer) is
+    let total := 0;
+    for y in results do               ** ends after the last sender closed it
+      let total += y;
+    done;
+  return;
+end collect;
+
+driver channel_pipeline is
+  process main is
+    new total: Integer;
+    new jobs := Channel(:Integer)(capacity: 10);
+    new results := Channel(:Integer)(capacity: 10, senders: workers);
+    flow: parallel
+    do
+      start produce(100, @jobs);
+      for w in (1..workers) do
+        start square(@jobs, @results);
+      done;
+      start collect(@results, @total);
+    done flow;
+    expect total == 338350;           ** 1^2 + 2^2 + ... + 100^2
+    print "sum of squares: {total}";
+  return;
+end channel_pipeline;
