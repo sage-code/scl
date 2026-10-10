@@ -38,294 +38,449 @@
     <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
 <h1 id="eve-database-sql">Eve Database/SQL</h1>
 <div class="alert alert-secondary shadow-sm">
-Eve has basic interaction with relational databases. We design Eve to connect to different third party databases. The purpose of Eve to be versatile. It enables DML operations and direct SQL but not DCL and DDL operations.</div>
+Eve has a database layer of its own: an ORM aligned with the object model of the language, SQLite as the core database and cache, and direct SQL for everything else. A record class says what a row is, a <code>table</code> declaration says where the rows live, and a <b>job</b> is a transaction. Structure changes (DDL) go through SQL scripts, never through the ORM.</div>
+
+<div class="alert alert-info">Designed for version 0.4 (level 5). The rules on this page are the proposals of the design notes, waiting for the review of the author; the specification is <code>spec/library/database.md</code>. Reading files and writing reports is on the page <a href="/projects/eve/etl.html">Files and ETL</a>.</div>
 
 <p><b>Goals:</b></p>
 <ul>
-<li>Read and update tables in a database;</li>
-<li>Provide easy way to map data in ETL;</li>
-<li>Provide data reporting in file format;</li>
-<li>Backup and archive data using compression;</li>
-<li>Transfer data & upload data in the cloud;</li>
+<li>Read and update tables with records, writing only the fields that changed;</li>
+<li>Stop hard when the code and the database disagree, before a row is written with a wrong mapping;</li>
+<li>Make a job a transaction with commit, rollback and rules for retry;</li>
+<li>Load, transform and transfer data between files and databases (ETL);</li>
+<li>Run the same code on a local SQLite file, a database server or a database behind an Eve server.</li>
 </ul>
 
+<h2 id="layers">The layers</h2>
 
-<h2 id="models">Models</h2>
-<p>Eve must read and update a database structure using an internal <em>data model</em>. A model is a map between Eve a relational data model and an object oriented model. This is called&nbsp; ORM = <em>Object Relational Mapping</em>. An ORM model is connecting to one or multiple databases using vendor specific database modules.</p>
-
-<h4>Importing</h4>
-
-<p>The model library must be imported using these statements:</p>
-
-<pre class="line-numbers"><code class="language-eve"># using Oracle library
-from $EVE_LIB/db use (core as db, oracle as orcl);
+<pre><code>+-------------------------------------------------------+
+| Local Eve App                                         |
+|  - Memory Tables (Buffered Records)                   |
+|  - Ingestion (XML, JSON, CSV, DAT via Unicode Streams)|
++-------------------------------------------------------+
+                           |  Eve RPC / Stream Protocol
++-------------------------------------------------------+
+| Eve Server                                            |
+|  - ACID Session Manager                               |
+|  - Local Database Cache                               |
++-------------------------------------------------------+
+                           |  Vendor Driver Connector
++-------------------------------------------------------+
+| Remote Database (PostgreSQL / MySQL / ...)            |
++-------------------------------------------------------+
 </code></pre>
 
-<h4>Connection</h4>
-<p>One application can connect to multiple databases simultaneously. A specific kind of application called&nbsp;<em>pipeline</em>&nbsp;can pull data from multiple sources to update one target database or, spread data from one database and push data into multiple other databases.</p>
-
-<p><b>pattern:</b></p>
-<pre class="line-numbers"><code class="language-eve">
-** create a database session
-class OracleSession = {location,user,password,name: String} &lt;&#58; orcl.Database is
-  private set credentials: String;
-
-  destructor(@self) is
-    orcl.disconnect();
-  return;
-
-  constructor(location, user, password: String) =&gt; (@self) is
-    let self := orcl.Database();
-    ** prepare credentials
-    let self.location := location;
-    let self.user := user;
-    let self.password := password;
-    ** prepare credentials
-    self.connect(self.credentials);
-    orcl.connect();
-  return;
-end OracleSession;
-
-process main is
-  ** create database connection
-  set db := OracleSession(user:$user,password:$password,location:$location);
-  ...
-return;
-</code></pre>
-
-<p><b>Note:</b>&nbsp;Usually a database has a security protocol based on user-name and password. These credentials can not be encoded in the Eve scripts, they need to be received as input parameters by the main process or set using configuration files that are secret, safely stored on the server. Once a connection is established it can be used to manipulate data, using Eve statements.</p>
-
-<h2 id="databases">Database API</h2>
-
-<p>For each database kind we will create a library module. These modules will provide similar functionality for different databases. This basic functionality is created to make available a "Database Connector" in Eve scripts. We need this functions:</p>
-
-<h4>Functionality</h4>
+<p>A script reaches a database by a <b>connection name</b>, such as <code>"sales"</code>. The name is declared in the configuration file of the machine, <code>eve.cfg</code>, with a URL. The script never sees the URL, the driver or the password, so the same code runs on every path:</p>
 
 <table class="table table-bordered table-striped">
 <thead>
-<tr>
-<th>Method</th>
-<th>Description</th>
-</tr>
+<tr><th>Path</th><th>URL in <code>eve.cfg</code></th><th>The driver runs on</th><th>Version</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>connect()</td>
-<td>Connect the database</td>
-</tr>
-<tr>
-<td>disconnect()</td>
-<td>Disconnect from database</td>
-</tr>
-<tr>
-<td>query()</td>
-<td>Direct SQL execution</td>
-</tr>
-<tr>
-<td>execute()</td>
-<td>Execute a stored procedure</td>
-</tr>
-<tr>
-<td>commit()</td>
-<td>Save all pending modifications</td>
-</tr>
-<tr>
-<td>rollback()</td>
-<td>Rollback all pending modifications</td>
-</tr>
+<tr><td>1. local</td><td><code>sqlite://db/shop.db</code></td><td>the VM: SQLite is compiled into it</td><td>0.4</td></tr>
+<tr><td>2. direct</td><td><code>postgresql://etl@db1:5432/sales</code></td><td>the machine of the program, which holds the secret</td><td>0.4</td></tr>
+<tr><td>3. through a server</td><td><code>eve://prod/erp</code></td><td>the Eve server, which holds the credentials and a cache</td><td>0.5</td></tr>
+<tr><td>test</td><td><code>evedb://localhost/eve_test</code></td><td>EveDB, the test database (see <a href="/projects/eve/evedb.html">EveDB</a>)</td><td>0.4</td></tr>
 </tbody>
 </table>
 
-<h4>Targeted Databases</h4>
-<p>Eve should provide drivers for main-stream databases:</p>
-<ul>
-<li><a href="http://www.postgresql.org/" rel="nofollow">PostgreSQL</a>,</li>
-<li><a href="http://www.oracle.com/" rel="nofollow">Oracle</a>,</li>
-<li><a href="https://www.mysql.com/" rel="nofollow">MySQL</a></li>
-</ul>
+<p>Passwords are never written in scripts. They are secrets of the configuration of the machine (see <a href="/projects/eve/syslib.html">System Library</a>).</p>
 
-<h2 id="concepts">Concepts</h2>
+<h2 id="sqlite-core">SQLite is the core</h2>
 
-<p>One database provide a complex framework to organize data in tables and documents. An application can read database structure and map it to an internal memory model. Then we can perform operations on this model: {search, append, update, delete}. The operations are mirrored automatically in the database.</p>
+<p>SQLite is part of the virtual machine. It needs no server, it is always there, and the tests of level 5 run on it. Each machine keeps its files in the folder <code>db/</code>:</p>
 
-<ul>
-<li><a href="#mapping">Mapping</a></li>
-<li><a href="#tables">Tables</a></li>
-<li><a href="#records">Records</a></li>
-<li><a href="#structure">Structure</a></li>
-</ul>
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Role</th><th>File</th><th>Content</th></tr>
+</thead>
+<tbody>
+<tr><td>Eve database</td><td><code>db/eve.db</code></td><td>run history, checkpoints, lineage, the journal of transactions</td></tr>
+<tr><td>Cache</td><td><code>db/cache.db</code></td><td>copies of remote reference tables, kept by the Eve server</td></tr>
+<tr><td>Staging</td><td><code>db/stage.db</code>, connection <code>"stage"</code></td><td>temporary tables of an ETL run</td></tr>
+<tr><td>Application data</td><td><code>db/&lt;name&gt;.db</code></td><td>small applications and services; <code>db create &lt;name&gt;</code></td></tr>
+</tbody>
+</table>
 
-<h3 id="mapping">Mapping</h3>
+<p>One file per role keeps the locks apart: a long load into the staging file never blocks the run history. The VM opens SQLite in WAL mode with foreign keys on, and makes the tables it creates <code>STRICT</code>, so a text can not hide in an integer column.</p>
 
-<p>A database table has records. Eve strategy is to define one <em>memory table</em> as a collection of objects for each <em>database table</em>. The <em>memory table</em> is mapped to <em>database table</em>. Mapping is <em>one to one</em>. Field names are case sensitive.</p>
+<h2 id="records">Records</h2>
 
-<p>Data caching. The memory table do not store all the database data. Instead, the memory table store a small buffer. On rare occasions, user can store all data in memory tables for small critical tables to improve performance when a table is used very often. Usually these tables are metadata tables.</p>
-
-<h3 id="tables">Tables</h3>
-<p>Internal <em>memory tables</em> are mixed collections of objects having same name as <em>database tables</em>. We can read a database table record by record on demand. A <em>memory table</em> can load one or multiple <em>records</em> in memory. Developer/user has full control over what data is stored in memory buffer, can refresh the buffer or can clear the buffer and load other data set with a different filter.</p>
-
-<h4>How to define a table:</h4>
-
-<p>A table is an smart class that knows it's bound to a database. Therefore we "inherit" a database table like it is a Eve class. EVE engine will bind the table to database. If the table in the database do not exist, EVE compiler will complain and will generate an error.</p>
+<p>A row type is a class derived from <code>Record</code>. The class holds the fields; it knows nothing about a database:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-class TableName = {name: String} &lt: DB_Name.Table;
+class Customer = {id: Integer, name: String, city: String?, version: Integer} &lt;&#58; Record;
+class Order    = {id: Integer, customer_id: Integer, amount: Decimal, created: Instant} &lt;&#58; Record;
 </code></pre>
 
-<h3 id="records">Records</h3>
-<p>Records are <em>object instances</em> representing in memory table structure. A record has a <em>status</em> property that can be used in conditionals. One record is the current record. Several records are cached in memory for a table. A record is identified by a numeric id. Records are "bound" to database data. A record has information about its origin.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-class RecordName = {id: Integer} &lt;&#58; Record;
-</code></pre>
-
-<h3 id="structure">Structure</h3>
-
-<p>Table structure is represented by <em>Records</em> structure. This can be flat or hierarchic. A <em>Table</em> is a collection of records. Tables can be related to each other. A record can contain a table of records. This is called nested table. Some databases have support for nested tables, some do not. In this case the nested table is just a relational table that has a foreign key to main table.</p>
-
-<p><b>Note:</b></p>
 <ul>
-<li>For record names is singular starting with uppercase like: "Person"</li>
-<li>For table name is good practice to use plural names like: "Persons"</li>
+<li>A field of type <code>String?</code> may hold <code>null</code> (a nullable column). A field of type <code>String</code> never does;</li>
+<li>A record made by a literal, <code>{id: 0, name: "Ann", city: null, version: 0} :Customer</code>, is <b>detached</b>: plain data, unknown to any database;</li>
+<li>A record class may have methods. The method <code>validate</code> runs before every write (see <a href="#validate">Validation</a>).</li>
 </ul>
 
-<h2 id="sessions">Sessions</h2>
-<p>Data model can work with sessions. A session have a name. A session can involve one or more databases. After a set of modifications is done you can commit changes in a session. If transaction fail all the modifications in session are reset. You can customize the actions in case of error. After session ends, you can create a report.</p>
+<h2 id="table-declaration">The table declaration</h2>
 
-<p><b>Operations</b></p>
-
-<p>Any of the following operations can be included in a session:</p>
-<ul>
-<li><a href="#append">Append</a></li>
-<li><a href="#update">Update</a></li>
-<li><a href="#delete">Delete</a></li>
-</ul>
-
-
-<h3 id="Append">Append</h3>
-<p>Eve can add new data records into one table using <em>append()</em> method of a table. This create new records.</p>
+<p>A <code>table</code> declaration binds a record class to a table of a connection. It declares a name, for example <code>customers</code>, that is an object of the library class <code>Table(:Customer)</code>: the table seen as a buffer of records. A class hosts only methods, so the mapping is not in the class; one class can have several declarations (a file, a staging table, a remote table).</p>
 
 <pre class="line-numbers"><code class="language-eve">
-procedure update_tables(value1,value2 ...) is
-  ** create empty records
-  new record1 := table_name1.append();
-  new record2 := table_name2.append();
-  ** populate records with values 
-  
-  update record1:
-    new field_name := value1;
-    ...
-  update record2:
-    let field_name := value2;
-    ... 
-  commit; 
-return;
+table customers: Customer in "sales" is
+  key (id);                      ** the primary key, one field or several
+  generated (id);                ** filled by the database: never written, read back after insert
+  version version;               ** optimistic lock, checked and increased by every update
+  column name as "cust_name";    ** a field whose column has another name
+end customers;
+
+table orders: Order in "sales" is
+  key (id);
+  generated (id, created);
+  reference customer_id to customers;   ** a foreign key: orders are written after customers
+end orders;
+
+table countries: Country in "sales";    ** short form: key (id), nothing else
 </code></pre>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Clause</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>in "name"</code></td><td>the connection of <code>eve.cfg</code>; <code>"eve"</code> is the Eve database</td></tr>
+<tr><td><code>as "schema.table"</code></td><td>the name in the database, when it is not the declared name</td></tr>
+<tr><td><code>key (f, ...)</code></td><td>the primary key or a unique key; <code>(id)</code> when the class has a field <code>id</code></td></tr>
+<tr><td><code>generated (f, ...)</code></td><td>columns that the database fills: identity, default, trigger</td></tr>
+<tr><td><code>version f</code></td><td>an integer or timestamp column for optimistic locking</td></tr>
+<tr><td><code>column f as "name"</code></td><td>a field whose column has another name</td></tr>
+<tr><td><code>reference f to t</code></td><td>a foreign key: orders the writes, is validated</td></tr>
+<tr><td><code>read only</code></td><td>no <code>add</code>, no <code>remove</code>, no change of a field</td></tr>
+<tr><td><code>temporary</code></td><td>only in <code>"eve"</code> and <code>"stage"</code>: the VM creates the table from the class</td></tr>
+<tr><td><code>cached 1h</code></td><td>the Eve server keeps the table in its cache and refreshes it every hour (version 0.5)</td></tr>
+</tbody>
+</table>
+
+<p><code>table</code> is a contextual keyword: a keyword only at the start of a declaration. A field named <code>key</code> or <code>version</code> is still allowed. A <code>table</code> is declared in a driver, an aspect, a module or a macro, like a class.</p>
+
+<h2 id="mapping">Column = value mapping</h2>
+
+<p>The column of a field is its name, or the name of a <code>column ... as</code> clause. There is no case conversion and no plural rule: Eve quotes every name in the SQL, so <code>CustName</code> matches only <code>CustName</code>. When only the case differs, the message tells you the clause to write; Eve never guesses.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Eve field</th><th>PostgreSQL</th><th>SQLite</th><th>Lossless</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Integer</code></td><td><code>bigint</code></td><td><code>INTEGER</code></td><td>yes</td></tr>
+<tr><td><code>Decimal</code></td><td><code>numeric(p, s)</code></td><td><code>TEXT</code> (never a REAL)</td><td>yes, the scale is kept: <code>12.50d</code> stays <code>12.50</code></td></tr>
+<tr><td><code>Real</code></td><td><code>double precision</code></td><td><code>REAL</code></td><td>yes</td></tr>
+<tr><td><code>Logic</code></td><td><code>boolean</code></td><td><code>INTEGER</code> 0 or 1</td><td>yes</td></tr>
+<tr><td><code>String</code></td><td><code>text</code>, <code>varchar(n)</code></td><td><code>TEXT</code></td><td>yes</td></tr>
+<tr><td><code>Instant</code></td><td><code>timestamptz</code></td><td><code>TEXT</code> ISO 8601 UTC</td><td>yes</td></tr>
+<tr><td><code>Date</code>, <code>Time</code></td><td><code>date</code>, <code>time</code></td><td><code>TEXT</code> ISO</td><td>yes</td></tr>
+<tr><td><code>Bytes</code></td><td><code>bytea</code></td><td><code>BLOB</code></td><td>yes</td></tr>
+<tr><td><code>T?</code></td><td>the same, <code>NULL</code> allowed</td><td>the same</td><td><code>null</code> and <code>NULL</code></td></tr>
+</tbody>
+</table>
+
+<p>A pair outside the table, such as a <code>String</code> field and a <code>numeric</code> column, is a mapping error. So is a pair that could lose data, such as an <code>Integer</code> field and a <code>numeric(30)</code> column: a mapping must be safe for every row, not only for the rows of today.</p>
+
+<p>The compiler turns each declaration into a <b>plan</b>, the ordered list of fields and columns. Eve never writes <code>select *</code>: it reads the columns of the plan in order, and the values of an insert or an update are always parameters, never text inside the SQL.</p>
+
+<h3 id="validation-modes">Debug mode reports, production refuses</h3>
+
+<p>Eve checks the code against the real database: the table exists, every field has its column, the types match without loss, a nullable column has an optional field, a column that is <code>NOT NULL</code> without default has a field, the key is a real key.</p>
+
+<ul>
+<li><b>Debug mode</b> (<code>eve -d</code>): the compiler connects to every database named by a <code>table</code> and lists <i>all</i> the differences of <i>all</i> the tables in one run, each with the line of the declaration and a fix, or the whole class and <code>table</code> text generated from the database (<code>db describe sales orders --eve</code>). Errors stop the compilation; warnings, such as a column the class does not use, are printed. After a clean run, the compiler writes a fingerprint of each table to <code>db/mappings.json</code>, which you commit with the code;</li>
+<li><b>Production mode</b> (the default): the compiler does not connect, because the production database is usually not reachable from where the code is built. When the VM opens a connection for the first time, before the first statement, it reads the catalog of the mapped tables and runs the same checks. A difference is a <code>MappingError</code>: the program stops before it has read or written a row. <code>retry</code> and <code>resume</code> are refused for it, the process aborts with exit code 4. The schema will not repair itself, and a retry loop would only hammer the database.</li>
+</ul>
+
+<p>A value that can not be converted at run time, such as a text that is not a UUID, is a <code>ConvertError</code> with the table, the column and the key of the row.</p>
+
+<h2 id="sessions">Sessions and tracked records</h2>
+
+<p>The first use of a connection name in a process opens a <b>session</b>: the connection, its transaction and the records it tracks. Each process has its own sessions, so each aspect has its own connections and a started aspect never shares one with its siblings. A session is never shared state, so loading in parallel needs no special rule.</p>
+
+<p>A record read with <code>find!</code> or <code>where!</code> is <b>tracked</b>. It remembers the original value of every field you change:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Status</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>detached</code></td><td>unknown to a session (made by a literal)</td></tr>
+<tr><td><code>added</code></td><td>waiting to be inserted</td></tr>
+<tr><td><code>clean</code></td><td>read from the database and not changed</td></tr>
+<tr><td><code>dirty</code></td><td>at least one field differs from the value read</td></tr>
+<tr><td><code>removed</code></td><td>waiting to be deleted</td></tr>
+<tr><td><code>stale</code></td><td>an update found another version in the database</td></tr>
+</tbody>
+</table>
+
+<p>Setting a field back to its original value makes the record clean again. A record with no changed field writes nothing. You read the status with <code>customers.status(c)</code>.</p>
+
+<h3 id="methods">Methods of a table</h3>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Method</th><th>Result</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>find!(key)</code></td><td><code>Customer?</code>, tracked</td><td>reads one record; a second call returns the same record</td></tr>
+<tr><td><code>find!(key, lock: True)</code></td><td>tracked</td><td>also locks the row until the commit</td></tr>
+<tr><td><code>where!(cond, args)</code></td><td><code>Stream(:Customer)</code>, tracked</td><td>the SQL after <code>where</code>, with <code>?</code> for the values</td></tr>
+<tr><td><code>scan!(cond, args)</code></td><td><code>Stream</code>, not tracked</td><td>for reports: it costs no memory per record</td></tr>
+<tr><td><code>count!(cond, args)</code></td><td><code>Integer</code></td><td><code>select count(*)</code></td></tr>
+<tr><td><code>customers &lt;+ c</code>, <code>add(c)</code></td><td></td><td>the record will be inserted</td></tr>
+<tr><td><code>remove(c)</code></td><td></td><td>the record will be deleted</td></tr>
+<tr><td><code>refresh(c)</code></td><td></td><td>reads the record again, local changes are dropped</td></tr>
+<tr><td><code>detach(c)</code></td><td></td><td>the session forgets the record</td></tr>
+<tr><td><code>flush()</code></td><td></td><td>writes the pending changes of this table now</td></tr>
+<tr><td><code>load!(rows, mode: "upsert")</code></td><td>counts</td><td>the bulk path: <code>"insert"</code>, <code>"upsert"</code> or <code>"merge"</code></td></tr>
+</tbody>
+</table>
+
+<p>The names follow one rule: a <code>!</code> marks a result that can change from call to call. Every read of a database is one, so <code>find!</code>, <code>where!</code>, <code>scan!</code> and <code>count!</code> carry it. A write that returns nothing has no <code>!</code> (<code>add</code>, <code>remove</code>, <code>flush</code>), and a write that returns counts keeps it (<code>load!</code>, <code>execute!</code>). The mark says nothing about parallel use: the compiler decides that.</p>
+
+<h3 id="append">Append</h3>
+
+<pre class="line-numbers"><code class="language-eve">
+new c := {id: 0, name: "Ann", city: null, version: 0} :Customer;
+let customers &lt;+ c;               ** status: added; nothing is sent yet
+</code></pre>
+
+<p>At the end of the job one <code>insert</code> is sent. The generated fields are left out of the statement and read back: after the job, <code>c.id</code> holds the number given by the database.</p>
 
 <h3 id="update">Update</h3>
-<p>Eve can do single or multiple row updates in one transaction. The Update need to find the record to update before is able to modify these records.</p>
 
-<h4>Single record:</h4>
-
-<pre class="line-numbers"><code class="language-eve">** use search fields and values
-process main is
-  new record1 := table_name.find(field:value1, ...);
-  new record2 := table_name.find(field:value2, ...);
-  update record1:
-    new field_name := value;
-    ...
-  update record2:
-    let field_name := value;
-    ...
-  commit;
-return;
+<pre class="line-numbers"><code class="language-eve">
+new c := customers.find!(42);
+let c.city := "Lyon";             ** the field is dirty, the original value is kept
 </code></pre>
 
-<p><b>Note </b> A process or method will start a new isolated transaction. In case of error, you can issue a rollback. The issue can be in the database, if you issue a rollback the database changes are not committed but the record remain modified in memory. You must refresh the record if you want the see the old values.</p>
+<p>An assignment to a field of a tracked record is already the update: there is no block to write. The statement sent writes <b>only the fields that changed</b>, and checks the version:</p>
+
+<pre><code>update "customers" set "city" = ?, "version" = "version" + 1
+where "id" = ? and "version" = ?
+</code></pre>
+
+<p>Ten thousand records with the same changed field are sent as one batch, not as ten thousand statements. Changing a <code>key</code> field, a <code>generated</code> field or a field of a <code>read only</code> table is an error; changing a key is a delete and an insert.</p>
 
 <h3 id="delete">Delete</h3>
-<p>This statement will remove one or more records from a table.</p>
 
-<p><b>Syntax</b></p>
 <pre class="line-numbers"><code class="language-eve">
-** Find one or more records and delete them
-process main is
-  ** local variables
-  new deleted1 := table_name1.delete(field:value,...);
-  new deleted2 := table_name2.delete(field:value,...);
-  commit;
-finalize
-  ** check status
-  expect deleted1 &gt;  0;
-  expect deleted2 &gt;= 0;
-  ** print status
-  print deleted1, "records deleted";
-  print deleted2, "records deleted";
-return;
+customers.remove(c);              ** status: removed; delete at the end of the job
 </code></pre>
 
-<h4>Bulk Operations</h4>
+<p>At the end of the job Eve writes in a safe order: inserts first (customers before orders, from the <code>reference</code> clauses), then updates, then deletes in the reverse order (orders before customers). A cycle of <code>reference</code> clauses is a compile error.</p>
 
-<p>For bulk operations there are 2 methods. Using an Eve loop or using direct SQL.</p>
+<h3 id="validate">Validation</h3>
+
+<p>A record class can check itself. The method <code>validate</code> runs before every insert and update, and a failure is an error of the job with the key of the record in the message:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-** using a loop to create a single session  
-procedure delete_records(value) is
-  ** delete current record using: loop
-  for record in table_name do
-    record.delete() if record.field_name == value;
+class Product = {id: Integer, price: Decimal, version: Integer} &lt;&#58; Record is
+  method validate(@self) is
+    expect self.price &gt; 0d;
+  return;
+end Product;
+</code></pre>
+
+<h2 id="transactions">Transactions: a job is a transaction</h2>
+
+<p>You do not write <code>begin</code>. The first statement of a <a href="/projects/eve/processing.html">job</a> that uses a connection begins a transaction on it. At <code>done</code> or <code>stop</code> the job writes the pending changes, then commits. If anything fails, the job rolls back and the records in memory go back to their values at the start of the job, so a <code>retry</code> runs on the same data as the first time. Outside a job every change is written and committed at once, and debug mode warns about it.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Event</th><th>Database</th><th>Then</th></tr>
+</thead>
+<tbody>
+<tr><td><code>done</code>, <code>stop</code></td><td>write, commit</td><td>the process continues</td></tr>
+<tr><td><code>commit;</code></td><td>write, commit, begin a new transaction</td><td>the job continues</td></tr>
+<tr><td><code>rollback;</code></td><td>rollback, memory restored</td><td>the job ends with status <code>"rolled back"</code>; the process continues after <code>done</code>; <code>recover</code> does not run</td></tr>
+<tr><td>an error in the job</td><td>rollback, memory restored</td><td><code>recover</code> runs</td></tr>
+<tr><td>the connection is lost</td><td>the server rolls back</td><td>a transient <code>DatabaseError</code>: a case for <code>retry</code></td></tr>
+<tr><td>power loss, kill</td><td>the database rolls back; SQLite recovers its log at the next open</td><td>nothing runs</td></tr>
+</tbody>
+</table>
+
+<h3 id="dry-run">Example: a dry run</h3>
+
+<pre class="line-numbers"><code class="language-eve">
+# raise the prices of one category, with a dry run
+driver reprice is
+  class Product = {id: Integer, category: String, price: Decimal, version: Integer} &lt;&#58; Record is
+    method validate(@self) is
+      expect self.price &gt; 0d;
+    return;
+  end Product;
+
+  table products: Product in "shop" is
+    key (id);
+    version version;
+  end products;
+
+  process main(category: String, percent: Decimal, dry_run = False: Logic) is
+    new changed := 0;
+
+    reprice: job
+      set $isolation = "repeatable read";
+    do
+      for p in products.where!("category = ?", category) do
+        let p.price := (p.price * (100d + percent) / 100d).round(2);
+        let changed += 1;
+      done;
+      print "{changed} products to change";
+      rollback if dry_run;           ** nothing is written, the job ends rolled back
+    done reprice;                    ** one update per product: set price, version
+
+  recover
+    if $error is ConflictError do
+      retry after 1s if $error.attempt &lt; 3;     ** read the products again
+    else if $error is DeadlockError do
+      retry after 2s if $error.attempt &lt; 5;
+    done;
+    abort;
+  return;
+end reprice;
+</code></pre>
+
+<h3 id="isolation">Isolation and locks</h3>
+
+<p>The isolation of a job is the default of the database: read committed for PostgreSQL and MySQL, serializable for SQLite. A job changes it in its declarations with system variables, in the way an aspect shadows <code>$timeout</code>:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Variable</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>$isolation</code></td><td><code>"read committed"</code>, <code>"repeatable read"</code>, <code>"serializable"</code>, <code>"snapshot"</code></td></tr>
+<tr><td><code>$lock_timeout</code></td><td>how long a statement waits for a lock, for example <code>10s</code></td></tr>
+<tr><td><code>$read_only</code></td><td><code>True</code>: a read-only transaction, one consistent snapshot, for reports</td></tr>
+</tbody>
+</table>
+
+<p>A deadlock or a serialization failure is a <code>DeadlockError</code>, a transient error. <code>find!(key, lock: True)</code> locks a row until the commit.</p>
+
+<h3 id="optimistic">Optimistic locking</h3>
+
+<p>With a <code>version</code> clause every update and delete says <i>and version = the version I read</i>. If no row matches, someone else changed the row: the record becomes <code>stale</code> and the job fails with a <code>ConflictError</code>. The rollback detaches the records first read in the job, so a <code>retry</code> reads them fresh. Without <code>version</code> the last writer wins, and debug mode warns once per table that more than one job writes.</p>
+
+<h3 id="long-loads">Long loads: commit and checkpoints</h3>
+
+<p>A job that loads ten million rows should not hold one transaction for an hour. <code>commit;</code> inside the loop commits each batch. But a <code>retry</code> runs the job again from its start, and would load the committed batches twice. The rule: a job with <code>commit;</code> keeps a <b>checkpoint</b>, written in the same transaction as the batch, and starts from it:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+load: job
+  new since := checkpoint.read!(:Instant)("orders", db: "sales", default: Instant.epoch);
+do
+  for batch in source.where!("created &gt; ?", since).batch(10000) do
+    for o in batch do
+      let target &lt;+ to_target(o);
+    done;
+    checkpoint.write("orders", batch[-1].created, db: "sales");
+    commit;                          ** the batch and the checkpoint, together
   done;
-  commit;
-return;
+done load;
 </code></pre>
 
+<p><code>db: "sales"</code> keeps the checkpoint in the table <code>eve_checkpoint</code> of that database, so it commits with the batch. A load with upserts is also safe to repeat: the second load of a batch changes nothing.</p>
+
+<h3 id="two-databases">Two databases in one job</h3>
+
+<p>A job may write to two connections. Eve commits them one after the other and does not use two-phase commit. If the second commit fails after the first succeeded, the job fails with a <code>CommitError</code> that has <code>partial: True</code> and the list <code>committed</code>. <code>retry</code> and <code>resume</code> are refused for it, because the job can not be undone. Prefer one target per job: stage in one job, move in the next.</p>
 
 <h2 id="direct-sql">Direct SQL</h2>
-<p>Sometimes we need to bypass the ORM and execute native SQL:</p>
+
+<p>Everything that is not rows is SQL. These methods of a connection run in the transaction of the session and track nothing:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Method</th><th>Result</th></tr>
+</thead>
+<tbody>
+<tr><td><code>query!(:T)(sql, args)</code></td><td><code>Stream(:T)</code>, columns matched by name</td></tr>
+<tr><td><code>query!(sql, args)</code></td><td><code>Stream(:DataMap)</code></td></tr>
+<tr><td><code>query_one!(:T)(sql, args)</code></td><td><code>T?</code></td></tr>
+<tr><td><code>execute!(sql, args)</code></td><td>the number of rows changed</td></tr>
+<tr><td><code>script(path)</code></td><td>runs a SQL file of the folder <code>sql/</code>, statement by statement</td></tr>
+</tbody>
+</table>
 
 <pre class="line-numbers"><code class="language-eve">
-# execute query string and return a list of records
-  new query_result := db.query(query_template ? source)
+new sales := database.connect("sales");
+for r in sales.query!(:Order)("select id, customer_id, amount, created from orders where amount &gt; ?", 100d) do
+  print "{r.id}: {r.amount}";
+done;
 </code></pre>
 
-<p>Working with Direct SQL is not our purpose. Eve can handle most data processes without SQL. Using direct SQL is a backup, offered for special operations Eve is not capable of. Examples will be provided for testing.</p>
+<p>Values are always parameters. A <code>{...}</code> placeholder of Eve inside the SQL text is a warning, because it can open the door to SQL injection. After a direct write, call <code>refresh</code> on the records you still use: Eve does not know which ones the statement changed.</p>
 
+<h2 id="procedures">Scripts, procedures and commands</h2>
 
-<h2 id="procedures">Procedures</h2>
-
-<p>Some databases have support for stored procedures. Calling stored procedures from Eve is planned. Since not all databases have stored procedures, these are extra features that we can implement in Eve. Most of the time, Eve scripts are self contained and depend only on database row data and do not use extra layers like views, snapshots or stored procedures to read data. However just in case data is not available in any other way we can call stored procedures to retrieve data.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-driver main is
-
-  ** prepare an object (not updatable)
-  class Result = {
-        field_name1:Type ,
-        field_name2:Type ,
-        ...
-        } &lt;&#58; Record;
-
-  new buffer: ()Result; ** collection/table
-  process main is
-    ** execute stored procedure and collect records in the buffer
-    let buffer &lt;+ db.procedure_name(arguments);
-    ...
-  return;
-end main;
-</code></pre>
-
+<ul>
+<li><b>Scripts.</b> A SQL file of the project installs or changes a structure, disables indexes or prepares a bulk load: <code>sales.script("create_orders.sql")</code>. DDL goes through scripts and the command <code>db migrate</code>, never through the ORM;</li>
+<li><b>Stored procedures.</b> They are declared with <code>external</code> and run in the transaction of the job;</li>
+<li><b>Commands.</b> The databases of a machine are administered at the prompt: <code>db list</code>, <code>db add</code>, <code>db remove</code>, <code>db test</code>, <code>db info</code>, <code>db tables</code>, <code>db describe</code>, <code>db sql</code>, <code>db script</code>, <code>db create</code>, <code>db create-table</code>, <code>db migrate</code>, <code>db backup</code>, <code>db prepare</code>, <code>db activate</code>, <code>db reindex</code>, <code>db cache</code>. They run with the rights of the database user of the connection: Eve adds no layer of rights.</li>
+</ul>
 
 <h2 id="introspection">Introspection</h2>
-<p>For debugging the SQL, Eve will enable introspection.</p>
+
+<p>The system variable <code>$query</code> holds the text of the last SQL statement of the process. In debug mode <code>$trace</code> prints every statement with its parameters (secrets are masked) and its duration.</p>
+
+<h2 id="errors">Errors</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Class</th><th>Transient</th><th><code>retry</code>, <code>resume</code></th></tr>
+</thead>
+<tbody>
+<tr><td><code>DatabaseError</code> (<code>sqlstate</code>, <code>sql</code>, <code>table</code>)</td><td>depends</td><td>allowed</td></tr>
+<tr><td><code>ConnectionError</code></td><td>yes</td><td>allowed</td></tr>
+<tr><td><code>ConstraintError</code> (<code>constraint</code>, <code>key</code>)</td><td>no</td><td>allowed</td></tr>
+<tr><td><code>ConflictError</code> (<code>key</code>, <code>version</code>)</td><td>no</td><td>allowed: a retry reads fresh records</td></tr>
+<tr><td><code>DeadlockError</code>, <code>TimeoutError</code></td><td>yes</td><td>allowed</td></tr>
+<tr><td><code>ConvertError</code> (<code>table</code>, <code>column</code>, <code>key</code>)</td><td>no</td><td>allowed</td></tr>
+<tr><td><code>MappingError</code></td><td>no</td><td><b>refused</b>: the process aborts, exit code 4</td></tr>
+<tr><td><code>CommitError</code> with <code>partial</code></td><td>no</td><td><b>refused</b></td></tr>
+</tbody>
+</table>
+
+<p>In <code>recover</code>, <code>retry after 2s;</code> waits before it runs the job again, and <code>$error.attempt</code> counts the runs (1 for the first), so a retry has a limit: <code>retry after 2s if $error.transient and $error.attempt &lt; 5;</code>. See <a href="/projects/eve/exceptions.html">Exceptions</a>.</p>
+
+<h2 id="drivers">Drivers and the Eve server</h2>
+
+<p>A driver is a Zig module that implements one interface: open, transactions, prepared statements, batches, bulk load, the catalog for the validation, the dialect and the classification of errors. The core, the ORM and the server never depend on a vendor. The order: SQLite (embedded) and PostgreSQL in version 0.4, with Supabase and Neon, which speak its protocol; MySQL and MariaDB, and Cloudflare D1 in 0.5; MongoDB later, with an API of its own; Oracle and SQL Server by the community, through the same interface.</p>
+
+<p>On path 3 a desktop or an edge machine holds no password and does not reach the database network. The <b>Eve server</b> holds the sessions, the drivers and a cache:</p>
+
 <ul>
-<li>Before execution, statements are converted into SQL;</li>
-<li>We can visualize generated SQL by using $trace;</li>
-<li>We can use $query system variable to print last SQL;</li>
+<li>A remote session has a lease, renewed while the client works; a client that crashed does not hold locks for long;</li>
+<li>Each transaction has an id that the server writes in the same transaction as the data. After a broken connection the client asks the server whether that id is committed, so it knows if the job passed or must be retried;</li>
+<li>Only the changed columns travel: an update of one field of a record of fifty fields sends one value, the key and the version;</li>
+<li><code>cached 1h;</code> keeps a reference table (countries, currencies) in the cache of the server. A write goes to the remote database first. The cache is never the authority: do not use a cached table for a decision that needs the current value;</li>
+<li>A bulk ETL between two databases should run <i>on</i> the server, with a remote <code>apply</code>, so the rows do not cross the network twice.</li>
 </ul>
-<!-- work in progress-->
-<hr>
+
+<h2 id="failures">Failures across the layers</h2>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Failure</th><th>What happens</th></tr>
+</thead>
+<tbody>
+<tr><td>a SQL error in the job</td><td>rollback, memory restored; <code>recover</code> may <code>retry</code> if the error is transient</td></tr>
+<tr><td>the local app crashes during a job</td><td>the lease runs out, the server rolls back; the next run starts from the checkpoint</td></tr>
+<tr><td>the network breaks before <code>COMMIT</code></td><td>rollback by the server; the job fails with a transient error</td></tr>
+<tr><td>the network breaks after <code>COMMIT</code> was sent</td><td>the client asks for the status of its transaction: passed, or retry; "unknown" is a <code>CommitError</code></td></tr>
+<tr><td>a mapping mismatch in production</td><td><code>MappingError</code> before any statement; refused for retry</td></tr>
+</tbody>
+</table>
+
+<div class="alert alert-warning"><b>Not decided yet:</b> savepoints inside a job; the check at first use or only the fingerprint; whether a nullable column mapped to a plain field is an error or a warning; the tables <code>eve_tx</code> and <code>eve_checkpoint</code> installed in a target. The list is in <code>plan/review_level5.md</code>.</div>
 
 <p><b>Read next:</b>
+<a href="/projects/eve/etl.html">Files and ETL</a>,
+<a href="/projects/eve/evedb.html">EveDB</a>,
 <a href="/projects/eve/multitasking.html">Multitasking</a></p>
 <!-- Footer -->
     </main>

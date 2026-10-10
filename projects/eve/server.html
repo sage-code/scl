@@ -195,6 +195,30 @@ eve -c "run sales.eve" -r prod                     ** a remote machine by name
 
 <p>A machine can do the same: it keeps one connection to each partner and sends them commands, on different ports and domain names. At the prompt: <code>eve:&gt; send prod "report"</code>. The first version of the protocol is plain: one command per line, the same text as at the prompt; the answer is the text the prompt would show, followed by the exit status.</p>
 
+<h3 id="login">Login and credentials</h3>
+
+<p>One local machine works with many remote machines at once, and enters each one with its own credentials. A person logs in once per machine, preferably by <b>single sign-on</b>: the browser shows the page of the identity provider of the company, the person signs in there, and the remote machine receives a proof of identity, never the password. A machine without single sign-on has its own accounts, with a user name and a password. Scripts and schedules use the token of a machine, <code>$EVE_TOKEN</code>, as before.</p>
+
+<p>The local machine names its remote machines in its configuration, with the way to log in to each, and never a secret:</p>
+
+<pre class="fixed">
+machine prod at "etl1.example.com:4042" login sso
+machine etl2 at "etl2.example.com:4042" login password
+machine test at "localhost:4142"        login token
+</pre>
+
+<p>After the first login, the local machine keeps the credentials that the remote machine gave back in the <b>keyring</b> of the operating system: the Credential Manager of Windows, the Secret Service of Linux. The keyring is opened by the login of the person on the computer, so the next connection needs no form. The password itself is never stored.</p>
+
+<pre class="fixed">
+eve:&gt; login prod        ** first time: the single sign-on page opens in the browser
+eve:&gt; whoami prod       ** ana, developer, single sign-on
+eve:&gt; send prod "report"
+eve:&gt; logout prod       ** ends the session and deletes the stored credentials
+eve:&gt; forget prod       ** deletes the stored credentials only
+</pre>
+
+<p>Users and roles live on each remote machine, in its Eve database: the same person can be a developer on one machine and only read on another. The admin of a machine manages its users with commands, from the prompt or from the <a href="/projects/eve/eveux.html">RAD Workbench</a>.</p>
+
 <h3 id="upload">Upload and run</h3>
 
 <p><code>eve -u &lt;file&gt;</code> (or <code>--upload</code>) sends a source file to a machine, like a <code>load</code> on that machine. The remote machine compiles the file itself, under its own rules, and keeps it for the next commands:</p>
@@ -313,7 +337,7 @@ end orders_api;
 
 <ul>
 <li><b>Local first:</b> <code>--listen</code>, <code>serve</code> and the API bind to <code>localhost</code> unless the configuration opens them to the network;</li>
-<li><b>Authentication:</b> a remote client presents the token of the machine, <code>$EVE_TOKEN</code>; over a network the connection uses TLS;</li>
+<li><b>Authentication:</b> a person logs in to each remote machine, by single sign-on or with an account of that machine, and the local machine keeps the credentials in the keyring of the computer (see <a href="#login">Login and credentials</a>); scripts and machines present the token of the machine, <code>$EVE_TOKEN</code>; over a network the connection uses TLS;</li>
 <li><b>Authorization:</b> the configuration says which routes are public and who may upload and run code;</li>
 <li><b>Secrets:</b> passwords and keys are never written in scripts; the machine gives them to a project from its configuration, and they never travel back to a client.</li>
 </ul>
@@ -334,6 +358,7 @@ end orders_api;
 <tr><td><code>serve</code></td><td><code>--serve</code></td><td>serve HTTP on <code>$EVE_HTTP_PORT</code>; <code>serve stop</code> ends it</td></tr>
 <tr><td><code>api</code></td><td><code>--api</code></td><td>start the MCP server for AI assistants</td></tr>
 <tr><td><code>send</code></td><td>—</td><td>send a command to another machine: <code>send prod "report"</code></td></tr>
+<tr><td><code>login</code>, <code>logout</code></td><td>—</td><td>log in to a remote machine (single sign-on, an account, or a token), or end the session; <code>forget</code> deletes the stored credentials, <code>whoami</code> shows the user and the role</td></tr>
 <tr><td><code>load</code>, <code>dismiss</code></td><td>—</td><td>create, or free, the memory space of a driver</td></tr>
 <tr><td><code>stop</code></td><td>—</td><td>end the machine</td></tr>
 </tbody>
@@ -341,7 +366,7 @@ end orders_api;
 
 <hr>
 <p><b>Read next:</b>
-<a href="/projects/eve/compiler.html">Compiler</a></p>
+<a href="/projects/eve/eveux.html">RAD Workbench</a></p>
 
 <!-- Footer -->
     </main>

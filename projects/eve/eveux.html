@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve RAD Workbench (eveux): a browser workbench written in Eve, the final test of the language: editor with syntax colors, command window, direct SQL, database tree, job scheduler, log inspector, debugger, login to many machines with single sign-on.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, workbench, RAD, IDE, eveux, debugger, SQL, job scheduler, single sign-on, keyring">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve RAD Workbench</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="eveux">Eve RAD Workbench</h1>
+
+<div class="alert alert-secondary shadow-sm">
+The Eve RAD Workbench, <code>eveux</code>, is a workbench for Eve that runs in a web browser, and it is written in Eve. The local Eve machine runs it as an Eve project; a page in plain JavaScript and plain CSS shows it. From that page a person writes Eve and SQL, runs and debugs scripts, browses databases, schedules drivers as jobs and reads their logs, on the local machine and on many remote machines, each with its own login. RAD means <em>rapid application development</em>: the time from an idea to a running, scheduled ETL job should be minutes.
+</div>
+
+<div class="alert alert-warning">Planned: the Workbench belongs to level 7, the last level, and to version 0.6 of Eve. It needs the machine of level 6 (see <a href="/projects/eve/server.html">Server</a>) and the safe HTML of level 7. Nothing is built yet. The design is in <code>eveux/README.md</code> of the Eve repository; the open questions are at its end.</div>
+
+<h2 id="what">What the Workbench does</h2>
+
+<ul>
+<li>an <b>editor</b> with tabs and syntax colors for Eve, SQL, JSON, XML and HTML;</li>
+<li>a <b>command window</b> for the commands of a machine and for <b>direct SQL</b>, with results shown as a table;</li>
+<li>a <b>database object tree</b>: connections, tables, columns in Eve types, views, indexes;</li>
+<li>a <b>file dialog</b> to open, upload and import files;</li>
+<li>a <b>job scheduler and browser</b> similar to Jenkins, with the knowledge of Eve: aspects, checkpoints, error codes;</li>
+<li>a <b>log inspector</b> for the run logs of the drivers;</li>
+<li>a <b>debugger</b>: run step by step, breakpoints, variable inspector, watch window, call stack;</li>
+<li><b>logins</b> to remote machines with single sign-on, remembered in the keyring of the computer; registration and admin pages for the users of a machine;</li>
+<li><b>Help</b> and <b>About</b> dialogs; About shows the version of the Workbench and of each machine.</li>
+</ul>
+
+<h2 id="final-test">The Final Test of Eve</h2>
+
+<p>The Workbench is written in Eve on purpose: a real application, used every day, is the hardest test a language can get. It needs every level of Eve at once, so it is the acceptance test of level 7 and a stress test of the virtual machine:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Level</th><th>What the Workbench uses</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>strings, collections, control flow, jobs with <code>recover</code> and <code>retry</code> wherever a machine can fail</td></tr>
+<tr><td>2</td><td>one aspect per group of routes, lambdas and closures for the sorting and the filters of the grid</td></tr>
+<tr><td>3</td><td>modules and classes: <code>Machine</code>, <code>ResultPage</code>, <code>Job</code>, <code>Run</code></td></tr>
+<tr><td>4</td><td>requests answered in parallel, live streams through channels, generics</td></tr>
+<tr><td>5</td><td>JSON, CSV import, files, SQL on any connection, the Eve database, the HTTP client</td></tr>
+<tr><td>6</td><td><code>serve</code>, the <code>service</code> script and its routes, many remote machines with their logins, the scheduler, the debugger</td></tr>
+<tr><td>7</td><td>HTML templates and the <code>Html</code> type, live updates in the browser</td></tr>
+</tbody>
+</table>
+
+<p>The stress goals: ten remote machines connected at once, twenty browser tabs following live logs, a query of a million rows read page by page, answers under 100 ms on the local computer, and eight hours of use with flat memory. When the Workbench fails, the question is first about Eve: the fix goes into the language or the virtual machine, never around it.</p>
+
+<h2 id="architecture">Architecture</h2>
+
+<p>The Workbench never runs the user's code itself. Every action on a machine is a command sent to that machine, the same command a person types at the prompt <code>eve:&gt;</code> or sends with <code>eve -c</code>. So the Workbench can do exactly what the machine allows: a remote machine that refuses debug mode refuses it in the Workbench too.</p>
+
+<pre><code>
++------------------------+  HTTP    +---------------------------+  4042, TLS  +-------------------+
+| Browser                |  JSON    | Local Eve machine         |  login      | Remote machine    |
+|  index.html, css/, js/ | -------&gt; |  serve, localhost:8042    | ----------&gt; |  prod             |
+|  menu, editor, panels  | &lt;------- |  eveux project, in Eve    | ----------&gt; |  etl2             |
++------------------------+          |  keyring of the computer  |             +-------------------+
+                                    +---------------------------+
+</code></pre>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Part</th><th>Made of</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td>Browser</td><td>plain JavaScript modules, plain CSS, one HTML page</td><td>the screen: menus, editor, panels, dialogs; no framework, no build step</td></tr>
+<tr><td>The eveux project</td><td>Eve: a <code>service</code> script with its routes, aspects, modules, and the web folder</td><td>answers the browser, sends the commands to the machines, streams their output back</td></tr>
+<tr><td>Local machine</td><td>the <code>eve</code> program (written in Zig), started with <code>--serve</code></td><td>serves HTTP, runs the project, holds one connection and one login per remote machine, keeps the credentials in the keyring</td></tr>
+<tr><td>Remote machines</td><td>the <code>eve</code> program, started with <code>--listen</code></td><td>run, debug and schedule the scripts, answer SQL, own their files, logs, users and roles</td></tr>
+</tbody>
+</table>
+
+<p>The answers of the Workbench are routes of a service, as on the page <a href="/projects/eve/server.html#services">Server</a>. A sketch:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+# eveux API
+service eveux_api is
+  from "lib" use (machines, grid);
+
+  route command(req: Request, @res: Response) on post "/api/machines/{m}/command" is
+    new answer := machines.send!(req.params["m"], req.json()["command"]);
+    let res.body := answer.json();
+  end command;
+
+  route post "/api/machines/{m}/sql" apply run_sql;
+  route get "/api/machines/{m}/jobs" apply list_jobs;
+  route post "/api/machines/{m}/login" apply login;
+
+  initialize
+    machines.open($EVE_HOME);
+end eveux_api;
+</code></pre>
+
+<p>Everything that is not Eve code, such as serving HTTP, live updates, connections to other machines, logins and the keyring, is a feature of the virtual machine, so every Eve program gets it, not only the Workbench.</p>
+
+<h2 id="screen">The screen</h2>
+
+<pre><code>
++---------------------------------------------------------------------------------------+
+| Eve Workbench  File  Edit  View  Run  Debug  Database  Jobs  Machines  Admin  Help    |
++-----------------+------------------------------------------------+--------------------+
+| EXPLORER        | sales_load.eve x | orders.sql | eve.cfg        | VARIABLES          |
+|  v machine dev1 |  1 # sales load                                |  v globals         |
+|    v project    |  2 driver sales_load is                        |     total 1240.50  |
+|      sales.eve  |  3   process main is                           |  v locals (main)   |
+|    v databases  |* 4     new total := 0.0;          &lt;- current   |     r  {id: 7 ...} |
+|      v eve      |  5     for r in rows do                        | WATCH              |
+|        &gt; tables |  6       let total += r.amount;                |   total &gt; 1000 yes |
+|  &gt; machine prod +------------------------------------------------+ CALL STACK         |
+|  # machine etl2 | COMMAND | OUTPUT | RESULTS | PROBLEMS | LOG    |   main  line 4     |
+|                 | eve:&gt; run sales_load.eve                       |                    |
+|                 | sql test&gt; select region, sum(amount) from ...  |                    |
++-----------------+------------------------------------------------+--------------------+
+| dev1 localhost:4042 connected | Eve 0.6.0 | Ln 4, Col 7 | eve | LF | ana (SSO)        |
++---------------------------------------------------------------------------------------+
+</code></pre>
+
+<ul>
+<li>the <b>menu bar</b> on top;</li>
+<li>the <b>Explorer</b> at the left: machines, project files, databases, jobs and logs in one tree; a machine that is not logged in is locked (<code>#</code>), a click opens its login;</li>
+<li>the <b>editor</b> in the center, one tab per file;</li>
+<li>the <b>bottom panel</b>: Command, Output, Results, Problems, Log;</li>
+<li>the <b>debug side bar</b> at the right while debugging: Variables, Watch, Call stack, Breakpoints;</li>
+<li>the <b>status bar</b>: machine, connection, version, cursor, language, line ending, and the user on the active machine with the way they logged in.</li>
+</ul>
+
+<p>Panels are resized by dragging their borders; the layout is kept per user. A dark and a light theme are chosen in the View menu.</p>
+
+<h3 id="menus">Menus</h3>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Menu</th><th>Items</th></tr></thead>
+<tbody>
+<tr><td>File</td><td>New, Open, Open recent, Save, Save as, Upload to machine, Import data, Close tab</td></tr>
+<tr><td>Edit</td><td>Undo, Redo, Cut, Copy, Paste, Find, Replace, Go to line, Toggle comment</td></tr>
+<tr><td>View</td><td>Explorer, Command, Output, Results, Log, Debug side bar, Theme, Font size, Reset layout</td></tr>
+<tr><td>Run</td><td>Check, Run, Run with arguments, Stop, Load driver, Dismiss, Generate docs</td></tr>
+<tr><td>Debug</td><td>Start debugging, Step into, Step over, Step out, Continue, Stop, Toggle breakpoint, Add watch, Report</td></tr>
+<tr><td>Database</td><td>New SQL tab, Connect, Refresh tree, Describe table, Export result, Import file into table</td></tr>
+<tr><td>Jobs</td><td>Job browser, New job, Run now, Build history, Scheduler calendar, Log inspector</td></tr>
+<tr><td>Machines</td><td>Add machine, Log in, Log out, Forget credentials, Test connection</td></tr>
+<tr><td>Admin</td><td>Users, Roles, Registration, Sessions, Audit log of the active machine (its admins only)</td></tr>
+<tr><td>Help</td><td>Help topics, Keyboard shortcuts, Eve tutorial, About</td></tr>
+</tbody>
+</table>
+
+<p>Every menu item also has a shortcut: <kbd>F5</kbd> run, <kbd>F9</kbd> breakpoint, <kbd>F10</kbd> step over, <kbd>F11</kbd> step into, <kbd>Shift+F11</kbd> step out, <kbd>Ctrl+Enter</kbd> run the SQL under the cursor, <kbd>Ctrl+Shift+P</kbd> the command palette.</p>
+
+<h2 id="users">Login and Users</h2>
+
+<p>People log in to <b>machines</b>, not to the Workbench. Users, passwords and roles belong to each remote machine; the local machine keeps one login per remote machine. The Workbench itself opens with a one-time link that the local machine prints when it starts, so another user of the same computer can't use it.</p>
+
+<h3 id="login">Login form</h3>
+
+<p>The first time a remote machine is opened, its login form offers:</p>
+
+<ul>
+<li><b>Single sign-on</b>: a button "Sign in with &lt;provider&gt;". The browser shows the page of the identity provider of the company, the person signs in there, with its second factor, and the remote machine receives a proof of identity, never the password;</li>
+<li>or the <b>user name and password</b> of an account of that machine, for a machine without single sign-on;</li>
+<li><b>Remember on this computer</b>: the credentials that the remote machine gives back are kept in the <b>keyring</b> of the operating system, the Credential Manager of Windows or the Secret Service of Linux. The next time, the connection opens without a form.</li>
+</ul>
+
+<p><b>Log out</b> ends the session on the machine and deletes the stored credentials; <b>Forget credentials</b> deletes them only from the keyring. The same logins work without the Workbench, at the prompt of the local machine:</p>
+
+<pre class="fixed">
+eve:&gt; login prod        ** first time: the single sign-on page opens in the browser
+eve:&gt; whoami prod       ** ana, developer, single sign-on
+eve:&gt; send prod "report"
+eve:&gt; logout prod       ** the session ends, the keyring forgets it
+</pre>
+
+<h3 id="registration">Registration and the first admin</h3>
+
+<p>The first admin of a machine is created on its own console, when the machine is set up; nothing else can create it. Each machine then chooses how other people get an account:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Registration</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>closed</code> (default)</td><td>only an admin of the machine creates accounts</td></tr>
+<tr><td><code>approval</code></td><td>a first login by single sign-on, or the form "Create an account", makes an account that waits for an admin, who gives it a role</td></tr>
+<tr><td><code>open</code></td><td>a first login by single sign-on makes an account with the role <code>viewer</code></td></tr>
+</tbody>
+</table>
+
+<h3 id="roles">Roles</h3>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Right</th><th>viewer</th><th>operator</th><th>developer</th><th>admin</th></tr></thead>
+<tbody>
+<tr><td>read files, logs, job history, database tree; SQL <code>select</code></td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+<tr><td>run jobs now, stop a run, resume from a checkpoint</td><td></td><td>yes</td><td>yes</td><td>yes</td></tr>
+<tr><td>edit and save files, upload, import data, change data with SQL</td><td></td><td></td><td>yes</td><td>yes</td></tr>
+<tr><td>run and debug scripts, edit jobs and schedules</td><td></td><td></td><td>yes</td><td>yes</td></tr>
+<tr><td>manage users, roles, registration and sessions of the machine</td><td></td><td></td><td></td><td>yes</td></tr>
+</tbody>
+</table>
+
+<p>Each machine keeps its own roles, so a person may be developer on <code>dev1</code> and viewer on <code>prod</code>. With single sign-on, a machine can give roles from the groups of the identity provider. The admin pages of the Workbench (users, registration, sessions, audit log) are commands of the machine, so an admin can do the same with <code>eve -c</code>.</p>
+
+<h2 id="explorer">Database Object Tree</h2>
+
+<p>The Explorer shows each machine with its project folder, its databases, its jobs and its logs. A node loads its children when it is opened:</p>
+
+<pre><code>
+machine dev1 (localhost:4042)
+  project            eve.cfg, *.eve, asp/, lib/, web/, data/, out/
+  databases
+    eve              the Eve database of the machine (SQLite)
+      tables
+        orders       id: Integer, customer: String, amount: Decimal, created: Instant
+      views
+      checkpoints
+    test             evedb://localhost:8044/eve_test
+  jobs
+  logs
+machine prod (etl1.example.com:4042)   ana, single sign-on
+machine etl2 (etl2.example.com:4042)   locked: log in
+</code></pre>
+
+<p>Columns are shown in <b>Eve types</b>, the same types a program reads (see <a href="/projects/eve/databases.html">Databases</a>). The context menu of a table selects the first rows, counts them, describes the table, generates the Eve record class of the table, and imports or exports a file.</p>
+
+<h2 id="editor">Editor and Syntax Colors</h2>
+
+<p>The editor is written in plain JavaScript: a text area that holds the text, laid over a block that shows the same text in colors. The browser does the typing, the selection and the undo; the editor does the colors, the line numbers, the breakpoints in the gutter, find and replace, go to line and toggle comment. The errors of <code>check</code> are underlined and listed in the Problems tab.</p>
+
+<p>One colorizer serves five languages, each described by a table of rules:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Language</th><th>Files</th><th>Colored</th></tr></thead>
+<tbody>
+<tr><td>Eve</td><td><code>.eve</code>, <code>.cfg</code></td><td>keywords and types (generated from the keyword list of the specification, like the highlighter of this tutorial), comments <code>#</code>, <code>**</code>, <code>/* */</code>, strings and their placeholders, regular expressions, <code>$</code> variables</td></tr>
+<tr><td>SQL</td><td><code>.sql</code></td><td>keywords of standard SQL, SQLite, PostgreSQL and DuckDB, comments, strings, quoted names, parameters</td></tr>
+<tr><td>JSON</td><td><code>.json</code></td><td>keys, strings, numbers, <code>true</code>, <code>false</code>, <code>null</code>, errors</td></tr>
+<tr><td>XML</td><td><code>.xml</code></td><td>tags, attributes, values, comments, CDATA, entities</td></tr>
+<tr><td>HTML</td><td><code>.html</code></td><td>the rules of XML, plus <code>&lt;script&gt;</code> and <code>&lt;style&gt;</code> blocks</td></tr>
+</tbody>
+</table>
+
+<h2 id="command">Command Window and Direct SQL</h2>
+
+<p>The Command tab is the prompt of the active machine inside the browser, with history and completion. It has two modes:</p>
+
+<pre class="fixed">
+eve:&gt; check sales_load.eve            ** a command of the machine
+eve:&gt; run sales_load.eve --region EU   ** run a script, its output streams below
+eve:&gt; sql test                         ** enter SQL mode on the connection "test"
+sql test&gt; select region, sum(amount) as total from orders group by region;
+sql test&gt; exit                         ** back to the commands of the machine
+</pre>
+
+<p><b>Direct SQL</b> answers in the Results tab as a grid, the way the data will look in a report: column names with their Eve types, numbers aligned to the right, <code>null</code> in grey, dates in ISO form. The grid sorts and filters, pages through large results, copies cells, and exports CSV, JSON or an Eve DataSet. A statement that changes data runs inside a transaction, and the Results tab shows <b>Commit</b> and <b>Rollback</b>, so nothing changes by accident.</p>
+
+<h2 id="jobs">Job Scheduler and Browser</h2>
+
+<p>A machine that listens can run drivers on a schedule (see <a href="/projects/eve/server.html">Server</a>). The job browser shows the schedules and the runs of every machine the user is logged in to. It borrows the ideas of Jenkins and adds what Eve knows about its own programs:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Jenkins</th><th>Eve Workbench</th></tr></thead>
+<tbody>
+<tr><td>job</td><td>a driver with a schedule and parameters</td></tr>
+<tr><td>build</td><td>a run of the driver, with its run log <code>run_&lt;driver&gt;_&lt;datetime&gt;.log</code></td></tr>
+<tr><td>stage view</td><td>the <b>aspects</b> applied by the driver, as columns, with the time and the result of each</td></tr>
+<tr><td>console output</td><td>the run log, streamed live while the run goes on</td></tr>
+<tr><td>status ball</td><td>the exit code: green 0, yellow warnings, red an error code, grey stopped</td></tr>
+<tr><td>(none)</td><td><b>Resume from checkpoint</b>: a failed job restarts from its last committed checkpoint, not from the start</td></tr>
+<tr><td>(none)</td><td>the Eve error class and code of a failure, linked to its meaning</td></tr>
+<tr><td>(none)</td><td>rows read, written and rejected by each aspect</td></tr>
+<tr><td>(none)</td><td>one dashboard for the jobs of all the machines of the user</td></tr>
+</tbody>
+</table>
+
+<p>A new job is a form: the driver, its parameters, when it runs, how many times it retries and after how long. The form writes the schedule into the configuration of the machine, and the machine applies it without a restart:</p>
+
+<pre class="fixed">
+schedule "sales_load"  at "02:00" every day
+schedule "orders_sync" every 15min
+</pre>
+
+<p>The pages are a <b>dashboard</b> of all jobs (last status, last success, last failure, duration, next run), the <b>job page</b> with the stage view of the last runs, the <b>run page</b> with its live log, and a <b>calendar</b> that shows when two heavy loads collide.</p>
+
+<h3 id="logs">Log inspector</h3>
+
+<p>The log inspector reads the run logs of a machine: a list filtered by driver, date and status; a viewer that loads big files by parts and follows a growing file; levels in colors and a filter by text. An error line <code>file:line: error &lt;code&gt;: message</code> becomes two links: one to the line in the editor, one to the meaning of the code (see <a href="/projects/eve/exceptions.html">Exceptions</a>). Two runs of the same job can be shown side by side to find what changed.</p>
+
+<h2 id="debugger">Debugger</h2>
+
+<p>The debugger of the Workbench is a face of the debugger of the machine (see <a href="/projects/eve/vm.html">EVE VM</a>): debug mode, <code>halt</code> in the code, and the commands of the prompt. The Workbench adds the gutter, the side bar and the shortcuts:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Action</th><th>Key</th><th>Command of the machine</th></tr></thead>
+<tbody>
+<tr><td>Start debugging</td><td><kbd>F5</kbd></td><td><code>debug &lt;file&gt;</code></td></tr>
+<tr><td>Run step by step from the start</td><td></td><td><code>begin &lt;file&gt;</code></td></tr>
+<tr><td>Step over</td><td><kbd>F10</kbd></td><td><code>enter</code></td></tr>
+<tr><td>Step into, step out</td><td><kbd>F11</kbd>, <kbd>Shift+F11</kbd></td><td><code>step into</code>, <code>step out</code> (proposed)</td></tr>
+<tr><td>Continue</td><td><kbd>F8</kbd></td><td><code>resume</code></td></tr>
+<tr><td>Toggle breakpoint</td><td><kbd>F9</kbd></td><td><code>break &lt;file&gt;:&lt;line&gt; [if &lt;condition&gt;]</code> (proposed)</td></tr>
+<tr><td>Variables</td><td></td><td><code>print</code>, <code>locals</code> (proposed)</td></tr>
+<tr><td>Watch</td><td></td><td><code>print &lt;expression&gt;</code> at every stop</td></tr>
+<tr><td>Call stack</td><td></td><td><code>stack</code> (proposed)</td></tr>
+</tbody>
+</table>
+
+<ul>
+<li>The <b>variable inspector</b> shows the globals of the driver and the locals of the selected frame; records, lists and maps open as trees;</li>
+<li>The <b>watch window</b> keeps expressions that are evaluated again at every stop; a value that changed is highlighted;</li>
+<li>A breakpoint set in the gutter is not written in the file, unlike <code>halt</code>; a forgotten breakpoint never reaches production;</li>
+<li>Debugging works on the local machine; a remote machine refuses it unless its configuration allows it, and then the Debug menu is grey and says why.</li>
+</ul>
+
+<p>The commands marked "proposed" belong to the machine, not to the Workbench, so that the prompt and <code>eve -c</code> get them too. They wait for a decision of the author.</p>
+
+<h2 id="files">Files and Import</h2>
+
+<p>The <b>file dialog</b> has two sources: the folders of a machine (project, <code>data/</code>, <code>out/</code>, <code>web/</code>), with a filter by type, and the computer of the user, with a drop zone and a Browse button that upload the files to the machine.</p>
+
+<p><b>Import data</b> is a wizard on top of the dialog: choose a CSV or JSON file, see the first rows, choose the connection and the table, map the columns to Eve types (guessed from the data), choose <code>append</code>, <code>replace</code> or <code>upsert</code>, and run. An import is a run of the machine, so it appears in the job history with its log.</p>
+
+<h2 id="help">Help and About</h2>
+
+<p><b>Help</b> opens the help topics of the Workbench, the list of shortcuts and links to this tutorial; <kbd>F1</kbd> on a keyword in the editor opens its tutorial page. <b>About</b> shows the versions:</p>
+
+<pre><code>
+Eve RAD Workbench    eveux 0.1.0   (on Eve 0.6.0, the local machine)
+Machine prod         Eve 0.6.0
+Databases            SQLite 3.54.0, evedb 0.2 / DuckDB 1.5.6
+(c) 2026 Sage-Code Laboratory, Elucian Moise
+</code></pre>
+
+<h2 id="security">Security</h2>
+
+<ul>
+<li><b>Local only:</b> the Workbench is served by the local machine on <code>localhost</code> and opens with a one-time link; a team shares remote machines, not a Workbench;</li>
+<li><b>Credentials</b> stay with the local machine, in the keyring of the computer; they never reach the browser and never go into a file of the project;</li>
+<li><b>Passwords</b> are never stored: the keyring holds what the remote machine gave back after the login, and single sign-on never shows the password to Eve at all;</li>
+<li>Every value that comes from a machine, a file or a database is shown as <b>text</b>, never as HTML;</li>
+<li><b>Rights</b> are checked by each remote machine, which also keeps the audit log: logins, role changes, runs, SQL that changed data and uploads.</li>
+</ul>
+
+<h2 id="versions">Versions</h2>
+
+<p>The Workbench is built during version 0.6 of Eve. Each part can start as soon as the features it needs pass their tests, and each part tests them:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>eveux</th><th>Needs</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td>0.1</td><td>level 6: serve, routes, connections, login</td><td>screen and menus, editor with five colorizers, file dialog, command window, login with single sign-on and the keyring, Help and About</td></tr>
+<tr><td>0.2</td><td>level 5: the database layer</td><td>direct SQL and its grid, database tree, import wizard</td></tr>
+<tr><td>0.3</td><td>level 6: scheduler, live runs</td><td>job browser and scheduler, live run output, log inspector, admin pages</td></tr>
+<tr><td>0.4</td><td>the debugger of the machine</td><td>breakpoints, stepping, variables, watch, call stack</td></tr>
+<tr><td>1.0</td><td>level 7</td><td>every test of level 7 passes and the stress goals are met: the end of version 0.6</td></tr>
+</tbody>
+</table>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/compiler.html">Compiler</a></p>
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>
