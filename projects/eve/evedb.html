@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="EveDB, the Eve test database: a database server written in Zig around DuckDB, tuned for Eve, that plays the remote database in the tests of the Eve database layer.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, EveDB, evedb, DuckDB, SQLite, test database, Zig">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>EveDB: the Eve Test Database</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="evedb">EveDB: the Eve Test Database</h1>
+
+<div class="alert alert-secondary shadow-sm">
+EveDB is a small database server written in Zig around DuckDB and tuned for Eve. It is a separate program, <code>evedb</code>, built next to the Eve virtual machine but never part of it. Its first job is to play the <em>remote database</em> in the tests of the Eve database layer: it speaks Eve's own protocol, keeps Eve's types without loss, and can fail on purpose, exactly when a test asks, so that commit, rollback and retry can be tested again and again with the same result.
+</div>
+
+<div class="alert alert-warning">Status: the program builds and links DuckDB 1.5.6, runs a self-check and passes its unit tests. The server, the protocol, the fault injection and the commands below are designed, not written yet. The design is in <code>evedb/README.md</code> of the Eve repository.</div>
+
+<h2 id="why">Why a test database</h2>
+
+<p>Eve has two database engines with two different roles:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Engine</th><th>Role</th><th>Where it runs</th></tr></thead>
+<tbody>
+<tr><td>SQLite</td><td>the <b>core database</b>: the Eve database of each machine (run history, checkpoints, lineage), the cache, staging tables of ETL, small applications</td><td>inside the virtual machine, compiled into <code>eve</code></td></tr>
+<tr><td>DuckDB</td><td>the <b>secondary database</b>: EveDB, a remote database tuned for Eve; first for tests, later for analytics</td><td>in its own program, <code>evedb</code></td></tr>
+</tbody>
+</table>
+
+<p>A program that reads and writes a database on another machine has failures that a local database never shows: the network breaks before a commit, or after it; another program changed the row; the schema changed since the code was written. Eve handles these cases with jobs, <code>recover</code> and <code>retry</code> (see <a href="/projects/eve/processing.html">Processing</a> and <a href="/projects/eve/databases.html">Databases</a>). Each case needs a test, and each test needs a remote database. A real server such as PostgreSQL can play that role, but it must be installed, it can't be told to fail at the right moment, and it does not speak Eve. EveDB is made for that job:</p>
+
+<ul>
+<li>it starts on <code>localhost</code> in a fraction of a second, with a fresh database for each test;</li>
+<li>it speaks the Eve Wire Protocol, so no vendor driver is needed on the Eve side;</li>
+<li>it can drop a connection, refuse a commit or report a conflict on demand;</li>
+<li>it keeps a log of every statement it ran, so a test can check the SQL that Eve sent.</li>
+</ul>
+
+<h2 id="place">Where EveDB fits</h2>
+
+<p>The Eve database layer has three tiers. A local Eve program holds memory tables and reads files; an Eve server holds the sessions, the drivers and a cache; the remote database holds the data. EveDB stands in the place of the remote database, and also takes the server side of the sessions, so a test needs only <code>eve</code> and <code>evedb</code>:</p>
+
+<pre><code>
++------------------------------+          +------------------------------+
+| Eve program (eve)            |   EWP    | EveDB (evedb)                |
+|  memory tables, files, jobs  | -------> |  sessions, DuckDB, test log  |
++------------------------------+          +------------------------------+
+</code></pre>
+
+<p>The program does not know which database it uses: the name of the connection is resolved by the configuration of the machine. The same script runs against SQLite, PostgreSQL or EveDB:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** eve.cfg of the machine that runs the tests (sketch)
+database "shop"  = "sqlite://db/shop.db"           ** local: the embedded engine
+database "sales" = "postgresql://etl@db1/sales"     ** a real remote server
+database "test"  = "evedb://localhost/eve_test"     ** the Eve test database
+</code></pre>
+
+<h2 id="duckdb">Why DuckDB</h2>
+
+<p>DuckDB is an embedded SQL database, like SQLite, but it stores tables column by column. EveDB uses it for what it gives for free:</p>
+
+<ul>
+<li><b>ACID transactions</b> with several connections working at once: two transactions that change the same row conflict at the commit, which is exactly the case a test of optimistic locking needs;</li>
+<li><b>fast bulk loads</b>: rows are appended in column batches, the same shape in which the Eve Wire Protocol sends a table;</li>
+<li><b>rich types</b>: 128-bit integers, decimals of 38 digits, time stamps with a zone, intervals, UUIDs;</li>
+<li><b>upserts</b> (<code>insert … on conflict do update</code>), used by the bulk loads of ETL;</li>
+<li><b>CSV, JSON and Parquet</b> read and written in SQL, for test fixtures now and analytics later;</li>
+<li><b>one file per database</b>, or a database in memory that a test creates and throws away in milliseconds.</li>
+</ul>
+
+<p>EveDB is not meant to replace PostgreSQL in production: DuckDB is built for analytics, so many tiny transactions are slower than on a classic server. For tests and for bulk ETL that does not matter.</p>
+
+<h2 id="tuned">Tuned for Eve</h2>
+
+<h3 id="wire">The Eve Wire Protocol</h3>
+
+<p>EveDB listens on a TCP port and answers the database messages of the Eve Wire Protocol (see <a href="/projects/eve/protocols.html">Protocols</a>): open a session, begin a transaction, run a query and send the rows in batches, apply the changes of a flush, commit, roll back, and answer whether a transaction was committed. Only the fields that changed travel: an update of one field of a record with fifty fields sends one value, the key and the version. EveDB is the first program that implements the server side of these messages; the Eve server can reuse the same code later.</p>
+
+<h3 id="types">Eve types without loss</h3>
+
+<p>Every Eve type has a DuckDB column type that keeps it exactly, so a value written by Eve is read back the same:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Eve</th><th>DuckDB</th></tr></thead>
+<tbody>
+<tr><td><code>Integer</code></td><td><code>BIGINT</code></td></tr>
+<tr><td><code>Natural</code></td><td><code>UBIGINT</code></td></tr>
+<tr><td><code>Huge</code> (128 bits)</td><td><code>HUGEINT</code></td></tr>
+<tr><td><code>Decimal</code></td><td><code>DECIMAL(p, s)</code></td></tr>
+<tr><td><code>Real</code>, <code>Float</code></td><td><code>DOUBLE</code>, <code>FLOAT</code></td></tr>
+<tr><td><code>Logic</code></td><td><code>BOOLEAN</code></td></tr>
+<tr><td><code>String</code></td><td><code>VARCHAR</code></td></tr>
+<tr><td><code>Instant</code></td><td><code>TIMESTAMPTZ</code></td></tr>
+<tr><td><code>Date</code>, <code>Time</code>, <code>Duration</code></td><td><code>DATE</code>, <code>TIME</code>, <code>INTERVAL</code></td></tr>
+<tr><td><code>Uuid</code>, <code>Bytes</code></td><td><code>UUID</code>, <code>BLOB</code></td></tr>
+</tbody>
+</table>
+
+<p>EveDB describes its tables in Eve types, so the check of a mapping (does every field of a record class have its column, with a type that fits?) is exact. <code>evedb describe eve_test orders --eve</code> prints the Eve record class of a table, ready to paste into a script.</p>
+
+<h3 id="eve-tables">Tables of Eve built in</h3>
+
+<p>Two small tables exist in every EveDB database. <code>eve_tx</code> keeps the ids of the committed transactions: when the network breaks right after a commit, the program asks with that id and learns whether its work was saved. <code>eve_checkpoint</code> keeps the checkpoints of long loads, committed together with the batch they describe, so a load that restarts never loads a batch twice.</p>
+
+<h3 id="sessions">Sessions and leases</h3>
+
+<p>Each process of an Eve program that uses the connection gets its own session, with its own DuckDB connection and its own transaction. A session has a <em>lease</em>: the program renews it while it works. When a program crashes, its lease runs out, EveDB rolls back the open transaction and frees the connection, so a dead program never holds locks for long.</p>
+
+<h2 id="faults">Fault injection</h2>
+
+<p>The most useful feature of a test database is that it can fail on purpose. In test mode (<code>evedb serve --test</code>), a test arms a fault with a <code>pragma</code> statement, sent like any SQL; the fault fires once, at the next matching point:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Fault</th><th>What happens</th><th>What it tests</th></tr></thead>
+<tbody>
+<tr><td><code>drop</code> before or after the commit</td><td>EveDB closes the connection at that point</td><td>a lost connection is a transient error: <code>retry</code>; after the commit, the program asks and finds its work saved</td></tr>
+<tr><td><code>conflict</code> on a table</td><td>the next update of that table conflicts</td><td>optimistic locking, <code>ConflictError</code>, a retry that reads fresh data</td></tr>
+<tr><td><code>deadlock</code></td><td>the next statement fails as a deadlock</td><td><code>DeadlockError</code>, a pause before the retry</td></tr>
+<tr><td><code>commit_fail</code></td><td>the commit fails and rolls back</td><td>a job that fails at its end, with its memory restored</td></tr>
+<tr><td><code>delay</code></td><td>every message waits</td><td>time-outs and leases</td></tr>
+<tr><td><code>drift</code> on a table</td><td>a column is added, changed or dropped</td><td>the mapping check: a warning for a harmless change, a hard stop for a wrong one</td></tr>
+</tbody>
+</table>
+
+<pre class="line-numbers"><code class="language-eve">
+** a test: the network breaks after the commit was sent
+new test := database.connect("test");
+test.execute!("pragma eve_fault('drop', 'after_commit')");
+</code></pre>
+
+<p>Outside test mode, a <code>pragma eve_fault</code> is an error: a production database never fails on request.</p>
+
+<h2 id="statement-log">Statement log</h2>
+
+<p>In test mode EveDB writes every statement it runs to the table <code>eve_log.statements</code>: the session, the transaction, the kind of statement, the table, the columns written and the number of rows. A test reads it to prove what is otherwise invisible, for example that an update wrote only the field that changed:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** only the dirty field and the version were written
+class Logged = {columns: String} &lt;: Record;
+new last := test.query_one!(:Logged)("select columns from eve_log.statements where kind = 'update' order by seq desc limit 1");
+expect last != null and last.columns == "city,version";
+</code></pre>
+
+<h2 id="commands">Commands</h2>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Command</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>evedb</code></td><td>print the versions and run the self-check (available now)</td></tr>
+<tr><td><code>evedb serve [--port 8044] [--data folder] [--test]</code></td><td>listen; <code>--test</code> allows faults and the statement log and listens on <code>localhost</code> only</td></tr>
+<tr><td><code>evedb create name [from script.sql]</code></td><td>create a database</td></tr>
+<tr><td><code>evedb sql name "statement"</code></td><td>run one statement and print the result</td></tr>
+<tr><td><code>evedb describe name table [--eve]</code></td><td>the columns in Eve types; <code>--eve</code> prints the record class</td></tr>
+<tr><td><code>evedb snapshot name file</code>, <code>evedb reset name from file</code></td><td>save a database and put it back, for test fixtures</td></tr>
+<tr><td><code>evedb import</code>, <code>evedb export</code></td><td>load or write a table as CSV, JSON or Parquet</td></tr>
+<tr><td><code>evedb status</code></td><td>sessions, leases and open transactions</td></tr>
+</tbody>
+</table>
+
+<p>The test runner of Eve starts <code>evedb serve --test</code> with a fresh data folder before the database tests, resets the fixtures before each test that uses the connection <code>"test"</code>, and stops it at the end.</p>
+
+<h2 id="build">Build and run</h2>
+
+<p>EveDB lives in the folder <code>evedb/</code> of the Eve repository, next to the virtual machine in <code>evevm/</code>, and is written in Zig 0.16 like the machine. DuckDB is not copied into the repository: the build downloads the prebuilt library of the system once, checks it against its hash, and keeps it in a cache.</p>
+
+<pre><code>
+cd evedb
+zig build -p ..        # installs bin/evedb.exe and bin/duckdb.dll, next to bin/eve.exe
+zig build test         # the unit tests
+../bin/evedb.exe
+evedb 0.0.1, DuckDB v1.5.6, self-check 42
+</code></pre>
+
+<p>The same build gives SQLite to the machine: <code>evevm/</code> compiles the SQLite source into <code>eve</code>, so the core database needs no installation at all.</p>
+
+<h2 id="inside">Inside the project</h2>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>File</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td><code>build.zig</code>, <code>build.zig.zon</code></td><td>the build and the pinned DuckDB library of each system</td></tr>
+<tr><td><code>src/main.zig</code></td><td>the command line</td></tr>
+<tr><td><code>src/duckdb.zig</code></td><td>the binding over the C interface of DuckDB (written)</td></tr>
+<tr><td><code>src/server.zig</code>, <code>src/session.zig</code></td><td>the listener, the sessions and their leases (planned)</td></tr>
+<tr><td><code>src/ewp.zig</code></td><td>the messages of the Eve Wire Protocol (planned)</td></tr>
+<tr><td><code>src/types.zig</code>, <code>src/catalog.zig</code></td><td>Eve types and the description of tables (planned)</td></tr>
+<tr><td><code>src/changes.zig</code></td><td>the changes of a flush turned into SQL (planned)</td></tr>
+<tr><td><code>src/fault.zig</code>, <code>src/log.zig</code></td><td>fault injection and the statement log (planned)</td></tr>
+</tbody>
+</table>
+
+<h2 id="versions">Versions</h2>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>EveDB</th><th>With Eve</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td>0.1</td><td>0.4 (data and database)</td><td>the test server: sessions, the protocol, Eve types, bulk loads and upserts, faults, statement log, snapshots</td></tr>
+<tr><td>0.2</td><td>0.5 (server)</td><td>several clients with tokens, import and export, the protocol code shared with the Eve server</td></tr>
+<tr><td>later</td><td></td><td>an analytic database for Eve: Parquet, large aggregates, users and rights</td></tr>
+</tbody>
+</table>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/index.html">Index</a></p>
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>
