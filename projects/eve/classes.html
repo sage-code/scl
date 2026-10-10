@@ -197,6 +197,53 @@ end Circle;
 
 <p><b>Methods are not values.</b> A method can't be handled like a function: there are no references to methods and no method type, so a method can't be passed as an argument, stored in a variable or returned. Code that needs the work of a method as a callback passes a lambda that calls it: <code>circles.map((c) =&gt; (c.area()))</code> (see <a href="/projects/eve/callbacks.html">Callbacks</a>).</p>
 
+<h3 id="class-variables">Class variables</h3>
+
+<p>"A class hosts only methods" is about subprograms, not about data. A class can also hold <b>class variables</b>: private variables declared with <code>set</code> in the class body, one copy for the whole class (not one per object). The constructor and every method of the class can read and write them with the qualified name <code>ClassName.VarName</code>.</p>
+
+<p>Code outside the class, such as a function or a procedure, can't touch a class variable directly. It must call an accessor method (a getter or a setter) that the class offers. This way the class controls every change of its own state.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+driver test_class_variables is
+
+  class Account = {owner: String} &lt;&#58; Object is
+    ** class variables: private, shared by all the accounts
+    private set count: Integer;
+    private set limit: Integer;
+
+    constructor(owner: String) =&gt; (@self: Account) is
+      let self := Object();
+      let self.owner := owner;
+      let Account.count += 1;          ** ClassName.VarName in the constructor
+    return;
+
+    ** accessors: the only way for outside code to reach the variables
+    public method total() =&gt; (@result: Integer) is
+      let result := Account.count;     ** ClassName.VarName in a method
+    return;
+
+    public method setLimit(value: Integer) is
+      let Account.limit := value;
+    return;
+  end Account;
+
+  function report() =&gt; (@text: String) is
+    ** let text := Account.count;      ** compile error: count is private
+    let text := "accounts: " + Account.total();
+  return;
+
+  process main is
+    new a := Account("Ana");
+    new b := Account("Dan");
+    expect Account.total() == 2;
+    expect report() == "accounts: 2";
+  return;
+end test_class_variables;
+</code></pre>
+
+<p>Do not confuse a class variable with a property of the signature: <code>owner</code> belongs to each object, while <code>count</code> belongs to the class and is shared.</p>
+
+
 
 
 <h2 id="constructor">Object Constructor</h2>

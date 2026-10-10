@@ -427,6 +427,21 @@ expect condition2, "user defined message";
 <p>Aspect processes should handle as much as possible to keep the concerns local. Main process can handle the general case just in case but can also just not have a recover or finalize region.</p>
 
 
+<h4>Retry with a pause and a limit</h4>
+
+<p>At level 5 <code>retry after 2s;</code> waits before it runs the job again, and <code>$error.attempt</code> is the number of the run (1 for the first). The field <code>$error.transient</code> is <code>True</code> for an error that a new try can cure, such as a lost connection or a deadlock:</p>
+
+<pre class="line-numbers"><code class="language-eve">recover
+  retry after 2s if $error.transient and $error.attempt &lt; 5;
+  abort;
+</code></pre>
+
+<p>Two errors are <b>fatal</b>: <code>retry</code> and <code>resume</code> are refused for a <code>MappingError</code> and for a <code>CommitError</code> that is <code>partial</code>, and the process aborts with exit code 4. See <a href="/projects/eve/databases.html">Databases</a>.</p>
+
+<h4>A job is a transaction</h4>
+
+<p>When a job uses a database connection, the job is a transaction: <code>done</code> writes and commits, an error rolls back and restores the records in memory before <code>recover</code> runs. Two statements are allowed in a job: <code>commit;</code> commits what was done and begins a new transaction (for a long load, in batches), and <code>rollback;</code> undoes the job on purpose (for a dry run, <code>rollback if dry_run;</code>). The job then has the status <code>"rolled back"</code> in <code>jobs["name"].status</code>, it is not an error, and the process continues after <code>done</code>. In the declarations of a job, <code>set $isolation = "serializable";</code>, <code>set $lock_timeout = 10s;</code> and <code>set $read_only = True;</code> change its transaction.</p>
+
 <h4>Example:</h4>
 <pre class="line-numbers"><code class="language-eve">#using recover
 driver recover_demo is

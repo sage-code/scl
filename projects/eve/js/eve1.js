@@ -28,7 +28,8 @@
         all cancel error on one other within`);
     // contextual declaration words are highlighted only when they open a line
     const DECLARATIONS = new Set(`
-        async concurrent direct exclusive managed private protected public`.trim().split(/\s+/));
+        after async cached column commit concurrent direct exclusive generated key managed only
+        private protected public read reference rollback table temporary to version`.trim().split(/\s+/));
     // END GENERATED
 
     // not in keywords.json: library functions, words of the database level (not specified yet), types
