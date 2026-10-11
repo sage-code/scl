@@ -57,8 +57,8 @@ EveDB is a small database server written in Zig around DuckDB and tuned for Eve.
 <table class="table table-bordered table-striped">
 <thead><tr><th>Engine</th><th>Role</th><th>Where it runs</th></tr></thead>
 <tbody>
-<tr><td>SQLite</td><td>the <b>core database</b>: the Eve database of each machine (run history, checkpoints, lineage), the cache, staging tables of ETL, small applications</td><td>inside the virtual machine, compiled into <code>eve</code></td></tr>
-<tr><td>DuckDB</td><td>the <b>secondary database</b>: EveDB, a remote database tuned for Eve; first for tests, later for analytics</td><td>in its own program, <code>evedb</code></td></tr>
+<tr><td>SQLite</td><td>the <b>core database</b> of each project: the logs of the ETL runs, checkpoints, lineage, metadata and the data of the Eve UX. It <b>never holds ETL data</b></td><td>inside the virtual machine, compiled into <code>eve</code></td></tr>
+<tr><td>DuckDB</td><td>EveDB, the database for <b>data</b> that Eve owns: staging tables of ETL, the cache of the Eve server, the tests; later analytics</td><td>in its own program, <code>evedb</code></td></tr>
 </tbody>
 </table>
 
@@ -136,7 +136,7 @@ database "test"  = "evedb://localhost/eve_test"     ** the Eve test database
 
 <h3 id="eve-tables">Tables of Eve built in</h3>
 
-<p>Two small tables exist in every EveDB database. <code>eve_tx</code> keeps the ids of the committed transactions: when the network breaks right after a commit, the program asks with that id and learns whether its work was saved. <code>eve_checkpoint</code> keeps the checkpoints of long loads, committed together with the batch they describe, so a load that restarts never loads a batch twice.</p>
+<p>A table exists in every EveDB database: <code>eve_tx</code> keeps the ids of the committed transactions. When the network breaks right after a commit, the program asks with that id and learns whether its work was saved. Eve installs no table of its own in a database that a DBA keeps, but EveDB is Eve's own and always <b>exclusive</b>: Eve may disable triggers and indexes there to load faster (<code>prepare</code>, <code>activate</code>, <code>reindex</code>). The checkpoints of long loads are not here: they are in the core database, and a load that commits in batches must be an upsert, so a batch loaded twice changes nothing.</p>
 
 <h3 id="sessions">Sessions and leases</h3>
 

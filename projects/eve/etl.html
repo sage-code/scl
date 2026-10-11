@@ -38,13 +38,13 @@
     <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
 <h1 id="eve-etl">Eve Files and ETL</h1>
 <div class="alert alert-secondary shadow-sm">
-ETL is Eve's main job: <b>E</b>xtract data from files and databases, <b>T</b>ransform it with pure functions, <b>L</b>oad it into a database, and report it back to files. This page teaches the file types (<code>Csv</code>, <code>Json</code>, <code>Dat</code>), reading and writing in Unicode, rejects, and the pattern of a restartable transfer.</div>
+ETL is Eve's main job: <b>E</b>xtract data from files and databases, <b>T</b>ransform it with pure functions, <b>L</b>oad it into a database, and report it back to files. This page teaches the file types (<code>CSV</code>, <code>JSON</code>, <code>TXT</code>), reading and writing in Unicode, rejects, and the pattern of a restartable transfer.</div>
 
 <div class="alert alert-info">Designed for version 0.4 (level 5): the rules are proposals waiting for the review of the author. The specification is <code>spec/semantics/data-types.md</code> and <code>spec/library/data-language.md</code>. The database side is on the page <a href="/projects/eve/databases.html">Databases</a>.</div>
 
 <h2 id="etl-cycle">The cycle</h2>
 
-<pre><code>files --read--&gt; records --transform--&gt; stage (SQLite) --transfer--&gt; remote tables
+<pre><code>files --read--&gt; records --transform--&gt; stage (evedb) --transfer--&gt; remote tables
   ^                                                                      |
   +-----------write &lt;-- records &lt;------ report (query) &lt;-----------------+
 </code></pre>
@@ -60,15 +60,28 @@ ETL is Eve's main job: <b>E</b>xtract data from files and databases, <b>T</b>ran
 <tr><th>Type</th><th>The file</th><th>A <code>for</code> loop gives</th><th>Version</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Csv</code></td><td>separated fields, usually with a header row</td><td>a row</td><td>0.4</td></tr>
-<tr><td><code>Json</code></td><td>JSON text or JSON Lines</td><td>a node: an object, an array, a scalar</td><td>0.4</td></tr>
-<tr><td><code>Dat</code></td><td>fixed-width fields</td><td>a row</td><td>0.4</td></tr>
-<tr><td><code>Xml</code></td><td>XML text</td><td>an element</td><td>0.5</td></tr>
-<tr><td><code>Html</code>, <code>Htmlt</code></td><td>HTML, and HTML templates</td><td>a node</td><td>0.6, with the templates</td></tr>
+<tr><td><code>CSV</code></td><td>separated fields, usually with a header row</td><td>a row</td><td>0.4</td></tr>
+<tr><td><code>JSON</code></td><td>JSON text or JSON Lines</td><td>a node: an object, an array, a scalar</td><td>0.4</td></tr>
+<tr><td><code>TXT</code></td><td>fixed-length text (<code>.txt</code>), a simple text file</td><td>a row</td><td>0.4</td></tr>
+<tr><td><code>XML</code></td><td>XML text</td><td>an element</td><td>0.5</td></tr>
+<tr><td><code>HTML</code>, <code>HTMT</code></td><td>HTML, and HTML templates</td><td>a node</td><td>0.6, with the templates</td></tr>
 </tbody>
 </table>
 
 <p>All of them are classes derived from <code>Document</code>, which is an <code>Iterable</code>, so a <code>for</code> loop reads any of them. A unit that is not well formed raises a <code>FormatError</code> with the <code>line</code> and the <code>column</code> when the loop <i>reaches</i> it, and the units before it were already given to the loop.</p>
+
+<h2 id="txt">TXT: fixed-length text</h2>
+
+<p>The names of the types are the names of the formats, in capitals when they are acronyms: <code>CSV</code>, <code>JSON</code>, <code>XML</code>, <code>HTML</code>, <code>TXT</code>. The module has the same name in lower case.</p>
+
+<p>A <code>TXT</code> file is a simple text file with fixed-length fields: one record per line, each field in its column. It has no style, no page and no font. Options: <code>widths:</code> (the width of each field, in the order of the class), <code>width_unit:</code> and <code>null:</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+txt.write("out/orders.txt", rows, widths: (8, 10, 12, 20));
+new lines := txt.read!(:Order)("in/orders.txt", widths: (8, 10, 12, 20));
+</code></pre>
+
+<div class="alert alert-info"><b>Planned:</b> <code>PRN</code> and <code>PDF</code> are output formats for reports, with a style (fonts, margins, headers, pages) and limits (line width, lines per page). They are not specified yet.</div>
 
 <h2 id="untyped">Untyped reading</h2>
 
@@ -78,7 +91,7 @@ ETL is Eve's main job: <b>E</b>xtract data from files and databases, <b>T</b>ran
 from "lib" use (csv);
 
 process main is
-  new orders: Csv := csv.open("orders.csv");    ** nothing is read yet but the first block
+  new orders: CSV := csv.open("orders.csv");    ** nothing is read yet but the first block
   new sum := 0.0;
   for row in orders do                          ** one row at a time
     let sum += row["total"].real();             ** row[2] reads by position
@@ -97,7 +110,7 @@ class Order = {id: Integer, customer_id: Integer, amount: Decimal, created: Inst
 new rows  := csv.read!(:Order)("in/orders.csv", encoding: "windows-1252",
                                columns: {"Order No": "id", "Total": "amount"});
 new docs  := json.read!(:Order)("in/orders.jsonl");       ** JSON Lines or an array of objects
-new lines := dat.read!(:Order)("in/orders.dat", widths: (8, 10, 12, 20));
+new lines := txt.read!(:Order)("in/orders.txt", widths: (8, 10, 12, 20));
 
 for o in rows do
   print "{o.id}: {o.amount}";
@@ -106,7 +119,7 @@ done;
 
 <ul>
 <li>A CSV header name or a JSON key maps to the field of the same name; the option <code>columns:</code> renames, as <code>column ... as</code> does for a table;</li>
-<li>A <code>Dat</code> file maps by position: the widths of the fields, in the order of the fields of the class;</li>
+<li>A <code>TXT</code> file maps by position: the widths of the fields, in the order of the fields of the class;</li>
 <li>A missing value of a field <code>T?</code> is <code>null</code>; a missing value of a field <code>T</code> is an error of that row;</li>
 <li>The header is checked at the first row: in debug mode every difference is listed, in production the first one stops the read;</li>
 <li>A read of a file carries <code>!</code>, like every read of the outside world; <code>write</code> has none.</li>
@@ -125,11 +138,15 @@ done;
 <tbody>
 <tr><td>Encoding</td><td>a BOM decides (UTF-8, UTF-16, UTF-32); else the option <code>encoding:</code>; else UTF-8. ISO-8859-1 and Windows-1252 are also known</td></tr>
 <tr><td>Invalid bytes</td><td><code>invalid: "error"</code> (default) raises <code>FormatError</code> with line, column and byte offset; <code>"replace"</code> writes U+FFFD and counts it; <code>"reject"</code> sends the unit to the rejects</td></tr>
-<tr><td>Normalization</td><td><code>normalize: "nfc"</code> composes the text, so that two spellings of the same name are one key. Recommended for key fields; off by default</td></tr>
+<tr><td>Normalization</td><td><code>normalize: "nfc"</code> composes the text in memory (see below), so that two spellings of the same name are one key. Recommended for key fields; off by default. The source file is never changed</td></tr>
 <tr><td>Line endings</td><td>LF, CRLF and CR are read; LF is written unless <code>eol: "crlf"</code></td></tr>
 <tr><td>Fixed width</td><td>widths count code points; <code>width_unit: "byte"</code> for old single-byte files</td></tr>
 </tbody>
 </table>
+
+<h3 id="nfc">What NFC is</h3>
+
+<p>The same letter can be written in Unicode in two ways: <code>&eacute;</code> as one code point (U+00E9), or as <code>e</code> followed by a combining accent (U+0065 U+0301). They look the same and are different strings, so as keys they are two different keys. <b>NFC</b> (Normalization Form C, canonical composition) rewrites the text to the composed form, one code point wherever one exists, so text that looks equal compares equal. <code>normalize: "nfc"</code> does it to the values in memory. By default the text stays as it was read, and the file is never changed.</p>
 
 <h2 id="rejects">Transform and rejects</h2>
 
@@ -141,13 +158,10 @@ function to_target(o: Order) =&gt; (@t: Target) is
 return;
 </code></pre>
 
-<p>A line that can not be read or converted, or a record whose <code>validate</code> fails, does not have to stop the whole job. Give the read a rejects output. The rejects are a table of the source, line, column, text and reason; <code>max_rejects</code> turns the one after the limit into an error of the job:</p>
+<p>A line that can not be read or converted, or a record whose <code>validate</code> fails, does not have to stop the whole job. Give the read a rejects output: a file, <code>rejects: "out/orders_rejects.csv"</code>, or a table, <code>rejects: @bad</code>. The output is created <b>in batches</b>: one reject batch for each batch read, with the source, line, column, text and reason, written when the batch is done, so the memory stays small. <code>max_rejects</code> turns the one after the limit into an error of the job:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-new bad := Table(:Reject)();
-new rows := csv.read!(:Order)(path, rejects: @bad, max_rejects: 100);
-...
-csv.write("out/orders_rejects.csv", bad) if bad.count() &gt; 0;
+new rows := csv.read!(:Order)(path, rejects: "out/orders_rejects.csv", max_rejects: 100);   ** a reject batch for each batch read
 </code></pre>
 
 <p>Every count (read, converted, rejected, loaded) goes to the run log, as the lineage of the run.</p>
@@ -160,7 +174,7 @@ csv.write("out/orders_rejects.csv", bad) if bad.count() &gt; 0;
 new rows := sales.query!(:Order)("select id, customer_id, amount, created from orders where created &gt;= ?", since);
 csv.write("out/orders.csv", rows, encoding: "utf-8", bom: False, eol: "lf");
 json.write("out/orders.jsonl", rows);
-dat.write("out/orders.dat", rows, widths: (8, 10, 12, 20));
+txt.write("out/orders.txt", rows, widths: (8, 10, 12, 20));
 </code></pre>
 
 <p><code>bom: True</code> is for spreadsheets that need it.</p>
@@ -179,7 +193,7 @@ dat.write("out/orders.dat", rows, widths: (8, 10, 12, 20));
 <tr><td><code>Real</code></td><td>the shortest text that reads back to the same bits</td></tr>
 <tr><td><code>Logic</code></td><td><code>true</code>, <code>false</code> (<code>logic: ("Y", "N")</code> changes it)</td></tr>
 <tr><td><code>Instant</code></td><td>ISO 8601 in UTC with <code>Z</code>; a <code>DateTime</code> keeps its offset</td></tr>
-<tr><td><code>null</code></td><td>CSV: an empty field without quotes (<code>""</code> is the empty string, so the two stay different); JSON: <code>null</code>; <code>Dat</code>: spaces</td></tr>
+<tr><td><code>null</code></td><td>CSV: an empty field without quotes (<code>""</code> is the empty string, so the two stay different); JSON: <code>null</code>; <code>TXT</code>: spaces</td></tr>
 <tr><td>CSV quotes</td><td>only when the value holds the separator, a quote or a line break</td></tr>
 </tbody>
 </table>
@@ -189,11 +203,11 @@ dat.write("out/orders.dat", rows, widths: (8, 10, 12, 20));
 <p>The pattern for a large load. Each step is a job: a transaction and a restart point.</p>
 
 <ol>
-<li><b>Stage.</b> Load the file into a <code>temporary</code> table of the staging database with <code>load!</code>. The file is read once; a restart reads the stage, not the file;</li>
+<li><b>Stage.</b> Load the file into a <code>temporary</code> table of the staging database (<code>evedb</code>, DuckDB) with <code>load!</code>. The file is read once; a restart reads the stage, not the file;</li>
 <li><b>Check and shape in SQL.</b> Deduplicate, join reference data and total with SQL on SQLite;</li>
-<li><b>Prepare the target.</b> <code>sales.prepare(tables)</code> disables indexes, constraints and triggers;</li>
+<li><b>Prepare the target</b>, only on a connection that Eve owns (an <code>evedb</code> database, or <code>exclusive</code> in <code>eve.cfg</code>): <code>sales.prepare(tables)</code> disables indexes, constraints and triggers. On any other database Eve does not touch them: the constraints stay on, the load works, slower, and gives more failures on an active database;</li>
 <li><b>Transfer</b> in parallel groups, one group per level of the table hierarchy: head tables first, leaf tables last, in the order you write. Each aspect has its own connection and loads with <code>load!(mode: "upsert")</code>, with <code>commit;</code> and a checkpoint per batch;</li>
-<li><b>Activate.</b> <code>sales.activate(tables)</code> and <code>sales.reindex(tables)</code> enable the constraints again. A constraint that fails names the rows that break it, and the data stays for inspection;</li>
+<li><b>Activate</b> (the same connections). <code>sales.activate(tables)</code> and <code>sales.reindex(tables)</code> enable the constraints again. A constraint that fails names the rows that break it, and the data stays for inspection;</li>
 <li><b>Record</b> the counts of every step in the run log.</li>
 </ol>
 
@@ -222,19 +236,17 @@ driver orders_upload is
   process main(path: String) is
     stage: job
     do
-      new bad := Table(:Reject)();
       stage_orders.load!(csv.read!(:Order)(path, encoding: "utf-8", normalize: "nfc",
-                                          rejects: @bad, max_rejects: 100), mode: "upsert");
-      csv.write("out/orders_rejects.csv", bad) if bad.count() &gt; 0;
+                                          rejects: "out/orders_rejects.csv", max_rejects: 100), mode: "upsert");
     done stage;
 
     transfer: job
-      new since := checkpoint.read!(:Integer)("orders_upload", db: "erp", default: 0);
+      new since := checkpoint.read!(:Integer)("orders_upload", default: 0);
     do
       for batch in stage_orders.scan!("id &gt; ? order by id", since).batch(5000) do
         orders.load!(batch, mode: "upsert");
-        checkpoint.write("orders_upload", batch[-1].id, db: "erp");
-        commit;                        ** the batch and the checkpoint, together
+        commit;                        ** the batch is committed in the target
+        checkpoint.write("orders_upload", batch[-1].id);   ** then the checkpoint, in the core database
       done;
     done transfer;
 
@@ -245,9 +257,9 @@ driver orders_upload is
 end orders_upload;
 </code></pre>
 
-<p>The <code>stage</code> job reads the file once. The checkpoint is written in the target database, so it commits with its batch; a failure of <code>transfer</code> restarts at the last committed batch.</p>
+<p>The <code>stage</code> job reads the file once. The checkpoint is written in the core database, after the commit of the batch, so a crash between the two loads the last batch again: that is why the load is an upsert. A failure of <code>transfer</code> restarts at the last checkpoint.</p>
 
-<div class="alert alert-warning"><b>Not decided yet:</b> the layout of a <code>Dat</code> file; one rejects output per read or per run; NFC by default or off; the module of compression. The list is in <code>plan/review_level5.md</code>.</div>
+<div class="alert alert-warning"><b>Not decided yet:</b> the layout of a <code>TXT</code> file; the module of compression. The list is in <code>plan/review_level5.md</code>.</div>
 
 <p><b>Read next:</b>
 <a href="/projects/eve/databases.html">Databases</a>,

@@ -25,7 +25,7 @@
     define("control", `
         do done else for if job loop match parallel repeat then when while`);
     define("constant", `
-        all cancel error on one other within`);
+        all cancel error on one other update within`);
     // contextual declaration words are highlighted only when they open a line
     const DECLARATIONS = new Set(`
         after async cached column commit concurrent direct exclusive generated key managed only
