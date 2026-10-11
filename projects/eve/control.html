@@ -243,10 +243,9 @@ process main is
   when other do
     ** no other path matched: V4 found
     ...
-  then
-    ** execute after the match is done, whatever path was taken
-    ...
   done; ** you can't use if after done
+  ** whatever path was taken, the next statement runs after the match
+  ...
 return;
 </code></pre>
 
@@ -254,7 +253,7 @@ return;
 <ul>
 <li>options: all or one are exclusive (one) is the default;</li>
 <li>the default block (last) is <code>when other</code>: it is executed only if no <code>when</code> matched;</li>
-<li>the <code>then</code> clause is executed after the match, for any path, including <code>other</code>;</li>
+<li>there is no <code>then</code> clause: write the statements after <code>done;</code>, in the scope of the process or job; they run for any path, including <code>other</code>;</li>
 <li>a <code>when</code> can test a value, several values or a range;</li>
 <li>match statement can have a label. A labeled match closes with <code>done label;</code>, otherwise with <code>done;</code>;</li>
 <li>match statement has a local scope (before the first when).</li>
@@ -280,7 +279,7 @@ return;
 
 
 <h2 id="while">While Loop</h2>
-<p>Execute a block of code as long as one condition is true. When the condition become false the repetitive block ends. If the condition is false the first time, only the "else" block is executed. If the condition was true at least once, the else block is not executed. The "then" block is executed every time the loop ends, also after a <code>break</code>. A loop that must run at least once, or that runs until <code>break</code>, is the <a href="#repeat">Repeat Loop</a>.</p>
+<p>Execute a block of code as long as one condition is true. When the condition become false the repetitive block ends. If the condition is false the first time, only the "else" block is executed. If the condition was true at least once, the else block is not executed. The statements after <code>done;</code> run every time the loop ends, also after a <code>break</code>. A loop that must run at least once, or that runs until <code>break</code>, is the <a href="#repeat">Repeat Loop</a>.</p>
 
 
 <div class="text-center">
@@ -305,10 +304,8 @@ while condition do
 else
   ** alternative path
   ...
-then
-  ** executed every time the loop ends, also after break
-  ...
 done [label]; ** you can't use "if" here
+** the next statement runs every time the loop ends, also after break
 
 </code></pre>
 
@@ -320,9 +317,8 @@ driver while_demo is
   ** create a shared list
   set letters = ("a","b","c","d","e");
   process main is
-    ** start an unlabeled loop: i survives until then
-    loop
-      new i = 1 :Integer;
+    ** i is declared in the process: it is visible after the loop
+    new i = 1 :Integer;
     while i &lt;= letters.length() do
       ** e is created again at every iteration
       new e = letters[i] :String;
@@ -333,11 +329,10 @@ driver while_demo is
       done;
     else
       panic; ** the list is empty
-    then
-      ** flush the write buffer
-      print;
-      print ("iterations", i - 1, separator: " ");
     done;
+    ** flush the write buffer
+    print;
+    print ("iterations", i - 1, separator: " ");
   return;
 end while_demo;
 </code></pre>
@@ -350,13 +345,13 @@ iterations 5
 
 <h4>Notes:</h4>
 <ul>
-<li>The <code>loop</code> header is optional. It holds the label and the declarations of the loop. These variables live in the loop scope, survive all iterations and are available in the <code>then</code> region. Without a header, the loop body has no private scope: it uses the parent scope;</li>
-<li>The <code>do</code> keyword starts the executable region. A variable created there with <code>new</code> is created on the stack at every iteration. Declare in the header what must survive until <code>then</code>;</li>
+<li>The <code>loop</code> header is optional. It holds the label and the declarations of the loop. These variables live in the loop scope, survive all iterations and are available in the body and in <code>else</code>, not after <code>done</code>. Without a header, the loop body has no private scope: it uses the parent scope;</li>
+<li>The <code>do</code> keyword starts the executable region. A variable created there with <code>new</code> is created on the stack at every iteration. Declare in the header what must survive the cycles, and in the process what must be read after the loop;</li>
 <li><code>skip [label] [if condition];</code> ends the current cycle early and goes back to the condition. It works in every loop: see <a href="#repeat">Repeat Loop</a> and <a href="#for">For Loop</a>;</li>
 <li>Some other languages use {break &amp; continue}, we use {break &amp; skip};</li>
 <li><code>while True do</code> is accepted without a warning and its <code>else</code> block never runs, but a loop without a condition is written <code>loop do … repeat;</code> (<a href="#repeat">Repeat Loop</a>);</li>
 <li>A <code>while</code> loop is closed with <code>done</code>: <code>done label;</code> for a labeled loop, <code>done;</code> otherwise;</li>
-<li>The <code>then</code> clause is executed when the loop ends, also after <code>break</code>. <code>stop</code> is used only for jobs and <code>break</code> only for loops.</li>
+<li>There is no <code>then</code> clause: the statements after <code>done;</code> run when the loop ends, also after <code>break</code>. <code>stop</code> is used only for jobs and <code>break</code> only for loops.</li>
 </ul>
 
 <h2 id="repeat">Repeat Loop</h2>
@@ -437,7 +432,7 @@ return;
 <h4>Notes:</h4>
 <ul>
 <li><code>repeat</code> closes the loop. It is not a statement inside the body;</li>
-<li>The body always runs once, so a repeat loop has no <code>else</code>. It has no <code>then</code> either: the code after <code>repeat</code> runs when the loop ends;</li>
+<li>The body always runs once, so a repeat loop has no <code>else</code>. It has no <code>then</code> clause, as no loop has one: the code after <code>repeat</code> runs when the loop ends;</li>
 <li>The header variables live in the loop scope, survive all the cycles and are visible in the condition after <code>repeat while</code>;</li>
 <li><code>skip</code> goes to the test at the end, so the condition is verified also after a skipped cycle. With a bare <code>repeat;</code>, <code>skip</code> starts the next cycle;</li>
 <li><code>break</code> leaves the loop at once, without the test.</li>
@@ -466,10 +461,8 @@ return;
     ...
     ** early interruption
     break if condition;
-then
-    ** what happen after the loop
-    ...
 done [label]; ** you can't use "if" here
+** what happens after the loop
 </code></pre>
 
 <h4>Notes:</h4>
@@ -478,8 +471,8 @@ done [label]; ** you can't use "if" here
 <li>Control variable is declared in the <code>loop</code> header. If the loop has no header, the <code>for</code> statement creates an implicit scope for it; if the header exists, <code>for</code> uses that scope and creates none;</li>
 <li><code>skip [label] [if condition];</code> ends the current cycle and advances the control variable to the next element. It is the <code>continue</code> of other languages;</li>
 <li>Variables created by <code>new</code> in the <code>do</code> region are created again at every cycle. Declare in the header what must survive, for example a counter;</li>
-<li>Control variable is available in the <code>then</code> region, but not after <code>done</code>;</li>
-<li><code>break</code> leaves the loop (or the outer loop, when a label is used) and <code>then</code> is still executed;</li>
+<li>Control variable is local to the loop: it is not available after <code>done</code>;</li>
+<li><code>break</code> leaves the loop (or the outer loop, when a label is used) and the statements after <code>done;</code> are still executed;</li>
 <li>Inside a loop that is inside a job, <code>stop</code> ends the job and <code>break</code> ends only the loop.</li>
 </ul>
 
@@ -502,23 +495,20 @@ print;
 1,3,5,7,9
 </pre>
 
-<p>Same loop without a header: the <code>for</code> statement creates the scope of <code>i</code>:</p>
+<p>Same loop without a header: the <code>for</code> statement creates the scope of <code>i</code>, which ends at <code>done</code>:</p>
 
 <pre class="line-numbers"><code class="language-eve">#anonymous scope
 for i in (1..5) do
     write i;
     write "," if (i &lt; 5);
-then
-    print;
-    print ("last index", i, separator: " ");
 done;
+print;
 </code></pre>
 
 <h4>Output:</h4>
 
 <pre class="output">
 1,2,3,4,5
-last index 5
 </pre>
 
 <p>Skip an element: <code>skip</code> ends the cycle and the control variable takes the next value:</p>
@@ -554,10 +544,10 @@ print;
 <tbody>
 <tr><th scope="row">job</th><td class="kw">name: job</td><td class="kw">do</td><td class="kw">done name;</td><td>mandatory</td></tr>
 <tr><th scope="row">if</th><td class="kw">if c do</td><td class="kw">else if c do<br>else</td><td class="kw">done;</td><td>no</td></tr>
-<tr><th scope="row">match</th><td class="kw">[label:] match s</td><td class="kw">when v do<br>when other do<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
-<tr><th scope="row">while</th><td class="kw">[label:] loop</td><td class="kw">while c do<br>skip [if c]<br>break [if c]<br>else<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
+<tr><th scope="row">match</th><td class="kw">[label:] match s</td><td class="kw">when v do<br>when other do</td><td class="kw">done [label];</td><td>optional</td></tr>
+<tr><th scope="row">while</th><td class="kw">[label:] loop</td><td class="kw">while c do<br>skip [if c]<br>break [if c]<br>else</td><td class="kw">done [label];</td><td>optional</td></tr>
 <tr><th scope="row">repeat</th><td class="kw">[label:] loop</td><td class="kw">do<br>skip [if c]<br>break [if c]</td><td class="kw">repeat [label] [while c];</td><td>optional</td></tr>
-<tr><th scope="row">for</th><td class="kw">[label:] loop</td><td class="kw">for x in r do<br>skip [if c]<br>break [if c]<br>then</td><td class="kw">done [label];</td><td>optional</td></tr>
+<tr><th scope="row">for</th><td class="kw">[label:] loop</td><td class="kw">for x in r do<br>skip [if c]<br>break [if c]</td><td class="kw">done [label];</td><td>optional</td></tr>
 <tr><th scope="row">parallel</th><td class="kw">[name:] parallel</td><td class="kw">do</td><td class="kw">done [name];</td><td>optional</td></tr>
 </tbody>
 </table>
