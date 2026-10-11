@@ -60,7 +60,7 @@ Networking is how an Eve program talks to other machines: to find them, to conne
 <tr><td>names and addresses</td><td>a host name becomes an address</td><td>a <code>Url</code> type and a resolver: planned</td></tr>
 <tr><td>connection</td><td>TCP or QUIC, with TLS for secrecy</td><td>the module <code>net</code>: planned</td></tr>
 <tr><td>protocol</td><td>the rules of a conversation: HTTP, EWP</td><td>see <a href="/projects/eve/protocols.html">Protocols</a></td></tr>
-<tr><td>data</td><td>the bytes become values: JSON, CSV, binary</td><td>the modules <code>json</code>, <code>csv</code>: planned</td></tr>
+<tr><td>data</td><td>the bytes become values: JSON, CSV, binary</td><td>the modules <code>json</code>, <code>csv</code>, <code>txt</code>: designed, level 5 (<a href="/projects/eve/etl.html">Files and ETL</a>)</td></tr>
 <tr><td>application</td><td>what the program does with the data</td><td>drivers, aspects, jobs</td></tr>
 </tbody>
 </table>
@@ -70,13 +70,16 @@ Networking is how an Eve program talks to other machines: to find them, to conne
 <p>The first step is to call other systems: fetch a file, call a REST service, send a result. The calls wait for the network, and while a task waits it gives the turn away, so the tasks of one job can overlap many requests (see <a href="/projects/eve/multitasking.html">Multitasking</a>), and aspects started in a parallel group can spread them on several cores (see <a href="/projects/eve/concurrency.html">Concurrency</a>).</p>
 
 <pre class="line-numbers"><code class="language-eve">
-** proposed: the module net, a request and its answer
-from "lib" use (http);
-
-new answer := http.get("https://api.example.com/orders", timeout: 10s);
-expect answer.status == 200;
-print answer.body;
+** version 0.4 (level 5): the HTTP client, the module http is in scope without an import
+new answer := http.get!("https://api.example.com/orders", timeout: 10s,
+                        headers: {"Accept": "application/json"});
+answer.check();                                   ** raises HttpError for a status of 400 or more
+for o in json.read!(:Order)(answer.body) do       ** the body is a stream of bytes
+  print "{o.id}: {o.amount}";
+done;
 </code></pre>
+
+<p>The client is part of level 5 (version 0.4); the server is level 6. <code>http.get!</code>, <code>http.post!(url, body: ...)</code> and <code>http.request!(method, url, ...)</code> give an <code>HttpResponse</code> with <code>status</code>, <code>headers</code> and <code>body</code>. A time-out raises <code>TimeoutError</code>, a refused connection <code>ConnectionError</code> (transient, a case for <code>retry after</code>). A header of type <code>Secret</code> goes on the wire but never to a log. Spec: <code>spec/library/data-language.md#http-client</code>.</p>
 
 <h2 id="net-server">Eve as a server</h2>
 
@@ -92,7 +95,7 @@ print answer.body;
 </ul>
 
 <div class="alert alert-warning"><b>Not designed yet.</b> Sockets or only protocols; the type <code>Url</code>; DNS; proxies; how a project file declares capabilities; the error classes of the network (<code>NetError</code>, <code>TimeoutError</code>).</div>
-<div class="alert alert-info"><b>TODO:</b> decide the level: the version map puts the HTTP client at level 3 and the server at level 6; write the page again after Q-028.</div>
+<div class="alert alert-info"><b>Decided:</b> the HTTP client is level 5 (D-125), the server is level 6. The sockets and the type <code>Url</code> are still open (Q-028).</div>
 <div class="alert alert-info"><b>TODO:</b> add the "downloading" example: a generator that reads a large answer in chunks (see <a href="/projects/eve/generators.html">Generators</a>).</div>
 <div class="alert alert-info"><b>TODO:</b> describe retries with jobs and the idempotency key, and the rate limit of a service.</div>
 <div class="alert alert-info"><b>TODO:</b> write the security section from the review: certificates, redirects to another host, size limits, and what a script may not do with a URL it received.</div>
