@@ -474,10 +474,85 @@ done;
 <h2 id="procedures">Scripts, procedures and commands</h2>
 
 <ul>
-<li><b>Scripts.</b> A SQL file of the project installs or changes a structure, disables indexes or prepares a bulk load (only on a connection that Eve owns): <code>sales.script("create_orders.sql")</code>. DDL goes through scripts and the command <code>db migrate</code>, never through the ORM;</li>
-<li><b>Stored procedures.</b> They are declared with <code>external</code> and run in the transaction of the job;</li>
-<li><b>Commands.</b> The databases of a machine are administered at the prompt: <code>db list</code>, <code>db add</code>, <code>db remove</code>, <code>db test</code>, <code>db info</code>, <code>db tables</code>, <code>db describe</code>, <code>db sql</code>, <code>db script</code>, <code>db create</code>, <code>db create-table</code>, <code>db migrate</code>, <code>db backup</code>, <code>db prepare</code>, <code>db activate</code>, <code>db reindex</code>, <code>db cache</code>. They run with the rights of the database user of the connection: Eve adds no layer of rights.</li>
+<li><b>Scripts.</b> A SQL file of the project installs or changes a structure, disables indexes or prepares a bulk load (only on a connection that Eve owns): <code>sales.script("create_orders.sql")</code>. DDL goes through scripts and the command <code>eve db migrate</code>, never through the ORM;</li>
+<li><b>Stored procedures.</b> There are two kinds: <em>native</em> procedures, written in the language of the database, and <em>Eve</em> procedures, written in Eve (below);</li>
+<li><b>Commands.</b> The databases of a project are administered by the database part of <code>eve</code>: <code>eve db list</code>, <code>add</code>, <code>remove</code>, <code>test</code>, <code>info</code>, <code>tables</code>, <code>describe</code>, <code>sql</code>, <code>script</code>, <code>create</code>, <code>create-table</code>, <code>migrate</code>, <code>backup</code>, <code>prepare</code>, <code>activate</code>, <code>reindex</code>, <code>cache</code>, <code>proc list</code>, <code>proc reload</code>. They run with the rights of the database user of the connection: Eve adds no layer of rights.</li>
 </ul>
+
+<p>A project with databases keeps its procedures in two folders:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Folder</th><th>Holds</th><th>Runs in</th><th>Called from Eve</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sql/</code></td><td>native procedures and SQL scripts: PL/pgSQL, PL/SQL, T-SQL, &hellip;</td><td>the database</td><td>through an <code>external</code> declaration</td></tr>
+<tr><td><code>proc/</code></td><td>Eve modules: Eve stored procedures</td><td>the database part of <code>eve</code>, next to a SQLite or DuckDB database</td><td>as a module</td></tr>
+</tbody>
+</table>
+
+<h3 id="native-procedures">Native procedures</h3>
+
+<p>A native procedure lives in the database. Eve does not read its language: it only needs its signature, which an <code>external</code> declaration brings in. A procedure without a result is an <code>external procedure</code>; one with a result is an <code>external function</code> whose name ends with <code>!</code>, because its result depends on the database:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+external procedure archive_orders(before: Date) in "sales";
+external function total_sales!(region: String) =&gt; (@total: Decimal) in "sales" as "etl.total_sales";
+</code></pre>
+
+<p>The name in the database is the Eve name, or the text after <code>as</code>. A call runs in the transaction of the job, like <code>execute!</code>. This works for every database that has stored procedures; for PostgreSQL, Oracle or MySQL it is the only kind.</p>
+
+<h3 id="eve-procedures">Eve procedures</h3>
+
+<p>An Eve procedure is an exported procedure of a module in the folder <code>proc/</code>. The database part of <code>eve</code> checks these modules, keeps them compiled and runs them next to a SQLite or DuckDB database: in your own process when you run a script with <code>eve -x</code>, and in the machine when the project is served. A program calls them as a module, inside the transaction of its job:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+** proc/orders.eve
+module orders is
+  export (archive);
+
+  procedure archive(before: Date) is
+    ** move the old orders to the archive table
+    ...
+  return;
+end orders;
+</code></pre>
+
+<pre class="line-numbers"><code class="language-eve">
+from proc use (orders);
+...
+orders.archive(cutoff);
+</code></pre>
+
+<p>A machine runs them by name too: the method <code>db.call</code> of the machine API takes <code>"orders.archive"</code> and its arguments (<a href="server.html#machine-api">Eve Server</a>). <code>eve db proc list</code> shows the procedures and their signatures; <code>eve db proc reload</code> reads <code>proc/</code> again on a running machine.</p>
+
+<div class="alert alert-info"><b>Planned, level 5.</b> Stored procedures in <code>proc/</code>, <code>external</code> and <code>sql function</code> are specified (D-166) and not implemented yet. The way a program calls an Eve procedure is a proposal that the author has still to confirm.</div>
+
+<h2 id="sql-functions">SQL functions in Eve</h2>
+
+<p>SQLite and DuckDB let a program add its own functions to SQL. In Eve you mark such a function with the word <code>sql</code>:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+sql function tax(amount: Decimal, country: String) =&gt; (@result: Decimal) is
+  let result := amount * rate(country);
+return;
+</code></pre>
+
+<p>Now SQL can call it, and the work happens inside the database engine, where the data is:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+class Taxed = {id: Integer, tax: Decimal} &lt;: Record;
+new rows := shop.query!(:Taxed)("select id, tax(amount, country) as tax from orders");
+</code></pre>
+
+<ul>
+<li><b>Registered for you.</b> When the database part opens a SQLite or DuckDB connection, it registers every <code>sql function</code> of the program and of <code>proc/</code>, under its Eve name;</li>
+<li><b>Deterministic.</b> A <code>sql function</code> has no <code>!</code>: the engine decides how many times and in which order it calls it, so the function does no input or output and opens no connection. It has one result, and its types are column types (<a href="#mapping">Column = value mapping</a>);</li>
+<li><b>Threads.</b> DuckDB runs a query on several threads at once, and each of them may call your function. Eve protects the running program: one call at a time per session, or a pool of interpreters, each with its own memory;</li>
+<li><b>Only SQLite and DuckDB.</b> PostgreSQL, MySQL and the other databases get no Eve functions. With them, read the data into the program, change it in Eve, and write it back with <code>load!</code> or one row at a time. This is why the authors expect DuckDB with Eve functions to be the fastest way for heavy transformations.</li>
+</ul>
+
+<p><code>sql</code> is a contextual keyword: it is a keyword only before <code>function</code>, so you can still name a variable <code>sql</code>.</p>
 
 <h2 id="introspection">Introspection</h2>
 
