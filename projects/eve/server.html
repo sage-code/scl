@@ -183,14 +183,58 @@ sales_app/                  ** one repository
 
 <p><code>eve --listen</code> (or <code>eve:&gt; listen</code>) starts a machine that stays active and accepts commands on <code>$EVE_PORT</code>, 4042 by default. It keeps running until it receives <code>stop</code>. It binds to <code>$EVE_DOMAIN</code>, which is <code>localhost</code> unless the configuration names another address, and a remote client must present the token <code>$EVE_TOKEN</code>.</p>
 
+<h3 id="doors">Doors: IPC and HTTP</h3>
+
+<p>A machine is a <b>singleton</b>: it is identified by its domain and its port, and on one port there is only one machine. On <code>localhost</code> a second machine may run on another port. A machine has two <b>doors</b> to the same virtual machine, and you choose which ones to open:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Start</th><th>IPC door</th><th>HTTP door</th><th>Use</th></tr>
+</thead>
+<tbody>
+<tr><td><code>eve -lsn</code> (<code>--listen</code>)</td><td>yes</td><td>no</td><td>the commands of this computer, with no web at all</td></tr>
+<tr><td><code>eve --serve</code></td><td>no</td><td>yes</td><td>the pages of the web folder, and scripts sent over HTTP</td></tr>
+<tr><td><code>eve -lsn --serve</code></td><td>yes</td><td>yes</td><td>both: the CLI uses IPC, the browser and the remote machines use HTTP</td></tr>
+</tbody>
+</table>
+
+<p>The IPC door is a Unix socket named from the domain and the port, and the CLI that finds it gets its answer at once. Both doors speak JSON-RPC 2.0, one message per line on IPC and in <code>POST /rpc</code> on HTTP, so a command is the same on both. The machine prints what it opened and stays active:</p>
+
+<pre class="fixed">
+$ eve -lsn --serve
+eve: ipc localhost:4042
+eve: http http://localhost:8042
+</pre>
+
+<p>If a machine already runs on that address, the second start fails with <code>eve: already running</code> and the exit code 75. The machine is controlled with <code>eve --serve stop</code>, <code>restart</code> and <code>status</code>:</p>
+
+<pre class="fixed">
+$ eve --serve status
+machine: localhost ipc=4042 http=8042
+ipc: listening
+http: listening
+runs: 3
+$ eve --serve stop
+</pre>
+
+<p>Two options say where a command goes. <code>-loc</code> (<code>--local</code>) is local and never touches the network: with a machine on the IPC door the script runs there, and without one the command starts a new machine inside the process, runs, and exits. <code>-rem</code> (<code>--remote</code>) sends the command to the HTTP door of another machine, and it fails with the exit code 69 when nobody answers; it never falls back to a local run. A command with neither option is local, and <code>eve -x file.eve</code> alone is the fast way to run a script: it looks for no IPC socket and no HTTP port, and executes the file at once in its own process. The three short options have three letters, so they read as words: <code>-lsn</code> listen, <code>-loc</code> local, <code>-rem</code> remote.</p>
+
+<pre class="fixed">
+eve -loc -x report.eve                  ** local: IPC if a machine listens, else by itself
+eve -rem etl1.example.com:8042 -x report.eve ** remote: the script is sent as text over HTTP
+eve -rem etl1.example.com:8042 --serve status
+</pre>
+
+<p>The machine runs one script at a time, each in a session of its own. The output of the script comes back to your terminal, an error that nobody recovers comes back on the error output, and the exit code of <code>eve</code> is the exit code of the script. The normative rules are in <code>spec/library/machine.md</code> of the specification.</p>
+
 <h3 id="send">Sending commands</h3>
 
-<p><code>eve -c &lt;command&gt;</code> (or <code>--command</code>) sends one command to the machine of the configuration and prints its answer. <code>-r</code> (<code>--remote</code>) names another machine, by its address or by a name defined in the configuration:</p>
+<p><code>eve -c &lt;command&gt;</code> (or <code>--command</code>) sends one command to the machine of the configuration and prints its answer. <code>-rem</code> (<code>--remote</code>) names another machine, by its address or by a name defined in the configuration:</p>
 
 <pre class="fixed">
 eve -s ./evemachine/server -c "run sales.eve"      ** the machine of that folder
-eve -c "run sales.eve" -r etl1.example.com:4142    ** a remote machine by address
-eve -c "run sales.eve" -r prod                     ** a remote machine by name
+eve -c "run sales.eve" -rem etl1.example.com:4142  ** a remote machine by address
+eve -c "run sales.eve" -rem prod                   ** a remote machine by name
 </pre>
 
 <p>A machine can do the same: it keeps one connection to each partner and sends them commands, on different ports and domain names. At the prompt: <code>eve:&gt; send prod "report"</code>. The first version of the protocol is plain: one command per line, the same text as at the prompt; the answer is the text the prompt would show, followed by the exit status.</p>
@@ -224,9 +268,9 @@ eve:&gt; forget prod       ** deletes the stored credentials only
 <p><code>eve -u &lt;file&gt;</code> (or <code>--upload</code>) sends a source file to a machine, like a <code>load</code> on that machine. The remote machine compiles the file itself, under its own rules, and keeps it for the next commands:</p>
 
 <pre class="fixed">
-eve -u sales_load.eve -r prod             ** upload: the remote machine compiles it
-eve -c "run sales_load.eve" -r prod       ** run it there
-eve -c "dismiss sales_load.eve" -r prod   ** free its memory
+eve -u sales_load.eve -rem prod           ** upload: the remote machine compiles it
+eve -c "run sales_load.eve" -rem prod     ** run it there
+eve -c "dismiss sales_load.eve" -rem prod ** free its memory
 </pre>
 
 <h3 id="sessions">Sessions</h3>
@@ -264,6 +308,8 @@ eve -c "dismiss sales_load.eve" -r prod   ** free its memory
 <h3 id="static">Static pages</h3>
 
 <p>Without any code, <code>serve</code> returns the files of the web folder: a request for <code>/reports/today.html</code> returns <code>web/reports/today.html</code>. A driver that writes an HTML report into <code>web/</code> publishes it at once to every browser that can reach the machine.</p>
+
+<p>The web folder is the frontend of a single page application: <code>index.html</code> at the top and the folders <code>css/</code>, <code>js/</code> and <code>img/</code> under it, in plain HTML, CSS and JavaScript, while the backend is written in Eve. The first page of the test <code>e95_web_hello</code> is only this: <code>web/index.html</code> says <i>Hello World</i> and <i>This is Eve</i>, and a JavaScript test fetches <code>/</code> and looks for the text. The type of a file comes from its extension; a path outside the web folder, <code>eve.cfg</code> for example, is <code>404</code>. The port and the folder are set in <code>eve.cfg</code>: <code>http_port = 8042</code> and <code>web = "web"</code>.</p>
 
 <h3 id="services">Services</h3>
 
@@ -350,11 +396,12 @@ end orders_api;
 </thead>
 <tbody>
 <tr><td><code>setup</code></td><td><code>-s</code>, <code>--setup &lt;folder&gt;</code></td><td>choose the machine of a folder, create it when missing, or read its configuration again</td></tr>
-<tr><td><code>execute</code></td><td><code>-x &lt;file&gt;</code></td><td>parse and execute a script, then exit</td></tr>
+<tr><td><code>execute</code></td><td><code>-x &lt;file&gt;</code></td><td>parse and execute a script at once in this process, then exit; no machine is looked for</td></tr>
 <tr><td>(any command)</td><td><code>-c</code>, <code>--command "&lt;command&gt;"</code></td><td>send one command to a running machine and print its answer</td></tr>
 <tr><td><code>upload</code></td><td><code>-u</code>, <code>--upload &lt;file&gt;</code></td><td>send a source file to a machine, which compiles and keeps it</td></tr>
-<tr><td>—</td><td><code>-r</code>, <code>--remote &lt;machine&gt;</code></td><td>the machine that receives <code>-c</code> or <code>-u</code>: an address or a name of the configuration</td></tr>
-<tr><td><code>listen</code></td><td><code>--listen</code></td><td>wait for commands on <code>$EVE_PORT</code></td></tr>
+<tr><td>—</td><td><code>-rem</code>, <code>--remote &lt;machine&gt;</code></td><td>the machine that receives <code>-c</code> or <code>-u</code>: an address or a name of the configuration</td></tr>
+<tr><td><code>listen</code></td><td><code>-lsn</code>, <code>--listen</code></td><td>wait for commands on <code>$EVE_PORT</code></td></tr>
+<tr><td>—</td><td><code>-loc</code>, <code>--local</code></td><td>run the command in the local machine through IPC, or in this process; never the network</td></tr>
 <tr><td><code>serve</code></td><td><code>--serve</code></td><td>serve HTTP on <code>$EVE_HTTP_PORT</code>; <code>serve stop</code> ends it</td></tr>
 <tr><td><code>api</code></td><td><code>--api</code></td><td>start the MCP server for AI assistants</td></tr>
 <tr><td><code>send</code></td><td>—</td><td>send a command to another machine: <code>send prod "report"</code></td></tr>
