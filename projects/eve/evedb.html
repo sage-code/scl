@@ -45,10 +45,12 @@
 <h1 id="evedb">EveDB: the Eve Test Database</h1>
 
 <div class="alert alert-secondary shadow-sm">
-EveDB is a small database server written in Zig around DuckDB and tuned for Eve. It is a separate program, <code>evedb</code>, built next to the Eve virtual machine but never part of it. Its first job is to play the <em>remote database</em> in the tests of the Eve database layer: it speaks Eve's own protocol, keeps Eve's types without loss, and can fail on purpose, exactly when a test asks, so that commit, rollback and retry can be tested again and again with the same result.
+EveDB is a small database server written in Zig around DuckDB and tuned for Eve. Today it is a separate program, <code>evedb</code>, built next to the Eve virtual machine. When the machine is split into parts, it becomes the <b>database part</b> of <code>eve</code> itself, called with <code>eve db</code>. Its first job is to play the <em>remote database</em> in the tests of the Eve database layer: it speaks Eve's own protocol, keeps Eve's types without loss, and can fail on purpose, exactly when a test asks, so that commit, rollback and retry can be tested again and again with the same result.
 </div>
 
 <div class="alert alert-warning">Status: the program builds and links DuckDB 1.5.6, runs a self-check and passes its unit tests. The server, the protocol, the fault injection and the commands below are designed, not written yet. The design is in <code>evedb/README.md</code> of the Eve repository.</div>
+
+<div class="alert alert-info"><b>Decided on 2026-10-12</b> (D-163, D-166): EveDB becomes the database part of the one program <code>eve</code>. SQLite stays embedded in <code>eve</code>; the DuckDB library is loaded only when the first DuckDB connection opens, so a script that uses no DuckDB database starts without it. The commands below become <code>eve db serve</code>, <code>eve db sql</code> and so on, and the database part also keeps the stored procedures written in Eve (<a href="databases.html#procedures">Scripts, procedures and commands</a>) and the SQL functions written in Eve (<a href="databases.html#sql-functions">SQL functions in Eve</a>).</div>
 
 <h2 id="why">Why a test database</h2>
 
@@ -193,6 +195,8 @@ expect last != null and last.columns == "city,version";
 </tbody>
 </table>
 
+<p>With the split of the machine every command is written with <code>eve db</code> in front instead of <code>evedb</code>: <code>eve db serve --test</code>, <code>eve db describe shop orders --eve</code>. Two commands are added for the stored procedures written in Eve: <code>eve db proc list</code> and <code>eve db proc reload</code>. In the Eve repository, <code>./run.sh evedb …</code> is the shortcut for <code>bin/eve db …</code>.</p>
+
 <p>The test runner of Eve starts <code>evedb serve --test</code> with a fresh data folder before the database tests, resets the fixtures before each test that uses the connection <code>"test"</code>, and stops it at the end.</p>
 
 <h2 id="build">Build and run</h2>
@@ -208,6 +212,8 @@ evedb 0.0.1, DuckDB v1.5.6, self-check 42
 </code></pre>
 
 <p>The same build gives SQLite to the machine: <code>evevm/</code> compiles the SQLite source into <code>eve</code>, so the core database needs no installation at all.</p>
+
+<p>After the split, <code>evedb/</code> is one module of a single build at the root of the repository, next to <code>evecm/</code>, <code>evecp/</code>, <code>evevm/</code> and <code>eveux/</code>: <code>zig build -p .</code> installs <code>bin/eve.exe</code> and the DuckDB library, and there is no <code>bin/evedb.exe</code> any more.</p>
 
 <h2 id="inside">Inside the project</h2>
 

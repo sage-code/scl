@@ -28,8 +28,8 @@
         all cancel error on one other update within`);
     // contextual declaration words are highlighted only when they open a line
     const DECLARATIONS = new Set(`
-        after async cached column commit concurrent direct exclusive generated key managed only
-        private protected public read reference rollback table temporary to version`.trim().split(/\s+/));
+        after async cached column commit concurrent direct exclusive external generated key managed
+        only private protected public read reference rollback sql table temporary to version`.trim().split(/\s+/));
     // END GENERATED
 
     // not in keywords.json: library functions, words of the database level (not specified yet), types

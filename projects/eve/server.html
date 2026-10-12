@@ -60,6 +60,24 @@ Eve is one language for a local client and a server backend. The same program, t
 <li>A machine talks to another machine by sending it commands and reading the answers.</li>
 </ul>
 
+<h3 id="parts">The parts of eve</h3>
+
+<p><code>eve</code> is one program with one version, but inside it has four parts. The first word after <code>eve</code> chooses one; without such a word, <code>eve</code> works as in the rest of this page:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Part</th><th>Command</th><th>Does</th><th>Example</th></tr>
+</thead>
+<tbody>
+<tr><td>runtime</td><td><code>eve vm</code>, or plain <code>eve</code></td><td>runs scripts, the prompt, the machine and its IPC door</td><td><code>eve sales.eve</code>, <code>eve -lsn</code></td></tr>
+<tr><td>compiler</td><td><code>eve cp</code></td><td>checks, documents and compiles; makes projects; runs nothing</td><td><code>eve cp --check sales.eve</code></td></tr>
+<tr><td>database</td><td><code>eve db</code></td><td>the database commands, the stored procedures, the database door</td><td><code>eve db proc list</code></td></tr>
+<tr><td>UI</td><td><code>eve ux</code></td><td>the web door, the Workbench, AI agents</td><td><code>eve ux start</code></td></tr>
+</tbody>
+</table>
+
+<p>A direct command, such as <code>eve sales.eve</code>, uses the parts it needs inside its own process and ends. A machine that stays active is described in <a href="#serving-machine">The serving machine</a>. In the Eve repository, <code>./run.sh evevm</code>, <code>evecp</code>, <code>evedb</code> and <code>eveux</code> are shortcuts for these four commands, and you can write your own start scripts with the options your project needs.</p>
+
 <h3 id="channels">Command channels</h3>
 
 <p>A machine is driven by <b>commands</b>: <code>load</code>, <code>run</code>, <code>check</code>, <code>doc</code>, <code>serve</code>, <code>setup</code> and the others listed in <a href="#commands">Commands</a>. The same commands arrive through several channels, and a command gives the same answer whatever its channel:</p>
@@ -227,6 +245,49 @@ eve -rem etl1.example.com:8042 --serve status
 
 <p>The machine runs one script at a time, each in a session of its own. The output of the script comes back to your terminal, an error that nobody recovers comes back on the error output, and the exit code of <code>eve</code> is the exit code of the script. The normative rules are in <code>spec/library/machine.md</code> of the specification.</p>
 
+<h3 id="serving-machine">The serving machine</h3>
+
+<p>A machine that stays active is <b>one process</b>. Its parts run inside it side by side, as tasks, and call each other directly, never through a socket. A part becomes active when its door opens, or when another part needs it: a script that opens a database wakes the database part. Each part has its own door to the outside world:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Part</th><th>Door</th><th>Speaks</th></tr>
+</thead>
+<tbody>
+<tr><td>runtime</td><td>IPC, the socket of <code>-lsn</code></td><td>the machine API, <code>vm.*</code></td></tr>
+<tr><td>database</td><td>IPC, a socket of its own</td><td>the database API, <code>db.*</code></td></tr>
+<tr><td>UI</td><td>HTTP and WebSocket; ACP</td><td>pages and <code>POST /rpc</code> for the browser; the Agent Client Protocol for AI agents (<a href="#acp">AI agents</a>)</td></tr>
+</tbody>
+</table>
+
+<p>Scripts run in <b>sessions</b>. A session has its own interpreter and its own memory, so two sessions never share a value. At first the machine runs one script at a time; several sessions at once come later. On a serving machine the database part owns the database files of the project: <code>eve -x</code> still opens them in its own process, and <code>eve -loc -x</code> sends the script to the machine, which opens them for it.</p>
+
+<h3 id="machine-api">The machine API</h3>
+
+<p>The JSON-RPC methods of a machine are named by their part: <code>vm.</code> for the runtime and <code>db.</code> for the database. The methods <code>ping</code>, <code>status</code>, <code>run</code> and <code>stop</code> that the machine answers today are the first names of <code>vm.ping</code>, <code>vm.stat</code>, <code>vm.run</code> and <code>vm.stop</code>:</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Method</th><th>Does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vm.ping</code>, <code>vm.stat</code></td><td>is the machine there; its doors, parts, sessions and runs</td></tr>
+<tr><td><code>vm.run</code></td><td>runs a script and returns its exit code, output and errors</td></tr>
+<tr><td><code>vm.eval</code></td><td>evaluates an expression or a statement in a session that stays open: the prompt over the wire</td></tr>
+<tr><td><code>vm.suspend</code>, <code>vm.resume</code></td><td>stops a session at its next statement, and lets it go on: the debugger</td></tr>
+<tr><td><code>vm.inspect</code></td><td>the variables or the stack of a session</td></tr>
+<tr><td><code>vm.cancel</code>, <code>vm.stop</code></td><td>ends a run; ends the machine</td></tr>
+<tr><td><code>db.query</code>, <code>db.execute</code>, <code>db.call</code></td><td>direct SQL; an Eve stored procedure of <code>proc/</code> (<a href="databases.html#eve-procedures">Eve procedures</a>)</td></tr>
+<tr><td><code>db.proc.list</code>, <code>db.proc.reload</code>, <code>db.stat</code></td><td>the stored procedures; the connections and transactions</td></tr>
+</tbody>
+</table>
+
+<pre class="fixed">
+$ echo '{"jsonrpc":"2.0","id":1,"method":"vm.stat"}' | curl -s -d @- http://localhost:8042/rpc
+</pre>
+
+<div class="alert alert-warning">Planned: the parts, the serving machine and the methods <code>vm.*</code> and <code>db.*</code> are decided (D-163 to D-165) and not implemented yet. Today a machine answers <code>ping</code>, <code>status</code>, <code>run</code> and <code>stop</code>.</div>
+
 <h3 id="send">Sending commands</h3>
 
 <p><code>eve -c &lt;command&gt;</code> (or <code>--command</code>) sends one command to the machine of the configuration and prints its answer. <code>-rem</code> (<code>--remote</code>) names another machine, by its address or by a name defined in the configuration:</p>
@@ -379,13 +440,41 @@ end orders_api;
 
 <p>The API follows the rules of the machine: an AI gets the same rights as a person at the prompt of that machine, no more.</p>
 
+<h3 id="acp">AI agents: ACP</h3>
+
+<p>The UI part of <code>eve</code> speaks the <b>Agent Client Protocol</b> (ACP), the protocol that editors use to talk with AI coding agents. It works in two directions:</p>
+
+<ul>
+<li><b>An agent in the Workbench.</b> The UI part starts an AI agent and opens a session on your project. It gives the agent the <b>eve skills</b>: the MCP server of the machine, whose tools are the methods <code>vm.*</code> and <code>db.*</code>. You chat with the agent in the browser, see what it plans, and approve each action it wants to take;</li>
+<li><b>An IDE that speaks ACP.</b> An editor with an agent panel can talk to the UI part as to an agent: what you ask about your project becomes calls of the machine API, on the local machine or on a remote one.</li>
+</ul>
+
+<p>Either way the agent never gets more than the machine API offers, and the API key or the login of the agent's provider stays in the keyring of your computer, never in the browser. <code>eve -rem</code> works the same way without a browser: it turns your command into the calls of the machine API of the remote machine.</p>
+
 <h2 id="security">Security</h2>
 
 <ul>
 <li><b>Local first:</b> <code>--listen</code>, <code>serve</code> and the API bind to <code>localhost</code> unless the configuration opens them to the network;</li>
-<li><b>Authentication:</b> a person logs in to each remote machine, by single sign-on or with an account of that machine, and the local machine keeps the credentials in the keyring of the computer (see <a href="#login">Login and credentials</a>); scripts and machines present the token of the machine, <code>$EVE_TOKEN</code>; over a network the connection uses TLS;</li>
+<li><b>Authentication:</b> a person logs in to each remote machine, by single sign-on or with an account of that machine, and the local machine keeps the credentials in the keyring of the computer (see <a href="#login">Login and credentials</a>); scripts and machines present the token of the machine, <code>$EVE_TOKEN</code>; over a network the connection uses HTTPS, given by a reverse proxy (below);</li>
 <li><b>Authorization:</b> the configuration says which routes are public and who may upload and run code;</li>
 <li><b>Secrets:</b> passwords and keys are never written in scripts; the machine gives them to a project from its configuration, and they never travel back to a client.</li>
+</ul>
+
+<h3 id="reverse-proxy">Remote access through a reverse proxy</h3>
+
+<p><code>eve</code> has no TLS server of its own. Its doors speak plain JSON-RPC and plain HTTP, and they listen only on a Unix socket or on <code>localhost</code>. To reach a machine from another computer, put a <b>reverse proxy</b> in front of it, such as Nginx, Caddy or Cloudflare Tunnel: the proxy speaks HTTPS with the world and forwards to the local port of the machine, WebSocket included.</p>
+
+<pre class="fixed">
+# Caddyfile: HTTPS for etl1.example.com, forwarded to the machine on localhost
+etl1.example.com {
+    reverse_proxy localhost:8042
+}
+</pre>
+
+<ul>
+<li>The machine still checks the login and the token of every request: the proxy carries the bytes, it does not decide who may run what;</li>
+<li>A machine listens on another address than <code>localhost</code> only when its <code>eve.cfg</code> says that a proxy is in front of it, so a plain door is never opened to the network by mistake;</li>
+<li>The client side needs no proxy: <code>eve -rem https://etl1.example.com</code> speaks HTTPS itself.</li>
 </ul>
 
 <h2 id="commands">Commands</h2>
