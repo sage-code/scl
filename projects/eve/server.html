@@ -69,7 +69,7 @@ Eve is one language for a local client and a server backend. The same program, t
 <tr><th>Part</th><th>Command</th><th>Does</th><th>Example</th></tr>
 </thead>
 <tbody>
-<tr><td>runtime</td><td><code>eve vm</code>, or plain <code>eve</code></td><td>runs scripts, the prompt, the machine and its IPC door</td><td><code>eve sales.eve</code>, <code>eve -lsn</code></td></tr>
+<tr><td>runtime</td><td><code>eve vm</code>, or plain <code>eve</code></td><td>runs scripts, the prompt, the machine and its IPC door</td><td><code>eve sales.eve</code>, <code>eve --listen</code></td></tr>
 <tr><td>compiler</td><td><code>eve cp</code></td><td>checks, documents and compiles; makes projects; runs nothing</td><td><code>eve cp --check sales.eve</code></td></tr>
 <tr><td>database</td><td><code>eve db</code></td><td>the database commands, the stored procedures, the database door</td><td><code>eve db proc list</code></td></tr>
 <tr><td>UI</td><td><code>eve ux</code></td><td>the web door, the Workbench, AI agents</td><td><code>eve ux start</code></td></tr>
@@ -210,32 +210,35 @@ sales_app/                  ** one repository
 <tr><th>Start</th><th>IPC door</th><th>HTTP door</th><th>Use</th></tr>
 </thead>
 <tbody>
-<tr><td><code>eve -lsn</code> (<code>--listen</code>)</td><td>yes</td><td>no</td><td>the commands of this computer, with no web at all</td></tr>
+<tr><td><code>eve --listen</code></td><td>yes</td><td>no</td><td>the commands of this computer, with no web at all</td></tr>
 <tr><td><code>eve --serve</code></td><td>no</td><td>yes</td><td>the pages of the web folder, and scripts sent over HTTP</td></tr>
-<tr><td><code>eve -lsn --serve</code></td><td>yes</td><td>yes</td><td>both: the CLI uses IPC, the browser and the remote machines use HTTP</td></tr>
+<tr><td><code>eve --listen --serve</code></td><td>yes</td><td>yes</td><td>both: the CLI uses IPC, the browser and the remote machines use HTTP</td></tr>
 </tbody>
 </table>
 
 <p>The IPC door is a Unix socket named from the domain and the port, and the CLI that finds it gets its answer at once. Both doors speak JSON-RPC 2.0, one message per line on IPC and in <code>POST /rpc</code> on HTTP, so a command is the same on both. The machine prints what it opened and stays active:</p>
 
 <pre class="fixed">
-$ eve -lsn --serve
+$ eve --listen --serve
 eve: ipc localhost:4042
 eve: http http://localhost:8042
 </pre>
 
-<p>If a machine already runs on that address, the second start fails with <code>eve: already running</code> and the exit code 75. The machine is controlled with <code>eve --serve stop</code>, <code>restart</code> and <code>status</code>:</p>
+<p>If a machine already runs on that address, the second start fails with <code>eve: already running</code> and the exit code 75. The two doors take the same words: <code>start</code> (the default), <code>stop</code>, <code>restart</code> and <code>status</code>. <code>eve --listen stop</code> and <code>eve --listen status</code> speak to the machine through its IPC door only; <code>eve --serve stop</code> and <code>status</code> try the IPC door, then the web door:</p>
 
 <pre class="fixed">
-$ eve --serve status
+$ eve --listen status
 machine: localhost ipc=4042 http=8042
 ipc: listening
 http: listening
 runs: 3
-$ eve --serve stop
+$ eve --listen stop
+eve: stopped
 </pre>
 
-<p>Two options say where a command goes. <code>-loc</code> (<code>--local</code>) is local and never touches the network: with a machine on the IPC door the script runs there, and without one the command starts a new machine inside the process, runs, and exits. <code>-rem</code> (<code>--remote</code>) sends the command to the HTTP door of another machine, and it fails with the exit code 69 when nobody answers; it never falls back to a local run. A command with neither option is local, and <code>eve -x file.eve</code> alone is the fast way to run a script: it looks for no IPC socket and no HTTP port, and executes the file at once in its own process. The three short options have three letters, so they read as words: <code>-lsn</code> listen, <code>-loc</code> local, <code>-rem</code> remote.</p>
+<p>The ports come from <code>eve.cfg</code> (<code>ipc_port</code>, <code>http_port</code>). A second machine on the same computer has its own file: <code>eve -s second.cfg --listen</code>.</p>
+
+<p>Two options say where a command goes. <code>-loc</code> (<code>--local</code>) is local and never touches the network: with a machine on the IPC door the script runs there, and without one the command starts a new machine inside the process, runs, and exits. <code>-rem</code> (<code>--remote</code>) sends the command to the HTTP door of another machine, and it fails with the exit code 69 when nobody answers; it never falls back to a local run. A command with neither option is local, and <code>eve -x file.eve</code> alone is the fast way to run a script: it looks for no IPC socket and no HTTP port, and executes the file at once in its own process. The two client options have three letters, so they read as words: <code>-loc</code> local, <code>-rem</code> remote.</p>
 
 <pre class="fixed">
 eve -loc -x report.eve                  ** local: IPC if a machine listens, else by itself
@@ -254,7 +257,7 @@ eve -rem etl1.example.com:8042 --serve status
 <tr><th>Part</th><th>Door</th><th>Speaks</th></tr>
 </thead>
 <tbody>
-<tr><td>runtime</td><td>IPC, the socket of <code>-lsn</code></td><td>the machine API, <code>vm.*</code></td></tr>
+<tr><td>runtime</td><td>IPC, the socket of <code>--listen</code></td><td>the machine API, <code>vm.*</code></td></tr>
 <tr><td>database</td><td>IPC, a socket of its own</td><td>the database API, <code>db.*</code></td></tr>
 <tr><td>UI</td><td>HTTP and WebSocket; ACP</td><td>pages and <code>POST /rpc</code> for the browser; the Agent Client Protocol for AI agents (<a href="#acp">AI agents</a>)</td></tr>
 </tbody>
@@ -286,7 +289,7 @@ eve -rem etl1.example.com:8042 --serve status
 $ echo '{"jsonrpc":"2.0","id":1,"method":"vm.stat"}' | curl -s -d @- http://localhost:8042/rpc
 </pre>
 
-<div class="alert alert-warning">Planned: the parts, the serving machine and the methods <code>vm.*</code> and <code>db.*</code> are decided (D-163 to D-165) and not implemented yet. Today a machine answers <code>ping</code>, <code>status</code>, <code>run</code> and <code>stop</code>.</div>
+<div class="alert alert-warning"><b>Status (2026-10-12).</b> The words <code>eve vm</code>, <code>cp</code>, <code>db</code> and <code>ux</code>, and the methods <code>vm.ping</code>, <code>vm.stat</code>, <code>vm.run</code> and <code>vm.stop</code> work, with their first names <code>ping</code>, <code>status</code>, <code>run</code> and <code>stop</code> (test e95_test4). The serving machine with its parts in one process, the other methods and <code>db.*</code> are decided (D-163 to D-165) and not implemented yet.</div>
 
 <h3 id="send">Sending commands</h3>
 
@@ -489,7 +492,7 @@ etl1.example.com {
 <tr><td>(any command)</td><td><code>-c</code>, <code>--command "&lt;command&gt;"</code></td><td>send one command to a running machine and print its answer</td></tr>
 <tr><td><code>upload</code></td><td><code>-u</code>, <code>--upload &lt;file&gt;</code></td><td>send a source file to a machine, which compiles and keeps it</td></tr>
 <tr><td>—</td><td><code>-rem</code>, <code>--remote &lt;machine&gt;</code></td><td>the machine that receives <code>-c</code> or <code>-u</code>: an address or a name of the configuration</td></tr>
-<tr><td><code>listen</code></td><td><code>-lsn</code>, <code>--listen</code></td><td>wait for commands on <code>$EVE_PORT</code></td></tr>
+<tr><td><code>listen</code></td><td><code>--listen [start|stop|restart|status]</code></td><td>wait for commands on <code>$EVE_PORT</code></td></tr>
 <tr><td>—</td><td><code>-loc</code>, <code>--local</code></td><td>run the command in the local machine through IPC, or in this process; never the network</td></tr>
 <tr><td><code>serve</code></td><td><code>--serve</code></td><td>serve HTTP on <code>$EVE_HTTP_PORT</code>; <code>serve stop</code> ends it</td></tr>
 <tr><td><code>api</code></td><td><code>--api</code></td><td>start the MCP server for AI assistants</td></tr>
