@@ -526,7 +526,7 @@ orders.archive(cutoff);
 
 <p>A machine runs them by name too: the method <code>db.call</code> of the machine API takes <code>"orders.archive"</code> and its arguments (<a href="server.html#machine-api">Eve Server</a>). <code>eve db proc list</code> shows the procedures and their signatures; <code>eve db proc reload</code> reads <code>proc/</code> again on a running machine.</p>
 
-<div class="alert alert-info"><b>Planned, level 5.</b> Stored procedures in <code>proc/</code>, <code>external</code> and <code>sql function</code> are specified (D-166) and not implemented yet. The way a program calls an Eve procedure is a proposal that the author has still to confirm.</div>
+<div class="alert alert-info"><b>Status (2026-10-12).</b> Eve procedures in <code>proc/</code> and <code>eve db proc list</code> work on SQLite (test e102). <code>external</code> is specified (D-166) and waits for a database with stored procedures in the tests; <code>eve db proc reload</code> and <code>db.call</code> come with the serving machine.</div>
 
 <h2 id="sql-functions">SQL functions in Eve</h2>
 
@@ -547,10 +547,26 @@ new rows := shop.query!(:Taxed)("select id, tax(amount, country) as tax from ord
 
 <ul>
 <li><b>Registered for you.</b> When the database part opens a SQLite or DuckDB connection, it registers every <code>sql function</code> of the program and of <code>proc/</code>, under its Eve name;</li>
+<li><b>Every one is registered.</b> All the <code>sql function</code>s of the program are registered, the ones of the modules it imports too; a function can not be overloaded, because SQL finds it by its name;</li>
+<li><b>NULL only for a nullable type.</b> A parameter of type <code>String?</code> receives SQL <code>NULL</code> as <code>null</code>. A parameter of type <code>String</code> can not: when SQL gives it <code>NULL</code>, the mapping fails and the query stops;</li>
+<li><b>An error stops the query.</b> An error inside the function is an exception: the engine abandons the statement and <code>query!</code> or <code>execute!</code> raises <code>$err_sql</code> (code 59) with the name of the function and the message, for example <code>SQL function ratio failed: Division by zero</code>. A <code>recover</code> can handle it like any database error;</li>
 <li><b>Deterministic.</b> A <code>sql function</code> has no <code>!</code>: the engine decides how many times and in which order it calls it, so the function does no input or output and opens no connection. It has one result, and its types are column types (<a href="#mapping">Column = value mapping</a>);</li>
 <li><b>Threads.</b> DuckDB runs a query on several threads at once, and each of them may call your function. Eve protects the running program: one call at a time per session, or a pool of interpreters, each with its own memory;</li>
 <li><b>Only SQLite and DuckDB.</b> PostgreSQL, MySQL and the other databases get no Eve functions. With them, read the data into the program, change it in Eve, and write it back with <code>load!</code> or one row at a time. This is why the authors expect DuckDB with Eve functions to be the fastest way for heavy transformations.</li>
 </ul>
+
+<pre class="line-numbers"><code class="language-eve">
+sql function ratio(a: Decimal, b: Decimal) =&gt; (@result: Decimal) is
+  let result := a / b;
+return;
+...
+  new rows := shop.query!(:Ratio)("select id, ratio(a, b) as r from pairs");
+recover
+  print $error.code == $err_sql;     ** True
+  print $error.message;                ** SQL function ratio failed: Division by zero
+</code></pre>
+
+<div class="alert alert-info"><b>Status (2026-10-12).</b> <code>sql function</code> works on SQLite (tests e96 to e101). DuckDB comes when the virtual machine loads it on demand.</div>
 
 <p><code>sql</code> is a contextual keyword: it is a keyword only before <code>function</code>, so you can still name a variable <code>sql</code>.</p>
 
