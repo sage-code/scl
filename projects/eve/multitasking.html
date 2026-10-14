@@ -50,7 +50,7 @@ Multitasking is <b>one process that does several things by taking turns</b>. The
 
 <h2 id="mt-why">Why take turns</h2>
 
-<p>Most enterprise work waits. A query waits for the database, a download for the network, a report for the disk. While a process waits, its core does nothing. If a driver reads three files of 100 ms each, one after the other, it needs 300 ms, and the core is idle almost all that time. With three tasks, the waits overlap: the first task asks for its file and gives the turn away, the second asks for its file, then the third. The three answers arrive in about 100 ms.</p>
+<p>Most enterprise work waits. A query waits for the database, a download for the network, a report for the disk. While a process waits, its core does nothing. If a primary aspect reads three files of 100 ms each, one after the other, it needs 300 ms, and the core is idle almost all that time. With three tasks, the waits overlap: the first task asks for its file and gives the turn away, the second asks for its file, then the third. The three answers arrive in about 100 ms.</p>
 
 <p>The code does not change shape for this. A task reads like plain sequential code that waits; the machine gives the core away at each wait and brings the task back when its wait is over. There are no callbacks, no promises and no event loop to write.</p>
 
@@ -86,7 +86,7 @@ load("one.csv", @a);    ** error: load is async: use spawn or await
 
 <pre class="line-numbers"><code class="language-eve">
 # read three files at the same time, on one core
-aspect load_all is
+primary aspect load_all is
 
   ** an asynchronous procedure: no result, the text goes out by @text
   async procedure load(path: String, @text: String) is
@@ -110,7 +110,7 @@ end load_all;
 
 <h4>Rules</h4>
 <ul>
-<li><code>spawn</code> is allowed only in the <code>do</code> region of a job, of a driver or of an aspect. <code>await</code> is allowed in a process, in a job and in another asynchronous subprogram;</li>
+<li><code>spawn</code> is allowed only in the <code>do</code> region of a job, of a primary aspect or of an aspect. <code>await</code> is allowed in a process, in a job and in another asynchronous subprogram;</li>
 <li><code>spawn</code> starts only procedures. Spawning a function is a compile error, <code>double is a function: use await, a spawned result would be lost</code>: a spawned task has nobody to receive its result. A procedure gives its results through <code>@</code> output parameters, which stay in the variables of the job;</li>
 <li>Inputs are passed by value: a task works on its own copy of each argument, so the job may go on changing its variables;</li>
 <li>One <code>@</code> output belongs to one task. Two tasks never write the same variable;</li>
@@ -134,7 +134,7 @@ end load_all;
 
 <pre class="line-numbers"><code class="language-eve">
 # two tasks take turns while they wait
-aspect mt_turns is
+primary aspect mt_turns is
   async procedure tick(name: String, times: Integer) is
     for i in (1..times) do
       print "{name} {i}";
@@ -180,11 +180,11 @@ all done
 
 <p><code>wait duration;</code> suspends the current task and gives the turn away. A duration is an integer with a unit written right after it: <code>ms</code>, <code>s</code>, <code>m</code>, <code>h</code> (<code>10ms</code>, <code>30s</code>, <code>2m</code>, <code>1h</code>). Outside a job, <code>wait</code> simply pauses the process.</p>
 
-<p>Periodic work is a loop with a <code>wait</code>. A driver that checks a folder every minute, while a second task sends a heartbeat every 10 seconds:</p>
+<p>Periodic work is a loop with a <code>wait</code>. A primary aspect that checks a folder every minute, while a second task sends a heartbeat every 10 seconds:</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # periodic work: two tasks with their own rhythm
-aspect watcher is
+primary aspect watcher is
   async procedure scan(rounds: Integer) is
     for i in (1..rounds) do
       print "scan {i}";
@@ -228,7 +228,7 @@ end watcher;
 
 <pre class="line-numbers"><code class="language-eve">
 # a failing task does not stop the others
-aspect job_errors is
+primary aspect job_errors is
   async procedure check(n: Integer, @r: Integer) is
     wait 5ms;
     raise "bad {n}" if n == 2;
