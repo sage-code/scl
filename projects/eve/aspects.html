@@ -45,16 +45,31 @@
 <h1 id="eve-aspects">Eve Aspects</h1>
 
 <div class="alert alert-secondary shadow-sm">
-An aspect is an independent, encapsulated machine that a driver applies. It does one part of the work of the application and shares nothing with the other aspects: data goes in and out only through its parameters.
+An aspect is the one kind of script that runs. It is an encapsulated machine: other aspects call it by its name, its process <code>main</code> is the only way in, and data goes in and out only through the parameters. Any aspect can be run as a driver, or applied by another aspect.
 </div>
 
 <h2 id="aspects">Aspects</h2>
 
-<p>An <em>"aspect"</em> is a script specific to a particular project. It resolve a problem or address a specific concern. Aspect files are executable. An aspect is an independent, encapsulated machine with the same shape as a driver: declarations and one process <code>main</code>, its entry point, that receives the parameters of the aspect. An aspect can't apply another aspect, so processes can not be recursive; methods can.</p>
+<p>An <em>"aspect"</em> is a script that solves a problem or addresses a specific concern of a project. Aspect files are executable. An aspect has declarations and one or more processes. The process <code>main</code> is its <b>entry point</b>: it is public, it receives the parameters of the aspect, and every aspect has one. The other processes of the aspect, if any, are <b>private</b>: only the processes of the same aspect call them, by their bare names.</p>
 
-<p>An aspect is not instantiated and has no public members: the dot operator is never used with an aspect. Data goes in by the parameters of <code>main</code> and comes out by its output parameters (<code>@</code>). Each call creates the state of the aspect, and the state is dropped when <code>main</code> returns. An aspect is executed with the keyword "apply", in serial mode. Aspects applied in sequence can raise errors like any other process, and the error propagates to the caller. An error that nobody handles ends the application. The driver captures the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> and <code>assert</code>.</p>
+<p>An aspect is not instantiated and has no public members: the dot operator is never used with an aspect, so <code>worker.ingest(…)</code> is an error. Other aspects write <code>apply worker(10);</code> or <code>start worker(10);</code>, and that runs <code>main</code>. Data goes in by the parameters of <code>main</code> and comes out by its output parameters (<code>@</code>). Each call creates the state of the aspect, and the state is dropped when <code>main</code> returns. The private processes of the aspect work on that same state. An aspect is executed with the keyword <code>apply</code>, in serial mode, or with <code>start</code> in a parallel group. Errors propagate to the caller like in any other process. An error that nobody handles ends the application. The driver captures the exit code of <code>panic</code>, <code>raise</code>, <code>expect</code> and <code>assert</code>.</p>
 
-<p>Aspects are <b>independent</b> of each other. An aspect knows nothing of the other aspects: it sees no global of the driver, it can't call a member of another aspect, and no other script can reach into it. Everything it needs comes through the parameters of <code>main</code>, and everything it produces leaves through its output parameters. This is what lets a driver compose aspects freely: an aspect can be tested alone, with a small driver that applies it, and moved to another application without change. Shared code belongs in a module, which every aspect may import.</p>
+<p>Aspects are <b>independent</b> of each other. An aspect knows nothing of the other aspects: it sees no variable of the aspect that calls it, it can't call a member of another aspect, and no other script can reach into it. Everything it needs comes through the parameters of <code>main</code>, and everything it produces leaves through its output parameters. This is what lets one aspect compose others freely: an aspect can be tested alone, by running it, and moved to another application without change. Shared code belongs in a module, which every aspect may import.</p>
+
+<h4>Calls between aspects:</h4>
+<ul>
+<li>Any aspect may <code>apply</code> or <code>start</code> another aspect, by its name;</li>
+<li>An aspect can't call itself, and no chain of calls may come back to an aspect already in it: the compiler reports the chain;</li>
+<li>Calls go at most <b>three levels</b> deep: the aspect that is run, an aspect it calls, and an aspect called from there, which calls no other aspect;</li>
+<li>Only the call of an aspect makes a level; a call of a private process never does.</li>
+</ul>
+
+<h4>Kinds of aspect:</h4>
+<ul>
+<li><code>exclusive aspect</code> (the default, also written <code>aspect</code>): runs alone, in serial mode. It may use any function and any module;</li>
+<li><code>concurrent aspect</code>: may be started in a parallel group. The compiler checks that it uses only what is thread safe;</li>
+<li><code>primary aspect</code>: the entry point of an <a href="/projects/eve/macro.html">Eve macro</a>, and only of a macro. It is serial like an exclusive aspect, but its parallel groups can start aspects.</li>
+</ul>
 
 <h4>Aspect skeleton:</h4>
 
@@ -62,7 +77,7 @@ An aspect is an independent, encapsulated machine that a driver applies. It does
 ** purpose of the aspect
 aspect aspect_name is
 
-  ** declarations of the aspect: private, created at each apply
+  ** declarations of the aspect: private, created at each call
   ** and dropped when main returns; an aspect defines no globals
   new count = 0 :Integer;
 
@@ -73,7 +88,12 @@ aspect aspect_name is
     ...
   return;
 
-  ** the only process: the entry point
+  ** a private process: only the processes of this aspect call it
+  process prepare(parameter_list) is
+    ...
+  return;
+
+  ** the entry point: the only public process
   process main(parameter_list) is
     ** executable region
     ...
@@ -87,7 +107,7 @@ aspect aspect_name is
 end aspect_name;
 </code></pre>
 
-<p>A small application can keep its driver and its aspects in one file: an <a href="/projects/eve/macro.html">Eve macro</a>. There the aspects also share the declarations at the top of the file.</p>
+<p>A small application can keep its aspects in one file: an <a href="/projects/eve/macro.html">Eve macro</a>. There the aspects also share the declarations at the top of the file, and one of them is the <code>primary aspect</code>, the entry point.</p>
 
 <hr>
 <p><b>Read next:</b>
