@@ -167,7 +167,7 @@ return;
 <h4>Notes</h4>
 
 <ul>
-<li>Any driver or aspect, can and must implement one single process, <code>main</code>;</li>
+<li>Every aspect must implement the process <code>main</code>, its entry point, and may have private processes;</li>
 <li>A process create a local scope, but also has access to a global context;</li>
 <li>Before first job there is a region for preparation/preconditions</li>
 <li>Preconditions can end the process with <code>over</code>, which skips the recover region; the finalize region still runs</li>
@@ -180,7 +180,7 @@ return;
 
 <h3 id="run-log">Run log</h3>
 
-<p>Every run of a driver writes a run log in the output folder (<code>$EVE_OUT</code>, <code>out</code> by default). The file name is <code>run_&lt;driver&gt;_&lt;datetime&gt;.log</code>, for example <code>run_sales_load_20261005_143012.log</code>: the date and time of the start of the run, so a new run never overwrites an older log. Every job and every <code>apply</code> writes one line when it starts and one when it ends. A line is a JSON object with these fields:</p>
+<p>Every run of a primary aspect writes a run log in the output folder (<code>$EVE_OUT</code>, <code>out</code> by default). The file name is <code>run_&lt;driver&gt;_&lt;datetime&gt;.log</code>, for example <code>run_sales_load_20261005_143012.log</code>: the date and time of the start of the run, so a new run never overwrites an older log. Every job and every <code>apply</code> writes one line when it starts and one when it ends. A line is a JSON object with these fields:</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -188,8 +188,8 @@ return;
 </thead>
 <tbody>
 <tr><td>time</td><td>date and time of the event, ISO 8601 with milliseconds, UTC: <code>"2026-10-05T14:30:12.405Z"</code></td></tr>
-<tr><td>driver</td><td>name of the driver of the run</td></tr>
-<tr><td>process</td><td>the script that runs the process: the driver, or the aspect that was applied or started</td></tr>
+<tr><td>driver</td><td>name of the primary aspect of the run</td></tr>
+<tr><td>process</td><td>the script that runs the process: the primary aspect, or the aspect that was applied or started</td></tr>
 <tr><td>job</td><td>label of the job or of the parallel group; empty for an <code>apply</code> outside a job</td></tr>
 <tr><td>kind</td><td><code>"job"</code>, <code>"apply"</code>, <code>"start"</code> or <code>"parallel"</code></td></tr>
 <tr><td>event</td><td><code>"start"</code> or <code>"end"</code></td></tr>
@@ -226,7 +226,7 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 
 <h3 id="process-interruption">Process interruption</h3>
 
-<p>A process normal ends with keyword return. When the process of an aspect is terminated, program execution continues with the statement after <code>apply</code>, in the process of the driver. Interruption keywords (exit, over, abort, panic) can be used to interrupt a process. Every way out of a process runs the finalization region, except <code>panic</code> and an unexpected stop: a clean exit never skips cleanup.</p>
+<p>A process normal ends with keyword return. When the process of an aspect is terminated, program execution continues with the statement after <code>apply</code>, in the process of the primary aspect. Interruption keywords (exit, over, abort, panic) can be used to interrupt a process. Every way out of a process runs the finalization region, except <code>panic</code> and an unexpected stop: a clean exit never skips cleanup.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
@@ -250,9 +250,9 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 <h4 id="aspect-errors">Errors of an aspect</h4>
 
 <ul>
-<li>An error that the aspect does not recover ends the aspect and is raised again in the driver, at the <code>apply</code> line. The recover region of the driver reads it in <code>$error</code>, an exception object with <code>code</code>, <code>message</code> and <code>line</code>. When <code>main</code> of the aspect returns normally the code is 0: no error;</li>
-<li><code>over;</code> in an aspect ends the aspect, and the driver goes on with the statement after <code>apply</code>; <code>exit;</code> in the main process of an aspect does the same. <code>over;</code> and <code>exit;</code> in the driver end the program. The difference: <code>exit;</code> only leaves the subprogram or process it is written in (an early return), <code>over;</code> ends the whole process from any depth;</li>
-<li><code>panic;</code> in an aspect ends the whole application: the driver panics too, the memory is released and the exit code is 1.</li>
+<li>An error that the aspect does not recover ends the aspect and is raised again in the primary aspect, at the <code>apply</code> line. The recover region of the primary aspect reads it in <code>$error</code>, an exception object with <code>code</code>, <code>message</code> and <code>line</code>. When <code>main</code> of the aspect returns normally the code is 0: no error;</li>
+<li><code>over;</code> in an aspect ends the aspect, and the primary aspect goes on with the statement after <code>apply</code>; <code>exit;</code> in the main process of an aspect does the same. <code>over;</code> and <code>exit;</code> in the primary aspect end the program. The difference: <code>exit;</code> only leaves the subprogram or process it is written in (an early return), <code>over;</code> ends the whole process from any depth;</li>
+<li><code>panic;</code> in an aspect ends the whole application: the primary aspect panics too, the memory is released and the exit code is 1.</li>
 </ul>
 
 <p>A failed <code>expect</code> and a failed <code>assert</code> are both run-time errors: the process stops and goes to <code>recover</code>. When the error is not recovered, the exit code is 2 for <code>expect</code> and 3 for <code>assert</code>.</p>
@@ -261,7 +261,7 @@ apply aspect_name(param:value, *map_args);    ** mix names with hashmap
 <h4>Example:</h4>
 
 <pre class="line-numbers"><code class="language-eve">
-# simple aspect with one parameter, applied by the driver
+# simple aspect with one parameter, applied by the primary aspect
 exclusive aspect print_this is
   process main(p:String) is
     print p;
@@ -270,7 +270,7 @@ end print_this;
 </code></pre>
 
 <pre class="line-numbers"><code class="language-eve"># main process with parameters
-aspect process_call is
+primary aspect process_call is
   process main(*args ()String) is
     ** number of arguments received:
     loop
@@ -286,10 +286,10 @@ end process_call;
 
 <p>An aspect is not instantiated: <code>apply</code> executes its process <code>main</code>. Processes can not be recursive, but methods can be recursive.</p>
 
-<p>Aspects can be executed in serial mode one after another. Let's consider we have 3 aspects: {one, two, three}. Main process can execute each aspect using keyword: "apply" and can block the main process waiting for each aspect to finish. This will interrupt the driver main process and will execute aspect process one by one:</p>
+<p>Aspects can be executed in serial mode one after another. Let's consider we have 3 aspects: {one, two, three}. Main process can execute each aspect using keyword: "apply" and can block the main process waiting for each aspect to finish. This will interrupt the primary aspect main process and will execute aspect process one by one:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-aspect test_apply is
+primary aspect test_apply is
   process main is
     ** apply each aspect: synchronous calls
     apply [folder/]aspect_one(arguments);
@@ -306,7 +306,7 @@ end test_apply;
 <li>otherwise in the aspect folder <code>asp</code> of the project, if there is one;</li>
 <li>otherwise in the root folder of the project, then in the library folder <code>lib</code>.</li>
 </ol>
-<p>The driver can set another place for aspects, and for libraries, with the system variable <code>$EVE_ASP</code>: <code>set $EVE_ASP = "my_folder";</code>. A project without <code>asp</code> or <code>lib</code> folders keeps aspects and libraries in its root folder.</p>
+<p>The primary aspect can set another place for aspects, and for libraries, with the system variable <code>$EVE_ASP</code>: <code>set $EVE_ASP = "my_folder";</code>. A project without <code>asp</code> or <code>lib</code> folders keeps aspects and libraries in its root folder.</p>
 
 <h3 id="aspect-scope">Aspect Scope</h3>
 
@@ -336,7 +336,7 @@ process main(x: Integer) is
 
 <p><code>apply</code> runs an aspect in serial mode and the caller waits for it to finish. Parallel work is done by aspects too: a process starts them in a parallel group (<code>parallel … do … start … done</code>), and they run on several cores. Methods and functions always run in serial mode. Parallel groups are allowed in the first two levels of aspects. The parallel model, the data rules, Bulk Synchronous Parallel and channels are explained in one place: <a href="/projects/eve/multitasking/#parallel-model">Multitasking</a>.</p>
 
-<p><b>Note: </b>a parallel group brings the driver back in synchronous mode at its closing <code>done</code>. A parallel group behaves like a job and can have a label. If a started aspect raises an error, the other aspects go on; <code>done</code> waits for all of them, then raises the error in the driver, so its recover region handles the errors of all the started aspects; it can <code>retry</code> the group or <code>resume</code> after it. The driver runs one parallel group at a time.</p>
+<p><b>Note: </b>a parallel group brings the primary aspect back in synchronous mode at its closing <code>done</code>. A parallel group behaves like a job and can have a label. If a started aspect raises an error, the other aspects go on; <code>done</code> waits for all of them, then raises the error in the primary aspect, so its recover region handles the errors of all the started aspects; it can <code>retry</code> the group or <code>resume</code> after it. The primary aspect runs one parallel group at a time.</p>
 
 <hr>
 
@@ -356,7 +356,7 @@ process main(x: Integer) is
 
 <h3 id="raising-exception">Raising exception</h3>
 
-<p>Error instances are created during the process execution when a process can not continue. An error can be raised by application modules, aspects or drivers or by the system modules. Developer can create errors. These are called "runtime errors" because they are not "syntax errors".</p>
+<p>Error instances are created during the process execution when a process can not continue. An error can be raised by application modules, aspects or by the system modules. Developer can create errors. These are called "runtime errors" because they are not "syntax errors".</p>
 
 <p>There are two alternative statements to create user defined exceptions: {raise, expect}. These are public/static methods defined in  Exception module. You can raise exception from jobs, methods, methods and functions.</p>
 
@@ -420,7 +420,7 @@ expect condition2, "user defined message";
 <li>If the recover region ends without one of these, the error is handled: the finalize region runs and the process ends normally. An aspect in a parallel group that fails does not stop the others: the closing <code>done</code> waits for all of them, then raises one error that lists every failed aspect in <code>$error.errors</code> (see <a href="/projects/eve/concurrency.html#errors-and-timeout">Multitasking</a>), and the recover region runs, or the finalize region when there is no recover region.</li>
 <li><code>retry</code> and <code>resume</code> need a failed job. An error raised outside any job can only be aborted.</li>
 <li>Raising another error in the recover region aborts with the new error.</li>
-<li>A process without a recover region aborts on every error. If the driver aborts, the application ends with an error exit code.</li>
+<li>A process without a recover region aborts on every error. If the primary aspect aborts, the application ends with an error exit code.</li>
 <li><code>retry</code> can repeat forever: count the attempts in a local variable.</li>
 </ul>
 
@@ -444,7 +444,7 @@ expect condition2, "user defined message";
 
 <h4>Example:</h4>
 <pre class="line-numbers"><code class="language-eve">#using recover
-aspect recover_demo is
+primary aspect recover_demo is
   set a = 0.00;
   process main is
     let a := 1/0;
