@@ -45,28 +45,28 @@
 <h1 id="eve-drivers">Eve Drivers</h1>
 
 <div class="alert alert-secondary shadow-sm">
-A driver is the main script of an application and its entry point. This page describes what a driver is and how it runs. The shape that all scripts share is on the <a href="/projects/eve/scripts.html">Scripts</a> page.
+A driver is the aspect that runs first: the entry point of an application. Eve has no driver keyword: any aspect can be a driver, depending on which aspect you run. This page describes the role and how a run goes. The shape that all scripts share is on the <a href="/projects/eve/scripts.html">Scripts</a> page.
 </div>
 
 <h2 id="drivers">Drivers</h2>
 
-<p>A&nbsp;<em>driver</em>&nbsp;represents the application main script. It has the role to lead the application main process. When&nbsp;<em>driver</em>&nbsp;execution is over the application give control back to the EVE virtual machine. If no other process is running, the machine shuts-down after it clean-up the memory.</p>
+<p>A <em>driver</em> is a role, not a kind of script. The aspect that the machine runs first is the driver of that run: it leads the main process of the application and calls the other aspects. When its <code>main</code> returns, the application gives control back to the Eve virtual machine. If no other process is running, the machine shuts down after it cleans up the memory.</p>
 
 <h4>Notes:</h4>
 <ul>
-<li>Any application can have one or more drivers,</li>
-<li>A driver is the process entry point,</li>
-<li>A driver can read configuration files at startup,</li>
-<li>The main process of a driver can receive parameters;</li>
-<li>A driver has exactly one process, <code>main</code>: it is the master of the application and applies its aspects one after the other;</li>
-<li>A driver is independent, can not be imported;</li>
-<li>A driver is the only script that defines global states;</li>
+<li>Any aspect can be a driver: <code>eve report.eve</code> runs the aspect <code>report</code> and makes it the driver of the run;</li>
+<li>An application can have several drivers: each one is an aspect that you run, a different use case of the same aspects and modules;</li>
+<li>A driver can read configuration files at startup;</li>
+<li>The process <code>main</code> of the driver receives the command-line arguments as its parameters;</li>
+<li>The state of the driver is the scope of the run: the modules it imports are bound to it;</li>
+<li>An aspect is never imported; only a module is;</li>
+<li>In an <a href="/projects/eve/macro.html">Eve macro</a>, the driver is the one aspect marked <code>primary</code>.</li>
 </ul>
 
 
 <h2 id="driver-execution">Driver Execution</h2>
 
-<p>When a driver is executed, all its components are compiled in memory, then the <em>main process</em> is executed. An aspect runs its process <code>main</code> when the driver applies it; it can also be loaded from the planned REPL to apply it or call a function, for testing purpose.</p>
+<p>When an aspect is run, the aspects it calls are found and compiled in memory with it, then its <em>main process</em> is executed. The aspect it applies runs its own process <code>main</code>. Calls go at most three levels deep: the driver, an aspect it calls, and an aspect called from there. An aspect can't call itself, and no chain of calls may come back to an aspect already in it; the compiler reports such a chain as an error.</p>
 
 <p>The console REPL (parse, debug and execute a script step by step) and the daemon mode are planned for a later version. They describe the tool, not the language, so they are documented in the manual of the implementation: <code>manual/usage.md</code> in the eve-lang repository.</p>
 
@@ -75,7 +75,7 @@ A driver is the main script of an application and its entry point. This page des
 
 <h2 id="driver-example">Example: a driver applies an aspect</h2>
 
-<p>The aspect is in its own file, <code>print_this.eve</code>. The driver is the only script that is run; it decides when the aspect runs and what it receives.</p>
+<p>The aspect is in its own file, <code>print_this.eve</code>. The aspect <code>greeting</code> is the one that is run, so it is the driver: it decides when the other aspect runs and what it receives.</p>
 
 <pre class="line-numbers"><code class="language-eve">
 # the aspect: it receives a parameter and prints it
@@ -87,8 +87,8 @@ end print_this;
 </code></pre>
 
 <pre class="line-numbers"><code class="language-eve">
-# the driver: the entry point of the application
-driver greeting is
+# the driver: the aspect that is run, the entry point of the application
+aspect greeting is
   process main is
     apply print_this("Hello");        ** serial mode: the driver waits
     apply print_this("Goodbye");
@@ -96,7 +96,7 @@ driver greeting is
 end greeting;
 </code></pre>
 
-<p>A driver can not be applied or imported: it is the top of the application, and nothing calls it.</p>
+<p>Both files are aspects. Run <code>eve greeting.eve</code> and <code>greeting</code> is the driver; run <code>eve print_this.eve Hi</code> and <code>print_this</code> is the driver, alone. An aspect is never imported.</p>
 
 <hr>
 <p><b>Read next:</b>

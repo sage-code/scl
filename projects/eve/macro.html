@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Eve free scripts and Eve macros: a whole program in one file, from a sequence of statements to a driver with its aspects.">
+  <meta name="description" content="Eve macros: several aspects in one file, with a primary aspect as the entry point.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, macro, free script, hybrid script">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, programming language, macro, aspect, primary aspect">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Cache-Control" content="no-cache" />
   <meta http-equiv="Pragma" content="no-cache" />
@@ -45,58 +45,39 @@
 <h1 id="eve-macros">Eve Macros</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Eve has two ways to write a whole program in one file. A <b>free script</b> is a sequence of statements: the shortest way to a small tool. An <b>Eve macro</b> is a hybrid script: a driver, its aspects and the declarations they share, all in one file, so a small application, also a parallel one, needs no project folder. This page shows both, side by side, and when to choose each.
+An <b>Eve macro</b> is a file that holds several aspects and the declarations they share, with one <b>primary aspect</b> as the entry point. A small application, also a parallel one, needs no project folder. Macros are the home of demos and tests.
 </div>
 
-<h2 id="one-file">One file, two purposes</h2>
+<h2 id="one-file">One file, several aspects</h2>
 
-<p>A project spreads its work over many files: the driver at the root, the aspects in <code>asp/</code>, the modules in <code>lib/</code> (see <a href="/projects/eve/scripts.html#project">Scripts</a>). This is the right shape for a large application, but it is heavy for a small one. A script that only needs to read a file and print a report, or a job that runs two workers in parallel, should fit in one file that you can copy, mail or run with one command. Eve has two kinds of such files:</p>
+<p>A project spreads its work over many files: the aspects at the root and in <code>asp/</code>, the modules in <code>lib/</code> (see <a href="/projects/eve/scripts.html#project">Scripts</a>). This is the right shape for a large application, but it is heavy for a small one. A job that runs two workers in parallel, a demo or a test should fit in one file that you can copy, mail or run with one command. A file with one aspect is already the shortest program (<a href="/projects/eve/scripts.html#run-aspect">Running an aspect</a>); when the program needs more aspects, they go in the same file and the file is a macro:</p>
 
 <table class="table table-bordered table-striped">
 <thead>
-<tr><th></th><th>Free script</th><th>Eve macro</th></tr>
+<tr><th></th><th>Aspect file</th><th>Eve macro</th></tr>
 </thead>
 <tbody>
-<tr><td>Purpose</td><td>a small tool, a test, an experiment: statements run from top to bottom</td><td>a small application: a driver with its own aspects and shared code</td></tr>
-<tr><td>Line 1</td><td><code>#!</code>, required</td><td><code>#!</code> optional, or a <code>#</code> title</td></tr>
-<tr><td>Top level</td><td>statements (<code>new</code>, <code>let</code>, <code>if</code>, <code>for</code>, <code>print</code>, …)</td><td>declarations only: shared declarations, aspects, one driver</td></tr>
-<tr><td>Subprograms, classes</td><td>no</td><td>yes, shared by the whole file</td></tr>
+<tr><td>Purpose</td><td>one aspect, the unit of a project</td><td>a small application, a demo or a test: several aspects and shared code</td></tr>
+<tr><td>Line 1</td><td>a <code>#</code> title or the code</td><td>a <code>#</code> title or the code (no <code>#!</code>)</td></tr>
+<tr><td>Top level</td><td>one aspect</td><td>declarations only: shared declarations and aspects</td></tr>
+<tr><td>Subprograms, classes</td><td>inside the aspect</td><td>shared by the whole file</td></tr>
 <tr><td>Aspects</td><td>applies the aspects of a project</td><td>declares its own aspects; may also apply those of a project</td></tr>
-<tr><td>Parallel groups, jobs, <code>recover</code></td><td>no</td><td>yes, in the process of the driver</td></tr>
-<tr><td>Run</td><td><code>eve tool.eve</code></td><td><code>eve pipeline.eve</code>: runs <code>process main</code> of its driver</td></tr>
+<tr><td>Kind word</td><td><code>aspect</code>, <code>exclusive</code> or <code>concurrent</code></td><td>the same, and exactly one <code>primary aspect</code></td></tr>
+<tr><td>Run</td><td><code>eve report.eve</code></td><td><code>eve pipeline.eve</code>: runs <code>process main</code> of its primary aspect</td></tr>
 <tr><td>Imported by others</td><td>no</td><td>no: a macro is self-contained</td></tr>
 </tbody>
 </table>
 
 <p>Both are <b>self-contained</b>: nothing in them can be imported by another script, so they never become a hidden dependency. Code that several programs need belongs in a <a href="/projects/eve/modules.html">module</a>.</p>
 
-<h2 id="free-script">Free script</h2>
-
-<p>A free script starts with <code>#!</code> and runs its statements in order, to the end of the file. It has no driver, no process and no subprograms (the full rules are on the page <a href="/projects/eve/scripts.html#free-script">Scripts</a>).</p>
-
-<pre class="line-numbers"><code class="language-eve">
-#!/usr/bin/env eve
-** a free script: statements in sequence, it ends at the end of the file
-new total = 0 :Integer;
-
-for i in (1..10) do
-  let total += i;
-done;
-
-print "total: {total}";
-</code></pre>
-
-<p>Use a free script when the program is one straight sequence. When it needs a function, a class, a job with <code>recover</code>, or an aspect of its own, it has outgrown the free script: make it a macro.</p>
-
 <h2 id="macro">Eve macro</h2>
 
-<p>An <b>Eve macro</b> is a hybrid script: one file that holds <b>shared declarations</b>, any number of <b>aspects</b> and exactly <b>one driver</b>. No keyword marks it: a file with a top-level <code>driver</code> and other top-level declarations is a macro. The declarations are written at column 1, in any order; by custom the shared declarations come first, then the aspects, and the driver last, so the file reads from the tools to the work.</p>
+<p>An <b>Eve macro</b> is one file that holds <b>shared declarations</b> and any number of <b>aspects</b>, exactly one of them a <b>primary aspect</b>. The primary aspect is the entry point of the macro: <code>primary</code> is written in front of <code>aspect</code>, in the place of <code>exclusive</code> or <code>concurrent</code>, and it is used only in a macro. The declarations are written at column 1, in any order; by custom the shared declarations come first, then the other aspects, and the primary aspect last, so the file reads from the tools to the work.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-#!/usr/bin/env eve
-# score: a driver and its aspect in one file
+# score: a primary aspect and its aspect in one file
 
-** shared declarations: seen by the aspects and by the driver
+** shared declarations: seen by all the aspects
 set bonus = 5 :Integer;
 new total := 0;
 
@@ -113,8 +94,8 @@ exclusive aspect collect is
   return;
 end collect;
 
-** the driver: process main is the entry point of the macro
-driver score is
+** the primary aspect: process main is the entry point of the macro
+primary aspect score is
   process main is
     apply collect((10, 20));
     apply collect((30, 40));
@@ -126,19 +107,18 @@ end score;
 
 <h3 id="shared">Shared declarations</h3>
 
-<p>Every top-level declaration that is not an aspect or the driver is <b>shared</b> by the whole file: classes, functions, procedures, methods, constants (<code>set</code>), variables (<code>new</code>) and imports (<code>from … use</code>). This is the difference from a project, where an aspect sees no global of the driver: in a macro the driver and its aspects share what the file declares at the top. Each aspect still keeps its own scope and state, and it sees no variable of the driver or of another aspect; only the shared declarations are common.</p>
+<p>Every top-level declaration that is not an aspect is <b>shared</b> by the whole file: classes, functions, procedures, methods, constants (<code>set</code>), variables (<code>new</code>) and imports (<code>from … use</code>). This is the difference from a project, where an aspect sees nothing of the aspect that calls it: in a macro the aspects share what the file declares at the top. Each aspect still keeps its own scope and state, and it sees no variable of another aspect; only the shared declarations are common.</p>
 
 <ul>
-<li>The <b>driver</b> and the <b>exclusive aspects</b> use every shared declaration, the variables too: an exclusive aspect runs alone, so it changes a shared variable safely.</li>
+<li>The <b>primary aspect</b> and the <b>exclusive aspects</b> use every shared declaration, the variables too: they run alone, so they change a shared variable safely.</li>
 <li>A <b>concurrent aspect</b> uses only what is <b>thread safe</b>: constants, classes, atomic variables (<code>Atomic(:T)</code>), channels, and the functions and procedures that the compiler proves thread safe. Anything else is a compile error that names it (below).</li>
 </ul>
 
 <h3 id="parallel">A parallel job in one file</h3>
 
-<p>A macro is the natural home of a small parallel job. The driver starts its concurrent aspects in a parallel group (see <a href="/projects/eve/concurrency.html">Concurrency</a>); a shared class carries the results back. An output is declared before the group, so it is still there after <code>done</code>.</p>
+<p>A macro is the natural home of a small parallel job. The primary aspect is serial, but its parallel groups start the concurrent aspects of the file (see <a href="/projects/eve/concurrency.html">Concurrency</a>); a shared class carries the results back. An output is declared before the group, so it is still there after <code>done</code>.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-#!/usr/bin/env eve
 # pipeline: two workers in parallel, one file
 
 class Result = {name :String, count :Integer} &lt;: Object is
@@ -163,8 +143,8 @@ concurrent aspect job_worker_2 is
   return;
 end job_worker_2;
 
-# driver executing parallel tasks
-driver pipeline_driver is
+# the primary aspect: it starts the parallel tasks
+primary aspect pipeline is
   process main is
     new r1 := Result();
     new r2 := Result();
@@ -175,7 +155,7 @@ driver pipeline_driver is
     done p_exec;
     print "{r1.name}: {r1.count}, {r2.name}: {r2.count}";
   return;
-end pipeline_driver;
+end pipeline;
 </code></pre>
 
 <p>This example is the demo <a href="/roadmap/code-viewer.html?file=/projects/eve/demo/pipeline_macro.eve">pipeline_macro</a>; every demo of the tutorial that needs aspects is written as a macro (<a href="/projects/eve/examples.html">Demos &amp; Examples</a>).</p>
@@ -202,7 +182,7 @@ concurrent aspect adder is
   return;
 end adder;
 
-driver counter is
+primary aspect counter is
   process main is
     parallel
     do
@@ -218,12 +198,14 @@ end counter;
 <h3 id="rules">Rules</h3>
 
 <ul>
-<li>A macro has <b>exactly one driver</b>; it runs like a driver and its <code>process main</code> takes the command-line arguments.</li>
-<li>Line 1 may be <code>#!</code>, so the file runs as a command on Unix (<code>./pipeline.eve</code>), or a <code>#</code> title. A <code>#!</code> file without a driver is a free script.</li>
+<li>A macro has <b>exactly one primary aspect</b>; <code>eve file.eve</code> runs its <code>process main</code>, which takes the command-line arguments. It is the root of the run, so no aspect applies or starts it.</li>
+<li>The primary aspect is <b>serial</b>: its processes are exclusive, applied and never started. Its parallel groups start the concurrent aspects of the macro.</li>
+<li><code>primary</code>, <code>exclusive</code> and <code>concurrent</code> are reserved words of the same design. <code>primary</code> is used only in a macro: in a file with a single aspect it is an error.</li>
+<li>Line 1 is a <code>#</code> title or the code. There is no <code>#!</code> line: Eve is a language for projects, not a shell language.</li>
 <li>Only declarations at the top level: a statement outside a declaration is an error.</li>
-<li>The aspects of a macro are <b>private</b>: no other driver can apply or start them. A macro exports nothing and can not be imported.</li>
+<li>The aspects of a macro are <b>private</b>: no other script can apply or start them. A macro exports nothing and can not be imported.</li>
 <li>An aspect named in <code>apply</code> or <code>start</code> is searched first in the macro, then in <code>asp/</code> and at the project root. An aspect of the macro with the name of an aspect file of the project is an error, so the reader never wonders which one runs.</li>
-<li>Apart from the shared declarations, the aspects follow the rules of <a href="/projects/eve/aspects.html">Aspects</a> and of the parallel groups.</li>
+<li>The calls between the aspects of a macro follow the rules of <a href="/projects/eve/aspects.html">Aspects</a>: no cycle, and at most three levels deep, counted from the primary aspect.</li>
 </ul>
 
 <h4>Compile errors</h4>
@@ -233,9 +215,11 @@ end counter;
 <tr><th>Mistake</th><th>Message</th></tr>
 </thead>
 <tbody>
-<tr><td>two drivers in one file</td><td><code>a macro has only one driver</code></td></tr>
+<tr><td>no primary aspect</td><td><code>a macro needs a primary aspect</code></td></tr>
+<tr><td>two primary aspects</td><td><code>a macro has only one primary aspect</code></td></tr>
+<tr><td><code>primary</code> in a file with one aspect</td><td><code>primary is used only in a macro</code></td></tr>
+<tr><td>the primary aspect starts a private process</td><td><code>a primary aspect is serial: apply 'name'</code></td></tr>
 <tr><td>a statement at the top level</td><td><code>a statement outside a declaration in a macro</code></td></tr>
-<tr><td>aspects or shared declarations, no driver (no <code>#!</code>)</td><td><code>a macro needs a driver</code></td></tr>
 <tr><td>a concurrent aspect uses a plain shared variable</td><td><code>the concurrent aspect 'adder' uses 'count', which is not thread safe</code></td></tr>
 <tr><td>a concurrent aspect calls a subprogram that changes one</td><td><code>… calls 'bump', which is not thread safe</code></td></tr>
 </tbody>
@@ -246,9 +230,9 @@ end counter;
 <p>A program usually grows in three steps, and each step keeps the code of the one before:</p>
 
 <ol>
-<li><b>Free script:</b> a few statements to try an idea or to do a small job.</li>
-<li><b>Eve macro:</b> when the script needs functions, classes, error recovery or aspects, move the statements into <code>process main</code> of a driver and write the rest as shared declarations and aspects, in the same file.</li>
-<li><b>Project:</b> when the file grows too long, or other programs need its aspects or its code, move the aspects to <code>asp/</code> and the shared code to a module in <code>lib/</code>; the driver stays as it is.</li>
+<li><b>One aspect:</b> a few statements in <code>process main</code> to try an idea or to do a small job.</li>
+<li><b>Eve macro:</b> when the program needs aspects of its own, shared functions or classes, or parallel work, write them in the same file and mark the entry point <code>primary</code>.</li>
+<li><b>Project:</b> when the file grows too long, or other programs need its aspects or its code, move the aspects to <code>asp/</code> and the shared code to a module in <code>lib/</code>; the aspect that you run stays as it is.</li>
 </ol>
 
 <hr>

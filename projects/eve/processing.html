@@ -210,7 +210,7 @@ return;
 
 <h2 id="execution">Aspect execution</h2>
 
-<p>An aspect is executed using the "apply" command: <code>apply aspect_name(arguments);</code> runs the process <code>main</code> of the aspect and the caller waits. The parentheses are always written, also when there is no argument. Every aspect has one process, <code>main</code>, its only entry point; nothing else of the aspect can be reached from outside. Only the driver applies aspects: an aspect can't apply another aspect.</p>
+<p>An aspect is executed using the "apply" command: <code>apply aspect_name(arguments);</code> runs the process <code>main</code> of the aspect and the caller waits. The parentheses are always written, also when there is no argument. Every aspect has a process <code>main</code>, its only entry point; nothing else of the aspect can be reached from outside, and the dot is never used with an aspect. The other processes of an aspect are private: its own processes call them by their bare names, <code>apply prepare(10);</code>. Any aspect may apply another aspect, at most three levels deep; an aspect can't apply itself and no chain of calls comes back to an aspect already in it.</p>
 
 <h4>Examples:</h4>
 
@@ -270,7 +270,7 @@ end print_this;
 </code></pre>
 
 <pre class="line-numbers"><code class="language-eve"># main process with parameters
-driver process_call is
+aspect process_call is
   process main(*args ()String) is
     ** number of arguments received:
     loop
@@ -289,7 +289,7 @@ end process_call;
 <p>Aspects can be executed in serial mode one after another. Let's consider we have 3 aspects: {one, two, three}. Main process can execute each aspect using keyword: "apply" and can block the main process waiting for each aspect to finish. This will interrupt the driver main process and will execute aspect process one by one:</p>
 
 <pre class="line-numbers"><code class="language-eve">
-driver test_apply is
+aspect test_apply is
   process main is
     ** apply each aspect: synchronous calls
     apply [folder/]aspect_one(arguments);
@@ -334,7 +334,7 @@ process main(x: Integer) is
 
 <div class="alert alert-warning">Not in Eve 0.1: parallel groups and channels are planned for a later version. In version 1 a process runs on one core.</div>
 
-<p><code>apply</code> runs an aspect in serial mode and the caller waits for it to finish. Parallel work is done by aspects too: the process of the driver starts them in a parallel group (<code>parallel … do … start … done</code>), and they run on several cores. Methods and functions always run in serial mode. Only the driver opens parallel groups. The parallel model, the data rules, Bulk Synchronous Parallel and channels are explained in one place: <a href="/projects/eve/multitasking/#parallel-model">Multitasking</a>.</p>
+<p><code>apply</code> runs an aspect in serial mode and the caller waits for it to finish. Parallel work is done by aspects too: a process starts them in a parallel group (<code>parallel … do … start … done</code>), and they run on several cores. Methods and functions always run in serial mode. Parallel groups are allowed in the first two levels of aspects. The parallel model, the data rules, Bulk Synchronous Parallel and channels are explained in one place: <a href="/projects/eve/multitasking/#parallel-model">Multitasking</a>.</p>
 
 <p><b>Note: </b>a parallel group brings the driver back in synchronous mode at its closing <code>done</code>. A parallel group behaves like a job and can have a label. If a started aspect raises an error, the other aspects go on; <code>done</code> waits for all of them, then raises the error in the driver, so its recover region handles the errors of all the started aspects; it can <code>retry</code> the group or <code>resume</code> after it. The driver runs one parallel group at a time.</p>
 
@@ -444,7 +444,7 @@ expect condition2, "user defined message";
 
 <h4>Example:</h4>
 <pre class="line-numbers"><code class="language-eve">#using recover
-driver recover_demo is
+aspect recover_demo is
   set a = 0.00;
   process main is
     let a := 1/0;

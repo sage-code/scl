@@ -140,7 +140,7 @@ end task;
 
 <pre class="line-numbers"><code class="language-eve">
 # parallel groups demo
-driver parallel_demo is
+aspect parallel_demo is
   process main is
     ** the driver is a series of sequential groups
     group1: parallel
@@ -179,14 +179,16 @@ end parallel_demo;
 <tr><th>Place</th><th>Group</th><th><code>start</code></th></tr>
 </thead>
 <tbody>
-<tr><td><code>process main</code> of the driver</td><td>yes</td><td>any number</td></tr>
-<tr><td><code>main</code> of an aspect started by the driver</td><td>yes, one level</td><td>at most 2 <code>start</code> statements, none in a loop</td></tr>
-<tr><td>an aspect started by an aspect (a <em>leaf</em>)</td><td>no</td><td>no</td></tr>
+<tr><td>a process of the aspect that is run (level 1, the driver)</td><td>yes</td><td>any number</td></tr>
+<tr><td>a process of an aspect it calls (level 2)</td><td>yes, one group</td><td>at most 2 <code>start</code> statements, none in a loop</td></tr>
+<tr><td>a process of an aspect called from there (level 3, a <em>leaf</em>)</td><td>no</td><td>no</td></tr>
 <tr><td>an applied aspect, a function, a procedure, a method</td><td>no</td><td>no</td></tr>
 </tbody>
 </table>
 
-<p>Each violation is a compile error that says what is allowed: <code>parallel is allowed only in the main of a driver or of an aspect it starts</code>. The limit of one level and two starts keeps the tree of tasks small enough to read: a driver, its workers, and at most two helpers for each worker.</p>
+<p>Each violation is a compile error that says what is allowed: <code>parallel is allowed only in an aspect of the first two levels</code>. The limit of three levels and two starts keeps the tree of tasks small enough to read: the aspect that is run, its workers, and at most two helpers for each worker. A call of a private process of the same aspect is not a level; only the call of an aspect is.</p>
+
+<p>The <b>primary aspect</b> of a <a href="/projects/eve/macro.html">macro</a> is serial like the aspect of a project that is run: its processes are applied, never started, and its parallel groups start the concurrent aspects of the macro.</p>
 
 <p>The driver can start the same aspect several times with different arguments, to compute different parts of the data. Every started aspect writes its own element of the array <code>s</code>: two started aspects never receive the same output variable.</p>
 
@@ -201,7 +203,7 @@ end square;
 
 <pre class="line-numbers"><code class="language-eve">
 ## create parallel work
-driver parallel_loop is
+aspect parallel_loop is
   process main is
     new s: [4]Integer; ** one result for each worker
 
@@ -226,8 +228,8 @@ end parallel_loop;
 <li><b>Inputs by value:</b> the arguments are evaluated at <code>start</code>. An argument without "@" is passed by value, also a collection: the task works on its own copy, and the driver can go on changing its variables. The virtual machine shares a large collection and copies it only when one side writes into it (copy on write), so passing by value is cheap;</li>
 <li><b>One owner for each output:</b> an output argument (<code>@</code>) is passed by reference and belongs to one task. Two tasks of the same group can't receive the same variable, the same element or two overlapping slices as output. The compiler rejects the same variable, or the same element with a constant index, given to two starts. The virtual machine checks an element with a computed index, <code>@s[i]</code>, at <code>start</code>. Both report <code>Output s is given to two tasks of the group</code> (<code>$err_output</code> 43);</li>
 <li><b>Channels are the exception:</b> a channel is the only object that several tasks of a group can receive with "@". It is built for that: its operations are safe when tasks use it at the same time;</li>
-<li><b>Encapsulated:</b> an aspect sees no globals of the driver and has no public members; its state belongs to one task. It calls its methods by name, and they run in the same task;</li>
-<li><b>One level:</b> the driver opens parallel groups. An aspect started by the driver may open its own parallel group and start at most 2 <em>leaf</em> aspects; a leaf aspect starts none. An aspect can't apply another aspect, so recursion between aspects is impossible.</li>
+<li><b>Encapsulated:</b> an aspect sees no globals of the aspect that calls it and has no public members but <code>main</code>; its state belongs to one task. It calls its methods by name, and they run in the same task. Its private processes work on the same state: a private process that is <em>started</em> in a parallel group runs as its own task, so it may use only the thread-safe names of the aspect (atomic variables, channels, constants and thread-safe functions); any other name is a compile error that names it;</li>
+<li><b>Three levels:</b> the aspect that is run opens parallel groups. An aspect it starts may open its own parallel group and start at most 2 <em>leaf</em> aspects; a leaf aspect starts none. An aspect can't call itself, and no chain of calls comes back to an aspect already in it, so recursion between aspects is impossible.</li>
 <li><b>Modules are shared:</b> all the tasks use the same copy of a module. Its exported constants, classes and plain functions are safe to share, and an exported channel of a module connects tasks without being passed as a parameter. The compiler decides which functions of a module are thread safe; an aspect that calls one that is not, directly or through other calls, can't be started. Module state that tasks share is atomic, guarded by a mutex or sent through a channel (see <a href="#thread-safety">Thread safety</a>).</li>
 </ul>
 
@@ -539,7 +541,7 @@ end partial_sum;
 
 <pre class="line-numbers"><code class="language-eve">
 # parallel sum with one BSP superstep
-driver parallel_sum is
+aspect parallel_sum is
   set workers = 32 :Integer;
   set size = 1000 :Integer; ** elements for one worker
 
@@ -600,7 +602,7 @@ end smooth;
 
 <pre class="line-numbers"><code class="language-eve">
 # heat diffusion with iterative BSP supersteps
-driver heat_bar is
+aspect heat_bar is
   set workers = 10 :Integer;
   set width = 100 :Integer; ** cells for one worker
 
@@ -716,7 +718,7 @@ end collect;
 
 <pre class="line-numbers"><code class="language-eve">
 # pipeline: producer, 4 workers and a collector
-driver pipeline is
+aspect pipeline is
   set workers = 4 :Integer;
 
   process main is
