@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Eve Web Portal (evewp): the production web layer of Eve, written in Eve with no JavaScript: edge, host and monitor for many applications, and a web framework that compiles Eve to WebAssembly for the browser.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="SageCode,Sage-Code, EVE, Eve, eve, EveLang, evewp, web server, reverse proxy, monitoring, WebAssembly, framework">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Website title -->
+  <title>Eve Web Portal</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">
+  <!-- Eve code highlighter -->
+  <script src="/projects/eve/js/eve1.js"></script>
+  <!-- Sage-Code custom CSS -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-code.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+<!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Lab Topics</h5>
+        </div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled">
+        </ul>
+      </div>
+    </aside>
+
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="evewp">Eve Web Portal</h1>
+
+<p>The Eve Web Portal, <code>evewp</code>, is the production web layer of Eve, and it is written in Eve. It is not a tool for developers: it is where finished Eve applications are hosted, seen and watched. It also carries the <b>Eve Web framework</b>, which compiles Eve to WebAssembly so that the client side of a web application is written in Eve too, with no JavaScript written by the developer.</p>
+
+<p><b>Planned:</b> evewp belongs to level 7, the last level, and to version 0.6 of Eve. It needs the machine and the web modules of level 6 (see <a href="/projects/eve/server.html">Server</a>) and the safe HTML of level 7. Nothing is built yet. The design is in <code>evewp/README.md</code> of the Eve repository; the open questions are at its end. The graphical tool for developers is <code>eveux</code>, a native program, described in <code>eveux/README.md</code>.</p>
+
+<h2 id="what">What evewp does</h2>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Part</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td>Edge</td><td>receives the public HTTP traffic of many domains and subdomains, routes each request by its <code>Host</code> header to the application that owns it, serves static files, and proxies dynamic requests to the Eve machine of the application</td></tr>
+<tr><td>Host</td><td>keeps each application in its own folder, with versions; starts, watches, restarts and stops the Eve machine of each application; receives deploys and does rollbacks</td></tr>
+<tr><td>Monitor</td><td>a graphic health server: connections, requests, domains, users, state, memory and logs of every application, and alerts</td></tr>
+<tr><td>Web framework</td><td>Eve compiled to WebAssembly modules that run in the browser, sharing code with the server</td></tr>
+</tbody>
+</table>
+
+<h2 id="final-test">The Final Test of Eve</h2>
+
+<p>evewp is written in Eve on purpose: a production web server, used every day by real traffic, is the hardest test a language can get. It needs the network, text, concurrency, data, security, time and the compiler targets all at once, so it is the acceptance test of level 7 and a stress test of the virtual machine. Where speed decides, the copying of bytes between sockets, the sending of files and the compression are native modules of the system library, written in Zig; the decisions, the tables, the pages and the supervision are Eve. A failure of evewp is first a question about Eve: a missing feature, a slow path or a leak of the machine. It is fixed in the language or in the machine, not worked around.</p>
+
+<h2 id="architecture">Architecture</h2>
+
+<pre><code>Internet
+  browsers --HTTPS--&gt; reverse proxy (TLS, certificates)
+                          | HTTP on loopback
+                          v
+                    evewp (an Eve program, eve -s)
+                      Edge:    host table, static files, proxy, limits
+                      Host:    apps/, versions, supervisor, deploy
+                      Monitor: metrics, dashboard, alerts, /healthz
+                          | IPC
+          +---------------+---------------+
+          v               v               v
+     app1.example    app2.example    admin.example
+     eve -s          eve -s          (the dashboard)
+     + evedb         + evedb</code></pre>
+
+<ul>
+<li><b>Process isolation.</b> The edge and the monitor never run application code. Each application is an Eve machine in its own process, so a crash or a runaway loop cannot stop the edge, the dashboard or the other applications.</li>
+<li><b>TLS.</b> The Eve machine has no TLS server. HTTPS comes from a reverse proxy in front of evewp (Caddy, Nginx or a tunnel).</li>
+<li><b>One folder for each application.</b> <code>apps/shop/</code> holds <code>app.cfg</code>, the deployed <code>versions/</code>, the number of the active version, the data that survives deploys, the log and the IPC socket.</li>
+</ul>
+
+<h2 id="monitoring">Monitoring</h2>
+
+<p>The edge counts what it sees; the applications are asked with <code>vm.stat</code> through their IPC door; the operating system gives memory and CPU. The pages show the health of everything on one screen, the domains and the application behind each, one application with its versions and logs, searchable logs and the alerts. Charts are SVG written by Eve code, so the first versions need no JavaScript at all: the pages refresh by themselves. An alert (an application down, too many 5xx answers, slow answers, repeated restarts) is sent to a webhook with the <code>http</code> client.</p>
+
+<h2 id="framework">The Eve Web Framework</h2>
+
+<p>The client side of an application is written in Eve and compiled to WebAssembly. Pages are made on the server, from templates that escape every value by context; the interactive parts are Eve modules compiled for the browser and attached to an element of the page. The server and the browser can share modules: the same function that validates an amount runs on both sides.</p>
+
+<h3 id="no-javascript">No JavaScript, honestly</h3>
+
+<p>A WebAssembly module cannot reach the page or the network by itself: the browser offers the DOM, <code>fetch</code>, timers and events only as JavaScript functions, and a module is started by a few lines of JavaScript. So the developer writes no JavaScript, but the toolchain adds one small, fixed, generated <b>loader shim</b> (a few kilobytes, the same for every application) that starts the module and gives it the host functions. It holds no application logic. The page needs the policy <code>script-src 'self' 'wasm-unsafe-eval'</code>.</p>
+
+<h3 id="profile">The browser profile</h3>
+
+<p>The language is the same; the libraries and the permissions differ. The compiler checks a module for the browser against a profile:</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>Not allowed in the browser</th><th>Added in the browser</th></tr></thead>
+<tbody>
+<tr><td><code>fs</code>, <code>os</code>, sockets, <code>database</code>, <code>secret</code>, the shell, threads</td><td><code>dom</code>, <code>http</code> over the browser's <code>fetch</code>, <code>storage</code>, timers, <code>rpc</code>, forms, the console</td></tr>
+</tbody>
+</table>
+
+<h3 id="stages">Two stages</h3>
+
+<ul>
+<li><b>W1, the machine in WebAssembly.</b> The Eve virtual machine is compiled to <code>wasm32</code> and runs the program as source or as portable bytecode. It is the whole language of the profile, early, and it is what the tutorial playground uses.</li>
+<li><b>W2, Eve to WebAssembly.</b> A typed subset of Eve is compiled to a Wasm module: faster, smaller downloads for the hot code. A page can mix both.</li>
+</ul>
+
+<p>A sketch of a module shared by the server and the browser, with the syntax that exists today:</p>
+
+<pre class="line-numbers"><code class="language-eve">module money is
+  export (format, valid_amount);
+
+  function valid_amount(text: String) =&gt; (@result: Logic) is
+    let result := text =~ "/^[0-9]+(\.[0-9]{1,2})?$/";
+  return;
+
+  function format(value: Decimal) =&gt; (@result: String) is
+    let result := "{value} EUR";
+  return;
+end money;
+</code></pre>
+
+<p>Open points are the syntax of event handlers and reactive state in templates, and how a handler can wait for the network: a browser module has one thread, so a program is a set of handlers that run to completion, and <code>await</code> needs the machine to suspend a handler.</p>
+
+<h2 id="security">Security</h2>
+
+<ul>
+<li>Limits on header size, body size, connections and request rate for each address and domain; an unknown <code>Host</code> never reaches an application.</li>
+<li>Every value in a page is escaped by context; no inline script; cookies are <code>HttpOnly</code> and <code>SameSite=Strict</code>.</li>
+<li>Modules for the browser are signed and carry the list of what they may call; the loader refuses a module that asks for more than the page allows.</li>
+<li>The dashboard needs a login and roles; every start, stop, deploy and rollback is recorded.</li>
+</ul>
+
+<h2 id="versions">Versions</h2>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>evewp</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td>0.1</td><td>the edge: host table, static files, proxy to an application, request log, limits, health</td></tr>
+<tr><td>0.2</td><td>the monitor: metrics, dashboard pages with SVG charts, alerts</td></tr>
+<tr><td>0.3</td><td>the host: application folders, versions, supervisor, deploy and rollback</td></tr>
+<tr><td>0.4</td><td>pages: HTML templates, forms, sessions, login of the dashboard</td></tr>
+<tr><td>0.5</td><td>the framework, stage W1: the machine in WebAssembly, the loader shim, <code>dom</code>, the playground</td></tr>
+<tr><td>0.6</td><td>the framework, stage W2: a typed subset compiled to WebAssembly</td></tr>
+<tr><td>1.0</td><td>every test of level 7 passes and the stress goals are met</td></tr>
+</tbody>
+</table>
+
+<h2 id="related">Related</h2>
+
+<p>The development tool is <code>eveux</code>, a native graphical program written in Zig, and its terminal sibling <code>evetx</code>; both are clients of the Eve machine, which is the server. See <a href="/projects/eve/server.html">Server</a> for the machine and its doors, <a href="/projects/eve/vm.html">EVE VM</a> for the parts of <code>eve</code>, and <a href="/projects/eve/evedb.html">Eve Database</a> for the backend.</p>
+
+<hr>
+<p><b>Read next:</b>
+<a href="/projects/eve/compiler.html">Compiler</a></p>
+<!-- Footer -->
+    </main>
+  </div>
+</div>
+
+<hr>
+
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<script src="/sage.js" defer></script>
+</body>
+</html>

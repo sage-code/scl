@@ -458,6 +458,34 @@ end recover_demo;
 
 <pre class="output">error: numeric division by zero.</pre>
 
+<h3 id="recover-in-subprograms">Recover in a function, procedure or method</h3>
+
+<p>A function, a procedure and a method can have a <b>recover</b> region of their own, written like the one of a process: at the end, aligned with the keyword, before <code>return;</code>. It keeps a failure local: the caller never sees the error.</p>
+
+<pre class="line-numbers"><code class="language-eve">function half(n: Integer) =&gt; (@result: Integer) is
+  let result := 100 / n;
+recover
+  print "recovered: {$error.message}";
+  let result := -1;
+return;
+
+public method withdraw(@self, amount: Integer) =&gt; (@ok: Logic) is
+  raise "insufficient funds" if amount &gt; self.balance;
+  let self.balance -= amount;
+  let ok := True;
+recover
+  let ok := False;
+return;
+</code></pre>
+
+<ul>
+<li>The error can come from the body or from anything the body calls. <code>$error</code> is available, and so are the parameters, the variables and the result variables of the routine.</li>
+<li>If the recover region ends, the error is handled and the routine <b>returns normally</b>. A function gives its result variables as they are: what the body or the recover region set, or the zero value of the type (<code>0</code>, an empty text, <code>False</code>).</li>
+<li><code>abort</code> passes the same error to the caller, which can handle it in its own recover region. Raising another error replaces the first. <code>retry</code> and <code>resume</code> belong to jobs: here they are a run-time error.</li>
+<li>A constructor, a generator and a lambda have no recover region. There is no <code>finalize</code> in a routine: use <code>defer</code>, which runs after the recover region.</li>
+<li>Use it to turn a failure into a value, to log and go on, or to refuse an operation and say why. Do not hide errors that the caller should decide on: then leave the region out.</li>
+</ul>
+
 <h3 id="finalize">Finalize</h3>
 
 <p>The finalize region is optional. It runs once, when the process ends, by any path: <code>return</code>, <code>exit</code>, <code>over</code>, <code>abort</code>, or the normal end of the recover region. Only <code>panic</code> and an unexpected stop skip it. After <code>retry</code> or <code>resume</code> the process continues, so finalize runs later, when the process ends.</p>
