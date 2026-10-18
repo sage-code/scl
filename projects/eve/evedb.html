@@ -48,9 +48,60 @@
 EveDB is a small database server written in Zig around DuckDB and tuned for Eve. Today it is a separate program, <code>evedb</code>, built next to the Eve virtual machine. When the machine is split into parts, it becomes the <b>database part</b> of <code>eve</code> itself, called with <code>eve db</code>. Its first job is to play the <em>remote database</em> in the tests of the Eve database layer: it speaks Eve's own protocol, keeps Eve's types without loss, and can fail on purpose, exactly when a test asks, so that commit, rollback and retry can be tested again and again with the same result.
 </div>
 
-<div class="alert alert-warning">Status: the program builds and links DuckDB 1.5.6, runs a self-check and passes its unit tests. The server, the protocol, the fault injection and the commands below are designed, not written yet. The design is in <code>evedb/README.md</code> of the Eve repository.</div>
+<div class="alert alert-warning">Status (2026-10-17): version 0.2 is built: EveDB answers as a PostgreSQL server (next section). From version 0.1 it keeps its own control protocol. The server answers the frames of the protocol, keeps sessions with leases, records its transactions so a broken commit can be asked again, injects faults and writes the statement log; the commands <code>serve</code>, <code>create</code>, <code>sql</code>, <code>describe</code>, <code>snapshot</code>, <code>reset</code>, <code>status</code> and <code>stop</code> work. It is tested by 16 unit tests and by 66 checks of a Python client written from the design alone (<code>python script/evedb_check.py</code>). Not yet: the Eve driver <code>evedb://</code>, the change sets of the ORM, large results in batches, import and export, and service mode. The design is in <code>evedb/README.md</code> of the Eve repository.</div>
 
 <div class="alert alert-info"><b>Decided on 2026-10-12</b> (D-163, D-166): EveDB becomes the database part of the one program <code>eve</code>. SQLite stays embedded in <code>eve</code>; the DuckDB library is loaded only when the first DuckDB connection opens, so a script that uses no DuckDB database starts without it. The commands below become <code>eve db serve</code>, <code>eve db sql</code> and so on, and the database part also keeps the stored procedures written in Eve (<a href="databases.html#procedures">Scripts, procedures and commands</a>) and the SQL functions written in Eve (<a href="databases.html#sql-functions">SQL functions in Eve</a>).</div>
+
+<h2 id="postgres">A PostgreSQL server for your tests</h2>
+
+<p>Since version 0.2 EveDB <b>behaves like a PostgreSQL server</b>. It listens on port 5432, accepts the login of a PostgreSQL client (no password, a password, or md5), runs the SQL with DuckDB, and answers rows, errors and transactions the way PostgreSQL does. Any PostgreSQL client connects to it: <code>psql</code>, psycopg2 in Python, JDBC, and the Eve driver for PostgreSQL.</p>
+
+<p>A configuration file says which port, which login and which databases:</p>
+
+<pre><code># evedb.cfg
+port = 5432
+user = "eve"
+password = "secret"
+auth = "md5"
+database "shop" = "data/shop.duckdb"</code></pre>
+
+<p>Start it in one of three ways:</p>
+
+<pre><code>evedb serve --config evedb.cfg       ** in this window
+eve db serve evedb.cfg               ** the same, started by eve
+eve -s -db --serve evedb.cfg         ** as a service: silent, in the background</code></pre>
+
+<p>A script reaches it like any PostgreSQL database. The connection is declared in <code>eve.cfg</code> with a <code>postgres://</code> URL, and the methods are the ones you know from SQLite:</p>
+
+<pre><code>** eve.cfg
+database "shop" = "postgres://eve:secret@127.0.0.1:5432/shop"
+
+class Item = {id: Integer, name: String, price: Decimal} &lt;: Record;
+new shop := database.connect("shop");
+shop.execute!("insert into items values (?, ?, ?)", 3, "washer", 0.10d);
+for i in shop.query!(:Item)("select id, name, price from items order by id") do
+  print "{i.id} {i.name} {i.price}";
+done;</code></pre>
+
+<p>The same driver connects to a real PostgreSQL server (it also speaks SCRAM-SHA-256, the login PostgreSQL uses by default). The mapped tables (<code>table</code> declarations) still need a SQLite connection. For large data inside Eve use the faster native connection of the next section.</p>
+
+<h2 id="native">The fast path: evedb:// and Memory tables</h2>
+
+<p>The PostgreSQL protocol is for other tools. Eve has a faster way to EveDB: the native protocol, with a URL that starts with <code>evedb://</code>. It sends large results <b>column by column</b>, in the same layout as a <code>Memory</code> table, so a column of a million numbers is copied in one piece instead of a million values written as text and read back.</p>
+
+<pre><code>** eve.cfg
+database "wh" = "evedb://127.0.0.1:8044/warehouse"
+
+class Sales = {id: Integer, region: String, amount: Real} &lt;: Memory;
+new wh := database.connect("wh");
+new s := Sales();
+s.store(wh, "select id, region, amount from sales where year = ?", 2026);   ** column batches into s
+print s.amount.sum();
+s.load(wh, "sales_2026");                                                  ** back, through DuckDB's bulk insert</code></pre>
+
+<p>Measured on one computer with 1,000,000 rows: <code>store</code> into a <code>Memory</code> table takes 0.23 s, three times faster than reading the same rows from a local SQLite file; a group-by over the whole table takes 9 ms in DuckDB and half a second in SQLite. Records (<code>query!</code>) cost about the same on every protocol, because each row becomes an object: use them for a few rows, and <code>Memory</code> tables for many.</p>
+
+<p><b>Which database for what.</b> SQLite, built into every <code>eve</code>, keeps the state of your project: checkpoints, run history, small lookup tables. DuckDB, inside the EveDB server, keeps the big data: warehouse tables, staging of large loads, large caches. One DuckDB database is one file (<code>data/warehouse.duckdb</code>, with its <code>.wal</code> log), and only EveDB opens it. Make one with <code>evedb create warehouse</code>, or name it in <code>evedb.cfg</code>. There are no triggers or stored procedures in EveDB: the logic lives in your Eve jobs, which work on whole tables at a time.</p>
 
 <h2 id="why">Why a test database</h2>
 
@@ -185,13 +236,13 @@ expect last != null and last.columns == "city,version";
 <thead><tr><th>Command</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>evedb</code></td><td>print the versions and run the self-check (available now)</td></tr>
-<tr><td><code>evedb serve [--port 8044] [--data folder] [--test]</code></td><td>listen; <code>--test</code> allows faults and the statement log and listens on <code>localhost</code> only</td></tr>
-<tr><td><code>evedb create name [from script.sql]</code></td><td>create a database</td></tr>
-<tr><td><code>evedb sql name "statement"</code></td><td>run one statement and print the result</td></tr>
-<tr><td><code>evedb describe name table [--eve]</code></td><td>the columns in Eve types; <code>--eve</code> prints the record class</td></tr>
-<tr><td><code>evedb snapshot name file</code>, <code>evedb reset name from file</code></td><td>save a database and put it back, for test fixtures</td></tr>
-<tr><td><code>evedb import</code>, <code>evedb export</code></td><td>load or write a table as CSV, JSON or Parquet</td></tr>
-<tr><td><code>evedb status</code></td><td>sessions, leases and open transactions</td></tr>
+<tr><td><code>evedb serve [--config evedb.cfg] [--port 5432] [--control-port 8044] [--data folder] [--test] [--lease seconds] [--token t]</code></td><td>listen; <code>--test</code> allows faults and the statement log and listens on <code>localhost</code> only; without <code>--test</code> a token is required; <code>--port 0</code> lets the system choose and the first line says which</td></tr>
+<tr><td><code>evedb create name</code></td><td>create a database file in the data folder</td></tr>
+<tr><td><code>evedb sql [--connect host:port] name "statement"</code></td><td>run one statement and print the result, on the file or through a server</td></tr>
+<tr><td><code>evedb describe name table</code></td><td>the columns in Eve types</td></tr>
+<tr><td><code>evedb snapshot name file</code>, <code>evedb reset name file</code></td><td>save a database and put it back, for test fixtures</td></tr>
+<tr><td><code>evedb status</code>, <code>evedb stop</code></td><td>the counters of a server (databases, sessions, open transactions, statements, uptime); end a server</td></tr>
+<tr><td><code>evedb import</code>, <code>evedb export</code></td><td>load or write a table as CSV, JSON or Parquet (version 0.2)</td></tr>
 </tbody>
 </table>
 
@@ -208,7 +259,10 @@ cd evedb
 zig build -p ..        # installs bin/evedb.exe and bin/duckdb.dll, next to bin/eve.exe
 zig build test         # the unit tests
 ../bin/evedb.exe
-evedb 0.0.1, DuckDB v1.5.6, self-check 42
+evedb 0.1.0, DuckDB v1.5.6, self-check 42
+../bin/evedb.exe serve --test --port 0 --data ../temp/edata
+evedb: listening on port 59896 (test mode)
+python ../script/evedb_check.py        # the protocol checks, from the repository root
 </code></pre>
 
 <p>The same build gives SQLite to the machine: <code>evevm/</code> compiles the SQLite source into <code>eve</code>, so the core database needs no installation at all.</p>
@@ -223,11 +277,12 @@ evedb 0.0.1, DuckDB v1.5.6, self-check 42
 <tr><td><code>build.zig</code>, <code>build.zig.zon</code></td><td>the build and the pinned DuckDB library of each system</td></tr>
 <tr><td><code>src/main.zig</code></td><td>the command line</td></tr>
 <tr><td><code>src/duckdb.zig</code></td><td>the binding over the C interface of DuckDB (written)</td></tr>
-<tr><td><code>src/server.zig</code>, <code>src/session.zig</code></td><td>the listener, the sessions and their leases (planned)</td></tr>
-<tr><td><code>src/ewp.zig</code></td><td>the messages of the Eve Wire Protocol (planned)</td></tr>
-<tr><td><code>src/types.zig</code>, <code>src/catalog.zig</code></td><td>Eve types and the description of tables (planned)</td></tr>
-<tr><td><code>src/changes.zig</code></td><td>the changes of a flush turned into SQL (planned)</td></tr>
-<tr><td><code>src/fault.zig</code>, <code>src/log.zig</code></td><td>fault injection and the statement log (planned)</td></tr>
+<tr><td><code>src/server.zig</code></td><td>the listener, the frame loop of a connection, sessions and their leases, transactions and <code>STATUS</code>, the statement log (written)</td></tr>
+<tr><td><code>src/ewp.zig</code></td><td>the frames and the values of the Eve Wire Protocol for databases (written)</td></tr>
+<tr><td><code>src/types.zig</code>, <code>src/cells.zig</code></td><td>Eve types, error classes, the reading of the cells of a result (written)</td></tr>
+<tr><td><code>src/fault.zig</code></td><td>fault injection (written)</td></tr>
+<tr><td><code>src/client.zig</code></td><td>a client of the frames, for <code>--connect</code> (written)</td></tr>
+<tr><td><code>src/changes.zig</code></td><td>the changes of a flush turned into SQL (planned, 0.2)</td></tr>
 </tbody>
 </table>
 
@@ -236,8 +291,8 @@ evedb 0.0.1, DuckDB v1.5.6, self-check 42
 <table class="table table-bordered table-striped">
 <thead><tr><th>EveDB</th><th>With Eve</th><th>Content</th></tr></thead>
 <tbody>
-<tr><td>0.1</td><td>0.4 (data and database)</td><td>the test server: sessions, the protocol, Eve types, bulk loads and upserts, faults, statement log, snapshots</td></tr>
-<tr><td>0.2</td><td>0.5 (server)</td><td>several clients with tokens, import and export, the protocol code shared with the Eve server</td></tr>
+<tr><td>0.1 (built, 2026-10-17)</td><td>0.5 (server, level 6)</td><td>the test server: sessions and leases, the protocol, Eve types, <code>STATUS</code> after a broken commit, seven faults, statement log, snapshots, a token</td></tr>
+<tr><td>0.2</td><td>0.5 (server)</td><td>change sets and large results, bulk loads and upserts, import and export, service mode (<code>evedb serve -s</code>), the protocol code shared with the Eve server</td></tr>
 <tr><td>later</td><td></td><td>an analytic database for Eve: Parquet, large aggregates, users and rights</td></tr>
 </tbody>
 </table>
