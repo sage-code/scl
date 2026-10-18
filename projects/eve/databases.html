@@ -595,6 +595,55 @@ recover
 
 <p>In <code>recover</code>, <code>retry after 2s;</code> waits before it runs the job again, and <code>$error.attempt</code> counts the runs (1 for the first), so a retry has a limit: <code>retry after 2s if $error.transient and $error.attempt &lt; 5;</code>. See <a href="/projects/eve/exceptions.html">Exceptions</a>.</p>
 
+<h2 id="engines-files">Data engines and files</h2>
+
+<p>Eve has two engines for data in memory, and they meet only when you say so. <b>SQLite</b>, in a file or in <code>:memory:</code>, is the query engine: dynamic SQL, indexes, joins. A <b>columnar table</b> is the table of the computational pipelines: one array for each column (integers, floats, or one buffer of texts with an array of offsets), and a bit for each cell that says whether it holds a value or NULL. A filter, a sum or a minimum is one loop over one column, which is the kind of loop a processor runs fast.</p>
+
+<p>A database opened as <code>:memory:</code> is tuned when it is opened: the rollback journal stays in memory, nothing waits for the disk, temporary tables stay in memory, and the page cache is large. A file database keeps the defaults of SQLite.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Operation</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>count</code>, <code>sum</code>, <code>min</code>, <code>max</code> of a column</td><td>skip the NULL cells</td></tr>
+<tr><td><code>filter</code> a column with <code>=</code> <code>&lt;&gt;</code> <code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code></td><td>the numbers of the rows that match (a NULL never matches)</td></tr>
+<tr><td><code>take</code> a selection</td><td>a new table with those rows</td></tr>
+<tr><td><code>load</code> into SQLite</td><td>makes a table and inserts every row in one transaction; a date is stored as <code>YYYY-MM-DD</code></td></tr>
+<tr><td><code>store</code> a query</td><td>makes a columnar table from the rows of a <code>select</code></td></tr>
+</tbody>
+</table>
+
+<p>In a script a columnar table is a class derived from <code>Memory</code>. The fields are the columns, and a column is named by its field:</p>
+
+<pre><code>class Sales = {id: Integer, region: String, price: Real, paid: Logic, note: String?} &lt;: Memory;
+
+new s := Sales();
+s.add(1, "north", 2.5, True, null);
+s.add(2, "south", 10.0, False, "late");
+print s.price.sum();                          ** 12.5
+new big := s.take(s.price.filter("&gt;", 2.0));  ** a table of the rows that match
+new shop := database.connect("shop");
+s.load(shop, "sales");                        ** the explicit move into SQLite
+new back := Sales();
+back.store(shop, "select id, region, price, paid, note from sales where price &gt; ?", 2.0);</code></pre>
+
+<p>A field of type <code>Integer</code>, <code>Real</code>, <code>Logic</code> or <code>String</code> makes a column; <code>String?</code> and the like accept <code>null</code>. <code>add</code> takes one value for each field, and a row that does not fit changes nothing. The methods of a column are <code>count</code>, <code>sum</code>, <code>min</code>, <code>max</code>, <code>at</code> and <code>filter</code>; <code>filter</code> answers the list of the rows that match, and <code>take</code> turns such a list into a new table. <code>Decimal</code> and <code>Instant</code> fields have no column yet.</p>
+
+<h3 id="import-export">Importing and exporting files</h3>
+
+<p>Files come into a database with one command, also available as EDIT &gt; Import… in evetx:</p>
+
+<pre><code>eve db import shop.db customers.csv
+eve db import shop.db old_orders.dbf orders
+eve db export shop.db orders orders.json</code></pre>
+
+<p>The format is read from the extension: <code>.csv</code>, <code>.txt</code> (the delimiter is the one that appears most in the first line), <code>.json</code> (an array of objects) and <code>.dbf</code>. A spreadsheet (<code>.xls</code>, <code>.xlsx</code>) is not read yet: save it as CSV. The types of a column are found by looking at all its values: booleans, integers (<code>007</code> stays text), reals, dates, then text. An empty cell is NULL. A file that fails to import changes nothing.</p>
+
+<p>In a script the same import is a method of the connection: <code>shop.import("data/items.csv", "items")</code> loads the file as the new table <code>items</code> and answers the number of rows. It runs inside the transaction of the job, so <code>rollback;</code> undoes it with everything else.</p>
+
+<p>DBF is a legacy format. It is read as a stream of records and written from rows, and nothing more: it is never a table you edit or a place where data lives. Deleted records are skipped, and memo fields are read as the text <code>(memo)</code>.</p>
+
 <h2 id="drivers">Drivers and the Eve server</h2>
 
 <p>A driver is a Zig module that implements one interface: open, transactions, prepared statements, batches, bulk load, the catalog for the validation, the dialect and the classification of errors. The core, the ORM and the server never depend on a vendor. The order: SQLite (embedded) and PostgreSQL in version 0.4, with Supabase and Neon, which speak its protocol; MySQL and MariaDB, and Cloudflare D1 in 0.5; MongoDB later, with an API of its own; Oracle is postponed (backlog); SQL Server by the community, through the same interface.</p>

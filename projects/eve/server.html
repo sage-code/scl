@@ -123,7 +123,7 @@ for command in ["load sales.eve", "run sales.eve", "report"]:
 
 <h3 id="machine-folder">Machine folder</h3>
 
-<p><code>eve --setup &lt;folder&gt;</code> (short <code>-s</code>) chooses the machine. If the folder holds a configuration, the machine reads it. If not, <code>--setup</code> creates the folder, the configuration file <code>eve.cfg</code> and the sub-folders: a new machine, named after the folder, with the default values and ports that are free on this computer.</p>
+<p><code>eve --setup &lt;folder&gt;</code> (short <code>-e</code>) chooses the machine. If the folder holds a configuration, the machine reads it. If not, <code>--setup</code> creates the folder, the configuration file <code>eve.cfg</code> and the sub-folders: a new machine, named after the folder, with the default values and ports that are free on this computer.</p>
 
 <pre class="fixed">
 eve --setup ./evemachine/local              ** creates the machine "local", or reads it
@@ -236,7 +236,7 @@ $ eve --listen stop
 eve: stopped
 </pre>
 
-<p>The ports come from <code>eve.cfg</code> (<code>ipc_port</code>, <code>http_port</code>). A second machine on the same computer has its own file: <code>eve -s second.cfg --listen</code>.</p>
+<p>The ports come from <code>eve.cfg</code> (<code>ipc_port</code>, <code>http_port</code>). A second machine on the same computer has its own file: <code>eve -e second.cfg --listen</code>.</p>
 
 <p>Two options say where a command goes. <code>-loc</code> (<code>--local</code>) is local and never touches the network: with a machine on the IPC door the script runs there, and without one the command starts a new machine inside the process, runs, and exits. <code>-rem</code> (<code>--remote</code>) sends the command to the HTTP door of another machine, and it fails with the exit code 69 when nobody answers; it never falls back to a local run. A command with neither option is local, and <code>eve -x file.eve</code> alone is the fast way to run a script: it looks for no IPC socket and no HTTP port, and executes the file at once in its own process. The two client options have three letters, so they read as words: <code>-loc</code> local, <code>-rem</code> remote.</p>
 
@@ -424,6 +424,29 @@ end orders_api;
 <li>An error that a route does not recover becomes the response <code>500</code>; the message goes to the log, not to the browser.</li>
 </ul>
 
+<h2 id="service">Service Mode</h2>
+
+<p>Until now you ran <code>eve</code> in a terminal (the command line and the prompt) or in a window (<code>eve -ux</code>, <code>eve -tx</code>). A server has no one at the keyboard. <code>eve -s</code> starts the machine as a <b>service</b>: no prompt, nothing written on the screen, the doors of <code>eve.cfg</code> open, and a log file to read later. On Windows it is a service of the system; on Linux it is a daemon.</p>
+
+<pre><code>eve -s                 ** the machine starts in a process of its own, silent; the command ends with status 0
+eve -s eve.cfg         ** the same, with this configuration file
+eve --serve status     ** the machine answers: ipc and http are listening
+eve --serve stop       ** stop it (also: sc stop eve, kill -TERM, systemctl stop eve)</code></pre>
+
+<p>A word after <code>-s</code> that ends in <code>.cfg</code> is the configuration file of the service. <code>-s</code> means the service and nothing else: to give a configuration to a script or a command, write <code>-e</code> (<code>eve -e eve.cfg check a.eve</code>). Two files tell you what the service did: <code>&lt;runtime&gt;/eve-localhost-4042.log</code> (the doors, one line for each request, the stop) and <code>eve-localhost-4042.pid</code> (the number of the process, for an init system).</p>
+
+<table class="table table-bordered table-striped">
+<thead><tr><th>You start it</th><th>What runs</th></tr></thead>
+<tbody>
+<tr><td><code>eve -s</code> in a shell or a console</td><td>a new process, detached from the terminal; the command waits until the door answers and ends silent. A second <code>eve -s</code> says <code>already running</code> (status 75)</td></tr>
+<tr><td>the Windows Service Control Manager</td><td>the process itself is the service: <code>sc create eve binPath= "C:\eve\bin\eve.exe -s C:\eve\eve.cfg" start= auto</code>, then <code>sc start eve</code></td></tr>
+<tr><td><code>EVE_SERVICE=foreground eve -s</code></td><td>the process is the machine, in the foreground: for a container or a systemd unit of <code>Type=simple</code>; it ends on <code>SIGTERM</code></td></tr>
+<tr><td>systemd, the plain form</td><td><code>Type=forking</code>, <code>ExecStart=/opt/eve/bin/eve -s /etc/eve/eve.cfg</code>, <code>PIDFile=/run/eve-localhost-4042.pid</code></td></tr>
+</tbody>
+</table>
+
+<p>A service reads and writes as the user it runs as, not as you: give that user the folders of the project. The machine does not change its user or write to the Event Log yet (open points in <code>plan/design-service.md</code> section 17).</p>
+
 <h2 id="api">Eve API for AI</h2>
 
 <p><code>eve --api</code> starts the machine as an MCP server (Model Context Protocol, an open protocol based on JSON-RPC 2.0). An AI assistant connects to it, on its standard input and output, or over HTTP on the path <code>/mcp</code> of the <code>serve</code> port, and works with Eve directly: it checks a script, runs it, reads the errors and the run log, and generates the documentation. Every command of the machine is a tool of the API, for example:</p>
@@ -487,7 +510,7 @@ etl1.example.com {
 <tr><th>Command</th><th>Option</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>setup</code></td><td><code>-s</code>, <code>--setup &lt;folder&gt;</code></td><td>choose the machine of a folder, create it when missing, or read its configuration again</td></tr>
+<tr><td><code>setup</code></td><td><code>-e</code>, <code>--setup &lt;folder&gt;</code></td><td>choose the machine of a folder, create it when missing, or read its configuration again</td></tr>
 <tr><td><code>execute</code></td><td><code>-x &lt;file&gt;</code></td><td>parse and execute a script at once in this process, then exit; no machine is looked for</td></tr>
 <tr><td>(any command)</td><td><code>-c</code>, <code>--command "&lt;command&gt;"</code></td><td>send one command to a running machine and print its answer</td></tr>
 <tr><td><code>upload</code></td><td><code>-u</code>, <code>--upload &lt;file&gt;</code></td><td>send a source file to a machine, which compiles and keeps it</td></tr>
