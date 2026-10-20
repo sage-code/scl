@@ -47,6 +47,7 @@ const DEFAULT_ROUTES = [
   '/roadmap/pgp/functional.html',        // single-root; migrated from cse/paradigms.html content
   '/roadmap/tek/linux-systems.html',     // single-root; migrated from cse/platforms.html content
   '/roadmap/sml/basic-concepts.html',    // single-root; rewired from legacy unwired page
+  '/roadmap/hpc/computers.html',         // single-root; rewired from legacy unwired page
 ];
 
 function readSidecar(route) {

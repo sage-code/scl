@@ -9,12 +9,12 @@ The 33 `"kind": "language"` tracks are out of scope here — `tracking/roadmaps-
 
 | Track | Status | Topics | Unwired | Placeholders | Practice Layer | Priority Tier & Action |
 | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **`hpc`** | `not_updated` | 10 | 10 | 1 | None | **Tier 0**: Wire 8 real pages (`labId: 'hpc'`), resolve/prune 2 orphan files (`cloud.html`, `tools.html`), fix typos. |
 | **`osd`** | `not_implemented` | 8 | 5 | 5 | None | **Tier 1**: Author 5 missing lessons (`code-review`, `documentation`, `ci-cd`, `release-management`, `maintainership`) + wire shell. |
 | **`dba`** | `not_implemented` | 11 | 0 | 9 | None | **Tier 1**: Author 9 placeholder lessons from index scope; add `demo/` with runnable SQL scripts. |
 | **`tek`** | `not_implemented` | 12 | 0 | 8 | None | **Tier 2**: Author 8 placeholder lessons (`infra-as-code`, `sre-practices`, etc.); add shell automation demos. |
 | **`dsl`** | `converted` | 40 | 0 | 0 | Ref | **Tier 3 (Polish)**: Add `demo/` language snippets & `samples.html` study projects. |
 | **`pgp`** | `converted` | 66 | 0 | 0 | Demo | **Tier 3 (Polish)**: Add `references.html` and `samples.html`. |
+| **`hpc`** | `converted` | 8 | 0 | 0 | None | ✅ **Complete (Wiring & Cleanup)**: All 8 topic pages wired, 2 orphan files deleted, typos fixed, Puppeteer verified. |
 | **`sml`** | `converted` | 10 | 0 | 0 | None | ✅ **Complete (Wiring)**: All 10 topic pages wired with dynamic sidebars and regression tested. |
 | **`dsa`** | `converted` | 24 | 0 | 0 | Full | ✅ **Complete**: 24 topics, `demo/` (10 programs), `demo_examples.html`, `references.html`, `samples.html`. |
 | **`cse`** | `converted` | 17 | 0 | 0 | Ref | ✅ **Complete**: 17 topics, fundamentals survey + direct pointers to deep-dive tracks, `references.html`. |
@@ -79,31 +79,8 @@ Every engineering track falls into one or more of these. Fixing (A) is mechanica
 Sizes/counts below are a snapshot from this planning pass. Regenerate before trusting exact
 numbers if time has passed.
 
-### Tier 0 — mechanical wiring fix only (real content already exists)
-
-#### `hpc` — Computer Hardware (10 topic pages listed in `index.html`, **0 of 8 real ones wired**)
-Eight of the ten `.html` files in `roadmap/hpc/` are linked from `index.html` and have real,
-substantial content (13–31 KB) but an empty, never-populated `<ul id="bookmark-list">` — the
-shell exists but no `topic-loader.js`/`TOPIC_CONFIG` script runs. This is **the original bug
-report from this session, mechanically**: an empty sidebar box that looks broken to a reader.
-Fix identically to `sml` above (`labId: 'hpc'`).
-Files needing wiring: `backup`, `computers`, `connectors`, `disk`, `gpu`, `infrastructure`,
-`networks`, `power`.
-
-**Two orphaned files** (failure mode C): `cloud.html` and `tools.html` exist in
-`roadmap/hpc/` but are **not linked from `index.html`** and are not real content — both
-contain the same copy-pasted "you are a hacker... this is a template page you should not
-find" joke stub under the heading "HW Tutorial" (unrelated to either filename). `cloud.html`
-also has a stray unclosed `<a >` tag and `tools.html` an unclosed `<a href="...">` before
-`</li>`. Decide: (a) delete both and their `data/*.json` if any, since HPC's other 8 topics
-already cover the track's stated scope, or (b) write real "Cloud Computing" and "Dev/Test
-Tools" lessons and wire them into `index.html`'s phase table. Given every other engineering
-track skews toward *fewer, deeper* topics, (a) is the safer default unless a reviewer wants
-HPC to cover cloud/tooling explicitly.
-Also spot-fix while in these files: `computers.html` has "Compoenents" (heading typo),
-"assable" → "assemble", "les" → "less", and a missing space in "software.With" — the same
-class of typo already fixed in `scala`/`plsql` this session; do a full typo pass across all
-8 real HPC pages while wiring them (don't assume `computers.html` is the only one affected).
+### Tier 0 — mechanical wiring fix only (COMPLETED)
+Both `sml` and `hpc` have been fully rewired, standardized, regression-tested with Puppeteer, and verified. See Completed Engineering Tracks below.
 
 #### ✅ `cse` — Software Engineering / CS Fundamentals — DONE (2026-09-29)
 Was 18 topics, 10 unwired, plus 8 more with the *wrong* wiring (`/common/topic-loader.js`,
@@ -204,6 +181,14 @@ candidate (reuse the `bash` track's demo conventions if useful — see `TODO.md`
 entry).
 
 ### Completed Engineering Tracks
+
+#### ✅ `hpc` — Computer Hardware — DONE (2026-10-20)
+All 8 real topic pages wired with modern sidebar scripts (`assets/js/topic-loader.js` + `window.TOPIC_CONFIG` with `labId: 'hpc'`) and `<aside class="side-bar">` shell.
+- Deleted 2 unlinked/orphaned joke stubs: `cloud.html` and `tools.html` and their `data/*.json` sidecars (resolving failure mode C and 2 build warnings).
+- Spot-fixed typos across pages: `Compoenents` → `Components`, `assable` → `assemble`, `software.With` → `software. With`, `more or les` → `more or less`, `tabe-striped` → `table-striped` (x2), `peribherals` → `peripherals`.
+- Fixed canonical URLs, updated index links to canonical absolute paths `/roadmap/hpc/<topic>.html`, and linked modern head assets (`content-code.css`, `content-tables.css`, `bootstrap-icons.min.css`).
+- Single-root sidebars verified in Puppeteer regression guard (`scripts/tools/check_sidebar_render.js`).
+- Status moved from `not_updated` to `converted`.
 
 #### ✅ `sml` — SML / Statistics & Machine Learning — DONE (2026-10-20)
 All 10 topic pages wired with modern sidebar shell, `<aside class="side-bar">`, `window.TOPIC_CONFIG` (`labId: 'sml'`), and `assets/js/topic-loader.js`.

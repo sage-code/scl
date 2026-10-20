@@ -235,6 +235,15 @@ All 10 SML topic pages had real content but were missing dynamic sidebar shells 
 - Added `/roadmap/sml/basic-concepts.html` to Puppeteer regression guard in `scripts/tools/check_sidebar_render.js`.
 - Verified with `npm run test`, `npm run build`, `npm run check`, and `npm run check:sidebar` (0 warnings, 0 failures). Status moved from `not_updated` to `converted`.
 
+## ✅ hpc — Computer Hardware Topic Sidebars Wired, Orphans Pruned & Standardized (2026-10-20)
+All 8 real HPC topic pages had substantial content but were missing dynamic sidebar scripts (rendered with empty sidebar):
+- Added `window.TOPIC_CONFIG` (`labId: 'hpc'`), `/assets/js/topic-loader.js`, and standardized the `<aside class="side-bar">` shell across all 8 pages (`infrastructure`, `computers`, `gpu`, `power`, `disk`, `backup`, `connectors`, `networks`).
+- Pruned 2 unlinked/orphaned joke placeholder stubs (`cloud.html` and `tools.html`) along with their `data/*.json` sidecars, resolving failure mode C and removing 2 heading-debt warnings.
+- Fixed typos across pages (`Compoenents` → `Components`, `assable` → `assemble`, `software.With` → `software. With`, `more or les` → `more or less`, `tabe-striped` → `table-striped`, `peribherals` → `peripherals`).
+- Updated index links to canonical absolute `/roadmap/hpc/<topic>.html` paths, fixed asset paths to `/assets/...`, and updated canonical URLs.
+- Added `/roadmap/hpc/computers.html` to Puppeteer regression guard in `scripts/tools/check_sidebar_render.js`.
+- Verified with `npm run test`, `npm run build`, `npm run check`, and `npm run check:sidebar` (0 warnings, 0 failures). Status moved from `not_updated` to `converted`.
+
 ## Engineering Tracks — plan drafted and partially executed (2026-09-29)
 The 9 `"kind": "engineering"` tracks (`cse`, `dba`, `dsa`, `dsl`, `hpc`, `osd`, `pgp`, `sml`,
 `tek`) were reviewed track by track; **full findings and a prioritized execution plan live in
