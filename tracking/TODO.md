@@ -227,17 +227,24 @@ literals, `#notfound` instead of `%notfound`, a function assigning to its own na
   source in `scripts/tools/sitemap.py` (17 occurrences) and regenerated with `python
   scripts/tools/sitemap.py` (full mode) + `npm run build:full` to republish `public/`.
 
-## Engineering Tracks — plan drafted, not yet executed (2026-09-29)
+## ✅ sml — Topic Sidebars Wired & Standardized (2026-10-20)
+All 10 SML topic pages had real content but were missing dynamic sidebar shells and scripts (rendered without a sidebar):
+- Added standard `<aside class="side-bar">` shell, `window.TOPIC_CONFIG` (`labId: 'sml'`), and `assets/js/topic-loader.js` to all 10 pages (`analysis`, `basic-concepts`, `cleaning`, `collection`, `deep-learning`, `ethical-issues`, `life-cycle`, `machine-learning`, `storage`, `visualization`).
+- Cleaned legacy hardcoded bookmark nav in `basic-concepts.html`.
+- Updated canonical URLs, secured external links, and linked modern CSS (`content-code.css`, `content-tables.css`).
+- Added `/roadmap/sml/basic-concepts.html` to Puppeteer regression guard in `scripts/tools/check_sidebar_render.js`.
+- Verified with `npm run test`, `npm run build`, `npm run check`, and `npm run check:sidebar` (0 warnings, 0 failures). Status moved from `not_updated` to `converted`.
+
+## Engineering Tracks — plan drafted and partially executed (2026-09-29)
 The 9 `"kind": "engineering"` tracks (`cse`, `dba`, `dsa`, `dsl`, `hpc`, `osd`, `pgp`, `sml`,
 `tek`) were reviewed track by track; **full findings and a prioritized execution plan live in
 `tracking/ENGINEERING_PLAN.md`** — read that file before picking up any engineering-track
-work. Headline finding: several tracks that `roadmaps-status.json` previously called
-"converted" were actually near-empty — `dsa` and `tek` are 100% templated placeholder content
-despite having correct sidebar wiring and a professional phase-organized `index.html`; `sml`
-and `hpc` have substantial real content but **zero** pages include `topic-loader.js`, so their
-sidebars never render (the same failure a reader sees as "empty sidebar" — mechanically
-different from the scala/plsql bug above, same symptom). The status generator itself was
-blind to both of these until this pass (see below).
+work. Headline finding: `cse`, `dsa`, and `pgp` are now complete (converted with demos/references).
+Remaining tracks need specific fixes: `sml` and `hpc` have real content but **zero** pages include
+`topic-loader.js` (unwired sidebars); `osd`, `dba`, and `tek` have placeholder lessons needing authoring;
+`dsl` is converted but needs practice/demo layer.
+The status generator itself was updated to track unwired pages and generates `tracking/roadmaps-summary.json`
+for context-efficient audits.
 
 ## generate_roadmaps_status.py — classifier fixes (2026-09-29)
 The script had two blind spots that produced false "converted" verdicts:

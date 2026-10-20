@@ -10,14 +10,17 @@ Classification per track:
                    or topic pages are unstubbed "work in progress"/"to be replaced")
 """
 
+import argparse
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = os.path.join(ROOT, "roadmap")
 OUT = os.path.join(ROOT, "tracking", "roadmaps-status.json")
+OUT_SUMMARY = os.path.join(ROOT, "tracking", "roadmaps-summary.json")
 
 SKIP_PAGES = {
     "login.html", "register.html", "profile.html",
@@ -366,11 +369,92 @@ def main():
         "tracks": sorted_by_track,
     }
 
+    action_needed = []
+    for item in sorted_by_track:
+        if (
+            item["status"] != "converted"
+            or item["wip_pages"]
+            or item["unwired_sidebar_pages"]
+            or item["missing_sidebar_jsons"]
+            or item["has_legacy_topic_html"]
+            or item["navigation_status"] != "standard"
+        ):
+            action_needed.append(
+                {
+                    "track": item["track"],
+                    "kind": item["kind"],
+                    "status": item["status"],
+                    "topic_pages": item["topic_pages"],
+                    "wip_pages": item["wip_pages"],
+                    "unwired_sidebar_pages": item["unwired_sidebar_pages"],
+                    "issues": item["issues"],
+                    "navigation_status": item["navigation_status"],
+                    "navigation_issues": item["navigation_issues"],
+                }
+            )
+
+    engineering_tracks = {
+        item["track"]: {
+            "status": item["status"],
+            "topics": item["topic_pages"],
+            "wip": len(item["wip_pages"]),
+            "unwired": len(item["unwired_sidebar_pages"]),
+            "issues": item["issues"],
+        }
+        for item in sorted_by_track
+        if item.get("kind") == "engineering"
+    }
+
+    summary_doc = {
+        "generated": document["generated"],
+        "about": "Compact roadmap migration summary for token-efficient agent and CLI usage",
+        "summary": document["summary"],
+        "navigation_summary": document["navigation_summary"],
+        "status_groups": document["status_groups"],
+        "engineering_tracks": engineering_tracks,
+        "action_needed": action_needed,
+    }
+
     with open(OUT, "w", encoding="utf-8") as handle:
         json.dump(document, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
 
+    with open(OUT_SUMMARY, "w", encoding="utf-8") as handle:
+        json.dump(summary_doc, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+
+    parser = argparse.ArgumentParser(description="Generate roadmap migration status.")
+    parser.add_argument("--track", help="Print status for a specific track as JSON")
+    parser.add_argument("--engineering", action="store_true", help="Print engineering tracks summary as JSON")
+    parser.add_argument("--summary", action="store_true", help="Print compact summary JSON")
+    parser.add_argument("--compact", action="store_true", help="Print compact CLI status table")
+    args = parser.parse_args()
+
+    if args.track:
+        match = next((t for t in sorted_by_track if t["track"] == args.track), None)
+        if match:
+            print(json.dumps(match, indent=2))
+        else:
+            print(json.dumps({"error": f"Track '{args.track}' not found"}, indent=2))
+        return
+
+    if args.engineering:
+        print(json.dumps(engineering_tracks, indent=2))
+        return
+
+    if args.summary:
+        print(json.dumps(summary_doc, indent=2))
+        return
+
+    if args.compact:
+        print(f"Roadmaps: {document['summary']}")
+        print("\nAction Needed:")
+        for item in action_needed:
+            print(f"- {item['track']:10} [{item['kind']:11}] status: {item['status']:15} topics: {item['topic_pages']:2} unwired: {len(item['unwired_sidebar_pages']):2} wip: {len(item['wip_pages']):2}")
+        return
+
     print("Wrote", os.path.relpath(OUT, ROOT))
+    print("Wrote", os.path.relpath(OUT_SUMMARY, ROOT))
     print("Summary:", json.dumps(document["summary"]))
     for group, names in document["status_groups"].items():
         print("{} ({}) : {}".format(group, len(names), ", ".join(names)))
