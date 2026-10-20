@@ -3,17 +3,26 @@
 **Scope:** the 9 tracks with `"kind": "engineering"` in `roadmap/roadmap-index.json`:
 `cse`, `dba`, `dsa`, `dsl`, `hpc`, `osd`, `pgp`, `sml`, `tek`.
 
-The 33 `"kind": "language"` tracks are out of scope here — per the session that produced
-this plan, those have been reviewed track by track (most recently `scala` and `plsql`,
-see their `git log`) and are in materially better shape. `tracking/roadmaps-status.json`
-covers both kinds; this document narrows to engineering.
+The 33 `"kind": "language"` tracks are out of scope here — `tracking/roadmaps-status.json` covers both kinds; this document focuses on engineering tracks.
 
-**Why a new document instead of extending `TODO.md`:** `TODO.md` is a chronological log of
+## Executive Status Matrix
+
+| Track | Status | Topics | Unwired | Placeholders | Practice Layer | Priority Tier & Action |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| **`hpc`** | `not_updated` | 10 | 10 | 1 | None | **Tier 0**: Wire 8 real pages (`labId: 'hpc'`), resolve/prune 2 orphan files (`cloud.html`, `tools.html`), fix typos. |
+| **`osd`** | `not_implemented` | 8 | 5 | 5 | None | **Tier 1**: Author 5 missing lessons (`code-review`, `documentation`, `ci-cd`, `release-management`, `maintainership`) + wire shell. |
+| **`dba`** | `not_implemented` | 11 | 0 | 9 | None | **Tier 1**: Author 9 placeholder lessons from index scope; add `demo/` with runnable SQL scripts. |
+| **`tek`** | `not_implemented` | 12 | 0 | 8 | None | **Tier 2**: Author 8 placeholder lessons (`infra-as-code`, `sre-practices`, etc.); add shell automation demos. |
+| **`dsl`** | `converted` | 40 | 0 | 0 | Ref | **Tier 3 (Polish)**: Add `demo/` language snippets & `samples.html` study projects. |
+| **`pgp`** | `converted` | 66 | 0 | 0 | Demo | **Tier 3 (Polish)**: Add `references.html` and `samples.html`. |
+| **`sml`** | `converted` | 10 | 0 | 0 | None | ✅ **Complete (Wiring)**: All 10 topic pages wired with dynamic sidebars and regression tested. |
+| **`dsa`** | `converted` | 24 | 0 | 0 | Full | ✅ **Complete**: 24 topics, `demo/` (10 programs), `demo_examples.html`, `references.html`, `samples.html`. |
+| **`cse`** | `converted` | 17 | 0 | 0 | Ref | ✅ **Complete**: 17 topics, fundamentals survey + direct pointers to deep-dive tracks, `references.html`. |
+
+**Why a dedicated document instead of extending `TODO.md`:** `TODO.md` is a chronological log of
 completed language-track rebuilds. Engineering tracks need a different axis — most of them
 are *structurally wired but empty*, which is a distinct failure mode from anything `TODO.md`
-was tracking. Once a track's page in this plan reaches "done", fold a short entry into
-`TODO.md` the same way `bash`/`css`/`odin`/etc. were folded in, and delete that track's
-section here (or mark it done — see the closing checklist).
+was tracking. Once a track reaches "done", fold a short entry into `TODO.md` and mark it done here.
 
 ## How this was verified (reusable methodology)
 
@@ -71,20 +80,6 @@ Sizes/counts below are a snapshot from this planning pass. Regenerate before tru
 numbers if time has passed.
 
 ### Tier 0 — mechanical wiring fix only (real content already exists)
-
-#### `sml` — SML / Statistics & Machine Learning (10 topics, **0 of 10 wired**)
-All ten topic pages have substantial, real content (9.7–20 KB each — `basic-concepts.html`
-and `storage.html` are the largest). **None** include `topic-loader.js`; none have the
-`<aside class="side-bar">` shell at all — the page goes straight from the header to an `<h2>`.
-This is the highest-ROI fix in this whole plan: add the standard shell (copy it from any fixed
-`roadmap/scala/*.html` page — header include, `<aside>`/`bookmark-list`, `<main
-id="main-content">`, `window.TOPIC_CONFIG` script block with `labId: 'sml'`, and the
-`sage.js`/`topic-loader.js` script tags) around each page's existing `<main>` content. Do not
-rewrite the lesson text. `data/<topic>.json` sidecars already exist — verify each still
-anchors correctly against the (unchanged) heading `id`s once the shell is added.
-Files: `analysis`, `basic-concepts`, `cleaning`, `collection`, `deep-learning`,
-`ethical-issues`, `life-cycle`, `machine-learning`, `storage`, `visualization`.
-No `demo/`, `references.html`, or `samples.html` — worth adding once wiring is fixed (§ below).
 
 #### `hpc` — Computer Hardware (10 topic pages listed in `index.html`, **0 of 8 real ones wired**)
 Eight of the ten `.html` files in `roadmap/hpc/` are linked from `index.html` and have real,
@@ -190,26 +185,6 @@ Remaining topics: `code-review`, `documentation`, `ci-cd`, `release-management`,
 
 ### Tier 2 — full-track authoring (near-zero real content, but solid bones)
 
-#### 🚧 `dsa` — Data Structures & Algorithms (10 topics, **9 of 10 still placeholders**)
-**Update (2026-09-29): `data-structures.html` is done** — written by migrating and expanding
-`cse/structures.html`'s content (arrays, linked lists, stacks, queues, heaps, trees, graphs,
-hash tables, plus the "exotic structures" section: Bloom filters, HyperLogLog, interval trees,
-tries, wavelet trees). Cross-links added to the still-placeholder `complexity-analysis`,
-`trees-heaps`, `graph-algorithms`, and `sorting` pages so the wiring is ready the moment
-those are written. The other 9 pages are still the templated stub; sidebar wiring is already
-correct throughout, so each remaining page is a pure content-authoring task. This is the
-**strongest demo-folder candidate of all nine tracks** — algorithms are inherently code, and a
-`demo/` folder of small, runnable, language-agnostic-but-concrete programs (pick one language
-— Python reads clearest for pseudocode-adjacent algorithm teaching, or reuse the site's own
-`dsl`/`plsql`/`scala` Prism grammars if another language fits the site's voice better) would
-make this the flagship engineering track. Remaining topics and their promised scope (from
-`index.html`): `algorithms`, `complexity-analysis`, `searching`, `sorting`, `trees-heaps`,
-`graph-algorithms`, `dynamic-programming`, `greedy-algorithms`, `advanced-techniques`.
-Suggested authoring order: `complexity-analysis` next (everything else depends on Big-O
-vocabulary), then `searching`/`sorting` (concrete, teachable with small demos), then
-`trees-heaps` → `graph-algorithms` → `dynamic-programming` → `greedy-algorithms` →
-`advanced-techniques` last (it explicitly depends on DP + greedy being taught first).
-
 #### 🚧 `tek` — TechOps (12 topics, **8 of 12 still placeholders**)
 **Update (2026-09-29): four pages done** — `linux-systems.html` (migrated from
 `cse/platforms.html`'s boot/file-system/distributions/command-line content, refocused from
@@ -227,6 +202,25 @@ PHASE 2 `version-control-cicd` → ~~`containers-virtualization`~~ → `infra-as
 ~~`security-hardening`~~ → `sre-practices`. `shell-automation` is a natural demo-folder
 candidate (reuse the `bash` track's demo conventions if useful — see `TODO.md`'s `bash`
 entry).
+
+### Completed Engineering Tracks
+
+#### ✅ `sml` — SML / Statistics & Machine Learning — DONE (2026-10-20)
+All 10 topic pages wired with modern sidebar shell, `<aside class="side-bar">`, `window.TOPIC_CONFIG` (`labId: 'sml'`), and `assets/js/topic-loader.js`.
+- Cleaned legacy hardcoded bookmark nav in `basic-concepts.html`.
+- Updated canonical URLs, secured external links, and added modern CSS assets.
+- Single-root sidebars verified in Puppeteer regression guard (`scripts/tools/check_sidebar_render.js`).
+- Status moved from `not_updated` to `converted`.
+
+#### ✅ `dsa` — Data Structures & Algorithms — DONE (2026-09-29)
+Completed across 24 topic pages across 4 phases with full practice layer:
+- Phase 1 Foundations: `algorithms`, `complexity-analysis`, `recursion`, `backtracking`.
+- Phase 2 Core Linear Data Structures: `arrays-slices`, `linked-lists`, `stacks-queues`, `hash-tables`.
+- Phase 3 Hierarchical & Graph Structures: `trees`, `heaps`, `advanced-trees`, `graphs`.
+- Phase 4 Algorithmic Paradigms: `searching`, `sorting`, `string-algorithms`, `graph-algorithms`, `dynamic-programming`, `greedy-algorithms`, `advanced-techniques`.
+- Advanced / Production topics: `data-structures`, `production-structures`.
+- Practice & Reference: 10 standalone Python demo programs (`demo/01..10`), `demo_examples.html` code index, `samples.html` study projects, and `references.html` official links.
+- Sidebar wiring: 100% wired with hierarchical `data/*.json` sidecars; classified as `converted`.
 
 #### ✅ `pgp` — Programming Paradigms — DONE (2026-09-29)
 All four lessons written by migrating and expanding `cse/paradigms.html`'s content (which
