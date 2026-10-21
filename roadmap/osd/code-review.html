@@ -2,22 +2,245 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="OSD topic placeholder: Code Review.">
+  <meta name="description" content="Code review principles, checklists, etiquette, and merge strategies for open source engineering.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="code review, open source, pull request, conventional comments, merge strategy, git">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>OSD: Code Review</title>
-  <link rel="canonical" href="https://sagecode.org/roadmap/osd/code-review/">
+  <title>OSD: Code Review in Open Source</title>
+  <link rel="canonical" href="https://sagecode.org/roadmap/osd/code-review.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
+
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <h1 id="code-review">Code Review</h1>
-  <p class="alert alert-secondary">Dummy topic page. Planned content: review quality standards, checklists, and collaboration patterns.</p>
-  <p><a href="/roadmap/osd/">Return to OSD Roadmap</a></p>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="code-review">Code Review in Open Source</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Code review is the primary collaborative gateway in open source software. It safeguards maintainability, catches architectural regressions, prevents security vulnerabilities, and builds contributor alignment across distributed teams.
+        </div>
+
+        <h2 id="purpose-and-culture">Review Purpose and Culture</h2>
+        <p>In proprietary software, code review often takes place between co-located colleagues with shared context. In open source, reviews occur asynchronously between distributed developers across different time zones, linguistic backgrounds, and experience levels. High code review standards preserve the integrity of the project while maintaining an inviting environment for contributors.</p>
+
+        <h3 id="trust-and-quality">Quality and Community Trust</h3>
+        <p>Every merged pull request becomes the permanent maintenance responsibility of the project maintainers. Reviewing code is not merely auditing syntax; it is an agreement to support the incoming change in production. A disciplined review process builds user and adopter trust by ensuring that bugs are trapped before release tags are created.</p>
+
+        <h3 id="review-etiquette">Reviewer and Author Etiquette</h3>
+        <p>Effective reviews separate the code from the author. Reviewers must frame observations objectively and suggest actionable improvements rather than criticizing implementation choices. Authors must view feedback as a collaborative refinement process rather than personal criticism.</p>
+        <ul>
+          <li><strong>Explain the rationale:</strong> Never comment "Don't do this" without explaining the architectural trade-off or risk.</li>
+          <li><strong>Distinguish blockers from nits:</strong> Clearly state whether a comment represents a blocking correctness requirement or an optional style preference.</li>
+          <li><strong>Acknowledge solid work:</strong> Point out clean solutions, well-structured tests, and comprehensive descriptions.</li>
+        </ul>
+
+        <h3 id="conventional-comments">Conventional Comments Standard</h3>
+        <p>To eliminate ambiguity in tone and severity across asynchronous communication, modern open source teams adopt the <strong>Conventional Comments</strong> labeling schema:</p>
+        <pre><code class="language-markdown">&lt;!-- Put the label first so readers can scan priority and intent. --&gt;
+**suggestion (non-blocking):** Extract this helper into `utils/format.js` so it can be reused in the CLI runner.
+
+**issue (blocking):** This database query runs inside a loop, creating an N+1 query pattern whose latency grows with the number of records. Can we batch these lookups?
+
+**question:** Why did we choose `sync` here instead of the non-blocking async file stream?
+
+**nitpick (non-blocking):** Missing trailing semicolon on line 42 to match the repo's ESLint rule.</code></pre>
+
+        <h2 id="review-checklist">The Comprehensive Review Checklist</h2>
+        <p>Structured checklists reduce cognitive fatigue and prevent reviewers from overlooking critical functional and non-functional requirements.</p>
+
+        <h3 id="correctness-logic">Correctness and Edge Cases</h3>
+        <p>Verify that the proposed patch fulfills the exact specification described in the linked issue. Check boundary conditions:</p>
+        <ul>
+          <li>Empty arrays, null values, undefined attributes, and unexpected input types.</li>
+          <li>Off-by-one errors in index offsets and range loops.</li>
+          <li>Proper handling of asynchronous race conditions and promise rejections.</li>
+        </ul>
+
+        <h3 id="security-validation">Security and Input Validation</h3>
+        <p>Open source code is audited by external security researchers and attackers alike. Check for common security weaknesses:</p>
+        <ul>
+          <li><strong>Injection vectors:</strong> SQL injection, command execution, and cross-site scripting (XSS).</li>
+          <li><strong>Secret exposure:</strong> Accidental addition of API tokens, private keys, or environment variables in commits.</li>
+          <li><strong>Resource exhaustion:</strong> Unbounded buffer allocations, infinite loops, and unthrottled endpoints.</li>
+        </ul>
+
+        <h3 id="testing-coverage">Automated Test Verification</h3>
+        <p>A pull request without tests is incomplete. Reviewers must confirm:</p>
+        <ul>
+          <li>Unit tests directly exercise the modified or newly introduced functions.</li>
+          <li>A regression test reproduces the reported bug before applying the fix.</li>
+          <li>Tests are deterministic and do not introduce flaky network or timing dependencies.</li>
+        </ul>
+
+        <h3 id="performance-impact">Performance and Compatibility</h3>
+        <p>Assess runtime algorithmic complexity and backward compatibility. Does this change alter public method signatures? Does it introduce deprecation warnings? Does it add large runtime dependencies that bloat distribution binaries?</p>
+
+        <h2 id="pull-request-anatomy">Pull Request Structure</h2>
+        <p>A well-crafted pull request reduces review turnaround time by providing the context required to evaluate changes quickly.</p>
+
+        <h3 id="atomic-commits">Atomic Commits and Scope</h3>
+        <p>Pull requests must focus on a single conceptual change. Avoid combining a feature implementation with unrelated codebase reformatting. If refactoring is necessary, submit it as a distinct preparatory pull request.</p>
+
+        <h3 id="pr-descriptions">Descriptive PR Templates</h3>
+        <p>Projects standardize expectations using a <code>.github/pull_request_template.md</code>. Comments in this example guide authors; remove them from the rendered template if they are not useful to contributors:</p>
+        <pre><code class="language-markdown">&lt;!-- State the user-visible problem and the intent of the change. --&gt;
+## Description
+Briefly describe the purpose of this change and the problem it resolves.
+
+&lt;!-- Link the issue so maintainers can trace the reason for the change. --&gt;
+## Related Issue
+Fixes #142
+
+## Type of Change
+- [ ] Bug fix (non-breaking change fixing an issue)
+- [ ] New feature (non-breaking change adding functionality)
+- [ ] Breaking change (fix or feature changing existing behavior)
+
+## Verification Steps
+1. Run `npm test`
+2. Execute `node bin/cli.js --dry-run` and inspect stdout output.</code></pre>
+
+        <h3 id="reproducible-verification">Verification and Reproduction Steps</h3>
+        <p>Authors should provide copy-pasteable reproduction instructions, before/after benchmarking figures, or screenshots for UI modifications. Demonstrating that the change has been verified locally saves valuable maintainer time.</p>
+
+        <h2 id="review-workflows">Review Execution and Tools</h2>
+        <p>Navigating modern code review tooling ensures seamless communication and clean git history.</p>
+
+        <h3 id="suggested-changes">Inline Suggested Changes</h3>
+        <p>GitHub and GitLab provide inline suggestion markup. Instead of describing a line modification in text, propose the exact diff:</p>
+        <pre><code class="language-markdown">```suggestion
+// Keep a minimum timeout and use 3 seconds when no value is supplied.
+const timeoutMs = Math.max(100, options.timeout || 3000);
+```</code></pre>
+        <p>The author can apply this suggested change directly via a one-click commit from the web interface.</p>
+
+        <h3 id="automated-vs-human">Automated Linters vs Human Review</h3>
+        <p>Human reviewer bandwidth should be spent on architectural soundess, semantic clarity, and domain correctness. Mechanical validation &mdash; code style, formatting, import ordering, linting, and unit test suites &mdash; must be relegated to automated CI status checks.</p>
+
+        <h3 id="merge-strategies">Merge Strategies: Squash, Rebase, Merge</h3>
+        <table class="table table-bordered table-striped table-dark">
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Git Operation</th>
+              <th>Best Use Case in Open Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Squash and Merge</strong></td>
+              <td>Combines all PR commits into a single commit on <code>main</code></td>
+              <td>Default for community contributions; condenses messy work-in-progress commits into a clean historical entry.</td>
+            </tr>
+            <tr>
+              <td><strong>Rebase and Merge</strong></td>
+              <td>Applies individual PR commits linearly onto the tip of <code>main</code></td>
+              <td>Useful when a pull request consists of carefully curated, independent atomic commits.</td>
+            </tr>
+            <tr>
+              <td><strong>Merge Commit</strong></td>
+              <td>Creates an explicit two-parent merge commit (<code>--no-ff</code>)</td>
+              <td>Used when merging major release branches or large feature tracks to preserve branch topology.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2 id="practice-lab">Code Review Practice Lab</h2>
+        <p>Review this simulated contribution patch and draft professional feedback using the conventions learned above. The comments mark requirements that the implementation currently overlooks.</p>
+
+        <h3 id="scenario-walkthrough">Mock Pull Request Audit</h3>
+        <p>Analyze this proposed helper function submitted in a community PR. It intends to provide a default avatar and normalize the supplied URL, but it deliberately omits input and scheme checks:</p>
+        <pre><code class="language-javascript line-numbers">// PR #88: Add user avatar parser
+function parseAvatar(userData) {
+  // TODO: Handle missing userData, profile, and whitespace-only avatar values.
+  var url = userData.profile.avatar;
+  if (url == "") {
+    // TODO: Use a secure fallback and avoid relying on an empty-string check alone.
+    return "http://cdn.example.com/default.png";
+  }
+  // TODO: Preserve valid HTTPS URLs instead of blindly adding another scheme.
+  return "https://" + url;
+}</code></pre>
+        <p>Identified defects during audit:</p>
+        <ol>
+          <li><code>userData</code> or <code>userData.profile</code> can be <code>null</code> or <code>undefined</code>, causing an unhandled <code>TypeError: Cannot read property 'avatar' of undefined</code>.</li>
+          <li>If <code>url</code> already begins with <code>https://</code> or <code>http://</code>, string concatenation produces invalid URLs like <code>https://https://example.com/pic.jpg</code>.</li>
+          <li>Use of legacy <code>var</code> instead of <code>const</code>.</li>
+        </ol>
+
+        <h3 id="review-summary-report">Constructive Feedback Formulations</h3>
+        <p>Formulate professional feedback incorporating conventional comment labels and inline suggestions:</p>
+        <pre><code class="language-markdown">&lt;!-- State the impact, then offer a concrete path to resolve it. --&gt;
+**issue (blocking):** If `userData` or `userData.profile` is missing, this function throws an unhandled TypeError. Let's handle absent values and accept only HTTPS URLs.
+
+```suggestion
+function parseAvatar(userData) {
+  // Use a deterministic fallback when configuration is absent or blank.
+  const avatar = userData?.profile?.avatar?.trim();
+  if (!avatar) {
+    return 'https://cdn.example.com/default.png';
+  }
+
+  // Normalize bare hostnames, then reject malformed or non-HTTPS URLs.
+  const candidate = /^https:\/\//i.test(avatar) ? avatar : `https://${avatar}`;
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === 'https:' ? parsed.toString() : 'https://cdn.example.com/default.png';
+  } catch {
+    return 'https://cdn.example.com/default.png';
+  }
+}
+```
+
+&lt;!-- Name boundary cases that should become focused regression assertions. --&gt;
+**suggestion:** Could we add unit test assertions in `test/avatar.test.js` covering `undefined` profile input and absolute URLs?</code></pre>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<script src="/sage.js" defer></script>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'osd',
+    topicId: 'code-review',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
 </body>
 </html>
