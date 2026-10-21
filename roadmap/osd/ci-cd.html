@@ -2,22 +2,199 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="OSD topic placeholder: CI/CD Basics.">
+  <meta name="description" content="Design dependable CI/CD workflows for open source projects, from pull request checks to controlled production releases.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="continuous integration, continuous delivery, continuous deployment, GitHub Actions, release engineering">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>OSD: CI/CD Basics</title>
-  <link rel="canonical" href="https://sagecode.org/roadmap/osd/ci-cd/">
+  <link rel="canonical" href="https://sagecode.org/roadmap/osd/ci-cd.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <h1 id="cicd-basics">CI/CD Basics</h1>
-  <p class="alert alert-secondary">Dummy topic page. Planned content: automated checks, deployment pipelines, and rollback safety.</p>
-  <p><a href="/roadmap/osd/">Return to OSD Roadmap</a></p>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="cicd-basics">CI/CD Basics</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          Continuous integration and delivery turn a change into a tested, traceable artifact. A good pipeline shortens feedback while preserving a clear boundary between code that is merely proposed, code that is releasable, and code that is serving users.
+        </div>
+
+        <h2 id="delivery-model">The Delivery Model</h2>
+        <p><strong>Continuous integration (CI)</strong> repeatedly integrates small changes and runs automated checks against them. <strong>Continuous delivery</strong> keeps validated changes ready to release, while a person or policy decides when production deployment occurs. <strong>Continuous deployment</strong> automatically releases every change that passes the required safeguards. These terms describe different release decisions, not different brands of pipeline software.</p>
+
+        <h3 id="pipeline-stages">Model the Stages</h3>
+        <p>A typical path is source change, validation, artifact creation, release approval, and deployment. A failed required check stops promotion; it must not be converted into a green result by an unconditional step. The diagram shows promotion of the same build output rather than rebuilding separately for each environment.</p>
+        <figure class="text-center my-4">
+          <img src="/roadmap/osd/img/ci-cd-pipeline.svg" alt="A CI/CD path from a source change through automated checks and a versioned artifact to approval and production deployment" class="img-fluid rounded border" width="960" height="280">
+          <figcaption class="small text-secondary mt-2">Promote one verified artifact through controlled release stages.</figcaption>
+        </figure>
+
+        <h3 id="feedback-loop">Keep Feedback Fast and Useful</h3>
+        <p>Run cheap, deterministic checks early: formatting, static analysis, unit tests, and a build. Add slower integration or browser tests where they cover meaningful risk. Each check should identify the commit, report a useful failure, and be reproducible locally or in a documented environment.</p>
+
+        <h2 id="workflow-definition">Defining a Workflow</h2>
+        <p>A workflow-as-code file makes automation reviewable beside the application. This GitHub Actions example runs on proposed changes and on updates to the main branch. It assumes the repository declares its Node runtime and package scripts.</p>
+        <pre><code class="language-yaml"># Run the same required checks for proposed changes and main-branch updates.
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    # Use a clean hosted runner so results do not depend on a maintainer's machine.
+    runs-on: ubuntu-latest
+    steps:
+      # Review action updates; full commit SHAs provide immutable version pinning.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # npm ci installs exactly the dependency graph committed in the lockfile.
+      - run: npm ci
+      # Keep required checks explicit so a missing script fails visibly.
+      - run: npm test
+      - run: npm run build</code></pre>
+
+        <h3 id="triggers-and-jobs">Choose Triggers and Jobs</h3>
+        <p>Use pull-request events for pre-merge validation and branch pushes for integration feedback. Split independent checks into jobs when parallel execution saves meaningful time, but avoid duplicating expensive setup without reason. A job dependency expresses a real gate: a release job should depend on the validation job rather than merely appearing later in the file.</p>
+
+        <h3 id="required-checks">Make Required Checks Enforceable</h3>
+        <p>Configure branch protection or repository rules to require the intended status checks before merging. A workflow that runs successfully but is not required can be bypassed by merging while pending or failing. Give each check a stable name, and update the rule when job names change.</p>
+
+        <h2 id="artifact-integrity">Artifacts and Reproducible Builds</h2>
+        <p>An artifact is the output that is tested, stored, and ultimately delivered: for example, a package, container image, static site, or signed release archive. Record its source revision and build metadata. For stronger supply-chain integrity, preserve checksums or attestations and verify them at promotion time.</p>
+
+        <h3 id="build-once">Build Once, Promote Deliberately</h3>
+        <p>Build once from a known revision and promote that same artifact between environments. Rebuilding separately for staging and production can produce different bytes due to dependency drift, timestamps, or changing external inputs. Use immutable version tags or digests instead of mutable names such as <code>latest</code> when selecting a release.</p>
+
+        <h3 id="dependencies-and-cache">Manage Dependencies and Caches</h3>
+        <p>Commit lockfiles and use the package manager's reproducible install mode in CI. Caches are performance hints, not trusted sources of correctness: a cache miss must still produce a valid build, and cache keys should include relevant lockfiles and runtime versions. Avoid caching credentials, private build outputs across trust boundaries, or data that could allow one untrusted workflow to influence another.</p>
+
+        <h2 id="release-safety">Release and Deployment Safety</h2>
+        <p>Separate the permission to validate a pull request from the permission to change production. Use a protected environment for approval or deployment restrictions, and grant each job only the permissions it needs. Do not expose deployment credentials to code from an untrusted fork.</p>
+
+        <h3 id="staged-release">Gate a Production Release</h3>
+        <p>This workflow demonstrates a deployable static-site path for repositories configured to use GitHub Pages. The production job runs only after tests and build succeed on the protected default branch, and it deploys the artifact created by the build job.</p>
+        <pre><code class="language-yaml"># Publish the already-built site only after validation succeeds on main.
+name: Publish site
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Build from the pushed revision using the committed dependency lockfile.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      # Upload the generated static site as the immutable handoff to deployment.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    # The dependency is the release gate; no deployment occurs after a failed build.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: $&#123;&#123; steps.deployment.outputs.page_url &#125;&#125;
+    steps:
+      # Deploy the artifact created above instead of building a second copy.
+      - id: deployment
+        uses: actions/deploy-pages@v4</code></pre>
+
+        <h3 id="rollback-and-observability">Plan for Rollback and Verification</h3>
+        <p>A deployment is not complete when a command exits successfully. Verify that the new version is healthy using a smoke test, health signal, or a small canary before expanding traffic. Define how to restore the previous known-good artifact or roll forward with a fix. Keep deployment logs, release identifiers, and operator actions available for incident review.</p>
+
+        <h2 id="pipeline-security">Pipeline Security and Reliability</h2>
+        <p>CI runs code, installs dependencies, and may hold credentials, so its trust boundaries matter. Treat workflow files and third-party actions as executable code that requires review. The <a href="https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions" target="_blank" rel="noopener noreferrer nofollow">GitHub Actions security hardening guide</a> explains platform-specific controls; apply equivalent least-privilege and isolation principles to other CI systems.</p>
+
+        <h3 id="least-privilege">Limit Credentials and Permissions</h3>
+        <p>Grant read-only permissions to validation jobs unless a specific step needs more. Store deployment secrets in the platform's secret manager, scope them to protected environments, and rotate them when exposure is suspected. Prefer short-lived identity federation where supported. Never print tokens in logs or run privileged deployment steps for untrusted pull-request code.</p>
+
+        <h3 id="failure-handling">Make Failures Actionable</h3>
+        <p>Set explicit timeouts for jobs that can hang, report test output as an artifact when useful, and distinguish flaky tests from deterministic failures. Do not routinely retry every failing test until it passes: retries can hide races and infrastructure problems. Track failure rate and queue time, then fix the slow or unreliable stage rather than weakening the gate.</p>
+
+        <h2 id="practice-lab">Practice Lab</h2>
+        <p>Use a repository with a package lockfile and a build command, or adapt the sequence to the project's actual toolchain. Make the validation workflow required before trying a release workflow.</p>
+
+        <h3 id="lab-validation">Create and Verify CI</h3>
+        <ol>
+          <li>Add a workflow that runs the repository's documented install, test, and build commands on pull requests.</li>
+          <li>Open a branch with a deliberate failing test; confirm the check fails and blocks the protected merge.</li>
+          <li>Fix the test, rerun the workflow, and compare the reported commit with the revision under review.</li>
+          <li>Inspect logs and permissions to confirm no deployment secret is available to the pull-request job.</li>
+        </ol>
+
+        <h3 id="lab-release">Promote and Recover an Artifact</h3>
+        <ol>
+          <li>Publish a versioned build artifact only after validation succeeds on the protected branch.</li>
+          <li>Deploy it to a staging environment and run a smoke test against a stable health endpoint.</li>
+          <li>Require an authorized production approval, then deploy the same artifact rather than rebuilding it.</li>
+          <li>Practice restoring the previous artifact in a non-production environment and record the exact recovery steps.</li>
+        </ol>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<script src="/sage.js" defer></script>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'osd',
+    topicId: 'ci-cd',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
 </body>
 </html>
