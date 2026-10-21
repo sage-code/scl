@@ -9,7 +9,7 @@ The 33 `"kind": "language"` tracks are out of scope here — `tracking/roadmaps-
 
 | Track | Status | Topics | Unwired | Placeholders | Practice Layer | Priority Tier & Action |
 | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **`osd`** | `not_implemented` | 8 | 5 | 5 | None | **Tier 1**: Author 5 missing lessons (`code-review`, `documentation`, `ci-cd`, `release-management`, `maintainership`) + wire shell. |
+| **`osd`** | `not_updated` | 8 | 3 | 3 | None | **Tier 1**: Author 3 remaining lessons (`ci-cd`, `release-management`, `maintainership`) + wire their shells. |
 | **`dba`** | `not_implemented` | 11 | 0 | 9 | None | **Tier 1**: Author 9 placeholder lessons from index scope; add `demo/` with runnable SQL scripts. |
 | **`tek`** | `not_implemented` | 12 | 0 | 8 | None | **Tier 2**: Author 8 placeholder lessons (`infra-as-code`, `sre-practices`, etc.); add shell automation demos. |
 | **`dsl`** | `converted` | 40 | 0 | 0 | Ref | **Tier 3 (Polish)**: Add `demo/` language snippets & `samples.html` study projects. |
@@ -146,19 +146,15 @@ No `demo/`, `references.html`, or `samples.html` yet — see § Practice & Refer
 DBA is a strong demo-folder candidate (runnable SQL scripts per lesson, same pattern as
 `roadmap/plsql/demo/`).
 
-#### 🚧 `osd` — Open Source Development (8 topics, **5 of 8 still placeholders**)
-**Update (2026-09-29): two more pages done**, both migrated from CSE (`git-workflow.html`
-from `cse/version.html`'s Git-specific sections — architecture, commands, branching, forking;
-`testing.html` from `cse/testing.html`'s full testing-strategy content — paradigms, the
-anatomy of a functional test, CI, TDD). `foundations.html` (19.9 KB, correctly wired) remains
-the third real lesson. The other five are still the exact `"Dummy topic page. Planned
-content: ..."` stub — each stub's meta description already states the intended scope, e.g.
-`ci-cd.html`: "automated checks, deployment pipelines, and rollback safety." Use `index.html`'s
-descriptions (quoted in full above, § Per-track status data) as the outline for each. These 5
-also need the sidebar shell added (failure mode A) at the same time content is written —
-don't wire an empty stub, write the real lesson directly into the correct shell.
-Remaining topics: `code-review`, `documentation`, `ci-cd`, `release-management`,
-`maintainership`.
+#### 🚧 `osd` — Open Source Development (8 topics, **3 of 8 still placeholders**)
+**Update (2026-10-20): `code-review.html` and `documentation.html` are now authored and wired**
+with hierarchical sidebars. The earlier completed lessons remain: `git-workflow.html` and
+`testing.html` were migrated from CSE, and `foundations.html` is the third real lesson. The
+three remaining pages (`ci-cd.html`, `release-management.html`, and `maintainership.html`) are
+still `"Dummy topic page. Planned content: ..."` stubs and lack the sidebar shell. Their meta
+descriptions and the corresponding index rows define each lesson's scope. Write the lesson and
+wire its topic loader and hierarchical sidebar together; do not leave an empty wired stub.
+The generated status remains `not_updated` until all three lessons and sidebars are complete.
 
 ### Tier 2 — full-track authoring (near-zero real content, but solid bones)
 
