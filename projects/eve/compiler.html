@@ -87,49 +87,65 @@ Eve is an open language standard, not a single product. It is designed to have m
 <tbody>
 <tr><td><code>lexical/keywords.json</code></td><td>Reserved words and their category</td><td>Lexer</td></tr>
 <tr><td><code>lexical/operators.json</code></td><td>Symbols, precedence, associativity</td><td>Lexer, expression parser</td></tr>
+<tr><td><code>lexical/delimiters.json</code></td><td>Delimiters, brackets and their closing pairs</td><td>Lexer, parser</td></tr>
 <tr><td><code>syntax/grammar.md</code></td><td>Complete grammar in EBNF</td><td>Parser</td></tr>
-<tr><td><code>semantics/types.json</code></td><td>Types, default values, coercion rules</td><td>Type checker</td></tr>
-<tr><td><code>library/builtins.json</code></td><td>Built-in functions and signatures</td><td>Runtime</td></tr>
+<tr><td><code>semantics/types.md</code></td><td>Types, default values, coercion rules</td><td>Type checker</td></tr>
+<tr><td><code>library/</code></td><td>One page for each library and the signatures of its members</td><td>Runtime, type checker</td></tr>
+<tr><td><code>features/levelN.json</code></td><td>The features of each level and their stage</td><td>Documents, tests</td></tr>
 </tbody>
 </table>
 
-<p>The specification is a work in progress (version 0.1-draft). Where it is not complete yet, this tutorial is the reference. When the two disagree, the specification wins.</p>
+<p>The specification follows the tests. Where it is not complete yet, this tutorial is the reference; when the two disagree, the specification wins.</p>
 
 <h3 id="conformance">Conformance Levels</h3>
 
-<p>The <code>test/</code> folder of the repository holds acceptance tests in three levels. Every test is an Eve driver, so it runs as a standalone program.</p>
+<p>The <code>test/</code> folder of the repository holds the acceptance tests in seven levels, one for each version of the language. Every test is an Eve program, or a project folder with a driver, so it runs as a standalone program. Each suite has a tracking file <code>test/levelN/levelN.json</code>; the field <code>features</code> of each test names the features of the specification that it checks.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
 <tr><th>Level</th><th>File names</th><th>What it proves</th></tr>
 </thead>
 <tbody>
-<tr><td>1</td><td><code>a01_feature.eve</code></td><td>Basic syntax: one script per test, one feature per script</td></tr>
-<tr><td>2</td><td><code>b01_feature.eve</code></td><td>Automation drivers with aspects: several related tests per driver</td></tr>
-<tr><td>3</td><td><code>c01_feature.eve</code></td><td>Advanced features: files, databases, network, libraries</td></tr>
+<tr><td>1</td><td><code>a01_feature.eve</code></td><td>Scripts: declarations, expressions, control flow, types, collections, strings, jobs and error recovery</td></tr>
+<tr><td>2</td><td><code>b01_feature.eve</code>, project folders</td><td>Functions, procedures, lambdas, closures and aspects</td></tr>
+<tr><td>3</td><td><code>c01_feature.eve</code>, project folders</td><td>Modules, imports, local libraries, classes and methods</td></tr>
+<tr><td>4</td><td><code>d01_feature.eve</code></td><td>Parallel aspects, channels, tasks, deadlines and cancellation</td></tr>
+<tr><td>5</td><td><code>e01_feature.eve</code></td><td>The data layer: records, tables, generators, generic functions and overloading, the macro</td></tr>
+<tr><td>6</td><td><code>f01_feature.eve</code></td><td>The Eve machine and the server: net, http, routes, services, the machine API</td></tr>
+<tr><td>7</td><td><code>g01_feature.eve</code></td><td>The web: HTML templates and the Eve database</td></tr>
 </tbody>
 </table>
+
+<p>Run the tests with <code>python script/runtest.py</code>: a level number (<code>1</code> to <code>7</code>), <code>all</code>, <code>smoke</code>, or the name or path of one test. The option <code>--eve &lt;path&gt;</code> runs the same tests on another implementation, so the suite is the conformance test of any compiler, not only of this one.</p>
+
+<p>The exit codes of a test are part of the conformance (D-010): 0 normal (<code>over;</code>), 1 forced abnormal exit (<code>panic;</code>: bad parameters or environment, the job fails), 2 error (failed <code>expect</code>), 3 failed <code>assert</code>, 4 unhandled error. A syntax error gives 65 when the script is only checked. The expectations of a test are in its <code>/*@expect*/</code> blocks, or in a <code>expect.json</code> for an older project.</p>
 
 <h3 id="status">Status of the Reference Implementation</h3>
 
-<p>The first implementation is the Eve virtual machine, written in Zig (<code>evevm/</code>, built to <code>bin/eve.exe</code>). <b>Compiler stage: Level 1 implemented.</b> It parses every script into a syntax tree, checks the whole tree (the static check, below), and only then executes it with a tree-walking interpreter.</p>
+<p>The reference implementation is the Eve virtual machine, written in Zig (<code>code/evevm/</code>, built to <code>bin/eve.exe</code>). <b>Version 0.0.8: all seven levels are drafted, and 457 of 457 conformance, smoke and bytecode tests pass.</b> The machine parses a script into a syntax tree, checks the whole tree (the static check, below), and runs it with one of <b>two engines</b>: the tree walker, which is the reference, and the bytecode machine (<code>--engine bc</code>), which translates the script to bytecode and runs it.</p>
 
 <table class="table table-bordered table-striped">
 <thead>
-<tr><th>Level</th><th>Status</th><th>Tests</th></tr>
+<tr><th>Suite</th><th>Status</th><th>Tests</th></tr>
 </thead>
 <tbody>
-<tr><td>1</td><td><b>Implemented</b></td><td>65 of 65 pass (<code>test/level1/</code>), 2026-10-08</td></tr>
-<tr><td>2</td><td><b>Implemented</b>: functions, procedures, lambdas, closures and aspects</td><td>63 of 63 pass (<code>test/level2/</code>), 2026-10-08</td></tr>
-<tr><td>3</td><td><b>Implemented</b>: modules, imports, managed and direct modules, classes and methods</td><td>50 of 50 pass (<code>test/level3/</code>), 2026-10-08</td></tr>
+<tr><td>Level 1</td><td><b>Validated</b>: scripts and the core language</td><td>90 of 90 pass</td></tr>
+<tr><td>Level 2</td><td><b>Validated</b>: functions, procedures, lambdas, closures and aspects</td><td>81 of 81 pass</td></tr>
+<tr><td>Level 3</td><td><b>Validated</b>: modules, imports, classes and methods</td><td>62 of 62 pass</td></tr>
+<tr><td>Level 4</td><td><b>Validated</b>: parallel aspects, channels, tasks and cancellation</td><td>50 of 50 pass</td></tr>
+<tr><td>Level 5</td><td><b>Drafted</b>: the data layer; record-table mapping is validated, the rest is partial</td><td>117 of 117 pass</td></tr>
+<tr><td>Level 6</td><td><b>Drafted</b>: the machine and the server</td><td>14 of 14 pass</td></tr>
+<tr><td>Level 7</td><td><b>Drafted</b>: the web and the Eve database</td><td>2 of 2 pass</td></tr>
+<tr><td>Smoke</td><td><b>Validated</b>: the tools of the machine</td><td>21 of 21 pass</td></tr>
+<tr><td>Bytecode</td><td>The bytecode machine has its own tests</td><td>20 of 20 pass</td></tr>
 </tbody>
 </table>
 
-<p>Level 1 covers aspects (every program is an aspect), <code>new</code>, <code>let</code> and <code>set</code>, operators and precedence, strings with placeholders and formats, <code>if</code>, <code>while</code>, <code>loop</code>, <code>for</code>, <code>match</code>, labels, ordinals, lists, arrays, matrices, slices and views, DataSets, DataMaps, Objects, regular expressions (a small subset), <code>expect</code> and <code>assert</code>, <code>over</code>, <code>exit</code>, <code>panic</code>, <code>raise</code>, <code>defer</code>, <code>recover</code>, <code>finalize</code>, and jobs with <code>retry</code>, <code>resume</code> and <code>stop</code>. Functions, procedures, lambdas and closures (level 2), and classes, methods, Date, Time and the operator <code>as</code> (level 3) are not part of level 1.</p>
+<p>Level 1 covers aspects (every program is a primary aspect), <code>new</code>, <code>let</code> and <code>set</code>, operators and precedence, strings with placeholders and formats, <code>if</code>, <code>while</code>, <code>loop</code>, <code>for</code>, <code>match</code>, labels, ordinals, lists, arrays, matrices, slices and views, DataSets, DataMaps, Objects, regular expressions (a small subset), <code>expect</code> and <code>assert</code>, <code>over</code>, <code>exit</code>, <code>panic</code>, <code>raise</code>, <code>defer</code>, <code>recover</code>, <code>finalize</code>, and jobs with <code>retry</code>, <code>resume</code> and <code>stop</code>. Functions, procedures, lambdas and closures (level 2), classes, methods, Date, Time and the operator <code>as</code> (level 3), parallel aspects (level 4), the data layer (level 5) and the server (levels 6 and 7) build on it.</p>
 
 <h4 id="limitations">Known limitations of the reference implementation</h4>
 
-<p>These are the places where <code>bin/eve.exe</code> is simpler than the specification. The tests of level 1 pass with them; a later version removes them. Another implementation may do better, but it must pass the same tests.</p>
+<p>These are the places where <code>bin/eve.exe</code> is simpler than the specification. The tests pass with them; a later version removes them. Another implementation may do better, but it must pass the same tests.</p>
 
 <ul>
   <li><b>Numbers.</b> <code>Decimal</code> and <code>Float</code> are stored as a 64-bit float, so a Decimal is not exact; <code>Huge</code> is a 64-bit integer, not an arbitrary-size number. The results of arithmetic on a typed number (<code>Byte</code>, <code>Short</code>, <code>Decimal</code>) are an <code>Integer</code> or a <code>Real</code>: the type suffix is kept only by the literal.</li>
@@ -140,7 +156,7 @@ Eve is an open language standard, not a single product. It is designed to have m
   <li><b>Ranges.</b> A range with real limits, an open end or a real step is a domain: it answers <code>in</code> but can't be iterated. The step of a domain is a grid that starts at 0: <code>4 in (1..8)(2)</code> is true.</li>
   <li><b>Entities.</b> The character references <code>&amp;name;</code> of a string know the five marked characters and the lower case Greek letters only.</li>
   <li><b>Exit code 5</b> (unexpected stop: Ctrl+C, a time-out, an outage) is reserved; the machine does not set it yet, and no test checks it.</li>
-  <li><b>Levels 2 to 7</b> (modules, aspects, imports, parallel groups, databases, the server) are not implemented.</li>
+  <li><b>Drafted features are partial</b>: 45 of 144 features are drafted, among them the exception module and the system variables at level 1; the page of each feature lists what is missing.</li>
 </ul>
 
 <p>The machine is also driven by a series of commands. <code>eve --stdio</code> starts a machine that reads its commands as JSON-RPC messages on its standard input, one per line, so one process serves the whole series. A workflow loads one script at a time (<code>load</code>, <code>parse</code>, <code>run</code>, <code>errors</code>, <code>ast</code>, <code>inspect</code>, <code>status</code>), ends with <code>vm.stop</code>, and leaves reports in a folder: the output, the errors, the syntax tree and an introspection report for every script. <code>python script/workflow.py 1</code> runs a whole level this way and compares it with <code>expect.json</code>. The commands are described in <code>manual/usage.md</code>.</p>

@@ -355,34 +355,42 @@ end list_remove;
 
 <h3 id="list-methods">List methods</h3>
 
-<p>A List is a class, so it has all required methods and properties to be used in algorithms and expressions. We do not yet foresee all methods but maybe these would be useful. Here is a minimalist suggestion for some methods.</p>
+<p>A function is called on a value, <code>xs.sort()</code>, and gives a new value; it never changes the list it is called on. The changes in place are the statements of the language (<code>let xs &lt;+ x</code>, <code>xs.delete(x)</code>). The function of an <code>Array</code> gives an <code>Array</code>, of a <code>List</code> a <code>List</code>, of a <code>DataSet</code> a <code>List</code>.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Function</th><th>Result</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sort()</code></td><td>list</td><td>the elements in ascending order; the sort is stable</td></tr>
+<tr><td><code>sort(by: f)</code></td><td>list</td><td>ordered by the key <code>f(x)</code> of each element</td></tr>
+<tr><td><code>sort(descending: True)</code></td><td>list</td><td>in descending order; <code>by:</code> and <code>descending:</code> can be given together</td></tr>
+<tr><td><code>reverse()</code></td><td>list</td><td>the elements in the opposite order</td></tr>
+<tr><td><code>sum()</code></td><td>number</td><td>the sum; <code>0</code> for an empty list</td></tr>
+<tr><td><code>min()</code>, <code>max()</code></td><td>element</td><td>the smallest or the largest; an empty list is an error</td></tr>
+<tr><td><code>contains(x)</code></td><td><code>Logic</code></td><td>is an element equal to <code>x</code></td></tr>
+<tr><td><code>index_of(x)</code></td><td><code>Integer</code></td><td>the index of the first element equal to <code>x</code>, from 1; <code>0</code> when there is none</td></tr>
+<tr><td><code>unique()</code></td><td>list</td><td>the elements without the repeated ones; the first stays, the order is kept</td></tr>
+<tr><td><code>take(n)</code>, <code>drop(n)</code></td><td>list</td><td>the first <code>n</code> elements, or all but the first <code>n</code></td></tr>
+<tr><td><code>zip(other)</code></td><td>list</td><td>two-element lists of the elements at the same index; as long as the shorter one</td></tr>
+<tr><td><code>map(f)</code></td><td>list</td><td><code>f(x)</code> for each element</td></tr>
+<tr><td><code>filter(f)</code></td><td>list</td><td>the elements for which <code>f(x)</code> is <code>True</code></td></tr>
+<tr><td><code>reduce(start, f)</code></td><td>value</td><td><code>f(a, x)</code> for each element, from <code>start</code></td></tr>
+<tr><td><code>any(f)</code>, <code>all(f)</code></td><td><code>Logic</code></td><td>is <code>f(x)</code> true for one element, or for all of them</td></tr>
+<tr><td><code>join(sep)</code></td><td><code>String</code></td><td>the elements as text, separated by <code>sep</code></td></tr>
+</tbody>
+</table>
+
+<p>The elements of <code>sort</code>, <code>min</code> and <code>max</code> are compared with <code>compare</code>: numbers with numbers, texts with texts, symbols with symbols. <code>unique</code> and <code>contains</code> use <code>==</code>, which compares collections and objects by their content.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-List.empty;  ** true/false
-List.full;   ** true/false
-List.capacity; ** list with capacity
-</code></pre>
-
-<h4>join() method</h4>
-
-<p>The join method receive a list and convert elements into a string separated be specified character.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-#call List.join() demo
 process main is
-  new str := (1,2,3).join(',');
-  expect str == "1,2,3";
-return;
-</code></pre>
-
-<p><b>split() method</b>&nbsp;The split method is actually a method of a String, that create a List of strings by splitting a long string into parts. Usually you split by comma, but any symbol can be used. The separator is removed and will not be part of the resulting list.</p>
-
-<pre class="line-numbers"><code class="language-eve">
-** string split demo
-process main is
-  ** split creates a list of strings
-  new lst := "1,2,3".split(',');
-  expect lst == ("1","2","3");
+  new xs := (3, 1, 2);
+  print xs.sort();                     ** (1,2,3)
+  print xs.sort(descending: True);     ** (3,2,1)
+  print ("bb", "a", "ccc").sort(by: (s) =&gt; (s.length()));   ** (a,bb,ccc)
+  print xs.map((x) =&gt; (x * 2)).sum(); ** 12
+  print (1,2,3).join(',');             ** 1,2,3
 return;
 </code></pre>
 
@@ -1260,6 +1268,28 @@ end map_update;
 {}
 {"birds":5,"dogs":1}
 </pre>
+
+<h4>Merge and invert</h4>
+
+<p>A function of a map gives a new map; it never changes the map it is called on. <code>merge</code> joins two maps: when a key is in both, the value of the argument wins. <code>invert</code> swaps keys and values; the values must be texts or whole numbers, and two keys with the same value are an error.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Function</th><th>Result</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>merge(other)</code></td><td><code>DataMap</code></td><td>a new map with the entries of both; for a key in both, the value of <code>other</code></td></tr>
+<tr><td><code>invert()</code></td><td><code>DataMap</code></td><td>a new map with the values as keys and the keys as values</td></tr>
+</tbody>
+</table>
+
+<pre class="line-numbers"><code class="language-eve">
+process main is
+  new a := {"x": 1, "y": 2};
+  print a.merge({"y": 20, "z": 30});   ** {"x":1,"y":20,"z":30}
+  print {"a": 1, "b": 2}.invert();     ** {1:"a",2:"b"}
+return;
+</code></pre>
 
 <h3 id="scanning-items">Iteration of Map items</h3>
 <p>Collections have common methods that enable traversal using&nbsp;<em>for</em>&nbsp;loop.</p>

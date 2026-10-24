@@ -47,21 +47,24 @@
 <h1 id="eve-commands">Eve Commands</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Eve enable direct interaction with system commands and shell scripts. This make Eve a true scripting language. You can call a script using: "call" command with parameters and pipeline operators. 
+Eve enables direct interaction with system commands and shell scripts. This makes Eve a true scripting language. You can call a script with the <code>call</code> statement, or start a program without a shell with <code>os.run!</code>.
 </div>
 
 <h2 id="system-variables">System variables</h2>
 
-<p>System variables start with prefix $. You can export Eve shared variables to the operating system using "export" command. When you work with files and folders, the system security is effective. You can't access the folders or the files over which you have no user rights.</p>
+<p>System variables start with the prefix <code>$</code>. Every environment variable of the operating system is visible as <code>$NAME</code>. There is no <code>export</code> statement: a program started with <code>os.run!</code> receives extra variables through its <code>env</code> argument. When you work with files and folders, the system security is effective: you can't access a file over which you have no user rights.</p>
 
-<p>These are several system variables available by default in Eve. These change automatically sometimes as an effect of the commands. </p>
+<p>These system variables are available by default in Eve:</p>
 
 <ul>
-   <li>$CWD  = is the current working folder;</li>
-   <li>$HOME = is the user home directory;</li>
+   <li><code>$OS_PWD</code>: the current working folder, read-only;</li>
+   <li><code>$HOME</code>: the home directory of the user;</li>
+   <li><code>$EVE_LIB</code>: the <code>lib</code> folder of the project;</li>
+   <li><code>$EVE_OUT</code>: the output folder of the log files (<code>out</code> by default);</li>
+   <li><code>$NAME</code>: any environment variable, for example <code>$PATH</code>.</li>
 </ul>
 
-<p>All the system variables are listed in <a href="/projects/eve/syntax.html#variables">System Variables</a>.</p>
+<p>All the system variables are listed in <a href="/projects/eve/vm.html#vm-variables">System Variables</a>.</p>
 
 <h2 id="shell-command">Shell command</h2>
 
@@ -123,40 +126,38 @@ do
 done &lt; /dev/stdin
 </code></pre>
 
-<h2 id="os-run">Programs without a shell: os.run</h2>
+<h2 id="os-run">Programs without a shell: os.run!</h2>
 
-<p>At level 5 the module <code>os</code> starts a program from an argument list, without a shell: there is no quoting problem and no injection. <code>call</code> stays for a whole command line.</p>
+<p>The module <code>os</code> starts a program from an argument list, without a shell: there is no quoting problem and no injection. <code>call</code> stays for a whole command line. The name ends with <code>!</code> because the result depends on the machine, like a file read.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-new r := os.run("git", ("status", "--short"), cwd: "work");
-print "exit {r.code}";
+new r := os.run!("git", ("status", "--short"), "work");
+print "exit {r.status}";
 print r.out;
 </code></pre>
 
-<p><code>os.run(command, arguments, cwd: dir)</code> gives a record <code>{code: Integer, out: String, err: String}</code>. Use it whenever the arguments are built from data, as in an ETL job that calls a compressor or a loader. The database administration commands (<code>db list</code>, <code>db sql</code>, <code>db describe</code>, <code>db migrate</code>, <code>db validate</code>) are machine commands; see <a href="/projects/eve/databases.html#procedures">Databases</a>.</p>
+<p><code>os.run!(command, args, cwd)</code> starts <code>command</code> with the arguments of the list, each a <code>String</code>, in the folder <code>cwd</code> (<code>""</code> means here), waits for it and gives a <code>ProcessResult</code> with the fields <code>status</code>, <code>out</code> and <code>err</code>. The standard input of the child is closed. Two more arguments are optional: <code>timeout_ms</code> kills the child after that many milliseconds (the status is then 124), and <code>env</code> is a map of <code>String</code> to <code>String</code> added to the environment of the child. A program that can not be started gives status 127 and the reason in <code>err</code>; it is not an error of the language, because a script often wants to test it.</p>
 
-<h2 id="using-classes">Using classes</h2>
+<p>Use it whenever the arguments are built from data, as in an ETL job that calls a compressor or a loader. The database administration commands (<code>db list</code>, <code>db sql</code>, <code>db describe</code>, <code>db migrate</code>, <code>db validate</code>) are machine commands; see <a href="/projects/eve/databases.html#procedures">Databases</a>.</p>
 
-<p>Eve is using classes that simulate the operating system functionality. These classes are not yet designed. These system classes are loaded automatically, you do not have to import anything when you use them.</p>
+<h2 id="using-classes">Listing a folder with fs</h2>
 
-<h4>Example:</h4>
-<p>The next example demonstrates how to use class Files to read a directory for files. Notice we do not use shell command to do it, we simply create a list of files.</p>
+<p>Do not read a folder through a shell command. The module <code>fs</code> does it directly: <code>fs.list!</code> gives the names in a folder, and <code>fs.read!</code> reads a file as text. There is no <code>Folder</code> class in Eve 0.0.8.</p>
 
 <pre class="line-numbers"><code class="language-eve">
-# listing files in folder "test"
+# listing the files of a folder
 primary aspect folder_test is
-  set files: ()File;
-  set folder: Folder;
   process main is
-    let folder := Folder($HOME/"test"); 
-    loop 
-      new file: File;
-    for file in folder.files() do
-      print file.name;
+    new folder := $HOME / "test";
+    new files := fs.list!(folder);
+    for file in files do
+      print file;
     done;
   return;
 end folder_test;
 </code></pre>
+
+<p><code>fs.list!</code> gives a list of <code>String</code> names; the operator <code>/</code> joins two parts of a path. See <a href="/projects/eve/etl.html">Files and ETL</a> for the other functions of <code>fs</code>.</p>
 
 <!-- work in progress-->
 

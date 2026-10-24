@@ -45,74 +45,31 @@
 This is a library that is imported by default into the language. We do not have to use import. It contains built-in functions that can be implemented in Eve or in other language. The only thing required is signature. The modules that connect a program to the machine are in the <a href="/projects/eve/syslib.html">System Library</a>.
 </div>
 
-<h2 id="built-in-functions">Built IN functions:</h2>
+<h2 id="built-in-functions">Built-in names</h2>
+
+<p>These names need no import and no library file: the virtual machine provides them. A later version may write some of them in a library module that the machine loads on its own; the names and these rules do not change when that happens.</p>
+
 <table class="table table-bordered table-striped">
 <thead>
-<tr>
-<th>Function</th>
-<th>Description</th>
-</tr>
+<tr><th>Name</th><th>Form</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>length</td>
-<td>return capacity of the string</td>
-</tr>
-<tr>
-<td>count</td>
-<td>return number of true symbols and spaces except ending spaces</td>
-</tr>
-<tr>
-<td>truncate</td>
-<td>reduce the capacity of the string to specified dimension</td>
-</tr>
-<tr>
-<td>fill</td>
-<td>replace all characters in string with same periodic characters</td>
-</tr>
-<tr>
-<td>erase</td>
-<td>erase all characters in a string and replace them with spaces</td>
-</tr>
-<tr>
-<td>find</td>
-<td>search one sub-string in string</td>
-</tr>
-<tr>
-<td>replace</td>
-<td>replace a sub-string in a string with another</td>
-</tr>
-<tr>
-<td>parse</td>
-<td>convert a string in number</td>
-</tr>
-<tr>
-<td>trim</td>
-<td>remove spaces from start and end of a string</td>
-</tr>
-<tr>
-<td>left</td>
-<td>remove all spaces from left making string to align left</td>
-</tr>
-<tr>
-<td>right</td>
-<td>remove all spaces at the right making string to align right</td>
-</tr>
-<tr>
-<td>center</td>
-<td>move string in the middle of capacity and adding spaces left and right</td>
-</tr>
-<tr>
-<td>indent</td>
-<td>increase string count to specified length adding spaces to the left</td>
-</tr>
-<tr>
-<td>pad</td>
-<td>increase string count to specified length adding spaces to the right</td>
-</tr>
+<tr><td><code>print</code></td><td>statement <code>print a, b;</code></td><td>write the arguments separated by <code>sep</code> (a comma by default), then a new line</td></tr>
+<tr><td><code>write</code></td><td>statement <code>write a, b;</code></td><td>write the arguments with no separator and no new line</td></tr>
+<tr><td><code>read</code></td><td>function <code>read(prompt)</code></td><td>write the optional prompt, read one line and give it as a <code>String</code> without its line end; <code>null</code> at the end of the input</td></tr>
+<tr><td><code>error</code></td><td>function <code>error(text)</code></td><td>write a line on the standard error and go on</td></tr>
+<tr><td><code>warning</code></td><td>function <code>warning(text)</code></td><td>the same, for a warning</td></tr>
+<tr><td><code>log_err</code></td><td>function <code>log_err(text)</code></td><td>add an error line to the run log of the process (<code>recover</code> region)</td></tr>
+<tr><td><code>log_wrn</code></td><td>function <code>log_wrn(text)</code></td><td>the same, for a warning</td></tr>
+<tr><td><code>raise</code></td><td>statement</td><td>raise the error <code>$error</code> and leave the region</td></tr>
+<tr><td><code>expect</code></td><td>statement</td><td>check a condition; a failure ends the process with error code 2</td></tr>
+<tr><td><code>assert</code></td><td>statement</td><td>check a condition; a failure ends the process with error code 3</td></tr>
 </tbody>
 </table>
 
+<p>The error of the process is <code>$error</code>, with the fields <code>code</code>, <code>message</code>, <code>line</code> and <code>job</code>; the codes are the constants <code>$err_name</code> and <code>$wrn_name</code>. Error classes with fields, <code>recover</code> by type and a function <code>warn</code> belong to typed exceptions and are not part of the built-in names yet.</p>
+
+<p>Other functions are not built in: they belong to a module of the <a href="/projects/eve/syslib.html">System Library</a> or to a value. The value functions of strings and collections are listed with their status in <a href="/projects/eve/strings.html">Strings</a> and <a href="/projects/eve/collections.html">Collections</a>; some are still being completed.</p>
 
 <h2 id="standard-streams">Standard streams</h2>
 <p>In computer programming,&nbsp;<em>standard streams</em>&nbsp;are input and output communication channels between a computer program and its environment. The three I/O connections are called standard input (stdin), standard output (stdout) and standard error (stderr). These channels are connected to the program when program starts.</p>
@@ -122,16 +79,18 @@ This is a library that is imported by default into the language. We do not have 
 <h2 id="standard-input">Standard input</h2>
 <p>Standard input is stream data (often text) going into a program. The program requests data with the <code>read</code> procedure. Not all programs require standard input. A program may take command-line arguments, but perform its operations without any stream data.</p>
 <p>Unless redirected, standard input is expected from the keyboard which started the program.</p>
-<p><b>read</b>&nbsp;lets a program ask the user to enter a value from the keyboard. It shows the prompt, waits until the user types the text and presses enter, and stores the text in its first argument. It has no result: it is a procedure, called as a statement.</p>
-<pre class="line-numbers"><code class="language-eve">procedure read(@v: String, prompt := "");
+<p><b>read</b>&nbsp;lets a program ask the user to enter a value from the keyboard. It writes the prompt, waits until the user types a line and gives that line as a <code>String</code>, without its line end. At the end of the input it gives <code>null</code>, so a loop can test it. It is a function, not a procedure.</p>
+<pre class="line-numbers"><code class="language-eve">read(prompt: String) => (String?);
 </code></pre>
 <h4>Example:</h4>
 <pre class="line-numbers"><code class="language-eve">
 process main is
-  new v := ""; ** empty string
-
-  read(v, "input v:");
-  print "you entered:", v;
+  new line := read("input v: ");
+  if line &lt;&gt; null then
+    print "you entered:", line;
+  else
+    print "no input";
+  done;
 return;
 </code></pre>
 
@@ -139,19 +98,18 @@ return;
 <h2 id="standard-output">Standard output</h2>
 <p>This is the stream where a program writes its output data. The program requests the transfer with the <code>write</code> and <code>print</code> procedures. Not all programs generate output; then the program is silent.</p>
 <p>Unless redirected, standard output is the text terminal which initiated the program.</p>
-<p>The procedure&nbsp;<em>write()</em>&nbsp;sends its arguments to standard output at the current position, as they are, and does not add a new line. The procedure&nbsp;<em>print()</em>&nbsp;does the same and adds a new line by default. Both are procedures, called as statements.</p>
-<pre class="line-numbers"><code class="language-eve">procedure write(*args: String, sep := "", eol := False);
-procedure print(*args: String, sep := ",", eol := True);
+<p><em>print</em>&nbsp;sends its arguments to standard output, separated by <code>sep</code>, and ends with a new line. <em>write</em>&nbsp;sends them with no separator and no new line. Both are statements; they have no result. <code>print;</code> alone ends the line that <code>write</code> started.</p>
+<pre class="line-numbers"><code class="language-eve">print a, b, sep: " ";
+write a, b;
 </code></pre>
 <p><b>parameters:</b></p>
 <ul>
-<li><code>args</code>: the strings to send, any number of them;</li>
-<li><code>sep</code>: the text put between the arguments: a comma for <code>print</code>, nothing for <code>write</code>; <code>sep: " "</code> separates them by a space. It works only between several arguments: a list given as one argument is printed as a list, <code>(1,2,3)</code>, whatever <code>sep</code> is;</li>
-<li><code>eol</code>: <code>True</code> ends the output with a new line, <code>False</code> does not.</li>
+<li><code>a, b</code>: the values to send, any number of them; each value is written as it is, so <code>print 1 + 1;</code> writes <code>2</code>;</li>
+<li><code>sep</code>: the text put between two arguments; it is a comma for <code>print</code> and nothing for <code>write</code>; <code>sep: " "</code> separates them by a space. It works only between several arguments: a list given as one argument is printed as a list, <code>(1,2,3)</code>, whatever <code>sep</code> is.</li>
 </ul>
 <p>A string can contain escapes. A backslash escapes the next character, <code>\\</code> is one backslash, and <code>&amp;code;</code> sends any HTML character code, such as <code>&amp;lt;</code> or <code>&amp;#955;</code>. The end of line is written <code>\n</code>.</p>
 <h3 id="usability">Usability</h3>
-<p>The write and print functions support only strings. It can not print anything else. Therefore developer must make a conversion to a string before sending the value to write.</p>
+<p><code>print</code> and <code>write</code> write every value: a number, a logic value, a collection, an object. A string placeholder <code>{x}</code> converts a value inside a text; the functions do the same when they write it. A format such as <code>{x:5}</code> sets the width and the alignment.</p>
 
 
 <h2 id="standard-error">Standard error</h2>
