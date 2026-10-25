@@ -87,7 +87,7 @@ end worker;
 
 <h2 id="parallel-model">Parallel aspects</h2>
 
-<div class="alert alert-info">Implemented in the virtual machine, version 0.3 (level 4, tests d01 to d16 and d25 to d32). The machine of version 0.3 runs the tasks of a group in turns on one core (see <a href="#workers">Workers</a>); the results, the output and the errors are already those of the machine with many cores.</div>
+<div class="alert alert-info">Implemented in the virtual machine, version 0.3 (level 4, tests d01 to d16 and d25 to d49). The machine of version 0.3 runs the tasks of a group in turns on one core (see <a href="#workers">Workers</a>); the results, the output and the errors are already those of the machine with many cores.</div>
 
 <p>Eve does concurrent work with aspects. An aspect is an encapsulated machine: it has one process, <code>main</code>, and nothing public. <code>apply name(args);</code> runs it in serial mode and the caller waits. <code>start name(args);</code>, written in a parallel group, runs it as a task, beside the others. Methods and functions always run in serial mode, on the core of their caller: they can't be started. These are the concepts:</p>
 
@@ -179,14 +179,14 @@ end parallel_demo;
 <tr><th>Place</th><th>Group</th><th><code>start</code></th></tr>
 </thead>
 <tbody>
-<tr><td>a process of the aspect that is run (level 1, the primary aspect)</td><td>yes</td><td>any number</td></tr>
-<tr><td>a process of an aspect it calls (level 2)</td><td>yes, one group</td><td>at most 2 <code>start</code> statements, none in a loop</td></tr>
-<tr><td>a process of an aspect called from there (level 3, a <em>leaf</em>)</td><td>no</td><td>no</td></tr>
-<tr><td>an applied aspect, a function, a procedure, a method</td><td>no</td><td>no</td></tr>
+<tr><td>a process of the aspect that is run (the primary aspect)</td><td>yes</td><td>the concurrent aspects it calls, any number, in a loop too</td></tr>
+<tr><td>a process of a concurrent aspect</td><td>yes</td><td>its own private processes only</td></tr>
+<tr><td>a process of an exclusive aspect</td><td>no</td><td>no</td></tr>
+<tr><td>a function, a procedure, a method</td><td>no</td><td>no</td></tr>
 </tbody>
 </table>
 
-<p>Each violation is a compile error that says what is allowed: <code>parallel is allowed only in an aspect of the first two levels</code>. The limit of three levels and two starts keeps the tree of tasks small enough to read: the aspect that is run, its workers, and at most two helpers for each worker. A call of a private process of the same aspect is not a level; only the call of an aspect is.</p>
+<p>Only the primary aspect fans out: an exclusive aspect is serial from end to end, and a concurrent aspect is a leaf of the work that may start its own private processes. A concurrent aspect is called (<code>apply</code> or <code>start</code>) only from the primary aspect; an exclusive aspect or another concurrent aspect that calls one is a compile error that says so: <code>a concurrent aspect is called only from the primary aspect</code>, and a group in an exclusive aspect is <code>an exclusive aspect is serial</code>. The chain of calls between aspects is at most three levels deep. A call of a private process of the same aspect is not a level; only the call of an aspect is.</p>
 
 <p>A <b>primary aspect</b> is serial: its processes are applied, never started, and its parallel groups start concurrent aspects. Nothing applies or starts a primary aspect; it is run by a command.</p>
 
@@ -229,7 +229,7 @@ end parallel_loop;
 <li><b>One owner for each output:</b> an output argument (<code>@</code>) is passed by reference and belongs to one task. Two tasks of the same group can't receive the same variable, the same element or two overlapping slices as output. The compiler rejects the same variable, or the same element with a constant index, given to two starts. The virtual machine checks an element with a computed index, <code>@s[i]</code>, at <code>start</code>. Both report <code>Output s is given to two tasks of the group</code> (<code>$err_output</code> 43);</li>
 <li><b>Channels are the exception:</b> a channel is the only object that several tasks of a group can receive with "@". It is built for that: its operations are safe when tasks use it at the same time;</li>
 <li><b>Encapsulated:</b> an aspect sees no globals of the aspect that calls it and has no public members but <code>main</code>; its state belongs to one task. It calls its methods by name, and they run in the same task. Its private processes work on the same state: a private process that is <em>started</em> in a parallel group runs as its own task, so it may use only the thread-safe names of the aspect (atomic variables, channels, constants and thread-safe functions); any other name is a compile error that names it;</li>
-<li><b>Three levels:</b> the aspect that is run opens parallel groups. An aspect it starts may open its own parallel group and start at most 2 <em>leaf</em> aspects; a leaf aspect starts none. An aspect can't call itself, and no chain of calls comes back to an aspect already in it, so recursion between aspects is impossible.</li>
+<li><b>One fan-out:</b> the primary aspect opens the parallel groups and starts concurrent aspects; a concurrent aspect may start its own private processes; an exclusive aspect starts nothing. An aspect can't call itself, and no chain of calls comes back to an aspect already in it, so recursion between aspects is impossible.</li>
 <li><b>Modules are shared:</b> all the tasks use the same copy of a module. Its exported constants, classes and plain functions are safe to share, and an exported channel of a module connects tasks without being passed as a parameter. The compiler decides which functions of a module are thread safe; an aspect that calls one that is not, directly or through other calls, can't be started. Module state that tasks share is atomic, guarded by a mutex or sent through a channel (see <a href="#thread-safety">Thread safety</a>).</li>
 </ul>
 
@@ -316,7 +316,7 @@ task 4 check: error 4: bad 4
 
 <h3 id="workers">Workers</h3>
 
-<p>The number of started aspects is not limited by the number of cores. The virtual machine keeps a pool of worker threads, one for each core, and queues the extra tasks: when no core is free, a <code>start</code> waits until one is. Two system variables, set in the configuration file of the primary aspect, bound the work: <code>$cores</code>, the size of the pool (by default the number of hardware cores, at most 16), and <code>$max_parallel</code>, the number of aspects one parallel group of the primary aspect may start (8 by default). The compiler detects, when it can, a group that starts too many aspects and reports a warning.</p>
+<p>The number of started aspects is not limited by the number of cores, but the tasks of one group that run at a time are: <code>$max_parallel</code> (8 by default) is the limit, and a <code>start</code> beyond it waits until a task of the group has ended. A program may change it before the group, <code>let $max_parallel := 2;</code>. The other system variable, <code>$cores</code>, is the number of hardware cores of the machine (at most 16, read only); the machine of version 0.3 runs the tasks in turns on one core (see below), so for now it tells the size of the machine and does not change the run. The output of a group is the same for any limit, because the buffers are written in the order of <code>start</code>.</p>
 
 <p><b>A waiting aspect gives its core away.</b> A started aspect that waits, for a file, the network, a database, a <code>wait 10ms;</code> or a channel, releases its worker to another task and continues when the wait is over. The virtual machine does this; the code of the aspect stays plain sequential code. So a group can start more aspects than there are cores and overlap their waits: calling 50 services is one group of 50 started aspects on a few cores, and a pipeline with more stages than cores still works.</p>
 
