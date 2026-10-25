@@ -211,6 +211,20 @@ print Instant.parse("yesterday");                      ** the error parse (code 
 
 <p>Printing an <code>Instant</code> always gives the canonical form: ISO 8601, UTC, the letter <code>Z</code>, and no fraction when the fraction is zero. The same form is written in CSV and JSON files and in database columns (<code>timestamptz</code>, ISO text in SQLite). <code>Date</code>, <code>Time</code> and <code>Duration</code> are written in ISO form too. See <a href="/projects/eve/etl.html#canonical">Files and ETL</a>.</p>
 
+<h3 id="zones">Time zones</h3>
+
+<p>A zone is a name of the IANA database (<code>Europe/Bucharest</code>, <code>America/New_York</code>), <code>Z</code>, or a fixed offset (<code>+05:30</code>). The database is a file of the Eve installation, <code>lib/meta/meta.db</code>, and it is the only source of the zone rules: nothing about a zone is written in the program or in the virtual machine, so a new release of the database changes the zones without a new <code>eve.exe</code>. <code>time.zone(name)</code> makes a <code>Zone</code>, <code>time.at_zone(instant, zone)</code> shows an instant in a zone, <code>time.make(date, time, zone)</code> makes a <code>DateTime</code> from a wall clock time (a time the clock skips moves forward by the jump, a time it shows twice is the first one), and <code>time.local_zone!()</code> is the zone of the machine; on Windows it is the zone that the Unicode CLDR gives to the Windows name of the zone (<code>Eastern Standard Time</code> is <code>America/New_York</code>). The module <code>zone</code> of <code>lib/meta</code> gives the details: <code>zone.offset</code>, <code>zone.abbreviation</code>, <code>zone.is_dst</code> and <code>zone.names</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+new base := Instant.parse("2026-03-29T00:59:59Z");
+new z := time.zone("Europe/Bucharest");
+print time.at_zone(base, z);                           ** 2026-03-29T02:59:59+02:00
+print time.at_zone(base + 1s, z);                      ** 2026-03-29T04:00:00+03:00: the clock jumped
+print time.offset_of(time.at_zone(base + 1s, z));      ** PT3H
+</code></pre>
+
+<p>The rules of every zone are read once, into memory, as a table of spans: the instants where the offset changes, with the changes of the daylight rule expanded to the year 2100. A lookup is a binary search of about a tenth of a microsecond, so a script can ask for the offset of every line of a log. Beyond 2100 the rule of the zone, written in Eve, gives the answer, slower but with the same result.</p>
+
 <h2 id="format">Quick Format</h2>
 
 <p>For printing output using a format we use operator <em>as</em> that is the "quick format" operator. We can use system constant templates that are available for making different formats for different data types. For other values use string interpolation (<code>{name % format}</code>).</p>

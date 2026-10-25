@@ -1250,6 +1250,32 @@ primary aspect test_optional is
 end test_optional;
 </code></pre>
 
+<h4 id="narrowing">Testing before use</h4>
+
+<p>The compiler keeps an optional value apart from a plain one, before the program runs (exit code 65). A name of type <code>T?</code> is not an operand of <code>+ - * / % ^</code> or of an order, it has no method called, and it is not an argument for a plain <code>T</code> parameter, until a test against <code>null</code> shows it holds a value. The error says <code>n may be null</code>. A test narrows the name to its plain type inside the block that it guards:</p>
+
+<pre class="line-numbers"><code class="language-eve">
+function twice(n: Integer) =&gt; (@result: Integer) is
+  let result := n * 2;
+return;
+
+process main is
+  new n: Integer?;
+  let n := 4;
+  if n &lt;&gt; null do
+    print twice(n);              ** 8: inside the test n is a plain Integer
+  done;
+  while n &lt;&gt; null do            ** the test of a while narrows the body
+    print twice(n) + n;          ** 12
+    let n := null;
+  done;
+  print n ?? 0;                  ** 0: the default when n is null
+  print twice(n);                ** compile error: n may be null
+return;
+</code></pre>
+
+<p>Three more forms narrow a name: the right side of <code>and</code> (<code>s &lt;&gt; null and s.length() &gt; 2</code>), the branches after <code>if s == null</code>, and the rest of the block after <code>if s == null do exit; done;</code>. The narrowing lasts only inside its block. <code>x ?? d</code> is <code>x</code> when it holds a value, else <code>d</code>. A <code>NULL</code> that a data file or a query gives to a member of a record that is not optional is an error at run time (<code>$err_null</code> for SQL, <code>$err_format</code> for CSV and JSON files); a member written <code>String?</code> takes it as <code>null</code>.</p>
+
 <h3 id="usability">Usability</h3>
 <p>A variant can establish its data type at runtime:</p>
 

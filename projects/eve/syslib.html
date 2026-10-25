@@ -60,12 +60,14 @@ The <a href="/projects/eve/library.html">Standard Library</a> is what every prog
 </thead>
 <tbody>
 <tr><td>built-in names</td><td><code>print</code>, <code>write</code>, <code>read</code>, <code>error</code>, <code>warning</code>, <code>log_err</code>, <code>log_wrn</code>, <code>raise</code>, <code>expect</code>, <code>assert</code></td><td>level 1, complete</td><td><a href="/projects/eve/library.html#built-in-functions">Standard Library</a></td></tr>
-<tr><td>system variables</td><td><code>$EVE_LIB</code>, <code>$EVE_OUT</code>, <code>$HOME</code>, <code>$OS_PWD</code>, <code>$NAME</code> and every environment variable as <code>$NAME</code></td><td>level 1, draft</td><td><a href="/projects/eve/vm.html#vm-variables">EVE VM</a></td></tr>
+<tr><td>system variables</td><td><code>$EVE_DIR</code>, <code>$EVE_ASP</code>, <code>$EVE_LIB</code>, <code>$EVE_OUT</code>, <code>$HOME</code>, <code>$OS_PWD</code>, <code>$NAME</code> and every environment variable as <code>$NAME</code></td><td>level 1, draft</td><td><a href="/projects/eve/vm.html#vm-variables">EVE VM</a></td></tr>
+<tr><td><code>math</code>, <code>stats</code></td><td>numbers and statistics written in Eve: <code>from lib use (math, stats);</code> gives <code>math.sqrt</code>, <code>stats.mean</code>, <code>stats.regress.linear</code>, <code>stats.distrib.norm_cdf</code> and the rest (see <a href="#syslib-stats">Statistics</a>)</td><td>levels 1 and 3, tested</td><td><a href="#syslib-stats">below</a></td></tr>
 <tr><td><code>fs</code></td><td>files, folders and paths: read and write text and bytes, lines as a stream, list a folder, glob; the operator <code>/</code> joins paths</td><td>level 5, draft</td><td><a href="/projects/eve/etl.html">Files and ETL</a></td></tr>
-<tr><td><code>time</code></td><td>the clock, <code>Instant</code>, <code>DateTime</code> with a zone, sleeping</td><td>level 5, draft</td><td><a href="/projects/eve/datetime.html">Date and Time</a></td></tr>
+<tr><td><code>time</code></td><td>the clock, <code>Instant</code>, <code>DateTime</code> with a zone from the IANA database (the zone of the machine too, on Windows through the CLDR names), sleeping</td><td>level 5, draft</td><td><a href="/projects/eve/datetime.html">Date and Time</a></td></tr>
 <tr><td><code>os</code></td><td><code>run!</code> to run a command and <code>env</code> for the environment</td><td>level 5, draft</td><td><a href="/projects/eve/command.html">Shell Commands</a></td></tr>
-<tr><td><code>secret</code></td><td><code>Secret</code>: tokens and passwords that never appear in logs or in code</td><td>level 5, draft</td><td><a href="/projects/eve/databases.html">Databases</a></td></tr>
-<tr><td><code>csv</code>, <code>json</code>, <code>txt</code></td><td>read and write files as streams of rows or nodes, typed by a record class, in Unicode; <code>.gz</code> files are read on the fly</td><td>level 5, draft</td><td><a href="/projects/eve/etl.html">Files and ETL</a></td></tr>
+<tr><td><code>secret</code></td><td><code>Secret</code>: tokens and passwords that never appear in logs or in code; <code>secret.get("name")</code> reads the variable <code>EVE_SECRET_NAME</code>, else the file named by <code>EVE_SECRET_NAME_FILE</code></td><td>level 5, draft</td><td><a href="/projects/eve/databases.html">Databases</a></td></tr>
+<tr><td><code>csv</code>, <code>json</code>, <code>txt</code></td><td>read and write files as streams of rows or nodes, typed by a record class, in Unicode; <code>.gz</code> files are read and written on the fly, and a reader takes a stream of bytes in place of a path</td><td>level 5, draft</td><td><a href="/projects/eve/etl.html">Files and ETL</a></td></tr>
+<tr><td><code>gzip</code>, <code>zip</code></td><td>compressed files and archives: <code>gzip.write</code>, <code>gzip.open!</code>, <code>zip.write</code>, <code>zip.list!</code>, <code>zip.read!</code> (see <a href="#syslib-compression">Compressed files</a>)</td><td>level 5, tested</td><td><a href="#syslib-compression">below</a></td></tr>
 <tr><td><code>crypto</code></td><td>hash, HMAC and the random bytes used by tokens</td><td>level 5, draft</td><td><a href="/projects/eve/crypto.html">Cryptography</a></td></tr>
 <tr><td><code>net</code></td><td>TCP and UDP sockets, the wire protocol</td><td>level 5, draft</td><td><a href="/projects/eve/networking.html">Networking</a></td></tr>
 <tr><td><code>database</code>, <code>checkpoint</code></td><td>connections, <code>Record</code> and <code>Table</code>, tracked records, transactions per job, direct SQL, checkpoints</td><td>level 5, draft</td><td><a href="/projects/eve/databases.html">Databases</a></td></tr>
@@ -75,6 +77,56 @@ The <a href="/projects/eve/library.html">Standard Library</a> is what every prog
 <tr><td><code>test</code></td><td><code>check</code>, <code>equal</code> and <code>summary</code> for the tests a user writes in Eve</td><td>level 5, draft</td><td><a href="/projects/eve/quality.html">Quality</a></td></tr>
 </tbody>
 </table>
+
+<h2 id="syslib-compression">Compressed files</h2>
+
+<p>A path that ends in <code>.gz</code> is a gzip file for the readers and the writers of <code>csv</code>, <code>json</code>, <code>txt</code> and for <code>fs.lines!</code>: the file is compressed when it is written and inflated when it is read, and a file that is not gzip is a <code>FormatError</code>. <code>gzip.write(path, data)</code> writes a <code>String</code> or <code>Bytes</code>; <code>gzip.open!(path)</code> gives the content as a stream of <code>Bytes</code>, which a reader accepts in place of a path. A zip archive keeps many entries: <code>zip.write</code> takes a map of names to <code>String</code> or <code>Bytes</code>, <code>zip.list!</code> gives the sorted names and <code>zip.read!</code> one entry as <code>Bytes</code>; a missing name is <code>FileError</code>. An archive does not hold a clock, so the same entries give the same bytes. The files are processed whole, in memory, and an archive over 4 GB or with more than 65,535 entries is not supported.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+primary aspect archive is
+  class Item = {name: String, qty: Integer} &lt;&#58; Record;
+
+  process main is
+    new items := (Item(name: "bolt", qty: 4), Item(name: "nut", qty: 9));
+    csv.write("out/items.csv.gz", items);                       ** compressed on the fly
+    for r in csv.read!(:Item)(gzip.open!("out/items.csv.gz")) do
+      print "{r.name} {r.qty}";
+    done;
+    zip.write("out/pack.zip", {"items.csv": "name,qty;bolt,4", "note.txt": "two items"});
+    for name in zip.list!("out/pack.zip") do
+      print name;
+    done;
+    print zip.read!("out/pack.zip", "note.txt").text();
+  return;
+end archive;
+</code></pre>
+
+<h2 id="syslib-stats">Statistics</h2>
+
+<p>The library <code>stats</code> is written in Eve, in the folder <code>lib/stats</code>. <code>from lib use (stats);</code> gives the descriptive functions (<code>mean</code>, <code>median</code>, <code>mode</code>, <code>modes</code>, <code>variance</code>, <code>stddev</code>, <code>quantile</code>, <code>range</code>, <code>skew</code>, <code>kurtosis</code>, <code>describe</code>), the correlations (<code>covariance</code>, <code>pearson</code>, <code>spearman</code>) and the modules <code>regress</code>, <code>distrib</code>, <code>sample</code>, <code>histogram</code> and <code>moving</code>. The sample forms of the variance and the deviation divide by n - 1 (Excel <code>VAR.S</code>); the population forms have the suffix <code>_p</code>. A list that is empty, too short or not made of numbers is <code>ArgumentError</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">
+primary aspect numbers is
+  from lib use (stats);
+
+  process main is
+    new xs := (2, 4, 4, 4, 5, 5, 7, 9);
+    print stats.mean(xs), stats.median(xs), stats.modes(xs);       ** 5 4.5 (4)
+    print stats.stddev_p(xs);                                      ** 2
+    new d := stats.describe(xs);
+    print d["count"], d["min"], d["max"];                          ** 8 2 9
+    new line := stats.regress.linear((1, 2, 3, 4, 5), (2.2, 4.1, 6.2, 7.9, 10.1));
+    print line["slope"], line["intercept"], line["r2"];            ** 1.96 0.22 0.9988...
+    print stats.distrib.norm_cdf(1.96, 0, 1);                      ** 0.975...
+    print stats.moving.simple((1, 2, 3, 4, 5), 3);                 ** (null,null,2,3,4)
+    for b in stats.histogram.bins((1, 2, 2, 3, 9, 10), 3) do
+      print "{b.low} {b.high} {b.count}";                         ** 1 4 4, 4 7 0, 7 10 2
+    done;
+  return;
+end numbers;
+</code></pre>
+
+<p>The tool commands <code>eve fmt</code> and <code>eve lint</code> work on the scripts of a project, see <a href="/projects/eve/command.html#tools">Tools for scripts</a>.</p>
 
 <h2 id="syslib-rules">Rules of the system library</h2>
 

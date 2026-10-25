@@ -149,7 +149,42 @@ external warn(code: Integer, message: String);
   done;
 </code></pre>
 
-<p>A project defines its own errors as classes derived from <code>Error</code>, with codes from the project range: <code>class HttpError = {status: Integer} &lt;&#58; Error;</code>.</p>
+<p>The recover region is one region: it has no list of classes. Inside it you test the error with <code>if … is</code> as above, or with <code>match</code>: a class as the pattern of a <code>when</code> tests the class of the object, as <code>is</code> does. Every error is an <code>Error</code>, so <code>$error is Error</code> is always true, and a class below another is also the other: <code>SqlError</code> is a <code>DatabaseError</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">recover
+  match $error
+    when FormatError do
+      print "bad file: {$error.message}";
+    when DatabaseError do
+      print "database: {$error.code}";
+    when other do
+      abort;
+  done;
+</code></pre>
+
+<p>The function <code>error_type(code)</code> gives the class of a code, or <code>null</code> when the language has no class for it, so a program that keeps a code (in a log, in a message from another machine) finds the class again: <code>error_type($err_format) == FormatError</code>.</p>
+
+<h3 id="raising-errors">Raising Errors</h3>
+
+<p>An error is made with <code>raise</code>. Besides the text and the pair code and message, <code>raise</code> takes an error object. <code>Error(code, message)</code> makes one with a code of your own, and every other class is made with a message only, its code being the code of the class. Named arguments add fields, which <code>recover</code> reads from <code>$error</code>.</p>
+
+<pre class="line-numbers"><code class="language-eve">raise "something is wrong";                         ** code 4
+raise (130, "the invoice is closed");               ** a code of the project
+raise DivideError("the rate can not be 0");         ** code 12
+raise Error(code: 131, message: "no disk", detail: "D:");
+
+recover
+  print $error.detail;                              ** D:
+</code></pre>
+
+<p>A project defines its own errors as classes with the three fields, and raises their objects: the object keeps its class in <code>$error</code>, so <code>$error is Failure</code> tells it from the standard errors. Use the codes from 128 to 255 (see <a href="#code-ranges">Code Ranges</a>) and keep them unique. The way to end a program with a code of your own is <code>over n;</code>, not an exit code in a class.</p>
+
+<pre class="line-numbers"><code class="language-eve">class Failure = {code: Integer, message: String, detail: String} &lt;&#58; Object;
+
+raise Failure(code: 140, message: "bad", detail: "disk");
+</code></pre>
+
+<p>A <em>warning</em> is reported with <code>warn(code, message)</code>: it writes <code>unit:line: warning code: message</code> on the standard error and the process goes on.</p>
 
 <h3 id="code-ranges">Code Ranges</h3>
 
@@ -196,6 +231,7 @@ external warn(code: Integer, message: String);
 <tr><td>43</td><td>OutputError</td><td>$err_output</td><td>"Output {name} is given to two tasks of the group"</td><td>start</td></tr>
 <tr><td>44</td><td>RecursionError</td><td>$err_recursion</td><td>"Recursion limit reached at depth {depth}"</td><td>virtual machine</td></tr>
 <tr><td>45</td><td>ParallelError</td><td>$err_parallel</td><td>"{count} aspects of the group failed"; the list is <code>$error.errors</code></td><td>parallel groups</td></tr>
+<tr><td>46</td><td>ChannelError</td><td>$err_channel</td><td>"Channel {name} is closed"</td><td>channels (level 4)</td></tr>
 <tr><td>50</td><td>DatabaseError</td><td>$err_database</td><td>"Database error {sqlstate} on {table}: {reason}"</td><td>databases (level 5)</td></tr>
 <tr><td>51</td><td>ConnectionError</td><td>$err_connection</td><td>"Cannot reach {host}: {reason}"; transient</td><td>databases</td></tr>
 <tr><td>52</td><td>ConstraintError</td><td>$err_constraint</td><td>"Constraint {constraint} violated by {key}"</td><td>databases</td></tr>
@@ -205,6 +241,7 @@ external warn(code: Integer, message: String);
 <tr><td>56</td><td>FormatError</td><td>$err_format</td><td>"Bad {format} at line {line}, column {column}: {reason}"</td><td>data files (level 5)</td></tr>
 <tr><td>57</td><td>HttpError</td><td>$err_http</td><td>"HTTP {status} from {url}"</td><td>HTTP client</td></tr>
 <tr><td>58</td><td>BatchError</td><td>$err_batch</td><td>"{count} records of batch {batch} failed"; the records are in <code>$error.failed</code></td><td>databases</td></tr>
+<tr><td>59</td><td>SqlError</td><td>$err_sql</td><td>"SQL function {name} failed: {reason}"; a <code>DatabaseError</code></td><td>sql functions</td></tr>
 </tbody>
 </table>
 
