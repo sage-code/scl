@@ -128,6 +128,60 @@ end numbers;
 
 <p>The tool commands <code>eve fmt</code> and <code>eve lint</code> work on the scripts of a project, see <a href="/projects/eve/command.html#tools">Tools for scripts</a>.</p>
 
+<h2 id="syslib-eve-libraries">The libraries written in Eve</h2>
+
+<p>The folder <code>lib</code> holds libraries written in Eve itself; <code>from lib use (name);</code> imports one, and each has a page in the specification (<code>spec/library</code>). Their functions are members of the library (<code>calendar.add_business_days</code>) and the modules inside are reached by name (<code>text.regex</code>, <code>finance.money</code>). Only the few functions that need the machine are native.</p>
+
+<table class="table table-bordered table-striped">
+<thead>
+<tr><th>Library</th><th>Modules</th><th>What it gives</th></tr>
+</thead>
+<tbody>
+<tr><td><code>math</code></td><td><code>basic</code>, <code>explog</code>, <code>trig</code>, <code>numtheory</code>, <code>linear</code>, <code>random</code>, <code>rational</code>, <code>complex</code></td><td>numbers, vectors and matrices, random numbers</td></tr>
+<tr><td><code>stats</code></td><td><code>describe</code>, <code>correlate</code>, <code>regress</code>, <code>distrib</code>, <code>sample</code>, <code>histogram</code>, <code>moving</code></td><td>statistics (see <a href="#syslib-stats">above</a>)</td></tr>
+<tr><td><code>calendar</code></td><td><code>period</code>, <code>holidays</code>, <code>business</code></td><td>quarters, fiscal years, the public holidays of DE, FR, GB, RO and US, business days</td></tr>
+<tr><td><code>text</code></td><td><code>regex</code>, <code>encode</code>, <code>slug</code>, <code>template</code>, <code>diff</code>, <code>unicode</code></td><td>regular expressions that cannot take exponential time (they are also what the operator <code>=~</code> uses), Base64, hexadecimal and percent encoding, slugs, templates with <code>{name}</code> holes, the difference of two texts, normalization and width</td></tr>
+<tr><td><code>finance</code></td><td><code>money</code>, <code>percent</code>, <code>interest</code>, <code>loan</code>, <code>invest</code>, <code>tax</code>, <code>depreciation</code>, <code>invoice</code></td><td>money as <code>Decimal</code> rounded by the digits of its currency, sharing an amount without losing a cent, loans, net present value, VAT, invoices</td></tr>
+<tr><td><code>eng</code></td><td><code>constants</code>, <code>units</code>, <code>numeric</code>, <code>signal</code>, <code>geometry</code></td><td>the constants of physics, about a hundred units, roots, integrals, differential equations, Fourier transform, polygons</td></tr>
+<tr><td><code>data</code></td><td><code>rows</code>, <code>quality</code>, <code>infer</code>, <code>stream</code></td><td>group, join and pivot lists of records, the quality of a column, the types of a CSV table, generators that read a source one value at a time</td></tr>
+<tr><td><code>ids</code></td><td><code>base32</code>, <code>ulid</code>, <code>check</code></td><td>ULID, short UUID texts, random ids, Luhn, ISBN-13 and IBAN check digits</td></tr>
+</tbody>
+</table>
+
+<pre class="line-numbers"><code class="language-eve">
+primary aspect libraries is
+  from lib use (calendar, text, finance, eng, data, ids);
+
+  process main is
+    ** calendar: holidays and business days
+    print calendar.add_business_days(time.date(2026, 4, 3), 1, "GB");          ** 2026-04-07: Good Friday and Easter Monday are skipped
+    print calendar.fiscal_year(time.date(2026, 4, 1), 4);                       ** 2027
+
+    ** text: regular expressions, encodings, slugs and templates
+    print text.regex.replace("2026-10-26", "/(\d+)-(\d+)-(\d+)/", "$3/$2/$1"); ** 26/10/2026
+    print text.slug("Héllo, Wörld!"), text.url("a b&amp;c"), text.base64("hi");     ** hello-world a%20b%26c aGk=
+    print text.fill("Dear \{name\}", {"name": "Ana"});                          ** Dear Ana
+
+    ** finance: money is a Decimal rounded to the unit of its currency
+    print finance.allocate(100.00d, (1, 1, 1), "EUR");                          ** (33.34,33.33,33.33)
+    print finance.vat_add(100.00d, 0.19, "EUR"), finance.round(2.675d, "EUR");  ** 119.00 2.68
+
+    ** eng: units and numerical methods
+    print eng.convert(100, "C", "F"), eng.simpson((x) =&gt; (x ^ 2), 0, 3, 10);    ** 212 9
+
+    ** data: rows and streams
+    print data.count_by(("a", "b", "a"), (x) =&gt; (x));                           ** {"a":2,"b":1}
+    print data.collect(data.take(data.map((1, 2, 3, 4), (x) =&gt; (x * x)), 2));   ** (1,4)
+
+    ** ids: check digits and ULID
+    print ids.luhn_valid("4539 1488 0343 6467"), ids.iban_valid("GB82 WEST 1234 5698 7654 32");
+    print ids.ulid_from(Instant.parse("2026-10-26T12:00:00Z"), "00112233445566778899");
+  return;
+end libraries;
+</code></pre>
+
+<p>Money is always a <code>Decimal</code>: <code>Decimal</code> has <code>round(scale, mode)</code> with seven modes (<code>half_up</code>, <code>half_even</code>, <code>half_down</code>, <code>up</code>, <code>down</code>, <code>ceiling</code>, <code>floor</code>), <code>scale()</code>, <code>units()</code>, <code>Decimal.of(units, scale)</code> and <code>Decimal.parse(text)</code>. The digits of a currency (2 for the euro, 0 for the yen, 3 for the dinar) and the holidays rules come from the same data as the time zones: the file <code>lib/meta/meta.db</code> for the currencies, the rules of a calendar in the library.</p>
+
 <h2 id="syslib-rules">Rules of the system library</h2>
 
 <ul>
