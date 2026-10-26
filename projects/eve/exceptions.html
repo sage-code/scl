@@ -169,20 +169,24 @@ external warn(code: Integer, message: String);
 <p>An error is made with <code>raise</code>. Besides the text and the pair code and message, <code>raise</code> takes an error object. <code>Error(code, message)</code> makes one with a code of your own, and every other class is made with a message only, its code being the code of the class. Named arguments add fields, which <code>recover</code> reads from <code>$error</code>.</p>
 
 <pre class="line-numbers"><code class="language-eve">raise "something is wrong";                         ** code 4
-raise (130, "the invoice is closed");               ** a code of the project
+raise (17, "the invoice is closed");                ** a standard code, ArgumentError
 raise DivideError("the rate can not be 0");         ** code 12
-raise Error(code: 131, message: "no disk", detail: "D:");
+raise Error(code: 20, message: "no disk", detail: "D:");
 
 recover
   print $error.detail;                              ** D:
 </code></pre>
 
-<p>A project defines its own errors as classes with the three fields, and raises their objects: the object keeps its class in <code>$error</code>, so <code>$error is Failure</code> tells it from the standard errors. Use the codes from 128 to 255 (see <a href="#code-ranges">Code Ranges</a>) and keep them unique. The way to end a program with a code of your own is <code>over n;</code>, not an exit code in a class.</p>
+<p>A program defines its own errors as classes below <code>Error</code>. The class gives its code, from 1000 up, as a member with a value, and it may have fields of its own; a class below such a class keeps the code of its parent. The object has the fields <code>code</code> and <code>message</code> of every error (the message is the argument <code>message:</code>), and <code>recover</code> reads the other fields from <code>$error</code>. <code>$error is Failure</code> tells it from the standard errors. The compiler refuses a class below <code>Error</code> without a code or with a code below 1000, and a number written in <code>raise (code, text)</code> or in <code>Error(code, text)</code> that is not a standard code. The way to end a program with a code of your own is <code>over n;</code>, not an exit code in a class.</p>
 
-<pre class="line-numbers"><code class="language-eve">class Failure = {code: Integer, message: String, detail: String} &lt;&#58; Object;
+<pre class="line-numbers"><code class="language-eve">class Failure = {code: 1001, detail: String} &lt;&#58; Error;
+class DiskFailure = {device: String} &lt;&#58; Failure;
 
-raise Failure(code: 140, message: "bad", detail: "disk");
+raise Failure(message: "bad", detail: "disk");
+raise DiskFailure(message: "full", device: "D:");
 </code></pre>
+
+<p><code>expect</code> and <code>assert</code> take a message after the condition, with <code>else</code> or with a comma: <code>expect balance &gt;= 0 else "the balance is negative";</code>. The message is the message of the error.</p>
 
 <p>A <em>warning</em> is reported with <code>warn(code, message)</code>: it writes <code>unit:line: warning code: message</code> on the standard error and the process goes on.</p>
 
@@ -194,8 +198,8 @@ raise Failure(code: 140, message: "bad", detail: "disk");
 </thead>
 <tbody>
 <tr><td>1 to 9</td><td>The statements of the language: panic 1, expect 2, assert 3, raise 4 by default, then warnings. These are error codes, not exit codes.</td></tr>
-<tr><td>10 to 127</td><td>Standard errors of the virtual machine and the library.</td></tr>
-<tr><td>128 to 255</td><td>Errors defined by a project. Keep the codes of a project unique.</td></tr>
+<tr><td>10 to 999</td><td>Reserved for the compiler, the virtual machine and the standard library. The tables below list them; a program does not add to them.</td></tr>
+<tr><td>1000 and above</td><td>The errors defined by a program, as classes below <code>Error</code>. Keep the codes of a program unique.</td></tr>
 </tbody>
 </table>
 
