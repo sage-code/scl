@@ -11,9 +11,5 @@ Go is a good first language. It is simple and stabile. It does not change much a
 
 Our pages are optimized for any device, tablet or secondary destop monitor in potrait mode. We use *infinite scroll* design pattern. You can scroll a long page to the end and find a link to next page. You can read the content as a book. 
 
-# Certificate
-
-We have created a preparatory quiz you can take at the end of the course. If you score more than 80%, you are a qualified Go developer. You can order a testimonial page and certificate of completion.
- 
 ---
 Copiright (c) Sage-Code 2023

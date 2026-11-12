@@ -163,7 +163,6 @@ You can proceed to:
 
 4. **Enhancement**: Add features like:
    - Auto-mark complete on 90% scroll
-   - Quiz at end of each topic
    - Estimated reading time
    - Difficulty badges
 
@@ -216,7 +215,6 @@ Once prototype is tested and working:
 - Add missing content files if needed
 
 ### Week 4: Enhancement
-- Add quiz system
 - Add difficulty badges
 - Add estimated reading times
 - Add "related topics" links
