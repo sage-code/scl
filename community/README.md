@@ -12,5 +12,5 @@ Community area for Sage-Code Laboratory.
 
 ## Notes
 
-- This project is protected. Only Sage-Code mentors should modify member profile content.
+- SCL is open source. Any developer can add their own profile page (`vcp/<member>.html`) and list the projects they want to promote, by making a PR for the SCL project or by contacting @elucian or another mentor on Discord. PRs are reviewed and merged in the main branch.
 - Profile routes are standardized under `/community/vcp/<member>.html`.
