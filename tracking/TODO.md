@@ -302,11 +302,34 @@ classifier except the thin legacy pages listed below.
   `cpp/modern`. Validated: `test` → `build` → `check` (38 warnings, unchanged) →
   `check:sidebar` (0 failures).
 
+## ✅ Site-wide markup and link repair pass (2026-11-14)
+- Broken-content fixes: `ada/tasking`, `fortran/modules` and `fortran/oop` had the end of a code
+  sample displaced to the bottom of the page (after `</html>` in Ada), so whole sections rendered
+  as code text — moved back. `swift/generics` and `swift/protocols` had an unclosed code block /
+  table; `fortran/setup` had no `<head>` or page shell at all (rebuilt from `syntax.html`);
+  `java/regex` had no doctype/`<html>`; `java/annotations` had a second page ending.
+- 23 pages closed code blocks as `</pre></code>` (all of `tscript`): swapped to `</code></pre>`.
+- 52 generics/placeholders inside `<code>` were unescaped (`Vec<i32>`, `Promise<T>`,
+  `#include <time.h>`) and silently hidden by browsers — escaped (`rust`, `tscript`, others).
+- ~35 one-off typos: mismatched heading closers, `</b>` used as opener, `<l/i>`, `<ht>`, stray
+  `</p>`/`</div>`/`</footer>`, Bootstrap 4 `thead-*` classes, home footer year 2027 → 2026.
+- Dead links: `learnyouahaskell.com` (domain gone) → `learnyouahaskell.github.io`;
+  `juliaacademy.com` (unreachable) → `julialang.org/learning/` in 6 pages; PostSharp Wikipedia
+  404 → official site. 178/184 `pgp` external links returned 200; APL/J wikis return 403 to
+  scripts but are live.
+- Deleted orphan sidecars `cpp/data/{best-practices,errors}.json`, `java/data/navigation.json`.
+- `scripts/test/test_sources.py` now warns when a topic page has `data/<topic>.json` but never
+  loads `topic-loader.js` (the svelte/sml/hpc failure mode).
+- Result: html.parser balance check 0/853 pages with problems (was 78); `check:html` 75 → 44
+  failures; `npm run check` 38 → 36 warnings. `bee-ed balance` still flags 28 pages that rely on
+  optional end tags (`<p>`/`<li>` left open) — valid HTML, cosmetic.
+
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py, 2026-11-14)
 - [ ] Compile the `cpp/modern.html` examples on a working C++20/23 toolchain (repair the VS
   install or use GCC/Clang), and run the `dba` PostgreSQL-specific statements on a real server.
-- [ ] `cpp/data/best-practices.json` is an orphan sidecar (no `best-practices.html`; dates from
-  2026-09-11) — delete it or write the page; it is the second standing `npm run test` warning.
+- [ ] Remaining `check:html` failures (44): mostly `projects/maj` and `projects/eve` (unknown
+  entities such as `&code;`), plus pre-existing unescaped HTML examples in `javascript/dom` and
+  `php/forms` code samples.
 - [ ] Thin legacy pages flagged only by a leftover `<!-- work in progress-->` comment: real
   content but ~4–5 KB with typos — rewrite to the current track standard, don't just drop the
   comment. `java/` (abstraction, annotations, collections, inference, inheritance, lambda,

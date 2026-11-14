@@ -40,14 +40,14 @@ function request(
   timeout?: number,            // optional — type is number | undefined
   retries = 3,                 // default — inferred as number
   ...tags: string[]            // rest — array or nothing
-): Promise<string> {           // explicit return type: the contract
+): Promise&lt;string&gt; {           // explicit return type: the contract
   return Promise.resolve(`${url} t=${timeout ?? 0} r=${retries} [${tags.join(",")}]`);
 }
 
 request("/users");                                  // OK
 request("/users", 5000, undefined, "cache", "api"); // OK — skipped optional
 request("/users", "5000");                          // ✗ TS2345: string not assignable
-request();                                          // ✗ TS2554: url is required</pre></code>
+request();                                          // ✗ TS2554: url is required</code></pre>
 
 <p><strong>What you should see:</strong> two accepted calls and two precise errors — TS2345 for the wrong type, TS2554 for the missing argument. In plain JavaScript, the wrong-type call silently coerces and fails at runtime, possibly far from the cause.</p>
 
@@ -79,7 +79,7 @@ function fail(message: string): never {
 
 function assertNever(x: never): never {   // exhaustiveness helper
   throw new Error(`Unhandled: ${JSON.stringify(x)}`);
-}</pre></code>
+}</code></pre>
 
 <p><strong>What you should see:</strong> both compile. The difference is a guarantee: after <code>fail("boom")</code>, the checker knows the next statement cannot execute. You will meet <code>assertNever</code> again in the <a href="type-system.html">type-system lesson</a>'s exhaustiveness pattern — it is the standard idiom built on <code>never</code>.</p>
 
@@ -92,18 +92,18 @@ function assertNever(x: never): never {   // exhaustiveness helper
 <p><strong>Purpose of the example:</strong> a <code>createElement</code>-style API where the argument shape determines the return type — the legitimate overload use case.</p>
 
 <pre><code class="language-typescript">// Signatures (visible to callers' types; the body never sees them)
-function parse(input: string): Record<string, string>;
+function parse(input: string): Record&lt;string, string&gt;;
 function parse(input: string[]): string[];
-function parse(input: string | string[]): Record<string, string> | string[] {
+function parse(input: string | string[]): Record&lt;string, string&gt; | string[] {
   if (Array.isArray(input)) {
     return input;                       // string[] branch
   }
   return Object.fromEntries(new URLSearchParams(input)); // record branch
 }
 
-const asRecord = parse("a=1&b=2");  // type: Record<string, string>
+const asRecord = parse("a=1&b=2");  // type: Record&lt;string, string&gt;
 const asList   = parse(["a", "b"]); // type: string[]
-// asRecord.toUpperCase — ✗ Property does not exist on Record</pre></code>
+// asRecord.toUpperCase — ✗ Property does not exist on Record</code></pre>
 
 <p><strong>What you should see:</strong> each call gets the exact matching return type — impossible to express with a plain union return. The implementation signature itself is <em>not</em> callable from outside; it only constrains the implementation.</p>
 
@@ -117,11 +117,11 @@ const asList   = parse(["a", "b"]); // type: string[]
 
 <p><strong>Purpose of the example:</strong> encode success and failure in the return type itself, following the discriminated-union pattern from the <a href="type-system.html">type-system lesson</a>.</p>
 
-<pre><code class="language-typescript">type Result<T> =
+<pre><code class="language-typescript">type Result&lt;T&gt; =
   | { ok: true; value: T }
   | { ok: false; error: string };
 
-async function fetchJson<T>(url: string): Promise<Result<T>> {
+async function fetchJson&lt;T&gt;(url: string): Promise&lt;Result&lt;T&gt;&gt; {
   try {
     const res = await fetch(url);
     if (!res.ok) {
@@ -138,7 +138,7 @@ if (out.ok) {
   console.log(out.value.id);   // value exists only in the ok branch
 } else {
   console.error(out.error);    // and error only here
-}</pre></code>
+}</code></pre>
 
 <p><strong>What you should see:</strong> reading <code>out.value</code> before the <code>if</code> is an error; narrowing guarantees the payload is only touched on success. Note that <code>catch</code> variables are typed <code>unknown</code> under strict mode — you must stringify or check them, which closes the "throw a string" bug class.</p>
 
@@ -146,7 +146,7 @@ if (out.ok) {
 
 <p>Callbacks are functions as parameters; type them like any other function:</p>
 
-<pre><code class="language-typescript">function mapWait<T, R>(
+<pre><code class="language-typescript">function mapWait&lt;T, R&gt;(
   items: T[],
   transform: (item: T, index: number) => R   // full signature inline
 ): R[] {
@@ -154,7 +154,7 @@ if (out.ok) {
 }
 
 const lengths = mapWait(["alpha", "beta"], (s) => s.length);
-// s and the return value are inferred from the contract — no annotations needed</pre></code>
+// s and the return value are inferred from the contract — no annotations needed</code></pre>
 
 <p><strong>What you should see:</strong> the arrow body is checked against the declared contract: return <code>s + 1</code> and the checker errors. <strong>What we learn:</strong> annotate the callback's <em>parameters</em> in the contract once, and every caller's lambda is checked for free — this is exactly how library APIs like <code>Array.prototype.map</code> give you typed callbacks with zero configuration.</p>
 

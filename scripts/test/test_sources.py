@@ -103,6 +103,10 @@ def check_html(path: Path) -> None:
                 warn(f"{rel}: topic page loads topic-loader.js but has no #study-sidebar container")
             if "inject-layout.js" in text:
                 warn(f"{rel}: topic page uses assets/js/inject-layout.js; use the standard sage.js shell")
+        elif (path.parent / "data" / f"{path.stem}.json").is_file():
+            # A sidecar exists but nothing loads it: the sidebar never renders.
+            # This is how svelte/sml/hpc shipped empty sidebars unnoticed.
+            warn(f"{rel}: has data/{path.stem}.json but never loads topic-loader.js, so its sidebar stays empty")
 
 
 def main() -> int:

@@ -35,7 +35,7 @@
                 <pre><code class="language-fortran line-numbers">module bank
   implicit none
   private
-  public :: account, credit, balance_of
+  public :: account, balance_of
 
   type :: account
     private
@@ -44,6 +44,37 @@
     procedure :: credit =&gt; credit_acct
     procedure :: report =&gt; report_acct
   end type account
+
+contains
+  subroutine credit_acct(self, amount)
+    class(account), intent(inout) :: self
+    real, intent(in) :: amount
+    self%balance = self%balance + amount
+  end subroutine credit_acct
+
+  real function balance_of(a)
+    class(account), intent(in) :: a
+    balance_of = a%balance
+  end function balance_of
+
+  subroutine report_acct(self)
+    class(account), intent(in) :: self
+    print '(a,f10.2)', 'balance: ', self%balance
+  end subroutine report_acct
+end module bank
+
+program banking
+  use bank
+  implicit none
+  type(account) :: a
+  call a%credit(100.0)          ! method call bound to the object
+  call a%credit(50.0)
+  call a%report()               ! "balance: 150.00"
+  print '(a,f10.2)', 'read via accessor: ', balance_of(a)
+end program banking</code></pre>
+
+                <p>Note the encapsulation: <code>private</code> components are invisible outside the module, so the balance can only change through <code>credit</code>. The public API — types and procedures — is exactly what the <code>use bank</code> line in a consumer sees. This is textbook data hiding with zero framework.</p>
+
 
                 <h2 id="inheritance">Inheritance: extends</h2>
                 <p><code>type, extends(parent) :: child</code> reuses the parent's components and procedures and adds new ones. A child is <em>also</em> a parent: any variable declared <code>class(parent)</code> can hold a child instance, and assignment moves the whole record. Drawing on the derived-types lesson, this is inheritance by value extension rather than by reference to shared objects.</p>
@@ -150,35 +181,6 @@ end subroutine close_log</code></pre>
                   <strong>OOP style guide:</strong> keep inner loops on <code>type(...)</code>; use <code>class(...)</code> only at interface boundaries; make components <code>private</code> behind a module; prefer generic interfaces (modules lesson) over inheritance when the family is small. The study-projects page builds a full object-oriented application to cement these patterns.
                 </div>
 
-contains
-  subroutine credit_acct(self, amount)
-    class(account), intent(inout) :: self
-    real, intent(in) :: amount
-    self%balance = self%balance + amount
-  end subroutine credit_acct
-
-  real function balance_of(a)
-    class(account), intent(in) :: a
-    balance_of = a%balance
-  end function balance_of
-
-  subroutine report_acct(self)
-    class(account), intent(in) :: self
-    print '(a,f10.2)', 'balance: ', self%balance
-  end subroutine report_acct
-end module bank
-
-program banking
-  use bank
-  implicit none
-  type(account) :: a
-  call a%credit(100.0)          ! method call bound to the object
-  call a%credit(50.0)
-  call a%report()               ! "balance: 150.00"
-  print '(a,f10.2)', 'read via accessor: ', balance_of(a)
-end program banking</code></pre>
-
-                <p>Note the encapsulation: <code>private</code> components are invisible outside the module, so the balance can only change through <code>credit</code>. The public API — types and procedures — is exactly what the <code>use bank</code> line in a consumer sees. This is textbook data hiding with zero framework.</p>
               </main>
             </div>
           </div>
