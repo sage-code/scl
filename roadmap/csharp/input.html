@@ -2,7 +2,7 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="C# input and output: console, files, and streams.">
+  <meta name="description" content="C# input and output: formatted console output, reading standard input, command-line arguments and exit codes, File and Path, streams, async I/O, and JSON with System.Text.Json.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="sage, code, csharp, c#, input, output, io, console, file, tutorial">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -46,74 +46,184 @@
         <h1 id="csharp-input">C# Input &amp; Output</h1>
 
         <div class="alert alert-secondary shadow-sm">
-          Input and output (I/O) moves text and data between your program and the world: the console, files, and streams. The key namespaces are <code>System</code> and <code>System.IO</code>.
+          Input and output (I/O) is how a program talks to the world: it prints to the console, reads what the user types or what another program pipes in, receives command-line arguments, and reads and writes files. In .NET, the <code>Console</code> class lives in <code>System</code>, files and streams in <code>System.IO</code>, and JSON in <code>System.Text.Json</code>. This lesson goes from a formatted console report to reading a file line by line and saving objects as JSON.
         </div>
 
-        <h2 id="console">Console I/O</h2>
+        <p>The examples are complete <code>dotnet new console</code> programs (.NET 8 or later); <code>System</code>, <code>System.IO</code> and <code>System.Linq</code> are imported automatically. Number and date formats follow the current culture; the outputs shown are for an English culture.</p>
 
-        <h3 id="output">Output</h3>
-        <p><code>Console.WriteLine</code> appends a newline; <code>Console.Write</code> does not. String interpolation embeds values.</p>
-        <pre><code class="language-csharp line-numbers">Console.WriteLine("Hello");
-Console.Write("Sum: ");
-Console.WriteLine(3 + 4);
-Console.WriteLine($"Total = {3 + 4}"); // Total = 7
-</code></pre>
+        <h2 id="console">Console Output</h2>
+        <p><code>Console.WriteLine</code> prints a value followed by a newline; <code>Console.Write</code> prints without one. Both accept any type and call its <code>ToString()</code>. To mix text and values, use <strong>string interpolation</strong>: an expression inside <code>{ }</code> in a <code>$"..."</code> string.</p>
 
-        <h3 id="input">Input</h3>
-        <p><code>Console.ReadLine</code> reads a line as a string. Convert it to a number when needed.</p>
-        <pre><code class="language-csharp line-numbers">Console.Write("Name: ");
-string name = Console.ReadLine() ?? "";
-Console.WriteLine($"Hi, {name}!");
+        <h3 id="output">Format Specifiers and Alignment</h3>
+        <p>Inside the braces you can control the layout as <code>{value,alignment:format}</code>. A positive alignment right-aligns the value in that many characters, a negative one left-aligns it &mdash; enough to print neat columns. The format string chooses how the value is written:</p>
+        <table class="table table-sm table-striped">
+          <thead><tr><th>Format</th><th>Example</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><code>F2</code> fixed decimals</td><td><code>{3.14159:F2}</code></td><td><code>3.14</code></td></tr>
+            <tr><td><code>N0</code> thousands separators</td><td><code>{1234567:N0}</code></td><td><code>1,234,567</code></td></tr>
+            <tr><td><code>C</code> currency</td><td><code>{9.5m:C}</code></td><td><code>$9.50</code> in en-US</td></tr>
+            <tr><td><code>D5</code> zero-padded integer</td><td><code>{42:D5}</code></td><td><code>00042</code></td></tr>
+            <tr><td><code>X</code> hexadecimal</td><td><code>{255:X}</code></td><td><code>FF</code></td></tr>
+            <tr><td>custom date</td><td><code>{date:yyyy-MM-dd}</code></td><td><code>2026-11-14</code></td></tr>
+          </tbody>
+        </table>
+        <pre><code class="language-csharp line-numbers">// Alignment and format specifiers turn plain values into a readable table.
+string[] items = { "Coffee", "Bagel", "Orange juice" };
+decimal[] prices = { 3.5m, 2.25m, 4m };
 
-Console.Write("Age: ");
-int age = int.Parse(Console.ReadLine() ?? "0");
-Console.WriteLine(age + 1); // next birthday
-</code></pre>
+Console.WriteLine($"{"Item",-14}{"Price",8}");
+for (int i = 0; i &lt; items.Length; i++)
+    Console.WriteLine($"{items[i],-14}{prices[i],8:F2}");
+Console.WriteLine($"{"Total",-14}{prices.Sum(),8:F2}");
 
-        <h2 id="files">File I/O</h2>
+Console.Write("No newline, ");
+Console.WriteLine("then a newline.");
+Console.WriteLine($"{1234567:N0} | {42:D5} | {255:X} | {DateTime.UnixEpoch:yyyy-MM-dd}");</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">Item             Price
+Coffee            3.50
+Bagel             2.25
+Orange juice      4.00
+Total             9.75
+No newline, then a newline.
+1,234,567 | 00042 | FF | 1970-01-01</code></pre>
 
-        <h3 id="read">Read File</h3>
-        <p>The <code>File</code> class covers common text operations. Add <code>using System.IO;</code> to use it.</p>
-        <pre><code class="language-csharp line-numbers">using System.IO;
+        <h3 id="stderr">Standard Error and Exit Codes</h3>
+        <p>A console program has two output channels. <code>Console.Out</code> (what <code>WriteLine</code> uses) is for the program's results; <code>Console.Error</code> is for warnings and error messages. Keeping them separate means a user can redirect the results to a file (<code>dotnet run &gt; out.txt</code>) and still see the errors on screen. Programs also report success or failure to the shell with an <em>exit code</em>: return an <code>int</code> from the top-level code, where <code>0</code> means success.</p>
 
-string text = File.ReadAllText("notes.txt");
-string[] lines = File.ReadAllLines("notes.txt");
-Console.WriteLine(lines.Length);
-</code></pre>
+        <h2 id="input">Console Input</h2>
+        <p><code>Console.ReadLine()</code> waits for the user to press Enter and returns the line as a <code>string</code>, without the newline. It returns <code>null</code> when the input has ended &mdash; the user pressed Ctrl+Z (Windows) or Ctrl+D (Linux, macOS), or the piped input ran out &mdash; so its type is <code>string?</code>. What the user types is always text; convert it with <code>TryParse</code> and be ready for invalid input (see <a href="/roadmap/csharp/casting.html">Type Casting</a>).</p>
 
-        <h3 id="write">Write File</h3>
-        <p>Writing is symmetrical to reading: a single call creates the file and stores the text. Use <code>AppendAllText</code> to keep existing content.</p>
-        <pre><code class="language-csharp line-numbers">using System.IO;
+        <h3 id="read-loop">Reading Until the End of Input</h3>
+        <p>The loop below works the same whether a person types the numbers or another program pipes them in. It skips bad lines with a message on standard error instead of crashing.</p>
+        <pre><code class="language-csharp line-numbers">// Sum numbers from standard input until a blank line or end of input.
+int sum = 0, count = 0;
+string? line;
 
-File.WriteAllText("out.txt", "hello");
-File.AppendAllText("out.txt", "\nworld");
-</code></pre>
-
-        <h2 id="streams">Streams</h2>
-
-        <h3 id="streamreader">StreamReader</h3>
-        <p>Read text line by line without loading the whole file into memory.</p>
-        <pre><code class="language-csharp line-numbers">using System.IO;
-
-using (var reader = new StreamReader("data.txt"))
+while ((line = Console.ReadLine()) is not null)
 {
-    string? line;
-    while ((line = reader.ReadLine()) != null)
+    if (string.IsNullOrWhiteSpace(line))
+        break;
+    if (int.TryParse(line, out int value))
     {
-        Console.WriteLine(line);
+        sum += value;
+        count++;
+    }
+    else
+    {
+        Console.Error.WriteLine($"skipping '{line}'");
     }
 }
-</code></pre>
 
-        <h3 id="streamwriter">StreamWriter</h3>
-        <p>For incremental writes, a writer appends line by line and flushes on dispose — ideal for logs.</p>
-        <pre><code class="language-csharp line-numbers">using System.IO;
+double average = count == 0 ? 0 : (double)sum / count;
+Console.WriteLine($"{count} numbers, sum {sum}, average {average:F2}");</code></pre>
+        <p><b>Output</b> of <code>printf "4\n8\nx\n15\n" | dotnet run</code>:</p>
+        <pre><code class="language-output">skipping 'x'
+3 numbers, sum 27, average 9.00</code></pre>
+        <p>For single keys rather than whole lines, <code>Console.ReadKey(intercept: true)</code> returns a <code>ConsoleKeyInfo</code> without echoing the key, which is how menu programs and simple games read input.</p>
 
-using (var writer = new StreamWriter("log.txt", append: true))
+        <h3 id="args">Command-Line Arguments</h3>
+        <p>Arguments typed after the program name arrive in the <code>args</code> array, available in top-level code without declaring anything. With <code>dotnet run</code>, put them after <code>--</code> so the SDK does not interpret them. For real tools with many options, the <code>System.CommandLine</code> package parses flags and generates help text.</p>
+        <pre><code class="language-csharp line-numbers">// greet: usage message on stderr and a non-zero exit code when arguments are missing.
+if (args.Length == 0)
 {
-    writer.WriteLine("entry");
+    Console.Error.WriteLine("usage: greet &lt;name&gt; [--shout]");
+    return 1;
 }
-</code></pre>
+
+bool shout = args.Contains("--shout");
+string message = $"Hello, {args[0]}!";
+Console.WriteLine(shout ? message.ToUpper() : message);
+return 0;</code></pre>
+        <p><b>Output</b> of <code>dotnet run -- Ada --shout</code>:</p>
+        <pre><code class="language-output">HELLO, ADA!</code></pre>
+
+        <h2 id="files">File I/O</h2>
+        <p>The static <code>File</code> class does the common jobs in a single call: <code>ReadAllText</code> and <code>WriteAllText</code> for a whole file as one string, <code>ReadAllLines</code> and <code>WriteAllLines</code> for arrays of lines, <code>AppendAllText</code> to add to the end. Each call opens the file, does the work and closes it again. <code>Directory</code> creates and lists folders, and <code>Path</code> builds paths safely: always use <code>Path.Combine</code> rather than gluing strings with <code>"\\"</code> or <code>"/"</code>, so the same code runs on Windows, Linux and macOS.</p>
+
+        <h3 id="read">Reading and Writing Whole Files</h3>
+        <pre><code class="language-csharp line-numbers">// Write, append, read back and list files in a temporary folder.
+string dir = Path.Combine(Path.GetTempPath(), "sage-io-demo");
+Directory.CreateDirectory(dir);                 // no error if it already exists
+string path = Path.Combine(dir, "notes.txt");
+
+File.WriteAllLines(path, new[] { "first line", "second line" });  // creates or overwrites
+File.AppendAllText(path, "third line" + Environment.NewLine);
+
+string[] lines = File.ReadAllLines(path);
+Console.WriteLine($"{lines.Length} lines, last: {lines[^1]}");
+Console.WriteLine($"exists: {File.Exists(path)}");
+
+foreach (string file in Directory.EnumerateFiles(dir, "*.txt"))
+    Console.WriteLine(Path.GetFileName(file));</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">3 lines, last: third line
+exists: True
+notes.txt</code></pre>
+        <p>File operations fail for reasons outside your program &mdash; a missing file, a full disk, no permission, a file locked by another process &mdash; so production code wraps them in <code>try</code>/<code>catch (IOException)</code>, as shown in <a href="/roadmap/csharp/errors.html">Error Handling</a>. Text is read and written as UTF-8 by default.</p>
+
+        <h2 id="streams">Streams</h2>
+        <p>Reading a whole file into memory is fine for small files but not for a 5 GB log. A <strong>stream</strong> is a sequence of bytes you process piece by piece. <code>StreamReader</code> and <code>StreamWriter</code> wrap a stream and handle text and encodings; <code>File.ReadLines</code> (not <code>ReadAllLines</code>) returns the lines lazily, one at a time, so it can feed a LINQ query over a huge file. Always open streams in a <code>using</code> block so they are closed and flushed even when an error occurs.</p>
+
+        <h3 id="streamreader">StreamReader and StreamWriter</h3>
+        <pre><code class="language-csharp line-numbers">// Write a log with StreamWriter, scan it with StreamReader, then use the async API.
+string source = Path.Combine(Path.GetTempPath(), "sage-log.txt");
+
+using (var writer = new StreamWriter(source))           // flushed and closed by using
+{
+    for (int i = 1; i &lt;= 5; i++)
+        writer.WriteLine($"event {i}: {(i % 2 == 0 ? "ok" : "warn")}");
+}
+
+int warnings = 0;
+using (var reader = new StreamReader(source))
+{
+    string? line;
+    while ((line = reader.ReadLine()) is not null)
+        if (line.EndsWith("warn"))
+            warnings++;
+}
+Console.WriteLine($"{warnings} warnings");
+
+Console.WriteLine(File.ReadLines(source).First());     // reads only the first line
+
+await File.WriteAllTextAsync(source, "replaced");
+Console.WriteLine(await File.ReadAllTextAsync(source));</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">3 warnings
+event 1: warn
+replaced</code></pre>
+
+        <h3 id="async-io">Asynchronous I/O</h3>
+        <p>Most I/O methods have an <code>Async</code> version that returns a <code>Task</code>. Awaiting it frees the thread while the disk or network works, which keeps desktop applications responsive and lets a web server handle many requests with few threads. Top-level code can use <code>await</code> directly, as the last two lines above show. For a simple console tool the synchronous methods are fine; in ASP.NET Core and UI code, prefer the asynchronous ones.</p>
+
+        <h2 id="json">Saving Objects as JSON</h2>
+        <h3 id="serialize">Serialize and Deserialize</h3>
+        <p>Programs rarely store raw lines: they save settings, records and results. <code>System.Text.Json</code>, built into .NET, converts objects to JSON text and back. Records are a natural fit, since the serializer can fill their constructor parameters. <code>JsonSerializerOptions</code> controls details such as indentation and camelCase property names.</p>
+        <pre><code class="language-csharp line-numbers">// Serialize a record to JSON and read it back.
+using System.Text.Json;
+
+var settings = new Settings("dark", 14, ["csharp", "sql"]);
+string json = JsonSerializer.Serialize(settings);
+Console.WriteLine(json);
+
+Settings? loaded = JsonSerializer.Deserialize&lt;Settings&gt;(json);
+Console.WriteLine($"{loaded?.Theme}, size {loaded?.FontSize}, {loaded?.Languages.Count} languages");
+
+record Settings(string Theme, int FontSize, List&lt;string&gt; Languages);</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">{"Theme":"dark","FontSize":14,"Languages":["csharp","sql"]}
+dark, size 14, 2 languages</code></pre>
+        <p>Combine it with <code>File.WriteAllText</code> to save the settings, and <code>File.ReadAllText</code> plus <code>Deserialize</code> to load them on the next start. The demos <a href="/roadmap/code-viewer.html?file=/roadmap/csharp/demo/13_console_io.cs">13_console_io.cs</a> and <a href="/roadmap/code-viewer.html?file=/roadmap/csharp/demo/14_files.cs">14_files.cs</a> have more examples.</p>
+
+        <h2 id="practice">Practice</h2>
+        <h3 id="exercises">Exercises</h3>
+        <ol>
+          <li>Extend the price table: read item names and prices from the user until a blank line, then print the table with the total.</li>
+          <li>Write a <code>wc</code>-like tool that takes a file name in <code>args</code> and prints the number of lines, words and characters, using <code>File.ReadLines</code>. Return exit code 2 if the file does not exist.</li>
+          <li>Save a <code>List&lt;Settings&gt;</code> to a JSON file with <code>WriteIndented = true</code>, open it in an editor, change a value, and load it back.</li>
+          <li>Copy a text file to a new file with every line numbered, using one <code>StreamReader</code> and one <code>StreamWriter</code>.</li>
+        </ol>
 
       </main>
     </div>

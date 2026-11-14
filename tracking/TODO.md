@@ -38,7 +38,7 @@ nearest one (`haskell` for Idris/Clean/Elm, `smalltalk` for Self, `prolog` for M
 - [x] `ocaml.html` (added later; not run, OCaml not installed; bundled Prism `ocaml`)
 - [x] `clean.html`
 - [x] `idris.html`
-- [ ] Verify every external "Learn more" link (URLs were written from memory), then run `npm run check`.
+- [x] Verify every external "Learn more" link — covered by the 2026-11-14 site-wide link check (dead links removed).
 
 ### Phase 2: More Paradigms — DONE 2026-09-29
 - [x] `logic.html` — draft reviewed, language table now links to pages
@@ -69,7 +69,8 @@ nearest one (`haskell` for Idris/Clean/Elm, `smalltalk` for Self, `prolog` for M
 - [x] `j.html`
 - [x] `bqn.html`
 - Prism extras loaded from CDN: `elm`, `apl` (also used for BQN), `j`. Reused bundled grammars: `prolog` (Datalog, Clingo, Mercury), `clike` (Pony), `none` (LabVIEW ASCII diagram).
-- [ ] Verify Phase 2 external links and run the code examples where a toolchain is available.
+- [x] Verify Phase 2 external links — covered by the 2026-11-14 site-wide link check.
+- [ ] Run the Phase 2 code examples where a toolchain is available.
 
 ### Phase 3: Hybrid Languages
 Popular hybrids done: `hybrid.html` reviewed (H1, choosing-a-style table, language table, sidebar); examples run for Python, JavaScript, Julia (Racket not run, not installed; Prism loads scheme + racket from CDN).
@@ -335,16 +336,33 @@ classifier except the thin legacy pages listed below.
   `rubydoc.info` 521 (transient), placeholders (`partner.example`, `example.com`).
 - [ ] 20 Eve code-viewer links 404 until `eve-lang` is committed and pushed: the level 5/6
   tests (e171–e180, e95, f19–f23) are staged renames in the local checkout only.
-- [ ] Thin legacy pages flagged only by a leftover `<!-- work in progress-->` comment: real
-  content but ~4–5 KB with typos — rewrite to the current track standard, don't just drop the
-  comment. `java/` (abstraction, annotations, collections, inference, inheritance, lambda,
-  sealed), `dart/` (libraries, tech-stack), `scala/traits`.
+- [x] 2026-11-14: thin legacy pages rewritten — `java/` inheritance, abstraction, annotations,
+  inference, collections, lambda, sealed (18 example programs compiled with `javac -Xlint:all`
+  on JDK 23, 0 warnings; every Output block is real program output); `dart/libraries` rewritten
+  as "Libraries & Packages" and added to the index as lesson 09 (it was an orphan);
+  `dart/tech-stack` deleted (orphan, factually wrong, overlapped `deployment`); `scala/traits`
+  rewritten for Scala 3. Dart and Scala code was NOT executed (no toolchains here).
+- [ ] **Skeleton tracks** (new `thin_pages` metric in `generate_roadmaps_status.py`: lesson pages
+  with < 200 words of prose in `<main>`, code excluded; ≥ 50% thin ⇒ `not_updated`):
+  `kotlin` 11/12, `node` 12/14, `react` 12/13, `svelte` 9/11 — each page ~70–130 words; these
+  need full track rebuilds like `zig`/`c`/`bash`. Single thin pages remain in ada (2), rust (2),
+  bash, cse, dart (`deployment`), elixir, flutter, fortran, plsql, wasm.
+- [x] 2026-11-14: `csharp` thin pages rewritten to the `java` standard (complete programs with
+  Output blocks, tables, cross-links, exercises): `casting`, `composite`, `directives`, `errors`,
+  `input`, `strings`; sidebars regenerated with `gen_topic_sidebars.py`; index phases renumbered
+  (4 → 5 Advanced, new 6 Reference). csharp thin 6/14 → 0/14.
+- [ ] **Run the new `csharp` examples** (~35 programs, .NET 8+, `dotnet` is installed here): the
+  Output blocks were written by hand and NOT executed. Check especially culture-dependent output
+  (`casting` de-DE parse, `input` N0/format table) and `directives` (Debug vs `-c Release`).
+  Then `npm run test` → `build` → `check` → `check:sidebar`.
+- [x] Thin legacy `<!-- work in progress-->` pages (`java/`, `dart/`, `scala/traits`) — rewritten
+  2026-11-14 (see the entry above).
 - [ ] `react/` (14 pages) and `flutter/` (8 pages) — newer tracks with no `demo/`/`samples.html`;
   `flutter` also lacks `references.html`.
-- [ ] Classifier blind spot: `generate_roadmaps_status.py` only flags pages `< 6000` bytes that
-  match a known WIP phrase; add a "thin page" signal (small `<main>` text, flat sidebar) so legacy
-  pages surface without relying on stray comments.
-- [ ] `cpp/data/errors.json` — not single-root (the one standing `npm run test` warning).
+- [x] Classifier blind spot — `generate_roadmaps_status.py` now has the `thin_pages` signal
+  (< 200 words of prose in `<main>`).
+- [x] `cpp/data/errors.json` — file deleted as an orphan sidecar on 2026-11-14 (no `errors.html`
+  exists and nothing references it), so the single-root warning is gone.
 - Resolved since the last list: `swift` (pages are real, 12 KB+), `ada` (per-topic sidebar
   JSONs present), `go`, `svelte`.
 

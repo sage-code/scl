@@ -2,7 +2,7 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="C# string functions: literals, verbatim, interpolation, common methods, split, and StringBuilder.">
+  <meta name="description" content="C# strings: immutability, regular, verbatim, interpolated and raw literals, ordinal vs culture comparison, searching, Split and Join, StringBuilder, and Unicode text elements.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="sage, code, csharp, c#, strings, functions, interpolation, tutorial">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -46,79 +46,211 @@
         <h1 id="csharp-strings">C# String Functions</h1>
 
         <div class="alert alert-secondary shadow-sm">
-          Strings are immutable text sequences: every method returns a new string. Learn the literals, the common <code>String</code> API, and <code>StringBuilder</code> for heavy work.
+          A <code>string</code> is a sequence of UTF-16 characters. It is a reference type that behaves like a value: <code>==</code> compares the text, and a string can never be changed after it is created &mdash; every method that seems to modify one, like <code>ToUpper</code> or <code>Replace</code>, returns a <em>new</em> string. This lesson covers how to write string literals, compare and search text correctly, take strings apart and join them, and build large strings efficiently with <code>StringBuilder</code>.
         </div>
 
+        <p>The examples are complete <code>dotnet new console</code> programs (.NET 8 or later).</p>
+
         <h2 id="basics">String Basics</h2>
+        <h3 id="three-facts">Three Facts About Strings</h3>
+        <p>Three facts explain most string behaviour in C#:</p>
+        <ul>
+          <li><strong>Immutable.</strong> <code>s.ToUpper();</code> on its own line does nothing useful: the result is thrown away. Write <code>s = s.ToUpper();</code>. Immutability makes strings safe to share between threads and to use as dictionary keys.</li>
+          <li><strong>Compared by value.</strong> <code>a == b</code> is true when both contain the same characters, even if they are different objects.</li>
+          <li><strong>Can be <code>null</code>.</strong> <code>""</code> (or <code>string.Empty</code>) is an empty string; <code>null</code> is no string at all, and calling a method on it throws. <code>string.IsNullOrEmpty</code> and <code>string.IsNullOrWhiteSpace</code> check both at once.</li>
+        </ul>
+        <p>A single character has its own type, <code>char</code>, written in single quotes: <code>'A'</code>. Indexing a string, <code>s[0]</code>, returns a <code>char</code>.</p>
 
-        <h3 id="literals">Literals</h3>
-        <p>Literals are values written directly into the code. Double quotes mark a string, single quotes mark one character, and numbers and booleans need no quotes.</p>
-        <pre><code class="language-csharp line-numbers">string greeting = "Hello";
-char letter = 'A';
-string empty = "";
-</code></pre>
+        <h2 id="literals">String Literals</h2>
+        <p>C# has four kinds of string literal, and choosing the right one removes most escaping headaches:</p>
+        <table class="table table-sm table-striped">
+          <thead><tr><th>Literal</th><th>Syntax</th><th>Use for</th></tr></thead>
+          <tbody>
+            <tr><td>regular</td><td><code>"Tab:\tQuote:\""</code></td><td>short text; escapes like <code>\n</code>, <code>\t</code>, <code>\"</code>, <code>\\</code>, <code>\u00E9</code></td></tr>
+            <tr><td>verbatim</td><td><code>@"C:\data\file.txt"</code></td><td>Windows paths and regular expressions: backslashes are literal; write <code>""</code> for one quote</td></tr>
+            <tr><td>interpolated</td><td><code>$"Hi {name}"</code></td><td>embedding values; combine with <code>@</code> as <code>$@"..."</code></td></tr>
+            <tr><td>raw (C# 11)</td><td><code>"""...."""</code></td><td>JSON, XML, SQL and other text that contains quotes; no escapes at all</td></tr>
+          </tbody>
+        </table>
 
-        <h3 id="verbatim">Verbatim Strings</h3>
-        <p>A verbatim string (<code>@</code>) skips escape processing — handy for paths and multi-line text.</p>
-        <pre><code class="language-csharp line-numbers">string path = @"C:\data\file.txt";
-string multi = @"line one
-line two";
-</code></pre>
+        <h3 id="raw">Raw and Interpolated Strings</h3>
+        <p>A raw string literal starts and ends with at least three double quotes. In the multi-line form, the column of the closing <code>"""</code> sets the left margin: that much indentation is removed from every line, so the literal can be indented with your code. For an interpolated raw string, the number of <code>$</code> signs says how many braces open an expression &mdash; with <code>$$</code>, a single <code>{</code> is ordinary text, which is exactly what JSON needs.</p>
+        <pre><code class="language-csharp line-numbers">// Four literal styles: verbatim, escaped, raw, and interpolated raw.
+string path = @"C:\data\file.txt";
+string escaped = "Tab:\tQuote:\" Newline follows\n(end)";
 
-        <h3 id="interpolation">Interpolation</h3>
-        <p>Embed expressions directly with <code>$"..."</code>.</p>
-        <pre><code class="language-csharp line-numbers">string name = "Ada";
-Console.WriteLine($"Hi {name}");   // Hi Ada
-Console.WriteLine($"2+2 = {2 + 2}"); // 2+2 = 4
-</code></pre>
+string name = "Ada";
+int year = 1843;
 
-        <h2 id="methods">Common Methods</h2>
+string raw = """
+    {
+      "name": "Ada",
+      "note": "no \escapes here"
+    }
+    """;
 
-        <h3 id="compare">Compare &amp; Equals</h3>
-        <p>Prefer <code>Equals</code> with an explicit comparison rule so the intent is visible. The default <code>==</code> also compares strings by value in C#.</p>
-        <pre><code class="language-csharp line-numbers">string a = "hello";
-string b = "HELLO";
-Console.WriteLine(a.Equals(b, StringComparison.OrdinalIgnoreCase)); // True
-Console.WriteLine(string.Compare(a, "hello")); // 0 — equal
-</code></pre>
+string json = $$"""{"name": "{{name}}", "year": {{year}}}""";
+
+Console.WriteLine(path);
+Console.WriteLine(escaped);
+Console.WriteLine(raw);
+Console.WriteLine(json);
+Console.WriteLine($"{name,-6}|{year,6}|{Math.PI:F3}");</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">C:\data\file.txt
+Tab:	Quote:" Newline follows
+(end)
+{
+  "name": "Ada",
+  "note": "no \escapes here"
+}
+{"name": "Ada", "year": 1843}
+Ada   |  1843|3.142</code></pre>
+        <p>Alignment (<code>,-6</code>) and format specifiers (<code>:F3</code>) work in every interpolated string; the full list is in <a href="/roadmap/csharp/input.html">Input &amp; Output</a>.</p>
+
+        <h2 id="compare">Comparing Strings</h2>
+        <h3 id="comparison-kinds">Ordinal vs Culture-Aware</h3>
+        <p><code>==</code> compares strings <em>ordinally</em>: character code by character code, case-sensitive. That is right for identifiers, file names, keys and protocol text. For anything else, say what you mean with a <code>StringComparison</code> value:</p>
+        <ul>
+          <li><code>Ordinal</code> / <code>OrdinalIgnoreCase</code> &mdash; fast, exact, culture-independent. The default choice for program data.</li>
+          <li><code>CurrentCulture</code> / <code>CurrentCultureIgnoreCase</code> &mdash; follows the user's language rules. Use it to sort or compare text that a person will read.</li>
+          <li><code>InvariantCulture</code> &mdash; culture-aware but fixed; rarely the best choice.</li>
+        </ul>
+        <p>Beware that some methods are culture-sensitive by default (<code>string.Compare</code>, <code>StartsWith(string)</code>, <code>ToUpper()</code>) while others are ordinal (<code>==</code>, <code>Equals</code>, <code>Contains</code>, <code>Replace</code>). Passing a <code>StringComparison</code> explicitly removes the guesswork, and code analyzers can enforce it.</p>
+        <pre><code class="language-csharp line-numbers">// Ordinal vs culture-aware comparison, and null-safe checks.
+string a = "file.TXT", b = "FILE.txt";
+Console.WriteLine(a == b);                                                       // False
+Console.WriteLine(string.Equals(a, b, StringComparison.OrdinalIgnoreCase));      // True
+Console.WriteLine(a.EndsWith(".txt", StringComparison.OrdinalIgnoreCase));       // True
+
+// Ordinal: 'a' (97) comes after 'B' (66). Culture: alphabetical, apple before Banana.
+Console.WriteLine(string.Compare("apple", "Banana", StringComparison.Ordinal) &lt; 0);        // False
+Console.WriteLine(string.Compare("apple", "Banana", StringComparison.CurrentCulture) &lt; 0); // True
+
+string? missing = null;
+Console.WriteLine(string.IsNullOrEmpty(missing));        // True
+Console.WriteLine(string.IsNullOrWhiteSpace("   "));     // True
+Console.WriteLine(missing == "");                        // False: null is not empty</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">False
+True
+True
+False
+True
+True
+True
+False</code></pre>
+
+        <h2 id="methods">Searching and Modifying</h2>
 
         <h3 id="search">Search</h3>
-        <p>Testing membership and position helps you validate user input and parse text. Each method below answers a different question.</p>
-        <pre><code class="language-csharp line-numbers">string text = "hello world";
-Console.WriteLine(text.Contains("world")); // True  — does text contain it?
-Console.WriteLine(text.StartsWith("he"));  // True  — how does it begin?
-Console.WriteLine(text.IndexOf("world"));  // 6     — where does it start?
-</code></pre>
+        <p><code>Contains</code>, <code>StartsWith</code> and <code>EndsWith</code> answer yes-or-no questions. <code>IndexOf</code> and <code>LastIndexOf</code> return the position of the first or last match, or <code>-1</code> when there is none &mdash; always check for <code>-1</code> before using the result as an index. For patterns rather than fixed text (an e-mail address, a date), use <code>System.Text.RegularExpressions.Regex</code>.</p>
 
-        <h3 id="modify">Modify</h3>
-        <p>Strings are immutable, so each call returns a new string.</p>
-        <pre><code class="language-csharp line-numbers">string t = "  Hello  ";
-Console.WriteLine(t.Trim().ToUpper());            // HELLO
-Console.WriteLine("a,b".Replace(",", ";"));       // a;b
-Console.WriteLine("program".Substring(3));        // gram
-</code></pre>
+        <h3 id="modify">Extract and Modify</h3>
+        <p><code>Substring(start, length)</code> and the range syntax <code>s[start..end]</code> extract part of a string. <code>Trim</code>, <code>TrimStart</code> and <code>TrimEnd</code> remove whitespace or chosen characters; <code>PadLeft</code> and <code>PadRight</code> add them; <code>Replace</code>, <code>Insert</code> and <code>Remove</code> do what their names say. Use <code>ToUpperInvariant</code>/<code>ToLowerInvariant</code> to normalise program data, because the culture-aware <code>ToUpper</code> gives surprising results in some languages (in Turkish, <code>"i".ToUpper()</code> is <code>"İ"</code>).</p>
+        <pre><code class="language-csharp line-numbers">// Searching returns positions; every "modifying" call returns a new string.
+string text = "The quick brown fox jumps over the lazy dog";
+
+Console.WriteLine(text.Length);
+Console.WriteLine(text.IndexOf("fox"));
+Console.WriteLine(text.LastIndexOf("the"));
+Console.WriteLine(text.IndexOf("cat"));
+Console.WriteLine(text.Contains("QUICK", StringComparison.OrdinalIgnoreCase));
+
+Console.WriteLine(text[4..9]);                         // characters 4 to 8
+Console.WriteLine(text.Substring(40));                 // from 40 to the end
+Console.WriteLine(text.Replace("lazy", "sleepy").ToUpperInvariant());
+
+Console.WriteLine("  padded  ".Trim() + "|");
+Console.WriteLine("42".PadLeft(5, '0'));
+Console.WriteLine(new string('-', 10));
+Console.WriteLine(string.Concat(Enumerable.Repeat("ab", 3)));</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">43
+16
+31
+-1
+True
+quick
+dog
+THE QUICK BROWN FOX JUMPS OVER THE SLEEPY DOG
+padded|
+00042
+----------
+ababab</code></pre>
 
         <h2 id="split">Split &amp; Join</h2>
 
         <h3 id="split-join">Split and Join</h3>
-        <p>Splitting breaks a string into an array on a separator; joining does the reverse. This round-trip is the basis of CSV parsing.</p>
-        <pre><code class="language-csharp line-numbers">string data = "a,b,c";
-string[] parts = data.Split(',');
-string joined = string.Join(" | ", parts); // a | b | c
-</code></pre>
+        <p><code>Split</code> cuts a string at every separator and returns an array of the pieces; <code>string.Join</code> glues an array or list back together with a separator. Two <code>StringSplitOptions</code> flags clean up real-world input: <code>RemoveEmptyEntries</code> drops empty pieces (from doubled or trailing separators) and <code>TrimEntries</code> removes the spaces around each piece. Passing no separator splits on any whitespace.</p>
+        <pre><code class="language-csharp line-numbers">// Splitting messy input and joining it back together.
+string csv = "Ada, 36,  London,,";
+
+string[] pieces = csv.Split(',');
+Console.WriteLine(pieces.Length);                    // includes the two empty pieces
+
+string[] clean = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+Console.WriteLine(string.Join("|", clean));
+
+string[] words = "one  two\tthree\nfour".Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+Console.WriteLine(words.Length);
+Console.WriteLine(string.Join(", ", words.Select(w =&gt; w.ToUpperInvariant())));</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">5
+Ada|36|London
+4
+ONE, TWO, THREE, FOUR</code></pre>
+        <p><code>Split</code> is fine for simple, well-behaved data. Real CSV files have quoted fields that contain commas (<code>"Lovelace, Ada"</code>), so for CSV use a library such as CsvHelper instead of writing your own parser.</p>
 
         <h2 id="builder">StringBuilder</h2>
-
-        <p>For repeated concatenation in a loop, use <code>StringBuilder</code> — it avoids creating a new string each time.</p>
-        <pre><code class="language-csharp line-numbers">using System.Text;
+        <p>Because strings are immutable, <code>s += "x"</code> copies the whole of <code>s</code> into a new string every time. In a loop that adds 10,000 pieces, that is 10,000 ever-larger copies, and the work grows with the <em>square</em> of the length. <code>System.Text.StringBuilder</code> keeps a growable buffer instead: <code>Append</code>, <code>AppendLine</code>, <code>AppendJoin</code> and <code>Insert</code> edit the buffer in place, and <code>ToString()</code> produces the final string once. For a handful of concatenations, or a single interpolated string, plain strings are just as fast and easier to read &mdash; reach for <code>StringBuilder</code> when you build text in a loop.</p>
+        <pre><code class="language-csharp line-numbers">// Build a multiplication table in one buffer, then convert it to a string once.
+using System.Text;
 
 var sb = new StringBuilder();
-for (int i = 0; i &lt; 1000; i++)
+for (int row = 1; row &lt;= 3; row++)
 {
-    sb.Append(i).Append(' ');
+    sb.AppendJoin(' ', Enumerable.Range(1, 4).Select(col =&gt; (row * col).ToString().PadLeft(2)));
+    sb.Append('\n');
 }
-string result = sb.ToString();
-</code></pre>
+sb.Insert(0, "Table:\n");
+
+Console.Write(sb.ToString());
+Console.WriteLine($"{sb.Length} chars");</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">Table:
+ 1  2  3  4
+ 2  4  6  8
+ 3  6  9 12
+43 chars</code></pre>
+
+        <h3 id="unicode">Characters and Unicode</h3>
+        <p><code>Length</code> counts UTF-16 <em>code units</em>, not the characters a person sees. Most text uses one code unit per character, but emoji and many rare scripts need two (a <em>surrogate pair</em>), and an accented letter can be stored as a letter plus a combining mark. When you count, truncate or reverse user-visible text, work with <em>text elements</em> through <code>System.Globalization.StringInfo</code>, or with <code>Rune</code> values via <code>EnumerateRunes()</code>.</p>
+        <pre><code class="language-csharp line-numbers">// Length counts UTF-16 code units; StringInfo counts what the reader sees.
+using System.Globalization;
+
+string word = "café";
+string thumbsUp = "\U0001F44D";                     // one emoji, two UTF-16 code units
+
+Console.WriteLine(word.Length);
+Console.WriteLine(thumbsUp.Length);
+Console.WriteLine(new StringInfo(thumbsUp).LengthInTextElements);
+Console.WriteLine(thumbsUp.EnumerateRunes().Count());</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">4
+2
+1
+1</code></pre>
+
+        <h2 id="practice">Practice</h2>
+        <h3 id="exercises">Exercises</h3>
+        <ol>
+          <li>Write <code>IsPalindrome(string s)</code> that ignores case, spaces and punctuation, so that <code>"A man, a plan, a canal: Panama"</code> returns <code>true</code>. Use <code>char.IsLetterOrDigit</code>.</li>
+          <li>Count the words in a paragraph and print the five most frequent, case-insensitively, using <code>Split</code> and a dictionary with <code>StringComparer.OrdinalIgnoreCase</code>.</li>
+          <li>Turn <code>"user_first_name"</code> into <code>"UserFirstName"</code> with <code>Split</code>, <code>char.ToUpperInvariant</code> and <code>string.Concat</code>.</li>
+          <li>Build a 1,000-line report once with <code>+=</code> and once with <code>StringBuilder</code>, time both with <code>System.Diagnostics.Stopwatch</code>, and compare.</li>
+        </ol>
+        <p>The demo <a href="/roadmap/code-viewer.html?file=/roadmap/csharp/demo/16_strings.cs">16_strings.cs</a> collects more string operations.</p>
 
       </main>
     </div>

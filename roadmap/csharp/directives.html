@@ -2,7 +2,7 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="C# compiler directives: preprocessor, nullable context, and pragma.">
+  <meta name="description" content="C# preprocessor directives: conditional compilation and predefined symbols, the Conditional attribute, #warning, #region, #nullable, #pragma warning, and .NET 10 file-based app directives.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="sage, code, csharp, c#, directives, preprocessor, nullable, pragma, tutorial">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -46,58 +46,196 @@
         <h1 id="csharp-directives">C# Compiler Directives</h1>
 
         <div class="alert alert-secondary shadow-sm">
-          Directives start with <code>#</code> and are processed before compilation. They control conditional compilation, collapsible regions, warnings, and the nullable context.
+          A preprocessor directive is a line that starts with <code>#</code> and gives an instruction to the compiler rather than describing what the program does. Directives decide which code is compiled (<code>#if</code>), shape the warnings you get (<code>#pragma</code>, <code>#nullable</code>, <code>#warning</code>), and organise the file in the editor (<code>#region</code>). Unlike C and C++, C# has <strong>no macros</strong> and no <code>#include</code>: a symbol is only ever defined or undefined, so directives cannot rewrite your code behind your back.
         </div>
 
-        <h2 id="preprocessor">Preprocessor</h2>
+        <h2 id="preprocessor">How Directives Work</h2>
+        <p>The rules are short:</p>
+        <ul>
+          <li>A directive occupies a whole line. Only whitespace may come before the <code>#</code>, and only a <code>//</code> comment may follow the directive.</li>
+          <li>Directives are processed while the compiler reads the source, before types and methods are analysed. Code excluded by <code>#if</code> is not compiled at all, so it may even contain syntax errors.</li>
+          <li><code>#define</code> and <code>#undef</code> must appear before the first token of real code in the file, and they affect only that file. Project-wide symbols are set in the <code>.csproj</code>.</li>
+        </ul>
 
-        <h3 id="pp-if">Conditional Compilation</h3>
-        <p><code>#if</code> / <code>#else</code> / <code>#endif</code> include or exclude code based on symbols such as <code>DEBUG</code>.</p>
-        <pre><code class="language-csharp line-numbers">#define LOCAL
+        <h3 id="symbols">Predefined Symbols</h3>
+        <p>The .NET SDK defines symbols for you, so most projects never need <code>#define</code>:</p>
+        <table class="table table-sm table-striped">
+          <thead><tr><th>Symbol</th><th>Defined when</th></tr></thead>
+          <tbody>
+            <tr><td><code>DEBUG</code></td><td>building the Debug configuration (the default for <code>dotnet run</code> and <code>dotnet build</code>)</td></tr>
+            <tr><td><code>RELEASE</code></td><td>building with <code>-c Release</code></td></tr>
+            <tr><td><code>TRACE</code></td><td>both configurations, by default</td></tr>
+            <tr><td><code>NET8_0</code>, <code>NET8_0_OR_GREATER</code></td><td>targeting .NET 8 (and similar symbols for every target framework)</td></tr>
+            <tr><td><code>WINDOWS</code>, <code>ANDROID</code>, <code>IOS</code>&hellip;</td><td>the target framework names an operating system, e.g. <code>net8.0-windows</code></td></tr>
+          </tbody>
+        </table>
 
-#if LOCAL
-Console.WriteLine("local build");
-#else
-Console.WriteLine("release build");
+        <h2 id="pp-if">Conditional Compilation</h2>
+        <p><code>#if</code>, <code>#elif</code>, <code>#else</code> and <code>#endif</code> include a block only when a condition on symbols is true. Conditions can combine symbols with <code>&amp;&amp;</code>, <code>||</code>, <code>!</code> and parentheses. Typical uses are extra diagnostics in Debug builds and code that must compile for several target frameworks.</p>
+        <p>For a whole method that should exist only in some builds, the <code>[Conditional("DEBUG")]</code> attribute is usually cleaner than <code>#if</code>: the method is always compiled and type-checked, but the compiler <em>removes every call to it</em> when the symbol is not defined.</p>
+        <pre><code class="language-csharp line-numbers">// #define must come before any code; DEBUG and NET8_0_OR_GREATER come from the SDK.
+#define VERBOSE
+
+using System.Diagnostics;
+
+Diag.Log("starting");
+
+#if VERBOSE
+Console.WriteLine("verbose mode is on");
 #endif
-</code></pre>
 
-        <h3 id="pp-region">Region</h3>
-        <p><code>#region</code> groups code into a collapsible block in the editor.</p>
-        <pre><code class="language-csharp line-numbers">#region Helpers
-static int Triple(int x) =&gt; x * 3;
-#endregion
-</code></pre>
+#if DEBUG
+Console.WriteLine("Debug build");
+#elif RELEASE
+Console.WriteLine("Release build");
+#endif
 
-        <h3 id="pp-warning">Warning &amp; Error</h3>
-        <p><code>#warning</code> emits a compiler warning; <code>#error</code> stops the build.</p>
-        <pre><code class="language-csharp line-numbers">#warning This module is experimental
-// #error remove me before release
-</code></pre>
+#if NET8_0_OR_GREATER
+Console.WriteLine(".NET 8 or newer");
+#endif
+
+Diag.Trace("only in Debug builds");
+Console.WriteLine("done");
+
+static class Diag
+{
+    public static void Log(string message) =&gt; Console.WriteLine($"[log] {message}");
+
+    [Conditional("DEBUG")]                     // calls vanish from Release builds
+    public static void Trace(string message) =&gt; Console.WriteLine($"[trace] {message}");
+}</code></pre>
+        <p><b>Output</b> of <code>dotnet run</code>:</p>
+        <pre><code class="language-output">[log] starting
+verbose mode is on
+Debug build
+.NET 8 or newer
+[trace] only in Debug builds
+done</code></pre>
+        <p>With <code>dotnet run -c Release</code>, the fourth line becomes <code>Release build</code> and the <code>[trace]</code> line disappears.</p>
+
+        <h3 id="csproj">Symbols and Settings in the Project File</h3>
+        <p>Directives in a file are for local exceptions. Anything that should apply to the whole project belongs in the <code>.csproj</code>, where reviewers will see it:</p>
+        <pre><code class="language-markup line-numbers">&lt;PropertyGroup&gt;
+  &lt;TargetFramework&gt;net8.0&lt;/TargetFramework&gt;
+  &lt;!-- add a symbol for every file, keeping the SDK's own symbols --&gt;
+  &lt;DefineConstants&gt;$(DefineConstants);FEATURE_EXPORT&lt;/DefineConstants&gt;
+  &lt;!-- nullable reference types on for the whole project --&gt;
+  &lt;Nullable&gt;enable&lt;/Nullable&gt;
+  &lt;!-- fail the build on warnings, except missing XML docs --&gt;
+  &lt;TreatWarningsAsErrors&gt;true&lt;/TreatWarningsAsErrors&gt;
+  &lt;NoWarn&gt;$(NoWarn);CS1591&lt;/NoWarn&gt;
+&lt;/PropertyGroup&gt;</code></pre>
+        <p>You can also define a symbol for a single build: <code>dotnet build -p:DefineConstants=FEATURE_EXPORT</code> (this replaces the defaults instead of adding to them).</p>
+
+        <h2 id="diagnostics">Diagnostics and Regions</h2>
+
+        <h3 id="pp-warning">#warning and #error</h3>
+        <p><code>#warning</code> makes the compiler print your message as a warning; <code>#error</code> stops the build with your message. Combined with <code>#if</code>, <code>#error</code> guards against unsupported build configurations.</p>
+        <pre><code class="language-csharp line-numbers">#if !NET8_0_OR_GREATER
+#error This library requires .NET 8 or later.
+#endif
+
+#warning The export module is experimental
+Console.WriteLine("built anyway");</code></pre>
+        <p>Building this file prints <code>warning CS1030: #warning: 'The export module is experimental'</code> and the program still runs. Do not use <code>#warning</code> as a to-do list, though: warnings that never go away train everyone to ignore warnings. Use your issue tracker for that.</p>
+
+        <h3 id="pp-region">#region</h3>
+        <p><code>#region Name</code> &hellip; <code>#endregion</code> marks a block the editor can fold. It has no effect on the compiled program. Regions help in long generated files, but in hand-written code they often hide a class that has grown too big; splitting the class, or using a <code>partial</code> class across files, usually serves readers better.</p>
+        <pre><code class="language-csharp line-numbers">class ReportBuilder
+{
+    #region Formatting helpers
+    static string Header(string title) =&gt; $"== {title} ==";
+    static string Line(string text) =&gt; $"- {text}";
+    #endregion
+}</code></pre>
+
+        <h3 id="pp-line">#line</h3>
+        <p><code>#line</code> changes the line numbers and file name the compiler reports, and <code>#line hidden</code> hides lines from the debugger. It exists for tools that generate C# from another file &mdash; Razor pages and source generators use it so errors point to <em>your</em> source rather than the generated code. You will rarely write it by hand.</p>
 
         <h2 id="nullable">Nullable Context</h2>
+        <p>Since C# 8, the compiler can track which <em>reference</em> variables may be <code>null</code>. In an <em>enabled</em> nullable context, <code>string</code> means "never null" and <code>string?</code> means "may be null"; the compiler warns when you dereference a <code>string?</code> without checking it, or assign <code>null</code> to a <code>string</code>. New projects enable it in the <code>.csproj</code> (<code>&lt;Nullable&gt;enable&lt;/Nullable&gt;</code>). The <code>#nullable</code> directive overrides that setting for part of a file, which is how large old code bases migrate one file at a time.</p>
 
-        <h3 id="nl-enable">Enable</h3>
-        <p><code>#nullable enable</code> turns on nullable reference warnings. A <code>?</code> suffix means the value may be <code>null</code>.</p>
-        <pre><code class="language-csharp line-numbers">#nullable enable
-string? maybe = null;   // allowed, compiler warns on unsafe use
-string required = "set";
-</code></pre>
+        <h3 id="nl-enable">#nullable enable, disable and restore</h3>
+        <ul>
+          <li><code>#nullable enable</code> &mdash; annotations and warnings on from this line.</li>
+          <li><code>#nullable disable</code> &mdash; both off: the "oblivious" pre-C# 8 behaviour.</li>
+          <li><code>#nullable restore</code> &mdash; back to the project setting.</li>
+          <li><code>#nullable enable warnings</code> / <code>annotations</code> &mdash; switch only one half.</li>
+        </ul>
+        <p>The postfix <code>!</code> operator ("null-forgiving") tells the compiler that you know a value is not null. It removes the warning and nothing else: if you are wrong, you still get a <code>NullReferenceException</code> at run time.</p>
+        <pre><code class="language-csharp line-numbers">// Nullable annotations are compile-time checks; they do not change run-time behaviour.
+#nullable enable
+string? FindUser(int id) =&gt; id == 1 ? "Ada" : null;
 
-        <h3 id="nl-disable">Disable</h3>
-        <p><code>#nullable disable</code> turns the context off for the rest of the file.</p>
-        <pre><code class="language-csharp line-numbers">#nullable disable
-string legacy = null; // no warning in this scope
-</code></pre>
+string? user = FindUser(2);
+// Console.WriteLine(user.Length);       // warning CS8602: possibly null
+Console.WriteLine(user?.Length ?? 0);    // safe: null-conditional + default
+if (user is not null)
+    Console.WriteLine(user.Length);      // no warning: the compiler saw the check
 
-        <h2 id="pragma">Pragma</h2>
+string name = FindUser(1)!;              // "trust me": suppresses the warning only
+Console.WriteLine(name.ToUpper());
 
-        <h3 id="pragma-warning">Suppress Warnings</h3>
-        <p><code>#pragma warning disable</code> / <code>restore</code> silences specific warning numbers around a code block.</p>
-        <pre><code class="language-csharp line-numbers">#pragma warning disable CS0168 // variable declared but never used
-int unused;
-#pragma warning restore CS0168
-</code></pre>
+#nullable disable
+string legacy = null;                    // no warning: annotations are off here
+Console.WriteLine(legacy ?? "(null)");
+#nullable restore</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">0
+ADA
+(null)</code></pre>
+
+        <h2 id="pragma">#pragma warning</h2>
+        <h3 id="pragma-disable">Disabling Specific Warnings</h3>
+        <p><code>#pragma warning disable CS0618</code> silences the listed warnings until a matching <code>#pragma warning restore</code>. Keep the disabled region as small as possible, always name the warning number (a bare <code>disable</code> silences everything), and add a comment explaining why the warning does not apply. For a rule you disagree with across the whole project, change its severity in <code>.editorconfig</code> (<code>dotnet_diagnostic.CA1822.severity = none</code>) or in <code>&lt;NoWarn&gt;</code> instead.</p>
+        <pre><code class="language-csharp line-numbers">// Calling an obsolete API on purpose, with the warning disabled only around the call.
+#pragma warning disable CS0618 // OldApi.Run is obsolete, but the new API is not deployed yet
+OldApi.Run();
+#pragma warning restore CS0618
+
+NewApi.Run();
+
+static class OldApi
+{
+    [Obsolete("Use NewApi.Run instead")]
+    public static void Run() =&gt; Console.WriteLine("old api");
+}
+
+static class NewApi
+{
+    public static void Run() =&gt; Console.WriteLine("new api");
+}</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">old api
+new api</code></pre>
+
+        <h2 id="file-based">File-Based Apps (.NET 10)</h2>
+        <h3 id="hash-colon">#: Directives</h3>
+        <p>.NET 10 can run a single <code>.cs</code> file without a project: <code>dotnet run hello.cs</code>. Such a file uses a newer kind of directive, starting with <code>#:</code>, to say what a <code>.csproj</code> would normally say &mdash; for example <code>#:package Humanizer@2.14.1</code> to reference a NuGet package, <code>#:sdk</code> to choose an SDK and <code>#:property</code> to set an MSBuild property. On Linux and macOS a first line <code>#!/usr/bin/env dotnet</code> makes the file directly executable. These directives are ignored in normal projects; the feature is new, so check the .NET 10 SDK documentation on Microsoft Learn (listed in <a href="/roadmap/csharp/references.html">References</a>) before relying on the details.</p>
+
+        <h2 id="practice">Practice</h2>
+        <h3 id="summary">Directive Summary</h3>
+        <table class="table table-sm table-striped">
+          <thead><tr><th>Directive</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>#define</code> / <code>#undef</code></td><td>define or remove a symbol in this file</td></tr>
+            <tr><td><code>#if</code> / <code>#elif</code> / <code>#else</code> / <code>#endif</code></td><td>conditional compilation</td></tr>
+            <tr><td><code>#warning</code> / <code>#error</code></td><td>custom compiler warning or error</td></tr>
+            <tr><td><code>#region</code> / <code>#endregion</code></td><td>foldable block in the editor</td></tr>
+            <tr><td><code>#line</code></td><td>adjust reported line numbers (generated code)</td></tr>
+            <tr><td><code>#nullable</code></td><td>nullable reference type context</td></tr>
+            <tr><td><code>#pragma warning</code></td><td>disable or restore specific warnings</td></tr>
+            <tr><td><code>#:</code> and <code>#!</code></td><td>file-based app settings and shebang (.NET 10)</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="exercises">Exercises</h3>
+        <ol>
+          <li>Run the conditional compilation example in Debug and then with <code>-c Release</code>, and confirm which lines change.</li>
+          <li>Add <code>&lt;DefineConstants&gt;$(DefineConstants);VERBOSE&lt;/DefineConstants&gt;</code> to the project, remove the <code>#define</code> line, and check that the output stays the same.</li>
+          <li>Uncomment the <code>user.Length</code> line in the nullable example and read the warning; then make the project treat that warning as an error.</li>
+          <li>Find a warning in one of your own projects and decide whether to fix it, suppress it with a narrow <code>#pragma</code>, or change its severity in <code>.editorconfig</code>.</li>
+        </ol>
 
       </main>
     </div>
