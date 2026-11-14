@@ -2,11 +2,11 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DBA Indexing placeholder page.">
+  <meta name="description" content="How database indexes work and how to choose them: B-tree and hash indexes, selectivity, composite, partial, expression and covering indexes, and online index maintenance.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dba, indexing">
+  <meta name="keywords" content="database index, B-tree, hash index, GIN, BRIN, selectivity, composite index, partial index, covering index, REINDEX">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DBA Indexing</title>
+  <title>DBA: Indexing</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dba/indexing.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -14,7 +14,11 @@
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
@@ -23,24 +27,147 @@
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
         <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
           <hr>
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DBA Indexing</h1>
-        <div class="alert alert-secondary shadow-sm">This page is intentionally empty and ready for future course content.</div>
-        <h2 id="scope">Scope</h2>
-        <p>Placeholder section for Indexing concepts and practices.</p>
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Add examples, procedures, and operational checklists in a later update.</p>
+        <h1 id="indexing">Indexing</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          An index is a second, sorted copy of part of a table that lets the database find rows without reading all of them. The right index turns a query from seconds into milliseconds; the wrong ones slow down every write, waste memory and are never used. This lesson explains how indexes work, how to choose them, and how to keep them healthy. Examples use PostgreSQL; the principles apply to every relational engine.
+        </div>
+
+        <h2 id="how-indexes-work">How Indexes Work</h2>
+        <p>Without an index, finding rows that match a condition means a <em>sequential scan</em>: reading every page of the table. An index stores the indexed values in a structure that can be searched quickly, each entry pointing to the row it came from.</p>
+
+        <h3 id="btree">B-tree Indexes</h3>
+        <p>The B-tree is the default index type in practically every relational engine. It is a balanced tree whose leaves hold keys in sorted order, so a lookup descends a few levels &mdash; typically three or four even for hundreds of millions of rows &mdash; and then reads neighboring entries. Because the keys are sorted, one B-tree serves equality (<code>=</code>), ranges (<code>&lt;</code>, <code>BETWEEN</code>), prefix matches (<code>LIKE 'abc%'</code>), <code>ORDER BY</code> and <code>min</code>/<code>max</code>.</p>
+        <pre><code class="language-sql">-- B-tree is the default access method; "USING btree" may be omitted.
+CREATE INDEX customer_order_customer_idx
+    ON customer_order USING btree (customer_id);</code></pre>
+
+        <h3 id="other-types">Hash and Specialized Indexes</h3>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th>Type</th><th>Good for</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Hash</strong></td><td>Equality only.</td><td>Cannot serve ranges or sorting. In PostgreSQL crash-safe since version 10; rarely better than a B-tree in practice.</td></tr>
+            <tr><td><strong>GIN</strong></td><td>Values containing many elements: <code>jsonb</code>, arrays, full-text search.</td><td>Fast lookups, slower updates.</td></tr>
+            <tr><td><strong>GiST / SP-GiST</strong></td><td>Geometric, range and nearest-neighbor queries.</td><td>Used by PostGIS and range types.</td></tr>
+            <tr><td><strong>BRIN</strong></td><td>Very large tables where values follow physical order, such as append-only timestamps.</td><td>Tiny on disk; only effective when data is naturally clustered.</td></tr>
+          </tbody>
+        </table>
+        <p>Other engines use different names for similar ideas &mdash; Oracle has bitmap indexes for low-cardinality analytics, SQL Server has columnstore indexes &mdash; but the B-tree remains the workhorse everywhere.</p>
+
+        <h2 id="choosing-indexes">Choosing What to Index</h2>
+        <p>Index for the queries you actually run, not for the columns you have. Start from the slowest and most frequent statements (see <a href="/roadmap/dba/query-optimization.html">Query Optimization</a>) and design the index that serves them.</p>
+
+        <h3 id="selectivity">Selectivity</h3>
+        <p><em>Selectivity</em> is the fraction of rows a condition returns. An index pays off when the condition is selective: finding one customer among a million is ideal, while a <code>status</code> column where 95% of rows are <code>'shipped'</code> is a poor index candidate for that value. When a condition matches a large share of the table, reading the table sequentially is cheaper than jumping between index and table, and the planner will rightly ignore the index.</p>
+
+        <h3 id="composite-indexes">Composite Indexes and Column Order</h3>
+        <p>A multi-column index is sorted by its first column, then by the second within each first value, and so on &mdash; like a phone book sorted by surname, then first name. It can serve conditions on a <em>leading prefix</em> of its columns, but not on a later column alone:</p>
+        <pre><code class="language-sql">CREATE INDEX customer_order_cust_date_idx
+    ON customer_order (customer_id, ordered_at DESC);
+
+-- Served well: equality on the first column, range/sort on the second.
+SELECT id, ordered_at FROM customer_order
+ WHERE customer_id = 42
+ ORDER BY ordered_at DESC
+ FETCH FIRST 10 ROWS ONLY;
+
+-- Not served efficiently: the leading column is missing.
+SELECT id FROM customer_order WHERE ordered_at &gt;= DATE '2026-01-01';</code></pre>
+        <p>A useful rule: put columns compared with equality first and the column used for ranges or sorting last. A composite index also makes a separate index on its leading column redundant.</p>
+
+        <h3 id="foreign-key-indexes">Index Foreign Keys</h3>
+        <p>PostgreSQL creates indexes for primary keys and unique constraints automatically, but <strong>not</strong> for foreign-key columns. Without one, joins from parent to child scan the child table, and every delete or key update on the parent must scan the child to check for references &mdash; often while holding locks. Index foreign-key columns by default unless the table is tiny.</p>
+
+        <h2 id="advanced-indexes">Partial, Expression and Covering Indexes</h2>
+        <p>An index does not have to contain every row or a plain column. Shaping it to the query makes it smaller and faster.</p>
+
+        <h3 id="partial-indexes">Partial Indexes</h3>
+        <p>A partial index includes only rows that match a predicate. It is ideal when queries always target a small subset, such as unprocessed work:</p>
+        <pre><code class="language-sql">-- Only open orders are indexed; the index stays small as history grows.
+CREATE INDEX customer_order_open_idx
+    ON customer_order (ordered_at)
+ WHERE status = 'open';</code></pre>
+        <p>Partial unique indexes also enforce conditional rules, such as &ldquo;at most one active subscription per customer&rdquo;.</p>
+
+        <h3 id="expression-indexes">Expression Indexes</h3>
+        <p>If a query filters on an expression, an index on the plain column cannot be used. Index the expression itself, written exactly as queries write it:</p>
+        <pre><code class="language-sql">CREATE INDEX customer_email_lower_idx ON customer (lower(email));
+
+-- Uses the index: the expression matches the index definition.
+SELECT id FROM customer WHERE lower(email) = lower('Ana@Example.org');</code></pre>
+
+        <h3 id="covering-indexes">Covering Indexes and Index-Only Scans</h3>
+        <p>When an index contains every column a query needs, the engine can answer from the index alone. PostgreSQL 11+ lets you add non-key payload columns with <code>INCLUDE</code>:</p>
+        <pre><code class="language-sql">CREATE INDEX order_line_product_idx
+    ON order_line (product_id) INCLUDE (quantity, unit_price);</code></pre>
+        <p>In PostgreSQL, index-only scans also depend on the table's visibility map being current, which is maintained by <code>VACUUM</code>; on heavily updated tables they may still visit the table.</p>
+
+        <h2 id="index-costs">The Cost of Indexes</h2>
+        <p>Every index is updated on every <code>INSERT</code>, on every <code>DELETE</code>, and on each <code>UPDATE</code> that changes an indexed column. Each index also takes disk space, competes for memory with table data, and lengthens backups and restores. An index that no query uses is pure overhead.</p>
+
+        <h3 id="unused-indexes">Find Unused and Duplicate Indexes</h3>
+        <p>PostgreSQL counts index usage in <code>pg_stat_user_indexes</code>. Indexes with zero scans over a representative period (including month-end jobs) are removal candidates &mdash; except those that enforce uniqueness or a primary key:</p>
+        <pre><code class="language-sql">SELECT s.relname        AS table_name,
+       s.indexrelname   AS index_name,
+       s.idx_scan       AS scans,
+       pg_size_pretty(pg_relation_size(s.indexrelid)) AS size
+  FROM pg_stat_user_indexes AS s
+  JOIN pg_index            AS i ON i.indexrelid = s.indexrelid
+ WHERE s.idx_scan = 0
+   AND NOT i.indisunique
+ ORDER BY pg_relation_size(s.indexrelid) DESC;</code></pre>
+        <p>Statistics are per server: check every replica that serves reads before dropping an index, since a query may only run there.</p>
+
+        <h3 id="maintenance">Build and Maintain Indexes Online</h3>
+        <p>A plain <code>CREATE INDEX</code> blocks writes to the table until it finishes. On a live system, build with <code>CONCURRENTLY</code>, which allows writes at the cost of a slower build that cannot run inside a transaction block. If it fails, it leaves an <em>invalid</em> index that must be dropped and retried.</p>
+        <pre><code class="language-sql">CREATE INDEX CONCURRENTLY customer_order_status_idx ON customer_order (status);
+
+-- Rebuild a bloated index without blocking writes (PostgreSQL 12+).
+REINDEX INDEX CONCURRENTLY customer_order_status_idx;
+
+-- Drop without blocking concurrent queries on the table.
+DROP INDEX CONCURRENTLY customer_order_status_idx;</code></pre>
+        <p>Indexes on frequently updated tables accumulate dead entries (<em>bloat</em>). Autovacuum reclaims space for reuse, but it does not shrink the file; periodic <code>REINDEX CONCURRENTLY</code> restores compact size where bloat is measured to be significant.</p>
+
+        <h2 id="practice-lab">Practice Lab</h2>
+        <p>Generate enough data for the planner to care: at least a few hundred thousand rows. In PostgreSQL, <code>generate_series()</code> creates test data quickly.</p>
+
+        <h3 id="lab-design">Design Indexes for Queries</h3>
+        <ol>
+          <li>Create an orders table with a million rows spread across ten thousand customers and five statuses.</li>
+          <li>Write three queries: one customer's recent orders, open orders older than a day, and a case-insensitive e-mail lookup.</li>
+          <li>Run each with <code>EXPLAIN ANALYZE</code>, add one index per query (composite, partial, expression), and compare the plans and timings.</li>
+        </ol>
+
+        <h3 id="lab-audit">Audit an Existing Schema</h3>
+        <ol>
+          <li>List every foreign-key column that has no index whose leading column matches it.</li>
+          <li>Find indexes that are a leading prefix of another index on the same table.</li>
+          <li>Measure the time of a bulk insert with and without three extra indexes, and record the write cost each index adds.</li>
+        </ol>
       </main>
     </div>
   </div>
-  <footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size: 24px;">&#9776;</span></button>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
 <script>
   window.TOPIC_CONFIG = {
     labId: 'dba',
@@ -54,4 +181,3 @@
 <script src="/assets/js/topic-loader.js" defer></script>
 </body>
 </html>
-

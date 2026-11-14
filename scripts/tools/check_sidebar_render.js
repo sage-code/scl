@@ -48,6 +48,11 @@ const DEFAULT_ROUTES = [
   '/roadmap/tek/linux-systems.html',     // single-root; migrated from cse/platforms.html content
   '/roadmap/sml/basic-concepts.html',    // single-root; rewired from legacy unwired page
   '/roadmap/hpc/computers.html',         // single-root; rewired from legacy unwired page
+  '/roadmap/osd/maintainership.html',    // single-root; authored from a dummy stub
+  '/roadmap/svelte/basics.html',         // legacy-generated sidebar; rewired from sidebar.js shell
+  '/roadmap/dba/query-optimization.html', // single-root; authored from a placeholder stub
+  '/roadmap/tek/incident-response.html', // single-root; authored from a placeholder stub
+  '/roadmap/cpp/modern.html',            // single-root; 10 chapters, authored from a stub
 ];
 
 function readSidecar(route) {

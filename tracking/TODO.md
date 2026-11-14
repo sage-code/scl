@@ -171,7 +171,7 @@ All 42 roadmap indexes implement the roadmap index standard:
 - Index: 20 sequential rows under 7 phase headers, Credits alert, Free References block, `courseLevel: "Beginner to Expert"`.
 - Validated: `run test` (0 css warnings) → `run build` → `run check` (0 css warnings) → `check:html` (21 files clean) → `check:sidebar` (0 failures).
 
-## 🚧 cpp — IN PROGRESS (2026-09-11)
+## ✅ cpp — complete (started 2026-09-11; last lesson `modern.html` written 2026-11-14)
 
 `cpp` is the active track: rebuilding the legacy 6-topic scaffold into a complete first-language tutorial
 (basics → intermediate → advanced → expert). Curriculum plan (29 rows, 9 phases):
@@ -195,7 +195,7 @@ Demo collection added (2026-09-11): `roadmap/cpp/demo/` holds 14 grouped, heavil
 `data/demo_examples.json` present the collection. Two new lessons `concurrency.html` and
 `enterprise.html` (with sidebars) join the index, which is now 20 topics across 7 phases
 (PHASE 6: CONCURRENCY & ENTERPRISE, PHASE 7: PRACTICE & DEMO).
-When complete, remove this entry and mark the track done under the completed list.
+Phase 5 is now MODERN C++ (`modern`, `concurrency`, `enterprise`); every indexed lesson is real.
 
 ## ✅ odin — Full track written (2026-09-14)
 `odin` replaces the retired Carbon track and is now complete across 8 phases (24 rows):
@@ -274,17 +274,51 @@ known-WIP `modern.html` (already tracked below, now also caught automatically).
 **Trust `tracking/roadmaps-status.json` over any older prose summary in this file** — the
 classifier is now materially more accurate than when the entries below it were written.
 
-## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py)
-- [ ] Engineering tracks — see `tracking/ENGINEERING_PLAN.md` (new, 2026-09-29); this is now
-  the largest body of remaining work on the site by page count.
-- [ ] `swift/` — 13 topic pages are "Work in progress!" ~3.6 KB placeholder shells.
-- [ ] `ada/` — real topic pages but only `data/topic.json` (per-topic sidebar JSONs missing).
-- [ ] `go/` — legacy `topic.html` meta-refresh redirect remains; `data/topic.json` missing (topic pages + JSONs exist otherwise).
-- [ ] `svelte/` — newly surfaced by the classifier fix above: topic pages never include
-  `topic-loader.js` (same failure mode as `sml`/`hpc` in `ENGINEERING_PLAN.md`); not
-  investigated further since it's a language track — worth its own quick pass.
-- [ ] `cpp/` — one lingering placeholder, `modern.html` (already known — see the 🚧 entry
-  above); rest of the track is real.
+## ✅ osd + svelte + go — quick-win pass (2026-11-14)
+Moved the summary from `37 converted / 3 not_updated / 2 not_implemented` to
+`40 / 0 / 2`.
+- `osd`: authored the last two stubs, `release-management.html` and `maintainership.html`,
+  with full shells and 3-level sidebars — see `ENGINEERING_PLAN.md`. Track complete.
+- `svelte`: all 11 topic pages rewired from the legacy `sidebar.js` + Supabase script tail to
+  the standard `TOPIC_CONFIG` + `topic-loader.js` shell (content byte-identical); also fixed
+  the `prism.js">>` typo, added missing canonical URLs and `content-code`/`content-tables` CSS.
+- `go`: deleted the legacy `topic.html` meta-refresh redirect (nothing linked to it; the 13
+  per-topic sidebar JSONs already existed).
+- `check_sidebar_render.js` gained `osd/maintainership.html` and `svelte/basics.html`.
+- Validated: `npm run test` → `build` → `check` (no new warnings) → `check:sidebar` (0 failures).
+
+## ✅ dba + tek + cpp/modern — lesson authoring pass (2026-11-14)
+Every track is now `converted` (42 / 0 / 0), and no page in the site matches the WIP
+classifier except the thin legacy pages listed below.
+- `dba`: 9 lessons, `tek`: 8 lessons — details and what was / was not executed are in
+  `ENGINEERING_PLAN.md`'s completed entries.
+- `cpp/modern.html`: full lesson (10 chapters) — move semantics, rule of zero, structured
+  bindings, `constexpr`/`consteval`, `optional`/`variant`/`string_view`, ranges, `std::format`,
+  `<=>`, `std::expected`, modules, modernization tools. The 9 example programs are complete
+  `main()` programs embedded verbatim from source files. **Not compiled:** the Visual Studio 18
+  install here has `cl.exe` but no STL headers and no `vcvarsall.bat`, so the earlier MSVC
+  workflow no longer works — compile them before trusting (C++20; `09_expected` needs C++23).
+- Sidebar regression guard gained `dba/query-optimization`, `tek/incident-response`,
+  `cpp/modern`. Validated: `test` → `build` → `check` (38 warnings, unchanged) →
+  `check:sidebar` (0 failures).
+
+## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py, 2026-11-14)
+- [ ] Compile the `cpp/modern.html` examples on a working C++20/23 toolchain (repair the VS
+  install or use GCC/Clang), and run the `dba` PostgreSQL-specific statements on a real server.
+- [ ] `cpp/data/best-practices.json` is an orphan sidecar (no `best-practices.html`; dates from
+  2026-09-11) — delete it or write the page; it is the second standing `npm run test` warning.
+- [ ] Thin legacy pages flagged only by a leftover `<!-- work in progress-->` comment: real
+  content but ~4–5 KB with typos — rewrite to the current track standard, don't just drop the
+  comment. `java/` (abstraction, annotations, collections, inference, inheritance, lambda,
+  sealed), `dart/` (libraries, tech-stack), `scala/traits`.
+- [ ] `react/` (14 pages) and `flutter/` (8 pages) — newer tracks with no `demo/`/`samples.html`;
+  `flutter` also lacks `references.html`.
+- [ ] Classifier blind spot: `generate_roadmaps_status.py` only flags pages `< 6000` bytes that
+  match a known WIP phrase; add a "thin page" signal (small `<main>` text, flat sidebar) so legacy
+  pages surface without relying on stray comments.
+- [ ] `cpp/data/errors.json` — not single-root (the one standing `npm run test` warning).
+- Resolved since the last list: `swift` (pages are real, 12 KB+), `ada` (per-topic sidebar
+  JSONs present), `go`, `svelte`.
 
 ## Language Data Cleanup (stale notes removed — covered by the status generator above)
 Status truth is `tracking/roadmaps-status.json`; regenerate with:

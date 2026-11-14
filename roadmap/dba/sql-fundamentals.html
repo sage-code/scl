@@ -2,11 +2,11 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DBA Sql Fundamentals placeholder page.">
+  <meta name="description" content="SQL for database administrators: DDL and DML, safe data changes in transactions, upserts, joins, aggregation, CTEs, window functions and catalog queries.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dba, sql-fundamentals">
+  <meta name="keywords" content="SQL, DDL, DML, SELECT, JOIN, GROUP BY, CTE, window functions, upsert, MERGE, information_schema">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DBA Sql Fundamentals</title>
+  <title>DBA: SQL Fundamentals</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dba/sql-fundamentals.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -14,7 +14,11 @@
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
@@ -23,24 +27,170 @@
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
         <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
           <hr>
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DBA Sql Fundamentals</h1>
-        <div class="alert alert-secondary shadow-sm">This page is intentionally empty and ready for future course content.</div>
-        <h2 id="scope">Scope</h2>
-        <p>Placeholder section for Sql Fundamentals concepts and practices.</p>
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Add examples, procedures, and operational checklists in a later update.</p>
+        <h1 id="sql-fundamentals">SQL Fundamentals</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          SQL is the one language every relational database speaks. This lesson covers the core a database administrator uses every day &mdash; defining structures, changing data safely, and writing queries that answer real questions &mdash; with an operator's eye for what can go wrong in production. For procedural programming inside the database, continue with the <a href="/roadmap/plsql/">PL/SQL roadmap</a>.
+        </div>
+
+        <h2 id="sql-families">The Parts of SQL</h2>
+        <p>SQL statements fall into a few families. Knowing which family a statement belongs to tells you how dangerous it is and who should be allowed to run it.</p>
+
+        <h3 id="statement-families">DDL, DML, DQL, DCL and TCL</h3>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th>Family</th><th>Statements</th><th>Effect</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>DDL</strong> &mdash; definition</td><td><code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, <code>TRUNCATE</code></td><td>Changes structure; may take strong locks.</td></tr>
+            <tr><td><strong>DML</strong> &mdash; manipulation</td><td><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>MERGE</code></td><td>Changes rows.</td></tr>
+            <tr><td><strong>DQL</strong> &mdash; query</td><td><code>SELECT</code></td><td>Reads rows.</td></tr>
+            <tr><td><strong>DCL</strong> &mdash; control</td><td><code>GRANT</code>, <code>REVOKE</code></td><td>Changes privileges.</td></tr>
+            <tr><td><strong>TCL</strong> &mdash; transactions</td><td><code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code>, <code>SAVEPOINT</code></td><td>Groups changes into atomic units.</td></tr>
+          </tbody>
+        </table>
+        <p>Engines differ in details. In PostgreSQL most DDL is transactional and can be rolled back; in Oracle and MySQL, DDL commits the current transaction implicitly. Check your engine's behavior before relying on a rollback.</p>
+
+        <h3 id="sql-standard">Standard SQL and Dialects</h3>
+        <p>The ISO SQL standard defines the common core, and every engine adds a dialect on top. Prefer standard forms where they exist &mdash; <code>FETCH FIRST n ROWS ONLY</code>, <code>GENERATED AS IDENTITY</code>, <code>CASE</code>, <code>COALESCE</code> &mdash; because they survive migrations and are read the same way by every DBA. The examples below use a small shop schema like the one built in <a href="/roadmap/dba/data-modeling.html">Data Modeling</a>.</p>
+
+        <h2 id="ddl">Defining Structures</h2>
+        <p>DDL is cheap to write and expensive to undo. On a busy production table, the question is never only <em>"is this statement correct?"</em> but also <em>"what does it lock, and for how long?"</em></p>
+
+        <h3 id="create-alter">Create and Alter Tables</h3>
+        <pre><code class="language-sql">CREATE TABLE product (
+    id     integer PRIMARY KEY,
+    sku    text           NOT NULL UNIQUE,
+    name   text           NOT NULL,
+    price  numeric(12,2)  NOT NULL CHECK (price &gt;= 0)
+);
+
+-- Adding a nullable column without a default is a fast, metadata-only change.
+ALTER TABLE product ADD COLUMN discontinued_at timestamp;</code></pre>
+        <p>Some changes rewrite the whole table or block writers while they run: changing a column's type, adding a constraint that must scan existing rows, or, on older engine versions, adding a column with a default. Test DDL against a production-sized copy and read the engine's documentation on lock levels before running it on a live system.</p>
+
+        <h3 id="drop-truncate">Drop and Truncate with Care</h3>
+        <p><code>DROP TABLE</code> removes the table and its data; <code>TRUNCATE</code> removes all rows instantly without logging each one. Neither can be filtered with <code>WHERE</code>, and in engines with non-transactional DDL neither can be rolled back. Reserve them for deliberate maintenance, run them from a reviewed script, and make sure a tested backup exists first &mdash; see <a href="/roadmap/dba/backup-recovery.html">Backup &amp; Recovery</a>.</p>
+
+        <h2 id="dml">Changing Data Safely</h2>
+        <p>Most data disasters are an <code>UPDATE</code> or <code>DELETE</code> with a wrong or missing <code>WHERE</code> clause. A few habits make them rare.</p>
+
+        <h3 id="insert-update-delete">Insert, Update and Delete</h3>
+        <pre><code class="language-sql">INSERT INTO product (id, sku, name, price) VALUES
+    (1, 'KB-01', 'Keyboard', 49.90),
+    (2, 'MS-01', 'Mouse',    19.90),
+    (3, 'MN-27', 'Monitor', 229.00);
+
+-- RETURNING shows exactly which rows changed (PostgreSQL, SQLite 3.35+;
+-- Oracle uses RETURNING ... INTO inside PL/SQL).
+UPDATE product
+   SET price = price * 1.10
+ WHERE sku LIKE 'MS-%'
+RETURNING id, sku, price;</code></pre>
+
+        <h3 id="safe-changes">Rehearse Changes in a Transaction</h3>
+        <p>Run the <code>WHERE</code> clause as a <code>SELECT</code> first, check the row count, then apply the change inside an explicit transaction and confirm the count again before committing:</p>
+        <pre><code class="language-sql">BEGIN;
+
+SELECT count(*) FROM product WHERE discontinued_at IS NOT NULL;  -- expect: 0
+
+DELETE FROM product WHERE discontinued_at IS NOT NULL;           -- reports rows deleted
+
+-- If the reported count differs from the SELECT above: ROLLBACK;
+COMMIT;</code></pre>
+        <p>For large changes, work in batches of a few thousand rows so each transaction stays short, locks are released quickly, and replicas do not fall behind.</p>
+
+        <h3 id="upsert">Insert or Update: Upsert and MERGE</h3>
+        <p>Loading data that may already exist is a common task. PostgreSQL and SQLite provide <code>INSERT ... ON CONFLICT</code>; the SQL standard, Oracle, SQL Server and PostgreSQL 15+ provide <code>MERGE</code>.</p>
+        <pre><code class="language-sql">-- Insert a new SKU, or update the price if the SKU already exists.
+INSERT INTO product (id, sku, name, price)
+VALUES (4, 'KB-01', 'Keyboard', 44.90)
+ON CONFLICT (sku) DO UPDATE
+   SET price = excluded.price;</code></pre>
+
+        <h2 id="queries">Writing Queries</h2>
+        <p>A <code>SELECT</code> is evaluated logically in this order: <code>FROM</code> and joins, <code>WHERE</code>, <code>GROUP BY</code>, <code>HAVING</code>, <code>SELECT</code>, <code>ORDER BY</code>, then limits. That order explains most surprises &mdash; for instance, why a column alias defined in <code>SELECT</code> cannot be used in <code>WHERE</code>.</p>
+
+        <h3 id="joins">Joins</h3>
+        <pre><code class="language-sql">-- Every order with its customer; orders without a known customer would be dropped.
+SELECT o.id, c.full_name, o.status
+  FROM customer_order AS o
+  JOIN customer       AS c ON c.id = o.customer_id;
+
+-- Every customer, including those with no orders (order columns are NULL).
+SELECT c.full_name, count(o.id) AS orders
+  FROM customer            AS c
+  LEFT JOIN customer_order AS o ON o.customer_id = c.id
+ GROUP BY c.full_name;</code></pre>
+        <p>An <code>INNER JOIN</code> keeps only matching rows; a <code>LEFT JOIN</code> keeps every row of the left table. A frequent bug is a <code>LEFT JOIN</code> followed by a <code>WHERE</code> condition on the right table, which silently turns it back into an inner join &mdash; put such conditions in the <code>ON</code> clause instead.</p>
+
+        <h3 id="aggregation">Aggregation and NULL</h3>
+        <p><code>GROUP BY</code> collapses rows into groups and <code>HAVING</code> filters the groups. SQL uses three-valued logic: a comparison with <code>NULL</code> is neither true nor false but <em>unknown</em>, so <code>WHERE price = NULL</code> matches nothing. Use <code>IS NULL</code>, and remember that <code>count(*)</code> counts rows while <code>count(column)</code> skips nulls.</p>
+
+        <h3 id="cte-window">CTEs and Window Functions</h3>
+        <p>Common table expressions (<code>WITH</code>) name intermediate results so complex queries read top to bottom. Window functions compute over related rows without collapsing them &mdash; ideal for rankings, running totals and &ldquo;latest row per group&rdquo; reports:</p>
+        <pre><code class="language-sql">-- The most recent order of each customer.
+WITH ranked AS (
+    SELECT o.*,
+           row_number() OVER (PARTITION BY customer_id
+                              ORDER BY ordered_at DESC) AS rn
+      FROM customer_order AS o
+)
+SELECT customer_id, id AS last_order_id, ordered_at
+  FROM ranked
+ WHERE rn = 1;</code></pre>
+
+        <h2 id="admin-queries">SQL for Administration</h2>
+        <p>Administrators also query the database <em>about itself</em>. Every engine exposes its metadata as tables and views you can query with ordinary SQL.</p>
+
+        <h3 id="catalog">Query the Catalog</h3>
+        <p>The standard <code>information_schema</code> works across PostgreSQL, MySQL and SQL Server; engines also have richer native catalogs (<code>pg_catalog</code> in PostgreSQL, the <code>DBA_</code>/<code>ALL_</code>/<code>USER_</code> views in Oracle).</p>
+        <pre><code class="language-sql">-- Columns of a table, in order, with types and nullability (information_schema).
+SELECT column_name, data_type, is_nullable
+  FROM information_schema.columns
+ WHERE table_name = 'product'
+ ORDER BY ordinal_position;</code></pre>
+
+        <h3 id="sql-hygiene">Keep SQL Reviewable</h3>
+        <p>Store operational SQL in version control, not in a personal scratch file. Format it consistently, qualify columns with table aliases in multi-table queries, avoid <code>SELECT *</code> in application code (a new column can break consumers), and never build SQL by concatenating user input &mdash; use parameters, as explained in <a href="/roadmap/dba/security-access-control.html">Security &amp; Access Control</a>.</p>
+
+        <h2 id="practice-lab">Practice Lab</h2>
+        <p>Any SQL engine works for this lab; SQLite needs no installation and runs the portable examples above unchanged.</p>
+
+        <h3 id="lab-queries">Answer Business Questions</h3>
+        <ol>
+          <li>Create the <code>customer</code>, <code>product</code>, <code>customer_order</code> and <code>order_line</code> tables and load a few dozen rows.</li>
+          <li>Write queries for: revenue per product, customers with no orders, and each customer's most recent order.</li>
+          <li>Rewrite one query using a CTE and compare readability with the nested version.</li>
+        </ol>
+
+        <h3 id="lab-safe-change">Rehearse a Risky Change</h3>
+        <ol>
+          <li>Write a price-increase <code>UPDATE</code> for one product category.</li>
+          <li>Run its <code>WHERE</code> as a <code>SELECT</code>, then the update inside a transaction with <code>RETURNING</code>.</li>
+          <li>Roll back deliberately, confirm nothing changed, then run it for real and commit.</li>
+        </ol>
       </main>
     </div>
   </div>
-  <footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size: 24px;">&#9776;</span></button>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
 <script>
   window.TOPIC_CONFIG = {
     labId: 'dba',
@@ -54,4 +204,3 @@
 <script src="/assets/js/topic-loader.js" defer></script>
 </body>
 </html>
-

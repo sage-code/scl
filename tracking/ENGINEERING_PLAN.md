@@ -9,11 +9,11 @@ The 33 `"kind": "language"` tracks are out of scope here — `tracking/roadmaps-
 
 | Track | Status | Topics | Unwired | Placeholders | Practice Layer | Priority Tier & Action |
 | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **`osd`** | `not_updated` | 8 | 2 | 2 | None | **Tier 1**: Author 2 remaining lessons (`release-management`, `maintainership`) + wire their shells. |
-| **`dba`** | `not_implemented` | 11 | 0 | 9 | None | **Tier 1**: Author 9 placeholder lessons from index scope; add `demo/` with runnable SQL scripts. |
-| **`tek`** | `not_implemented` | 12 | 0 | 8 | None | **Tier 2**: Author 8 placeholder lessons (`infra-as-code`, `sre-practices`, etc.); add shell automation demos. |
+| **`dba`** | `converted` | 11 | 0 | 0 | None | ✅ **Complete**: 9 lessons authored 2026-11-14; optional next: `demo/` with runnable SQL scripts. |
+| **`tek`** | `converted` | 12 | 0 | 0 | None | ✅ **Complete**: 8 lessons authored 2026-11-14; optional next: shell-automation `demo/`. |
 | **`dsl`** | `converted` | 40 | 0 | 0 | Ref | **Tier 3 (Polish)**: Add `demo/` language snippets & `samples.html` study projects. |
 | **`pgp`** | `converted` | 66 | 0 | 0 | Demo | **Tier 3 (Polish)**: Add `references.html` and `samples.html`. |
+| **`osd`** | `converted` | 8 | 0 | 0 | None | ✅ **Complete**: all 8 lessons authored and wired; `release-management` + `maintainership` written 2026-11-14. |
 | **`hpc`** | `converted` | 8 | 0 | 0 | None | ✅ **Complete (Wiring & Cleanup)**: All 8 topic pages wired, 2 orphan files deleted, typos fixed, Puppeteer verified. |
 | **`sml`** | `converted` | 10 | 0 | 0 | None | ✅ **Complete (Wiring)**: All 10 topic pages wired with dynamic sidebars and regression tested. |
 | **`dsa`** | `converted` | 24 | 0 | 0 | Full | ✅ **Complete**: 24 topics, `demo/` (10 programs), `demo_examples.html`, `references.html`, `samples.html`. |
@@ -121,62 +121,39 @@ pointed at the deleted pages were fixed: `cse/tools.html`'s hardcoded "Next topi
 (→ `pgp/object-oriented.html`).
 `generate_roadmaps_status.py` still classifies `cse` as `converted` after this follow-up.
 
-### Tier 1 — mostly-empty tracks with a working template already in the same track
-
-#### `dba` — Database Administration (11 topics, **9 placeholders, 2 real**)
-`databases.html` (36 KB) and `db-design.html` (23 KB) are real, well-developed lessons —
-**use these two as the writing template** for the other nine. All 11 pages are already fully
-wired (sidebar works correctly); this track needs content authoring only, no structural fix.
-Placeholders to write, with the one-line scope already promised in `index.html`
-(quote these verbatim as the lesson's opening scope, don't re-derive them):
-- `data-modeling` — Entity relationships, constraints, domains, and schema strategy.
-- `sql-fundamentals` — DDL, DML, query writing, and practical data manipulation. (Cross-link
-  to `roadmap/plsql/` — this session's rebuilt PL/SQL track — instead of re-teaching SQL from
-  scratch; DBA's job here is the *administration* angle, not the language.)
-- `indexing` — B-tree/hash indexing, selectivity, index maintenance.
-- `query-optimization` — Execution plans, bottleneck diagnosis, tuning workflow. (Heavy overlap
-  with `roadmap/plsql/optimize.html` — cross-link rather than duplicate.)
-- `transactions-concurrency` — ACID, isolation levels, locking, conflict handling.
-- `security-access-control` — AuthN/authZ, auditing, secrets handling.
-- `backup-recovery` — Backup strategies, restore testing, disaster recovery plans.
-- `replication-ha` — Replication models, failover patterns, resilient deployments.
-- `monitoring-operations` — SLOs, alerting, capacity planning, runbook-driven ops.
-
-No `demo/`, `references.html`, or `samples.html` yet — see § Practice & Reference below;
-DBA is a strong demo-folder candidate (runnable SQL scripts per lesson, same pattern as
-`roadmap/plsql/demo/`).
-
-#### 🚧 `osd` — Open Source Development (8 topics, **2 of 8 still placeholders**)
-**Update (2026-10-21): `code-review.html`, `documentation.html`, and `ci-cd.html` are now
-authored and wired with hierarchical sidebars.** The earlier completed lessons remain:
-`git-workflow.html` and `testing.html` were migrated from CSE, and `foundations.html` is the
-third real lesson. The two remaining pages (`release-management.html` and `maintainership.html`)
-are still `"Dummy topic page. Planned content: ..."` stubs and lack the sidebar shell. Their meta
-descriptions and corresponding index rows define each lesson's scope. Write each lesson and wire
-its topic loader and hierarchical sidebar together; do not leave an empty wired stub. The
-generated status remains `not_updated` until both lessons and sidebars are complete.
-
-### Tier 2 — full-track authoring (near-zero real content, but solid bones)
-
-#### 🚧 `tek` — TechOps (12 topics, **8 of 12 still placeholders**)
-**Update (2026-09-29): four pages done** — `linux-systems.html` (migrated from
-`cse/platforms.html`'s boot/file-system/distributions/command-line content, refocused from
-general OS theory to Linux specifically), `cloud-operations.html` and
-`containers-virtualization.html` (migrated and split from `cse/cloud.html` — service models,
-providers, and data centers in the former; Docker and Kubernetes, plus a VM-vs-container
-comparison table, in the latter), and `security-hardening.html` (migrated from
-`cse/cybersec.html` — core concepts, writing a policy, GDPR basics). The other 8 pages are
-still the identical `"This lesson is a placeholder and will be populated in the current
-TechOps rollout"` stub. `index.html`'s descriptions (quoted above) are detailed enough to
-write from directly. Suggested order follows the existing phase structure:
-PHASE 1 `techops-intro` → ~~`linux-systems`~~ → `shell-automation` → `networking-basics`;
-PHASE 2 `version-control-cicd` → ~~`containers-virtualization`~~ → `infra-as-code` →
-~~`cloud-operations`~~; PHASE 3 `observability-monitoring` → `incident-response` →
-~~`security-hardening`~~ → `sre-practices`. `shell-automation` is a natural demo-folder
-candidate (reuse the `bash` track's demo conventions if useful — see `TODO.md`'s `bash`
-entry).
-
 ### Completed Engineering Tracks
+
+#### ✅ `dba` — Database Administration — DONE (2026-11-14)
+The 9 placeholder lessons were authored on a shared page shell, PostgreSQL as the reference
+engine, cross-linking `plsql` (Oracle SQL/tuning) and `tek` (operations) instead of
+duplicating them: `data-modeling`, `sql-fundamentals`, `indexing`, `query-optimization`,
+`transactions-concurrency`, `security-access-control`, `backup-recovery`, `replication-ha`,
+`monitoring-operations` (13–16 KB each, h1 → h2 → h3 sidebars generated with
+`gen_topic_sidebars.py`, a two-part practice lab per lesson). The portable SQL (DDL,
+constraints, cascades, joins, CTE/window, upsert, partial/expression/composite index use,
+guarded update) was executed against SQLite 3.45; PostgreSQL-only statements (`EXPLAIN
+ANALYZE`, roles/RLS, `pg_dump`/`pg_basebackup`, replication) were not executed — no
+PostgreSQL in this environment. `dba/README.md` updated. Still optional: `demo/` with
+runnable SQL per lesson, `references.html`, `samples.html`.
+
+#### ✅ `tek` — TechOps — DONE (2026-11-14)
+The 8 placeholder lessons were authored: `techops-intro`, `shell-automation`,
+`networking-basics`, `version-control-cicd` (operator view; basics stay in `osd/ci-cd` and
+`osd/git-workflow`), `infra-as-code` (OpenTofu/Terraform + Ansible; Prism `hcl` from CDN),
+`observability-monitoring` (PromQL, burn-rate alerts; Prism `json` from CDN),
+`incident-response`, `sre-practices`. The `disk-check.sh` and Python health-check/retry
+examples were executed locally; Terraform, Ansible, Prometheus and systemd examples were not.
+`tek/incident-response.html` added to `check_sidebar_render.js`. Still optional: `demo/`
+(shell-automation scripts), `references.html`.
+
+#### ✅ `osd` — Open Source Development — DONE (2026-11-14)
+All 8 lessons real and wired. The last two stubs were authored on the `ci-cd.html` template:
+`release-management.html` (SemVer, pre-releases, CalVer, changelogs, tagging, deprecation and
+migration guides, support windows/LTS, backports) and `maintainership.html` (triage workflow
+and issue forms, backlog hygiene and scoped stale automation, onboarding/retention, community
+files, private security reports, bus factor and burnout), each with a 3-level sidebar JSON and
+a two-part practice lab. `maintainership.html` added to `check_sidebar_render.js`. Status
+moved from `not_updated` to `converted`. No `demo/`/`references.html` — optional for this track.
 
 #### ✅ `hpc` — Computer Hardware — DONE (2026-10-20)
 All 8 real topic pages wired with modern sidebar scripts (`assets/js/topic-loader.js` + `window.TOPIC_CONFIG` with `labId: 'hpc'`) and `<aside class="side-bar">` shell.
@@ -230,8 +207,9 @@ Tier 0–2 item above, if at all.
 
 ## Practice & Reference layer (applies once a track's lessons are real)
 
-None of the 9 engineering tracks currently has a `demo/` folder or `demo_examples.html`;
-only `dsl` has `references.html`; none has `samples.html`. Once a track's lesson content is
+As of 2026-11-14 only `dsa` has the full layer (`demo/`, `demo_examples.html`,
+`references.html`, `samples.html`); `pgp` has `demo/`; `cse` and `dsl` have `references.html`.
+`dba`, `hpc`, `osd`, `sml` and `tek` have none of it. Once a track's lesson content is
 real (Tier 0/1/2 above), consider closing it out the way `bash`/`css`/`odin`/`zig`/`scala`/
 `plsql` were closed (see their `TODO.md` entries and this session's `scala`/`plsql` git log
 for the concrete pattern: numbered `demo/NN_topic.ext` files, a `demo_examples.html` index
@@ -248,7 +226,9 @@ and `tek` (`shell-automation` especially) are the strongest candidates.
   `generate_roadmaps_status.py` covers this for now; consider porting the same check into
   `scripts/check.js` (or `scripts/tools/check_sidebar_render.js`'s route list, per-track) so
   `npm run check`/`check:sidebar` catch it directly instead of requiring a separate Python
-  run. Not done in this pass — flagging so it isn't lost.
+  run. Still open (2026-11-14): `scripts/test/test_sources.py` now warns about a
+  loader-driven page without `#study-sidebar`, but a page with no loader at all is still only
+  caught by the Python status generator.
 - Minor Bootstrap-4-era classes still appear in a few engineering pages (`thead-dark`,
   `thead-light` in `cse/*.html` — Bootstrap 5 uses `table-dark`/`table-light`; `tabe-striped`
   typo in `hpc/connectors.html`). Low priority; fix opportunistically while editing those

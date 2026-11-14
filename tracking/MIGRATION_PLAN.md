@@ -25,14 +25,11 @@ For languages with empty `data/` folders:
 
 ## Current Priorities
 - **Engineering tracks** (`cse`, `dba`, `dsa`, `dsl`, `hpc`, `osd`, `pgp`, `sml`, `tek`) —
-  see `tracking/ENGINEERING_PLAN.md` for the current, verified per-track plan. Several of
-  these need more than a JSON fix: entire tracks (`dsa`, `tek`) are wired correctly but every
-  lesson is still templated placeholder text, and others (`sml`, `hpc`, part of `cse`) have
-  real content sitting behind a sidebar that never renders because the page never includes
-  `topic-loader.js` — a failure mode this document's three numbered steps don't cover, since
-  they assume the JSON sidecar is the only missing piece. Read `ENGINEERING_PLAN.md`'s
-  "three failure modes" section before starting a track from this list.
-- Resolve urgent missing JSON issues (go — cse's `topic.html`/`data/topic.json` gap is folded
-  into the engineering plan above, since cse needs more than that fix).
-- Iterate through language cleanup (`ada`, `swift`, `svelte` — see `tracking/TODO.md`'s "Next
-  Priorities" for current detail on each).
+  see `tracking/ENGINEERING_PLAN.md`. As of 2026-11-14 all nine are complete (`dba` and
+  `tek` lessons authored the same day); what remains there is optional demo/reference
+  material. Pages whose sidebar never
+  renders because they lack `topic-loader.js` (formerly `sml`, `hpc`, `cse`, `osd`, `svelte`)
+  are all fixed. Read `ENGINEERING_PLAN.md`'s "three failure modes" section before starting.
+- All missing-JSON and legacy `topic.html` issues are resolved (`go` fixed 2026-11-14).
+- Language cleanup now means rewriting thin legacy pages — see `tracking/TODO.md`'s "Next
+  Priorities".

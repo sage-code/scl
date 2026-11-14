@@ -2,11 +2,11 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DBA Monitoring Operations placeholder page.">
+  <meta name="description" content="Run databases in production: SLIs and SLOs, the metrics that predict incidents, vacuum and transaction ID age, capacity planning and runbook-driven operations.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dba, monitoring-operations">
+  <meta name="keywords" content="database monitoring, SLO, SLI, alerting, autovacuum, transaction ID wraparound, capacity planning, runbook, operations">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DBA Monitoring Operations</title>
+  <title>DBA: Monitoring & Operations</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dba/monitoring-operations.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -14,7 +14,11 @@
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
@@ -23,24 +27,166 @@
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
         <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
           <hr>
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DBA Monitoring Operations</h1>
-        <div class="alert alert-secondary shadow-sm">This page is intentionally empty and ready for future course content.</div>
-        <h2 id="scope">Scope</h2>
-        <p>Placeholder section for Monitoring Operations concepts and practices.</p>
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Add examples, procedures, and operational checklists in a later update.</p>
+        <h1 id="monitoring-operations">Monitoring &amp; Operations</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A database in production is never finished. It grows, its workload shifts, its hardware ages, and its maintenance tasks must keep pace. Operations is the discipline of knowing how the database is doing before users complain, and of handling routine work and incidents through written, repeatable procedures. This final lesson ties the roadmap together with service objectives, monitoring, capacity planning and runbooks. Examples use PostgreSQL. For monitoring platforms in general, see the TechOps lesson <a href="/roadmap/tek/observability-monitoring.html">Observability &amp; Monitoring</a>.
+        </div>
+
+        <h2 id="service-objectives">Service Level Objectives</h2>
+        <p>Monitoring starts with a definition of <em>healthy</em>. Without it, teams either alert on everything and learn to ignore alerts, or alert on nothing and learn about outages from users.</p>
+
+        <h3 id="sli-slo">SLIs and SLOs</h3>
+        <p>A <strong>service level indicator</strong> (SLI) is a measurement of what users experience; a <strong>service level objective</strong> (SLO) is the target for it over a period. For a database that serves an application, typical choices are:</p>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th>SLI</th><th>Example SLO (30 days)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Availability: share of successful connection and query attempts</td><td>99.9% &mdash; about 43 minutes of failure budget</td></tr>
+            <tr><td>Latency: 95th percentile duration of key queries</td><td>&lt; 50 ms for the order lookup</td></tr>
+            <tr><td>Freshness: replica lag for read traffic</td><td>&lt; 5 s for 99% of the time</td></tr>
+            <tr><td>Recoverability: last successful restore test</td><td>&lt; 7 days old</td></tr>
+          </tbody>
+        </table>
+        <p>The gap between 100% and the SLO is the <em>error budget</em>. When it is nearly spent, prioritize reliability work over new changes; when plenty remains, the team can take planned risks such as a major-version upgrade.</p>
+
+        <h3 id="symptoms-causes">Alert on Symptoms, Investigate Causes</h3>
+        <p>Page a person only for <em>symptoms</em> that threaten an SLO or will soon cause an outage: rising error rates, latency above target, or a disk that will be full within hours. Record <em>causes</em> &mdash; high CPU, many connections, a long-running query &mdash; as dashboards and low-urgency tickets that help diagnosis. Every page should be actionable and linked to a runbook; an alert that never needs action should be deleted.</p>
+
+        <h2 id="key-metrics">What to Monitor</h2>
+        <p>Collect metrics continuously with an exporter (for example the Prometheus <code>postgres_exporter</code>) or an agent, and keep enough history to compare today with last month. These are the signals that most often predict PostgreSQL incidents.</p>
+
+        <h3 id="activity-metrics">Connections and Activity</h3>
+        <p>Each PostgreSQL connection is a server process, and <code>max_connections</code> is a hard limit. Watch the number of connections by state, and look for long-running statements and transactions left open:</p>
+        <pre><code class="language-sql">SELECT state,
+       count(*)                          AS sessions,
+       max(now() - xact_start)           AS oldest_xact,
+       max(now() - query_start)          AS oldest_query
+  FROM pg_stat_activity
+ WHERE backend_type = 'client backend'
+ GROUP BY state
+ ORDER BY sessions DESC;</code></pre>
+        <p>Many <code>idle</code> connections usually mean the application should use a connection pool such as PgBouncer. Sessions <code>idle in transaction</code> for minutes hold locks and block cleanup; see <a href="/roadmap/dba/transactions-concurrency.html">Transactions &amp; Concurrency</a>.</p>
+
+        <h3 id="vacuum-metrics">Vacuum, Bloat and Transaction ID Age</h3>
+        <p>Because of MVCC, updates and deletes leave dead row versions behind. Autovacuum removes them and also <em>freezes</em> old rows, which protects against transaction ID wraparound &mdash; a condition in which PostgreSQL eventually refuses new writes to protect data. Monitor both:</p>
+        <pre><code class="language-sql">-- Tables with the most dead rows, and when they were last vacuumed.
+SELECT relname, n_live_tup, n_dead_tup, last_autovacuum, last_autoanalyze
+  FROM pg_stat_user_tables
+ ORDER BY n_dead_tup DESC
+ LIMIT 10;
+
+-- Transaction ID age per database; autovacuum forces freezing at
+-- autovacuum_freeze_max_age (200 million by default). Alert well before that.
+SELECT datname, age(datfrozenxid) AS xid_age
+  FROM pg_database
+ ORDER BY xid_age DESC;</code></pre>
+        <p>If autovacuum cannot keep up, tune it per table (for example, lower <code>autovacuum_vacuum_scale_factor</code> on large, busy tables) rather than disabling it. A long-open transaction or an abandoned replication slot can prevent cleanup everywhere; those are the first things to check when dead rows keep growing.</p>
+
+        <h3 id="resource-metrics">Storage, Replication and Errors</h3>
+        <ul>
+          <li><strong>Disk:</strong> free space of data and WAL volumes, and the growth rate &mdash; alert on <em>time until full</em>, not on a fixed percentage.</li>
+          <li><strong>Cache efficiency:</strong> the share of reads served from shared buffers (<code>blks_hit</code> vs <code>blks_read</code> in <code>pg_stat_database</code>), interpreted against the workload's baseline.</li>
+          <li><strong>Replication:</strong> lag and slot retention, as shown in <a href="/roadmap/dba/replication-ha.html">Replication &amp; High Availability</a>.</li>
+          <li><strong>Archiving and backups:</strong> failed WAL archive attempts in <code>pg_stat_archiver</code> and the age of the last successful backup.</li>
+          <li><strong>Errors:</strong> deadlocks, conflicts and failed connections per minute from <code>pg_stat_database</code> and the server log.</li>
+          <li><strong>Query performance:</strong> top statements by total time from <code>pg_stat_statements</code>, tracked over time to catch regressions after deployments (see <a href="/roadmap/dba/query-optimization.html">Query Optimization</a>).</li>
+        </ul>
+
+        <h2 id="capacity-planning">Capacity Planning</h2>
+        <p>Capacity problems are the most predictable incidents of all: the trend line was visible for months. Capacity planning turns trends into dated decisions.</p>
+
+        <h3 id="growth-trends">Measure Growth</h3>
+        <pre><code class="language-sql">-- Largest tables, including their indexes and TOAST data.
+SELECT relname,
+       pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
+       pg_size_pretty(pg_relation_size(relid))       AS table_size
+  FROM pg_statio_user_tables
+ ORDER BY pg_total_relation_size(relid) DESC
+ LIMIT 10;</code></pre>
+        <p>Record database size, peak connections, peak transactions per second and storage throughput weekly. Fit a simple trend, and calculate when each will cross the limit of the current hardware or plan, including the headroom needed for maintenance: a <code>REINDEX</code>, a major upgrade or a restore test may temporarily need much more space.</p>
+
+        <h3 id="scaling-options">Plan the Next Step</h3>
+        <p>For each resource approaching its limit, decide ahead of time which lever comes next and how long it takes to pull: archive or delete old data (with a retention policy), partition large tables by time, add read replicas for read-heavy workloads, add a connection pooler, scale the server vertically, or &mdash; last and most complex &mdash; shard the data across several databases. Lead times for hardware, budget approval and migrations are measured in weeks; start when the forecast says you have months left.</p>
+
+        <h2 id="runbooks">Runbook-Driven Operations</h2>
+        <p>A runbook is a written, tested procedure for a specific task or alert. Runbooks let any on-call engineer act correctly at 3 a.m., reduce the dependency on one expert, and make operations reviewable like code.</p>
+
+        <h3 id="runbook-structure">Write Useful Runbooks</h3>
+        <p>Keep runbooks in version control next to the infrastructure code, link each alert to its runbook, and give every runbook the same structure:</p>
+        <pre><code class="language-markdown"># Runbook: Replication lag above 60 seconds
+
+**Alert:** pg_replication_lag_seconds &gt; 60 for 5 minutes
+**Impact:** replica reads may be stale; failover now could lose recent commits.
+
+## Diagnose
+1. On the primary, run the pg_stat_replication query from the dashboard README.
+2. Check replica disk I/O and CPU; check for long queries on the replica
+   that conflict with WAL replay (pg_stat_database_conflicts).
+
+## Mitigate
+- Heavy reporting query on the replica: cancel it with pg_cancel_backend(pid).
+- Network saturation: pause bulk loads on the primary.
+
+## Escalate
+- Lag still growing after 30 minutes: page the database on-call lead.
+
+## Verify
+- Lag below 5 seconds for 15 minutes; alert resolved.</code></pre>
+
+        <h3 id="routine-maintenance">Schedule Routine Maintenance</h3>
+        <ul>
+          <li><strong>Weekly:</strong> automated restore test; review of slow-query trends and of autovacuum activity on the largest tables.</li>
+          <li><strong>Monthly:</strong> apply the engine's minor release (bug and security fixes) after testing on staging; review unused indexes and privilege grants.</li>
+          <li><strong>Quarterly:</strong> capacity forecast; failover and recovery drill; review of alerts that fired without needing action.</li>
+          <li><strong>Yearly:</strong> plan the next major-version upgrade before the current version's end-of-life date.</li>
+        </ul>
+
+        <h3 id="incidents">Handle Incidents and Learn</h3>
+        <p>During an incident, stabilize first and investigate later: restore service with the runbook, communicate status on a fixed schedule, and keep a timeline of actions. Afterwards, write a <em>blameless</em> post-incident review that asks how the system made the failure possible, and turn its findings into tracked actions &mdash; a new alert, a fixed runbook step, an automated check. The TechOps lesson <a href="/roadmap/tek/incident-response.html">Incident Response</a> covers the process in depth.</p>
+
+        <h2 id="practice-lab">Practice Lab</h2>
+        <p>Use a local PostgreSQL instance with <code>pg_stat_statements</code> enabled; optionally add Prometheus and Grafana via containers.</p>
+
+        <h3 id="lab-dashboard">Build a Health Dashboard</h3>
+        <ol>
+          <li>Write one SQL query per signal in this lesson: connections by state, dead rows, transaction ID age, largest tables, replication lag and top statements.</li>
+          <li>Define one SLO for availability and one for latency, and write down how each would be measured.</li>
+          <li>Run a load generator such as <code>pgbench</code> and watch which signals move.</li>
+        </ol>
+
+        <h3 id="lab-runbook">Write and Test a Runbook</h3>
+        <ol>
+          <li>Choose a failure: a session left <code>idle in transaction</code> that blocks a migration.</li>
+          <li>Write the runbook in the structure above, then reproduce the failure in two terminal sessions.</li>
+          <li>Have someone else follow your runbook without help, and fix every step they had to ask about.</li>
+        </ol>
+
+        <div class="alert alert-success mt-4">
+          You have reached the end of the Database Administration roadmap. Return to the <a href="/roadmap/dba/">roadmap index</a> to review your progress, deepen your SQL with the <a href="/roadmap/plsql/">PL/SQL roadmap</a>, or continue with <a href="/roadmap/tek/">TechOps</a> to operate the rest of the stack.
+        </div>
       </main>
     </div>
   </div>
-  <footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size: 24px;">&#9776;</span></button>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
 <script>
   window.TOPIC_CONFIG = {
     labId: 'dba',
@@ -54,4 +200,3 @@
 <script src="/assets/js/topic-loader.js" defer></script>
 </body>
 </html>
-

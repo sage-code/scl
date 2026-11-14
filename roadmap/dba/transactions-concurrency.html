@@ -2,11 +2,11 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DBA Transactions Concurrency placeholder page.">
+  <meta name="description" content="ACID transactions, isolation levels and their anomalies, MVCC, locking, optimistic concurrency, deadlocks and serialization-failure retries.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dba, transactions-concurrency">
+  <meta name="keywords" content="transactions, ACID, isolation level, MVCC, locking, SELECT FOR UPDATE, SKIP LOCKED, deadlock, serializable">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DBA Transactions Concurrency</title>
+  <title>DBA: Transactions & Concurrency</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dba/transactions-concurrency.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -14,7 +14,11 @@
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
@@ -23,24 +27,182 @@
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
         <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
           <hr>
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DBA Transactions Concurrency</h1>
-        <div class="alert alert-secondary shadow-sm">This page is intentionally empty and ready for future course content.</div>
-        <h2 id="scope">Scope</h2>
-        <p>Placeholder section for Transactions Concurrency concepts and practices.</p>
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Add examples, procedures, and operational checklists in a later update.</p>
+        <h1 id="transactions-concurrency">Transactions &amp; Concurrency</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A database serves many users at once, and each of them expects to see consistent data and to have their changes either fully applied or not at all. Transactions provide that guarantee; isolation levels and locks decide how concurrent transactions interact. This lesson explains the guarantees, the anomalies they prevent, and how to handle conflicts in practice. Examples use PostgreSQL; differences in other engines are noted.
+        </div>
+
+        <h2 id="acid">ACID Guarantees</h2>
+        <p>A transaction is a group of statements that the database treats as one unit of work. The classic properties of a transaction are summarized as ACID.</p>
+
+        <h3 id="acid-properties">The Four Properties</h3>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th>Property</th><th>Guarantee</th><th>Mechanism</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Atomicity</strong></td><td>All statements take effect, or none do.</td><td>Undo on rollback or crash.</td></tr>
+            <tr><td><strong>Consistency</strong></td><td>Each transaction moves the database between states that satisfy every declared constraint.</td><td>Constraints checked at statement or commit time.</td></tr>
+            <tr><td><strong>Isolation</strong></td><td>Concurrent transactions do not see each other's partial work, to the degree the isolation level promises.</td><td>MVCC snapshots and locks.</td></tr>
+            <tr><td><strong>Durability</strong></td><td>Once committed, a change survives a crash.</td><td>Write-ahead log flushed to disk at commit.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="transaction-boundaries">Transaction Boundaries</h3>
+        <p>Clients run in <em>autocommit</em> mode by default: each statement is its own transaction. Group statements that must succeed together &mdash; such as a transfer between two accounts &mdash; in an explicit transaction:</p>
+        <pre><code class="language-sql">BEGIN;
+
+UPDATE account SET balance = balance - 100 WHERE id = 1;
+UPDATE account SET balance = balance + 100 WHERE id = 2;
+
+-- Both updates become visible to others at the same instant, or neither does.
+COMMIT;</code></pre>
+        <p>Keep transactions short. A transaction that stays open while waiting for user input or a remote API call holds locks and, in PostgreSQL, prevents <code>VACUUM</code> from cleaning up old row versions across the whole database. Watch for sessions in state <code>idle in transaction</code>, and set <code>idle_in_transaction_session_timeout</code> as a safety net.</p>
+
+        <h2 id="isolation">Isolation Levels and Anomalies</h2>
+        <p>Perfect isolation &mdash; every transaction behaving as if it ran alone &mdash; costs throughput. The SQL standard defines four isolation levels by the anomalies each one permits.</p>
+
+        <h3 id="anomalies">The Anomalies</h3>
+        <ul>
+          <li><strong>Dirty read:</strong> seeing another transaction's uncommitted change, which may later be rolled back.</li>
+          <li><strong>Non-repeatable read:</strong> reading the same row twice and getting different values because another transaction committed in between.</li>
+          <li><strong>Phantom read:</strong> rerunning a query and getting new rows that another transaction inserted and committed.</li>
+          <li><strong>Serialization anomaly:</strong> a result that no serial ordering of the transactions could have produced &mdash; for example, two doctors both going off call because each saw the other still on call.</li>
+        </ul>
+
+        <h3 id="levels">The Four Levels</h3>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th>Level</th><th>Dirty read</th><th>Non-repeatable read</th><th>Phantom</th><th>Serialization anomaly</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Read uncommitted</td><td>Allowed by standard; <strong>not</strong> in PostgreSQL</td><td>Possible</td><td>Possible</td><td>Possible</td></tr>
+            <tr><td>Read committed</td><td>Prevented</td><td>Possible</td><td>Possible</td><td>Possible</td></tr>
+            <tr><td>Repeatable read</td><td>Prevented</td><td>Prevented</td><td>Allowed by standard; <strong>not</strong> in PostgreSQL</td><td>Possible</td></tr>
+            <tr><td>Serializable</td><td>Prevented</td><td>Prevented</td><td>Prevented</td><td>Prevented</td></tr>
+          </tbody>
+        </table>
+        <p>The standard sets minimum guarantees, and engines often exceed them. PostgreSQL treats read uncommitted as read committed, and its repeatable read is snapshot isolation, which also prevents phantoms. <strong>Read committed is the default</strong> in PostgreSQL, Oracle and SQL Server; MySQL's InnoDB defaults to repeatable read.</p>
+
+        <h3 id="mvcc">Snapshots and MVCC</h3>
+        <p>PostgreSQL and Oracle use <em>multi-version concurrency control</em>: an update writes a new row version instead of overwriting the old one, and each transaction reads from a snapshot of committed versions. As a result, readers never block writers and writers never block readers. Under read committed, each <em>statement</em> gets a fresh snapshot; under repeatable read and serializable, the whole <em>transaction</em> uses the snapshot taken at its first statement. Old versions are cleaned up later &mdash; by <code>VACUUM</code> in PostgreSQL, by undo segments in Oracle.</p>
+
+        <h2 id="locking">Locking and Conflicts</h2>
+        <p>MVCC removes reader&ndash;writer conflicts, but two transactions that write the same row still conflict. The second writer waits for the first to commit or roll back.</p>
+
+        <h3 id="lost-update">The Lost Update Problem</h3>
+        <p>A classic bug under read committed is the <em>read-modify-write</em> pattern done in application code:</p>
+        <pre><code class="language-sql">-- Session A and session B both run this concurrently:
+SELECT stock FROM product WHERE id = 7;          -- both read 10
+-- ...application computes 10 - 1 = 9...
+UPDATE product SET stock = 9 WHERE id = 7;       -- both write 9: one sale is lost</code></pre>
+        <p>Fix it by letting the database do the arithmetic atomically, or by locking the row when you read it:</p>
+        <pre><code class="language-sql">-- Option 1: an atomic update with a guard; check the affected row count.
+UPDATE product SET stock = stock - 1 WHERE id = 7 AND stock &gt; 0;
+
+-- Option 2: pessimistic locking for multi-step logic.
+BEGIN;
+SELECT stock FROM product WHERE id = 7 FOR UPDATE;  -- B waits here until A commits
+UPDATE product SET stock = stock - 1 WHERE id = 7;
+COMMIT;</code></pre>
+
+        <h3 id="optimistic">Optimistic Concurrency</h3>
+        <p>When conflicts are rare and transactions span user think-time (a web form open for minutes), hold no locks. Instead, add a version column and make the update conditional on the version the user saw:</p>
+        <pre><code class="language-sql">UPDATE customer
+   SET full_name = 'Ana Pop', version = version + 1
+ WHERE id = 42
+   AND version = 3;        -- the version read when the form was loaded
+-- 0 rows updated means someone else changed the row: reload and ask the user.</code></pre>
+
+        <h3 id="skip-locked">Work Queues with SKIP LOCKED</h3>
+        <p>Several workers taking jobs from one table would normally queue behind the same locked row. <code>FOR UPDATE SKIP LOCKED</code> (PostgreSQL 9.5+, Oracle, MySQL 8) lets each worker claim a different row without waiting:</p>
+        <pre><code class="language-sql">BEGIN;
+SELECT id, payload
+  FROM job
+ WHERE status = 'pending'
+ ORDER BY created_at
+ LIMIT 1
+   FOR UPDATE SKIP LOCKED;
+-- process the job, then:
+UPDATE job SET status = 'done' WHERE id = :claimed_id;
+COMMIT;</code></pre>
+
+        <h2 id="conflict-handling">Deadlocks and Retries</h2>
+        <p>Conflicts are not bugs to eliminate entirely; they are a normal outcome of concurrency that applications must handle.</p>
+
+        <h3 id="deadlocks">Deadlocks</h3>
+        <p>A deadlock occurs when transaction A waits for a lock held by B while B waits for a lock held by A. The database detects the cycle (in PostgreSQL after <code>deadlock_timeout</code>, one second by default) and aborts one transaction with SQLSTATE <code>40P01</code>. Prevent most deadlocks by acquiring locks in a consistent order &mdash; for example, always updating accounts in ascending <code>id</code> order &mdash; and by keeping transactions short.</p>
+
+        <h3 id="serializable-retries">Serializable Transactions Must Retry</h3>
+        <p>PostgreSQL implements serializable isolation with <em>serializable snapshot isolation</em>: transactions run without extra blocking, and if their combination could produce an anomaly, one of them fails with SQLSTATE <code>40001</code> (<code>serialization_failure</code>). The correct response is to retry the whole transaction from the beginning. Code the retry once, in a helper, as in this Python sketch using the psycopg driver:</p>
+        <pre><code class="language-python">import psycopg
+from psycopg import errors
+
+RETRYABLE = (errors.SerializationFailure, errors.DeadlockDetected)
+
+
+def run_serializable(conn, work, attempts=5):
+    """Run work(cur) in a SERIALIZABLE transaction, retrying on conflicts."""
+    conn.isolation_level = psycopg.IsolationLevel.SERIALIZABLE
+    for attempt in range(1, attempts + 1):
+        try:
+            with conn.transaction():          # commits on success, rolls back on error
+                with conn.cursor() as cur:
+                    return work(cur)
+        except RETRYABLE:
+            if attempt == attempts:
+                raise                          # give up after the last attempt</code></pre>
+        <p>Retries are only safe if the transaction has no side effects outside the database, such as sending an e-mail; perform those after a successful commit.</p>
+
+        <h3 id="lock-diagnosis">Diagnose Blocking</h3>
+        <p>When the application hangs, find out who is waiting on whom:</p>
+        <pre><code class="language-sql">SELECT pid,
+       pg_blocking_pids(pid) AS blocked_by,
+       state,
+       now() - xact_start    AS xact_age,
+       left(query, 60)       AS query
+  FROM pg_stat_activity
+ WHERE cardinality(pg_blocking_pids(pid)) &gt; 0;</code></pre>
+        <p>Set <code>lock_timeout</code> for sessions that run DDL on busy tables, so a migration fails fast instead of queuing behind a long transaction while blocking every query that arrives after it.</p>
+
+        <h2 id="practice-lab">Practice Lab</h2>
+        <p>Open two terminal sessions to the same database, labelled A and B, and run the steps interleaved.</p>
+
+        <h3 id="lab-anomalies">Observe Isolation Levels</h3>
+        <ol>
+          <li>In A, start a read committed transaction and read a row; in B, update and commit it; read it again in A and note the change.</li>
+          <li>Repeat with <code>BEGIN ISOLATION LEVEL REPEATABLE READ</code> in A and note that the second read is unchanged.</li>
+          <li>Reproduce the lost-update problem, then fix it with an atomic update and with <code>FOR UPDATE</code>.</li>
+        </ol>
+
+        <h3 id="lab-conflicts">Provoke and Handle Conflicts</h3>
+        <ol>
+          <li>Create a deadlock by updating two rows in opposite orders in A and B; read the error and the server log entry.</li>
+          <li>Reproduce the on-call doctors anomaly under repeatable read, then show that serializable makes one transaction fail with <code>40001</code>.</li>
+          <li>Write a retry helper in your application language and show that the retried transaction sees the other's commit and makes a correct decision (at least one doctor stays on call).</li>
+        </ol>
       </main>
     </div>
   </div>
-  <footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size: 24px;">&#9776;</span></button>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
 <script>
   window.TOPIC_CONFIG = {
     labId: 'dba',
@@ -54,4 +216,3 @@
 <script src="/assets/js/topic-loader.js" defer></script>
 </body>
 </html>
-

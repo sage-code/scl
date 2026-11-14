@@ -2,11 +2,11 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="DBA Replication Ha placeholder page.">
+  <meta name="description" content="Physical and logical replication, synchronous vs asynchronous commits, replication lag, failover, split-brain prevention and resilient topologies.">
   <meta name="author" content="Elucian Moise">
-  <meta name="keywords" content="dba, replication-ha">
+  <meta name="keywords" content="database replication, streaming replication, logical replication, high availability, failover, split brain, Patroni, replication lag">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DBA Replication Ha</title>
+  <title>DBA: Replication & High Availability</title>
   <link rel="canonical" href="https://sagecode.org/roadmap/dba/replication-ha.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -14,7 +14,11 @@
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
   <script src="/assets/prism.js"></script>
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
@@ -23,24 +27,146 @@
     <div class="row g-0">
       <aside class="side-bar col-lg-3 col-12">
         <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
-          <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0">Lab Topics</h5></div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
           <hr>
           <ul id="bookmark-list" class="list-unstyled"></ul>
         </div>
       </aside>
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-        <h1 id="overview">DBA Replication Ha</h1>
-        <div class="alert alert-secondary shadow-sm">This page is intentionally empty and ready for future course content.</div>
-        <h2 id="scope">Scope</h2>
-        <p>Placeholder section for Replication Ha concepts and practices.</p>
-        <h2 id="next-steps">Next Steps</h2>
-        <p>Add examples, procedures, and operational checklists in a later update.</p>
+        <h1 id="replication-ha">Replication &amp; High Availability</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A single database server is a single point of failure. Replication keeps copies of the data on other servers; high availability (HA) uses those copies to keep the service running when a server, a disk or a whole data center fails. This lesson covers the replication models, the trade-off between durability and latency, safe failover, and why replication is never a substitute for backups. Examples use PostgreSQL; Oracle's equivalent is Data Guard.
+        </div>
+
+        <h2 id="replication-models">Replication Models</h2>
+        <p>Replication copies changes from a <em>primary</em> server, which accepts writes, to one or more <em>replicas</em> (standbys). Engines replicate either the physical storage changes or logical row changes, and each approach suits different goals.</p>
+
+        <h3 id="physical-logical">Physical vs Logical Replication</h3>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th></th><th>Physical (streaming)</th><th>Logical</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>What is sent</strong></td><td>WAL: byte-level changes to data files.</td><td>Decoded row changes (insert, update, delete) per table.</td></tr>
+            <tr><td><strong>Scope</strong></td><td>The whole cluster, every database.</td><td>Selected tables, possibly filtered.</td></tr>
+            <tr><td><strong>Replica</strong></td><td>Read-only, identical copy; same major version.</td><td>Writable, independent database; versions may differ.</td></tr>
+            <tr><td><strong>Typical use</strong></td><td>HA failover, read scaling, disaster recovery.</td><td>Major-version upgrades, data distribution, integration.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="streaming-setup">Set Up a Streaming Replica</h3>
+        <p>A streaming replica starts from a base backup of the primary and then continuously receives WAL. With PostgreSQL 12+, <code>pg_basebackup -R</code> writes the connection settings and the <code>standby.signal</code> file for you:</p>
+        <pre><code class="language-bash"># On the replica host: clone the primary and configure it as a standby.
+pg_basebackup --host=db-primary --username=replicator \
+              --pgdata=/var/lib/postgresql/data \
+              --wal-method=stream --write-recovery-conf \
+              --slot=replica_1 --create-slot --progress</code></pre>
+        <p>A <em>replication slot</em> makes the primary keep WAL until this replica has received it, so a replica that falls behind can still catch up. The cost is that a replica which disappears causes WAL to pile up on the primary until the disk fills; cap it with <code>max_slot_wal_keep_size</code> and drop slots of decommissioned replicas.</p>
+
+        <h3 id="logical-setup">Publish and Subscribe Tables</h3>
+        <p>Logical replication works at the table level with a publication on the source and a subscription on the target. The source needs <code>wal_level = logical</code>, and the target needs the table definitions in advance; schema changes are not replicated.</p>
+        <pre><code class="language-sql">-- On the source database:
+CREATE PUBLICATION shop_pub FOR TABLE customer, customer_order, order_line;
+
+-- On the target database (tables already created with the same structure):
+CREATE SUBSCRIPTION shop_sub
+    CONNECTION 'host=db-source dbname=shop user=replicator sslmode=verify-full'
+    PUBLICATION shop_pub;</code></pre>
+
+        <h2 id="sync-async">Synchronous and Asynchronous Replication</h2>
+        <p>The central trade-off of replication is when the primary tells a client that a commit succeeded.</p>
+
+        <h3 id="durability-latency">Durability vs Latency</h3>
+        <ul>
+          <li><strong>Asynchronous</strong> (the default): the primary commits locally and sends WAL afterwards. Commits are fast, but if the primary fails, the most recent transactions may never reach the replica &mdash; the data loss equals the replication lag.</li>
+          <li><strong>Synchronous:</strong> the primary waits until at least one standby confirms it has the WAL. No committed transaction is lost when the primary fails, but every commit pays a network round trip, and if no synchronous standby is reachable, commits stop.</li>
+        </ul>
+        <pre><code class="language-none"># postgresql.conf on the primary: wait for any one of two named standbys.
+synchronous_standby_names = 'ANY 1 (replica_1, replica_2)'
+synchronous_commit        = on      # remote_apply also waits until the change is visible</code></pre>
+        <p>Configure at least two candidate synchronous standbys, so the loss of one does not halt writes. Place them close enough that the round trip is acceptable; synchronous replication across continents adds that latency to every commit.</p>
+
+        <h3 id="replication-lag">Monitor Replication Lag</h3>
+        <p>Lag is both a data-loss risk and a correctness issue for applications that read from replicas: a user may not see the change they just made. Measure it on the primary:</p>
+        <pre><code class="language-sql">SELECT application_name,
+       state,
+       sync_state,
+       write_lag, flush_lag, replay_lag,
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn)) AS replay_behind
+  FROM pg_stat_replication;</code></pre>
+        <p>Alert when lag exceeds what the RPO and the read-your-writes needs of the application allow. Route reads that must see the latest data to the primary.</p>
+
+        <h2 id="failover">Failover and High Availability</h2>
+        <p>Replication provides the copy; failover is the act of making a replica the new primary and redirecting clients to it. Doing it automatically is valuable &mdash; and dangerous when done wrong.</p>
+
+        <h3 id="promotion">Promote a Standby</h3>
+        <p>A manual failover in PostgreSQL is a single command on the chosen standby, after confirming the old primary is really down:</p>
+        <pre><code class="language-sql">-- On the standby (PostgreSQL 12+): stop recovery and start accepting writes.
+SELECT pg_promote();</code></pre>
+        <p>After promotion, clients must find the new primary. Common approaches are a virtual IP that moves, a DNS name that is updated, a proxy such as HAProxy or PgBouncer in front of the cluster, or multi-host connection strings with <code>target_session_attrs=read-write</code>, which make the client driver try each host until it finds the writable one.</p>
+
+        <h3 id="split-brain">Avoid Split Brain</h3>
+        <p>The worst HA failure is <em>split brain</em>: two servers both believe they are primary and accept writes, so the data diverges and cannot be merged automatically. It happens when a network partition makes a healthy primary look dead. Prevent it with:</p>
+        <ul>
+          <li><strong>A consensus store</strong> (etcd, Consul or ZooKeeper) that decides which node holds the leader lock; a node that loses contact with the majority must stop accepting writes.</li>
+          <li><strong>Fencing:</strong> forcibly isolating the old primary (shutting it down or cutting its network) before promoting a replacement.</li>
+          <li><strong>An odd number of voters</strong> across at least three failure zones, so a majority always exists on one side of a partition.</li>
+        </ul>
+        <p>For PostgreSQL, <a href="https://github.com/patroni/patroni" target="_blank" rel="noopener noreferrer nofollow">Patroni</a> is a widely used HA manager built on these principles; managed cloud services provide multi-zone failover as a feature. Do not build automatic failover from ad hoc scripts.</p>
+
+        <h3 id="rejoin">Rejoin the Old Primary</h3>
+        <p>After a failover, the old primary may contain transactions that never reached the new one. It cannot simply be restarted as a replica; it must be rewound to the point where timelines diverged with <code>pg_rewind</code>, or rebuilt from a fresh base backup. Any transactions it held only locally are lost, which is exactly the asynchronous-replication risk described above.</p>
+
+        <h2 id="ha-architecture">Designing for Resilience</h2>
+        <p>High availability is an architecture, not a feature switch. Decide what failures must be survived and what each costs.</p>
+
+        <h3 id="topologies">Common Topologies</h3>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th>Topology</th><th>Survives</th><th>Trade-off</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Primary + async replica, same zone</td><td>Server failure, with possible small data loss.</td><td>Cheap; zone outage takes both.</td></tr>
+            <tr><td>Primary + sync replicas in three zones</td><td>Zone failure without data loss.</td><td>Commit latency; needs a consensus-based manager.</td></tr>
+            <tr><td>Above + async replica in another region</td><td>Regional disaster, with possible data loss.</td><td>Cost and operational complexity; manual regional failover.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="replication-not-backup">Replication Is Not Backup</h3>
+        <p>A replica faithfully copies every change &mdash; including <code>DROP TABLE</code>, a buggy migration and data encrypted by ransomware &mdash; within milliseconds. HA protects against losing a <em>server</em>; only backups with point-in-time recovery protect against losing <em>data</em>. Run both, as described in <a href="/roadmap/dba/backup-recovery.html">Backup &amp; Recovery</a>. Delayed replicas (<code>recovery_min_apply_delay</code>) can add a safety window, but they complement backups rather than replace them.</p>
+
+        <h2 id="practice-lab">Practice Lab</h2>
+        <p>Run three PostgreSQL instances on one machine on different ports, or as containers.</p>
+
+        <h3 id="lab-streaming">Build and Break a Replica</h3>
+        <ol>
+          <li>Create a streaming replica with a replication slot, insert rows on the primary and read them on the replica.</li>
+          <li>Try to write on the replica and read the error.</li>
+          <li>Stop the replica for a few minutes under write load, watch WAL accumulate on the primary, then restart it and watch the lag in <code>pg_stat_replication</code> fall to zero.</li>
+        </ol>
+
+        <h3 id="lab-failover">Practice a Failover</h3>
+        <ol>
+          <li>Stop the primary abruptly, promote the replica with <code>pg_promote()</code>, and connect a client using a multi-host connection string.</li>
+          <li>Make the old primary rejoin as a replica of the new one using <code>pg_rewind</code> (it requires <code>wal_log_hints = on</code> or data checksums, so enable one before the lab starts).</li>
+          <li>Write a one-page runbook from what you did, including how you confirmed the old primary was really down before promoting.</li>
+        </ol>
       </main>
     </div>
   </div>
-  <footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size: 24px;">&#9776;</span></button>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
 <script>
   window.TOPIC_CONFIG = {
     labId: 'dba',
@@ -54,4 +180,3 @@
 <script src="/assets/js/topic-loader.js" defer></script>
 </body>
 </html>
-
