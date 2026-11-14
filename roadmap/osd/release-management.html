@@ -2,22 +2,225 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="OSD topic placeholder: Release Management.">
+  <meta name="description" content="Release management for open source projects: semantic versioning, changelogs and release notes, tagging, deprecation and migration planning, and support windows.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="release management, semantic versioning, semver, changelog, release notes, deprecation, migration guide, LTS, support policy">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>OSD: Release Management</title>
-  <link rel="canonical" href="https://sagecode.org/roadmap/osd/release-management/">
+  <link rel="canonical" href="https://sagecode.org/roadmap/osd/release-management.html">
   <meta name="robots" content="index, follow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
-  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
 </head>
 <body>
 <div class="container">
   <header id="dynamic-header" class="container-fluid pb-2"></header>
-  <h1 id="release-management">Release Management</h1>
-  <p class="alert alert-secondary">Dummy topic page. Planned content: semantic versioning, release notes, and support windows.</p>
-  <p><a href="/roadmap/osd/">Return to OSD Roadmap</a></p>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="release-management">Release Management</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A release is a promise. The version number tells users how risky an upgrade is, the release notes tell them what changed, and the support policy tells them how long the promise lasts. Release management is the discipline of keeping those three signals honest, so that users can upgrade without fear and maintainers can retire old code without surprising anyone.
+        </div>
+
+        <h2 id="versioning">Versioning Schemes</h2>
+        <p>A version identifier is an interface in its own right: tools compare it, dependency resolvers act on it, and people read meaning into it. Choose a scheme deliberately, document it in the repository, and apply it consistently. Changing the meaning of version numbers mid-project breaks every user who relied on the old meaning.</p>
+
+        <h3 id="semantic-versioning">Semantic Versioning</h3>
+        <p><a href="https://semver.org/" target="_blank" rel="noopener noreferrer nofollow">Semantic Versioning 2.0.0</a> uses <code>MAJOR.MINOR.PATCH</code> and ties each number to the project's <em>public API</em>, which must therefore be declared, whether in documentation or in code:</p>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th>Increment</th><th>When</th><th>Example</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>MAJOR</strong></td><td>Incompatible change to the public API.</td><td><code>1.9.3</code> &rarr; <code>2.0.0</code></td></tr>
+            <tr><td><strong>MINOR</strong></td><td>New functionality that is backward compatible, including new deprecations.</td><td><code>1.9.3</code> &rarr; <code>1.10.0</code></td></tr>
+            <tr><td><strong>PATCH</strong></td><td>Backward-compatible bug fixes only.</td><td><code>1.9.3</code> &rarr; <code>1.9.4</code></td></tr>
+          </tbody>
+        </table>
+        <p>Incrementing a number resets the ones to its right to zero. Versions <code>0.y.z</code> are reserved for initial development, where anything may change at any time; releasing <code>1.0.0</code> is the moment the project commits to a stable API. Staying on <code>0.x</code> for years is a signal to users that the project does not promise compatibility, whatever the README says.</p>
+
+        <h3 id="pre-release">Pre-releases and Build Metadata</h3>
+        <p>A hyphen introduces a pre-release identifier and a plus sign introduces build metadata. Pre-releases sort <em>before</em> the release they precede; build metadata is ignored when comparing precedence.</p>
+        <pre><code class="language-none"># SemVer precedence, lowest to highest
+1.0.0-alpha &lt; 1.0.0-alpha.1 &lt; 1.0.0-beta &lt; 1.0.0-beta.2 &lt; 1.0.0-beta.11 &lt; 1.0.0-rc.1 &lt; 1.0.0
+
+# Build metadata does not change precedence: these two are equal for ordering
+1.0.0+20261114.sha.5114f85
+1.0.0+exp.linux.x64</code></pre>
+        <p>Note that numeric identifiers compare numerically (<code>beta.2</code> precedes <code>beta.11</code>), while alphanumeric identifiers compare lexically. Use a small, fixed vocabulary such as <code>alpha</code>, <code>beta</code> and <code>rc</code> so ordering is predictable.</p>
+
+        <h3 id="calendar-versioning">Calendar Versioning and Other Schemes</h3>
+        <p>Not every project has an API whose compatibility can be summarized in three numbers. Applications, distributions and tools that release on a schedule often use <a href="https://calver.org/" target="_blank" rel="noopener noreferrer nofollow">calendar versioning</a>, where the version encodes the release date &mdash; for example Ubuntu's <code>24.04</code> (April 2024). CalVer tells users how old a release is, but says nothing about compatibility, so a project using it must communicate breaking changes another way: in release notes, deprecation warnings and the support policy.</p>
+
+        <h2 id="release-notes">Changelogs and Release Notes</h2>
+        <p>A version number says <em>how much</em> changed; release notes say <em>what</em> changed and <em>what to do about it</em>. Commit logs are not release notes: they are written for reviewers, contain internal noise, and rarely explain impact. Curate notes for the people who upgrade.</p>
+
+        <h3 id="changelog-format">Keep a Human-Readable Changelog</h3>
+        <p>A common convention is <a href="https://keepachangelog.com/" target="_blank" rel="noopener noreferrer nofollow">Keep a Changelog</a>: a <code>CHANGELOG.md</code> file, newest release first, with an <em>Unreleased</em> section that contributors update in the same pull request as their change. Entries are grouped by type, so readers can jump straight to what concerns them.</p>
+        <pre><code class="language-markdown"># Changelog
+
+All notable changes to this project are documented in this file.
+The project follows Semantic Versioning.
+
+## [Unreleased]
+
+### Added
+- `--json` output flag for the `status` command (#412).
+
+## [2.0.0] - 2026-11-02
+
+### Changed
+- **Breaking:** `load_config()` now raises `ConfigError` instead of returning `None`
+  for a missing file. See the migration guide in docs/upgrading-to-2.md.
+
+### Removed
+- **Breaking:** the `legacy_parse()` function, deprecated since 1.8.0.
+
+### Fixed
+- Timestamps in log output now include the UTC offset (#398).
+
+### Security
+- Reject archive entries with absolute paths during extraction (CVE reference in advisory).
+
+[Unreleased]: https://example.org/project/compare/v2.0.0...HEAD
+[2.0.0]: https://example.org/project/compare/v1.9.4...v2.0.0</code></pre>
+
+        <h3 id="writing-notes">Write Notes for the Upgrader</h3>
+        <p>Every entry should answer one question: <em>does this affect me, and what must I do?</em> Put breaking changes and security fixes first and mark them clearly. Link to the issue or pull request for detail rather than pasting it. Name the deprecated item and its replacement. Thank contributors by name where the platform allows it &mdash; it costs nothing and is one of the cheapest forms of contributor retention (see <a href="/roadmap/osd/maintainership.html">Maintainership</a>).</p>
+        <p>Structured commit conventions such as <a href="https://www.conventionalcommits.org/" target="_blank" rel="noopener noreferrer nofollow">Conventional Commits</a> (<code>feat:</code>, <code>fix:</code>, <code>feat!:</code> for breaking changes) can generate a draft changelog and even suggest the next version. Treat the generated text as a draft: a person still decides what is notable and rewrites entries in terms of user impact.</p>
+
+        <h2 id="release-process">The Release Process</h2>
+        <p>A release should be a routine, repeatable procedure, not an act of heroism. Write the steps down in a <code>RELEASING.md</code> file or automate them, so any maintainer &mdash; not only the original author &mdash; can cut a release.</p>
+
+        <h3 id="tagging">Tag the Exact Revision</h3>
+        <p>An annotated Git tag records who released what, when, and from which commit. Signing the tag lets users verify that it came from a maintainer. Push the tag explicitly; <code>git push</code> does not send tags by default.</p>
+        <pre><code class="language-bash"># Release 2.1.0 from an up-to-date, clean main branch.
+git switch main
+git pull --ff-only
+git status --short              # must print nothing: release only committed code
+
+# Annotated tag (use -s instead of -a to create a signed tag).
+git tag -a v2.1.0 -m "Release 2.1.0"
+git push origin v2.1.0
+
+# Verify a signed tag before trusting it.
+git tag -v v2.1.0</code></pre>
+        <p>Never move or delete a published tag. Users and package mirrors may already have fetched it; rewriting it creates two different artifacts with the same name. If a release is broken, publish a new patch version and mark the bad one as yanked or withdrawn in the package registry.</p>
+
+        <h3 id="release-checklist">Use a Release Checklist</h3>
+        <p>The pipeline from <a href="/roadmap/osd/ci-cd.html">CI/CD Basics</a> should build, test and publish the artifact from the tag. Around that automation, a short checklist catches what machines cannot:</p>
+        <ol>
+          <li>The <em>Unreleased</em> changelog section is complete and renamed to the new version with today's date.</li>
+          <li>The version number in package metadata matches the tag.</li>
+          <li>Breaking changes have a migration guide, and deprecations name their removal version.</li>
+          <li>The artifact is built once from the tagged commit, with checksums or attestations published beside it.</li>
+          <li>The release announcement links to the notes and, for security fixes, to the advisory.</li>
+        </ol>
+
+        <h2 id="deprecation-migration">Deprecation and Migration Planning</h2>
+        <p>Removing a feature is a breaking change; deprecating it first turns that break into a scheduled, announced event. A good deprecation tells users three things: what is going away, what replaces it, and when the removal will happen.</p>
+
+        <h3 id="deprecation-policy">Deprecate Before You Remove</h3>
+        <p>Under SemVer, deprecation belongs in a MINOR release and removal in the next MAJOR release. Emit a warning at the point of use so users discover the deprecation from their own test runs, not from a broken production upgrade. In Python, for example:</p>
+        <pre><code class="language-python">import warnings
+
+
+def legacy_parse(text):
+    """Deprecated since 1.8.0; use parse() instead. Removal planned for 2.0.0."""
+    # stacklevel=2 attributes the warning to the caller's line, not to this function.
+    warnings.warn(
+        "legacy_parse() is deprecated and will be removed in 2.0.0; use parse()",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return parse(text)
+
+
+def parse(text):
+    return text.split(",")</code></pre>
+        <p>Keep the old and new paths working side by side for at least one minor release, so users can migrate incrementally rather than in a single risky step.</p>
+
+        <h3 id="migration-guides">Write a Migration Guide</h3>
+        <p>Each major release deserves an upgrade document that lists every breaking change with a before-and-after example. Order the entries by how many users each change affects. Where a change is mechanical &mdash; a renamed function or a moved module &mdash; consider shipping a codemod or script that applies it automatically. The fewer manual steps an upgrade requires, the fewer users stay behind on old, unsupported versions.</p>
+
+        <h2 id="support-windows">Support Windows</h2>
+        <p>A support policy states which release lines receive fixes and for how long. Without one, users assume every version is supported forever and maintainers are pressured to backport fixes indefinitely. Publish the policy in the documentation, and list supported versions in <code>SECURITY.md</code>, where security researchers look for them.</p>
+
+        <h3 id="release-lines">Define Release Lines and LTS</h3>
+        <table class="table table-striped table-bordered">
+          <thead class="table-dark">
+            <tr><th>Policy</th><th>What is supported</th><th>Suits</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Latest only</strong></td><td>Fixes go into the newest release; users upgrade to get them.</td><td>Small libraries with few maintainers.</td></tr>
+            <tr><td><strong>N and N&minus;1</strong></td><td>The current major line plus the previous one for security fixes.</td><td>Libraries with a significant installed base.</td></tr>
+            <tr><td><strong>Long-term support (LTS)</strong></td><td>Selected releases receive fixes for a stated, longer period.</td><td>Runtimes, frameworks and distributions used in production.</td></tr>
+          </tbody>
+        </table>
+        <p>Node.js is a well-known example: even-numbered major releases enter an LTS phase with a published end-of-life date, and its <a href="https://github.com/nodejs/release#release-schedule" target="_blank" rel="noopener noreferrer nofollow">release schedule</a> shows every line's dates in advance. That predictability is the point &mdash; organizations can plan upgrades around a calendar instead of reacting to announcements.</p>
+
+        <h3 id="backports">Backport Fixes Deliberately</h3>
+        <p>Maintain one branch per supported line (for example <code>release/1.x</code>) and land fixes on <code>main</code> first, then cherry-pick them back. Fixing the old branch first risks the fix never reaching the current code. Backport only bug and security fixes: adding features to an old line multiplies testing work and blurs the reason to upgrade. When a line reaches end of life, announce it ahead of time, archive the branch, and say so in the README and <code>SECURITY.md</code>.</p>
+
+        <h2 id="practice-lab">Practice Lab</h2>
+        <p>Use a small repository of your own, or a fork, so tags and releases do not affect real users.</p>
+
+        <h3 id="lab-release-cut">Cut a Release</h3>
+        <ol>
+          <li>Write a one-paragraph versioning policy in the README that defines the public API and the scheme you use.</li>
+          <li>Create <code>CHANGELOG.md</code> with an <em>Unreleased</em> section, make two changes, and record each in the same commit as the change.</li>
+          <li>Decide the next version number from the changelog alone, without reading the diff &mdash; if you cannot, the entries are too vague.</li>
+          <li>Rename the section, create an annotated tag, push it, and confirm the CI pipeline publishes an artifact from exactly that tag.</li>
+        </ol>
+
+        <h3 id="lab-deprecation">Plan a Deprecation</h3>
+        <ol>
+          <li>Pick a function to replace, add the new one, and make the old one emit a deprecation warning that names the replacement and the removal version.</li>
+          <li>Release that as a MINOR version and confirm the warning appears in a test that calls the old function.</li>
+          <li>Write the migration-guide entry with a before-and-after example, then remove the old function in a MAJOR release.</li>
+          <li>Add a support table to <code>SECURITY.md</code> stating which lines still receive security fixes.</li>
+        </ol>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
 </div>
-<script src="/sage.js" defer></script>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'osd',
+    topicId: 'release-management',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
 </body>
 </html>
