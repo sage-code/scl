@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Java programming free tutorial by Sage-Code.">
+  <meta name="description" content="Java annotations: syntax, built-in compiler annotations, declaring custom annotations, meta-annotations and retention, and reading annotations with reflection.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="language, syntax, programming, tutorial">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -40,76 +40,164 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<hr>
-
-
 <h1 id="java-annotations">Java Annotations</h1>
 
-
 <div class="alert alert-secondary shadow-sm">
-Annotations, a form of metadata, provide data about a program that is not part of the program itself. Annotations have no direct effect on the operation of the code they annotate.
+  An annotation is metadata attached to code: a class, method, field, parameter or type. Annotations do nothing by themselves; tools read them. The compiler reads some (<code>@Override</code>), annotation processors read others at build time, and frameworks such as JUnit and Spring read many at run time through reflection. This lesson covers the built-in annotations, how to declare your own, and how a program can read them.
 </div>
 
-<h4>Annotation Syntax</h4>
-
-<pre><code class="language-java">/* different annotations */
-@annotation
-@annotation(value)
-@annotation(value, value, ...) 
-@annotation(name=value) 
-@annotation(name=value, name=value ...)
+<h2 id="syntax">Annotation Syntax</h2>
+<h3 id="elements">Names and Elements</h3>
+<p>An annotation starts with <code>@</code> followed by its name, optionally with <em>elements</em> in parentheses. It is written before the declaration it annotates, usually on its own line.</p>
+<pre><code class="language-java">@Override                                   // marker: no elements
+@SuppressWarnings("unchecked")              // single element named value: the name may be omitted
+@Deprecated(since = "2.0", forRemoval = true)   // named elements
 </code></pre>
+<h3 id="type-annotations">Type Annotations</h3>
+<p>Since Java 8 annotations can also appear wherever a type is <em>used</em> (type annotations), for example <code>List&lt;@NonNull String&gt;</code>. The JDK defines no checker for such annotations; tools such as the Checker Framework provide them.</p>
 
-<h4>Using annotations</h4>
+<h2 id="built-in">Built-in Annotations</h2>
+<p>The <code>java.lang</code> package defines the annotations that the compiler itself enforces:</p>
+<table class="table table-striped table-bordered">
+  <thead class="table-dark">
+    <tr><th>Annotation</th><th>Applies to</th><th>Effect</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>@Override</code></td><td>methods</td><td>Compile error unless the method overrides or implements a supertype method.</td></tr>
+    <tr><td><code>@Deprecated</code></td><td>most declarations</td><td>Warns callers; <code>since</code> and <code>forRemoval</code> (Java 9+) say when and whether it will disappear.</td></tr>
+    <tr><td><code>@SuppressWarnings</code></td><td>most declarations</td><td>Silences named compiler warnings (<code>"unchecked"</code>, <code>"removal"</code>, <code>"deprecation"</code>) in that scope.</td></tr>
+    <tr><td><code>@FunctionalInterface</code></td><td>interfaces</td><td>Compile error unless the interface has exactly one abstract method.</td></tr>
+    <tr><td><code>@SafeVarargs</code></td><td>final, static or private methods; constructors</td><td>Promises that a generic varargs method does not misuse its array, silencing heap-pollution warnings at call sites.</td></tr>
+  </tbody>
+</table>
 
-<p>1. Annotations have multiple use cases. It can be used for declaration statements, above the declaration in a single line or multiple lines. Also more then one annotations can apply to one declaration.</p>
+<h3 id="built-in-example">Using Them Together</h3>
+<pre><code class="language-java">// The annotations the compiler itself understands.
+import java.util.ArrayList;
+import java.util.List;
 
-<p>2. As of the Java SE 8 release, annotations can also be applied to the use of types. Here are some examples:</p>
+class Legacy {
+    /** @deprecated replaced by {@link #total(int...)} */
+    @Deprecated(since = "2.0", forRemoval = true)
+    static int sum(int a, int b) { return a + b; }
 
-<pre><code class="language-java">/* Special annotations */
- 
-//Class instance creation expression
-      new @Interned MyObject();
-//Type cast with annotation
-      myString = (@NonNull String) str;
-//Implementation clause
-      class UnmodifiableList&lt;T&gt; implements
-          @Readonly List&lt;@Readonly T&gt; { ... }
-//Thrown exception declaration
-      void monitorTemperature() throws
-          @Critical TemperatureException { ... }
-</code></pre>
+    @SafeVarargs                                   // promises no unsafe use of the varargs array
+    static &lt;T&gt; List&lt;T&gt; listOf(T... items) {
+        List&lt;T&gt; list = new ArrayList&lt;&gt;();
+        for (T item : items) list.add(item);       // read the array; never store or expose it
+        return list;
+    }
 
-<h2 id="predefined-annotations">Predefined Annotations</h2>
+    static int total(int... values) {
+        int t = 0;
+        for (int v : values) t += v;
+        return t;
+    }
+}
 
-<p>A set of annotation types are predefined in the Java SE API. Some annotation types are used by the Java compiler, and some apply to other annotations. These are called meta annotations.</p>
+@FunctionalInterface                               // compile error if it ever gains a 2nd abstract method
+interface Greeter {
+    String greet(String name);
+}
 
-<h4>True Annotations</h4>
+class BuiltInAnnotations {
+    @SuppressWarnings("removal")                   // we call sum() knowingly
+    public static void main(String[] args) {
+        System.out.println(Legacy.sum(2, 3));
+        System.out.println(Legacy.total(2, 3, 4));
+        System.out.println(Legacy.listOf("a", "b"));
+        Greeter g = name -&gt; "Hello, " + name;
+        System.out.println(g.greet("Ana"));
+    }
 
+    @Override                                      // checked: toString really exists in Object
+    public String toString() { return "BuiltInAnnotations"; }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">5
+9
+[a, b]
+Hello, Ana</code></pre>
+<p>Keep <code>@SuppressWarnings</code> as narrow as possible &mdash; on one method or one local variable, never a whole class &mdash; and only after you have checked that the warning is a false alarm. A suppressed warning is a decision another reader should be able to find.</p>
+
+<h2 id="custom">Declaring Your Own Annotations</h2>
+<p>An annotation type is declared with <code>@interface</code>. Its elements look like methods without parameters; each may have a <code>default</code>. Element types are limited to primitives, <code>String</code>, <code>Class</code>, enums, other annotations, and arrays of these.</p>
+
+<h3 id="meta-annotations">Meta-annotations</h3>
+<p>Annotations on an annotation type control how it behaves:</p>
 <ul>
-<li>@Deprecated,</li>
-<li>@Override,</li> 
-<li>@SuppressWarnings</li>
-<li>@SafeVarargs</li>
-<li>@FunctionalInterface</li>
+  <li><code>@Retention</code> &mdash; <code>SOURCE</code> (discarded by the compiler), <code>CLASS</code> (kept in the class file, the default, but invisible to reflection), or <code>RUNTIME</code> (readable while the program runs).</li>
+  <li><code>@Target</code> &mdash; where it may be used: <code>TYPE</code>, <code>FIELD</code>, <code>METHOD</code>, <code>PARAMETER</code>, <code>TYPE_USE</code> and others.</li>
+  <li><code>@Documented</code> includes it in Javadoc; <code>@Inherited</code> lets a class annotation pass to subclasses; <code>@Repeatable</code> allows it more than once on the same element.</li>
 </ul>
 
-<h4>Meta Annotations</h4>
+<h3 id="reflection">Reading Annotations at Run Time</h3>
+<p>This example declares a <code>@Range</code> annotation for fields and a tiny validator that reads it with reflection &mdash; the same technique that Jakarta Bean Validation uses for <code>@Min</code>, <code>@Max</code> and <code>@NotNull</code>.</p>
+<pre><code class="language-java">// A custom annotation, kept at run time and read with reflection.
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 
-<ul>
-<li>@Retention</li>
-<li>@Documented</li>
-<li>@Target</li>
-<li>@Inherited</li>
-<li>@Repeatable</li>
-</ul>
+@Retention(RetentionPolicy.RUNTIME)      // keep it in the class file and visible to reflection
+@Target(ElementType.FIELD)               // allowed only on fields
+@interface Range {
+    int min() default 0;
+    int max();
+    String message() default "out of range";
+}
 
-<a href="https://docs.oracle.com/javase/tutorial/java/annotations/basics.html">Annotations DOC</a>
+class Order {
+    @Range(min = 1, max = 100, message = "quantity must be 1..100")
+    int quantity;
 
-<!-- work in progress-->
+    @Range(max = 50)
+    int discountPercent;
 
-<hr>
+    Order(int quantity, int discountPercent) {
+        this.quantity = quantity;
+        this.discountPercent = discountPercent;
+    }
+}
 
+class Validation {
+    static List&lt;String&gt; validate(Object target) throws IllegalAccessException {
+        List&lt;String&gt; errors = new ArrayList&lt;&gt;();
+        for (Field f : target.getClass().getDeclaredFields()) {
+            Range r = f.getAnnotation(Range.class);
+            if (r == null) continue;
+            int value = f.getInt(target);
+            if (value &lt; r.min() || value &gt; r.max()) {
+                errors.add(f.getName() + "=" + value + ": " + r.message());
+            }
+        }
+        return errors;
+    }
+
+    public static void main(String[] args) throws IllegalAccessException {
+        System.out.println(validate(new Order(10, 20)));
+        System.out.println(validate(new Order(0, 75)));
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">[]
+[quantity=0: quantity must be 1..100, discountPercent=75: out of range]</code></pre>
+<p>Without <code>@Retention(RetentionPolicy.RUNTIME)</code>, <code>getAnnotation</code> would return <code>null</code> and the validator would silently accept everything &mdash; the most common mistake with custom annotations.</p>
+
+<h2 id="in-practice">Annotations in Practice</h2>
+<h3 id="frameworks">Framework Annotations</h3>
+<p>Most annotations you meet come from libraries. JUnit marks test methods with <code>@Test</code>; Spring wires objects with <code>@Component</code> and <code>@Autowired</code>; JPA maps classes to tables with <code>@Entity</code> and <code>@Id</code>; Lombok generates code at compile time from <code>@Getter</code>. Annotations make such frameworks concise, but the behavior they trigger lives elsewhere: when an annotated program misbehaves, read the documentation of the tool that processes the annotation, not the annotation itself.</p>
+
+<h2 id="practice">Practice</h2>
+<h3 id="exercises">Exercises</h3>
+<ol>
+  <li>Add a <code>@NotBlank</code> annotation for <code>String</code> fields to the validator and test it on a new field.</li>
+  <li>Change <code>@Range</code>'s retention to <code>CLASS</code>, run the program again, and explain the output.</li>
+  <li>Call the deprecated <code>Legacy.sum</code> from a method without <code>@SuppressWarnings</code> and read the warning that <code>javac -Xlint:all</code> prints.</li>
+</ol>
 
 </main>
     </div>

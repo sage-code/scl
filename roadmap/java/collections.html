@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Java advanced collections data collections and structures.">
+  <meta name="description" content="Java Collections Framework: List, Set, Queue, Deque and Map, choosing implementations, immutable collections, map methods, sequenced collections and pitfalls.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="language, java, syntax, programming, tutorial, data, collection, list, map, set, hash, disctionary, key value, pairs, associative arrays">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -40,62 +40,174 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-
-
-      <hr>
-
 <h1 id="java-collections">Java Collections</h1>
 
 <div class="alert alert-secondary shadow-sm">
-A collection is a container that group multiple elements into a single unit. Collections are used to store, retrieve, manipulate, and communicate structured data.</div>
-
-
-<p>Collections are packages that have pre-defined interfaces, classes and algorithms to organize and manipulate structured data in memoru. Colection algorithms are usually polimorphic to support a variaty of primitive data types.</p>
-
-<p>Most of the time collections use generics. You can declare a specific collection for you data and then you can use collection API to perform complex operations without duplicating the code and without implementing complex algorithms by yourself.</p>
-
-<h2 id="interfaces">Interfaces</h2>
-
-<p>Collections are too complex and diverse to feet in single inheritance model. To cover this complexity it was necesary to implement a interface hierarchy first. This add improve code reusability.</p>
-
-<div class="text-center">
-  <img src="/roadmap/java/img/collection_interfaces.svg" alt="Collection Interfaces"
-       width="440" class="img-fluid protect rounded shadow border" >
-  <p>Interface Hierarchy</p>
+  Arrays have a fixed size and few operations. The Java Collections Framework provides growable, well-tested data structures behind a small set of interfaces: lists, sets, queues and maps. Choosing the right interface and implementation is one of the most consequential everyday decisions in Java code. This lesson maps the framework, shows the common operations, and gives rules for choosing. Collections are generic; see <a href="/roadmap/java/generics.html">Generics</a> for the type parameters used throughout.
 </div>
 
-<p>Learning tip: First can learn interfaces, almost exactly like classes. Interfaces have the methods required for you to understand then you can use these methods with all kind of classes that you can instantiate. Once you undestend the interfaces you can work with the classes.</p>
+<h2 id="framework">The Framework at a Glance</h2>
+<p>The framework lives in <code>java.util</code>. Its interfaces define behavior; several classes implement each interface with different performance trade-offs. Code should declare variables with the interface and choose the implementation only where the object is created.</p>
 
-<h2 id="collection-classes">Collection Classes</h2>
+<h3 id="interfaces">Core Interfaces</h3>
+<table class="table table-striped table-bordered">
+  <thead class="table-dark">
+    <tr><th>Interface</th><th>Contains</th><th>Typical implementations</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>List</code></td><td>Ordered elements, duplicates allowed, access by index</td><td><code>ArrayList</code>, <code>LinkedList</code></td></tr>
+    <tr><td><code>Set</code></td><td>Unique elements</td><td><code>HashSet</code>, <code>LinkedHashSet</code>, <code>TreeSet</code></td></tr>
+    <tr><td><code>Queue</code> / <code>Deque</code></td><td>Elements processed from the ends</td><td><code>ArrayDeque</code>, <code>PriorityQueue</code></td></tr>
+    <tr><td><code>Map</code></td><td>Key&ndash;value pairs, unique keys (not a <code>Collection</code>)</td><td><code>HashMap</code>, <code>LinkedHashMap</code>, <code>TreeMap</code></td></tr>
+  </tbody>
+</table>
 
-<p>Interfaces for collections are implemented in diverse classes that you can instantiate to create your own collections. Onlu then you can use the methods to manipulate the data.</p>
+<h3 id="implementations">Choosing an Implementation</h3>
+<table class="table table-striped table-bordered">
+  <thead class="table-dark">
+    <tr><th>Class</th><th>Order</th><th>Strength</th><th>Cost</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>ArrayList</code></td><td>insertion</td><td>Fast index access and iteration; the default list</td><td>Inserting or removing in the middle shifts elements</td></tr>
+    <tr><td><code>LinkedList</code></td><td>insertion</td><td>Cheap insert/remove at a known position via an iterator</td><td>Slow index access; more memory; rarely the best choice</td></tr>
+    <tr><td><code>HashSet</code> / <code>HashMap</code></td><td>none</td><td>Constant-time add, remove and lookup on average</td><td>Needs correct <code>equals</code> and <code>hashCode</code></td></tr>
+    <tr><td><code>LinkedHashSet</code> / <code>LinkedHashMap</code></td><td>insertion</td><td>Hash speed with predictable iteration</td><td>A little more memory</td></tr>
+    <tr><td><code>TreeSet</code> / <code>TreeMap</code></td><td>sorted</td><td>Sorted iteration, ranges, nearest-key queries</td><td>Logarithmic operations; elements must be comparable</td></tr>
+    <tr><td><code>ArrayDeque</code></td><td>insertion</td><td>Fast stack and queue at both ends</td><td>No null elements, no index access</td></tr>
+    <tr><td><code>PriorityQueue</code></td><td>by priority</td><td>Always removes the smallest (or highest-priority) element</td><td>Iteration order is not sorted</td></tr>
+  </tbody>
+</table>
+<p>The complexity behind these trade-offs is explained in the DSA lessons on <a href="/roadmap/dsa/arrays-slices.html">arrays</a>, <a href="/roadmap/dsa/hash-tables.html">hash tables</a> and <a href="/roadmap/dsa/trees.html">trees</a>.</p>
 
-<div class="text-center">
-  <img src="/roadmap/java/img/collection_classes.svg" alt="Collection Interfaces"
-       width="440" class="img-fluid protect rounded shadow border" >
-  <p>Interface Hierarchy</p>
-</div>
+<h2 id="lists-sets-maps">Lists, Sets and Maps in Use</h2>
+<pre><code class="language-java">// The three core interfaces: List (ordered), Set (unique), Map (key to value).
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
-<h2 id="map-collections">Map Collections</h2>
+class CollectionsTour {
+    public static void main(String[] args) {
+        List&lt;String&gt; cart = new ArrayList&lt;&gt;(List.of("tea", "milk", "tea", "bread"));
+        cart.add(1, "honey");                         // insert by position
+        cart.removeIf(item -&gt; item.equals("milk"));   // remove by condition
+        System.out.println("list: " + cart + ", second = " + cart.get(1));
 
-<p>Some collections are created in an independent tree. Though iterable these collections have different methods. These collections as very powerful and not to be ignored. Learn this to get more power into your applications.</p>
+        Set&lt;String&gt; unique = new LinkedHashSet&lt;&gt;(cart);  // duplicates dropped, insertion order kept
+        Set&lt;String&gt; sorted = new TreeSet&lt;&gt;(cart);        // duplicates dropped, natural order
+        System.out.println("linked set: " + unique + ", tree set: " + sorted);
 
+        Map&lt;String, Double&gt; prices = new HashMap&lt;&gt;();
+        prices.put("tea", 4.5);
+        prices.put("bread", 2.0);
+        prices.putIfAbsent("tea", 9.9);                  // ignored: key already present
+        System.out.println("tea = " + prices.get("tea")
+                + ", coffee = " + prices.getOrDefault("coffee", 0.0));
 
-<div class="text-center">
-  <img src="/roadmap/java/img/java_maps.svg" alt="Java Maps"
-       width="440" class="img-fluid protect rounded shadow border" >
-  <p>Map Collections</p>
-</div>
+        List&lt;String&gt; fixed = List.of("a", "b");          // immutable
+        try {
+            fixed.add("c");
+        } catch (UnsupportedOperationException e) {
+            System.out.println("List.of is immutable");
+        }
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">list: [tea, honey, tea, bread], second = honey
+linked set: [tea, honey, bread], tree set: [bread, honey, tea]
+tea = 4.5, coffee = 0.0
+List.of is immutable</code></pre>
 
-<p>Read more: <a href="https://docs.oracle.com/javase/tutorial/collections/intro/index.html" target="_blank">Introcution to Collections</a></p>
+<h3 id="immutable">Immutable Collections</h3>
+<p>The factories <code>List.of</code>, <code>Set.of</code> and <code>Map.of</code> (Java 9+) create compact, unmodifiable collections; any attempt to change them throws <code>UnsupportedOperationException</code>, and they reject <code>null</code> elements. <code>List.copyOf</code> makes an unmodifiable copy of an existing collection. Return immutable collections from methods whenever callers should not change them; it removes a whole class of bugs.</p>
 
-<!-- work in progress-->
+<h3 id="maps">Working with Maps</h3>
+<p>Modern <code>Map</code> methods replace most hand-written &ldquo;check, then put&rdquo; code: <code>getOrDefault</code>, <code>putIfAbsent</code>, <code>computeIfAbsent</code> (ideal for maps of lists) and <code>merge</code> (ideal for counters). A <code>TreeMap</code> keeps its keys sorted, which makes the word count below print in alphabetical order.</p>
+<pre><code class="language-java">// Count words with Map.merge, then report them sorted by count.
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
-<hr>
+class WordFrequency {
+    public static void main(String[] args) {
+        String text = "the cat and the hat and the bat";
+        Map&lt;String, Integer&gt; counts = new TreeMap&lt;&gt;();     // keys kept in alphabetical order
+        for (String word : text.split(" ")) {
+            counts.merge(word, 1, Integer::sum);           // insert 1, or add 1 to the existing count
+        }
+        System.out.println(counts);
 
+        List&lt;Map.Entry&lt;String, Integer&gt;&gt; byCount = new ArrayList&lt;&gt;(counts.entrySet());
+        byCount.sort(Map.Entry.&lt;String, Integer&gt;comparingByValue().reversed());
+        System.out.println("most frequent: " + byCount.get(0).getKey());
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">{and=2, bat=1, cat=1, hat=1, the=3}
+most frequent: the</code></pre>
 
+<h2 id="queues">Queues, Stacks and Sequences</h2>
+<h3 id="deques">Stacks, Queues and Priorities</h3>
+<p><code>ArrayDeque</code> is the recommended stack and queue &mdash; prefer it to the legacy <code>Stack</code> and <code>Vector</code> classes, which synchronize every call. A <code>PriorityQueue</code> always hands out its smallest element first, according to natural order or a <code>Comparator</code>.</p>
 
-    
+<h3 id="sequenced">Sequenced Collections</h3>
+<p>Java 21 added <em>sequenced collections</em>: <code>List</code>, <code>Deque</code>, <code>LinkedHashSet</code> and <code>LinkedHashMap</code> now share <code>getFirst</code>, <code>getLast</code>, <code>addFirst</code>, <code>addLast</code> and <code>reversed</code>.</p>
+<pre><code class="language-java">// Deque as stack and queue, PriorityQueue, and Java 21 sequenced collections.
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.PriorityQueue;
+import java.util.Queue;
+
+class QueuesAndSequences {
+    public static void main(String[] args) {
+        Deque&lt;String&gt; stack = new ArrayDeque&lt;&gt;();
+        stack.push("a"); stack.push("b"); stack.push("c");
+        System.out.println("stack pop: " + stack.pop());       // c: last in, first out
+
+        Queue&lt;String&gt; queue = new ArrayDeque&lt;&gt;(List.of("first", "second"));
+        queue.offer("third");
+        System.out.println("queue poll: " + queue.poll());     // first: first in, first out
+
+        Queue&lt;Integer&gt; tasks = new PriorityQueue&lt;&gt;(List.of(5, 1, 4, 2));
+        StringBuilder order = new StringBuilder();
+        while (!tasks.isEmpty()) order.append(tasks.poll()).append(' ');
+        System.out.println("priority order: " + order.toString().trim());
+
+        List&lt;String&gt; steps = new ArrayList&lt;&gt;(List.of("wake", "code", "sleep"));
+        System.out.println(steps.getFirst() + " .. " + steps.getLast());   // Java 21
+        System.out.println("reversed view: " + steps.reversed());
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">stack pop: c
+queue poll: first
+priority order: 1 2 4 5
+wake .. sleep
+reversed view: [sleep, code, wake]</code></pre>
+
+<h2 id="pitfalls">Common Pitfalls</h2>
+<h3 id="mistakes">Mistakes to Avoid</h3>
+<ul>
+  <li><strong>Modifying while iterating:</strong> calling <code>list.remove</code> inside a for-each loop throws <code>ConcurrentModificationException</code>. Use <code>removeIf</code> or an explicit <code>Iterator</code>.</li>
+  <li><strong>Mutable keys:</strong> changing a field that <code>hashCode</code> depends on after inserting the object into a <code>HashSet</code> or <code>HashMap</code> makes it unfindable.</li>
+  <li><strong><code>Arrays.asList</code></strong> returns a fixed-size view of the array: <code>set</code> works, <code>add</code> and <code>remove</code> throw.</li>
+  <li><strong>Thread safety:</strong> the standard implementations are not synchronized. Use <code>java.util.concurrent</code> classes such as <code>ConcurrentHashMap</code> when several threads share a collection.</li>
+</ul>
+
+<h2 id="practice">Practice</h2>
+<h3 id="exercises">Exercises</h3>
+<ol>
+  <li>Build a <code>Map&lt;String, List&lt;String&gt;&gt;</code> that groups words by their first letter, using <code>computeIfAbsent</code>.</li>
+  <li>Use a <code>TreeMap</code>'s <code>floorKey</code> to find the tax band for an income from a map of band thresholds.</li>
+  <li>Simulate a print queue where urgent jobs go first, using a <code>PriorityQueue</code> with a <code>Comparator</code>. The runnable lab demos <a href="/roadmap/code-viewer.html?file=/roadmap/java/demo/37_array_list.java">37</a> to <a href="/roadmap/code-viewer.html?file=/roadmap/java/demo/42_hash_set.java">42</a> show more collection programs.</li>
+</ol>
+
       </main>
 </div>
   </div>

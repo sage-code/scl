@@ -11,6 +11,7 @@ Classification per track:
 """
 
 import argparse
+import html
 import json
 import os
 import re
@@ -77,6 +78,22 @@ NOTES = {
 }
 
 
+THIN_WORDS = 200
+# Index-style pages are mostly tables of links; the prose threshold applies to lessons only.
+LIST_PAGES = {"demo_examples.html", "references.html", "samples.html"}
+_MAIN = re.compile(r"<main\b.*?>(.*)</main>", re.S | re.I)
+_NONPROSE = re.compile(r"<(pre|script|style)\b.*?</\1>", re.S | re.I)
+_TAG = re.compile(r"<[^>]+>")
+
+
+def prose_words(text):
+    """Visible words in <main>, code samples excluded. Thin pages pass every structural check
+    (they are wired, have sidecars, carry no WIP marker) yet teach little: a skeleton lesson."""
+    m = _MAIN.search(text)
+    body = _NONPROSE.sub(" ", m.group(1) if m else text)
+    return len(html.unescape(_TAG.sub(" ", body)).split())
+
+
 def collect_metrics(track):
     track_dir = os.path.join(BASE, track)
     topics = sorted(
@@ -93,6 +110,7 @@ def collect_metrics(track):
     sizes = []
     wip_pages = []
     unwired_pages = []
+    thin_pages = []
     for page in topics:
         path = os.path.join(track_dir, page)
         size = os.path.getsize(path)
@@ -108,6 +126,8 @@ def collect_metrics(track):
         # sml/osd/hpc/pgp/cse findings in tracking/ENGINEERING_PLAN.md.
         if "topic-loader.js" not in text:
             unwired_pages.append(page)
+        if page not in LIST_PAGES and prose_words(text) < THIN_WORDS:
+            thin_pages.append(page)
 
     missing_jsons = sorted(
         page.replace(".html", ".json")
@@ -130,6 +150,8 @@ def collect_metrics(track):
         "has_legacy_topic_html": os.path.exists(os.path.join(track_dir, "topic.html")),
         "unwired_sidebar_pages": unwired_pages,
         "unwired_sidebar_ratio": round(len(unwired_pages) / len(topics), 2) if topics else 0.0,
+        "thin_pages": thin_pages,
+        "thin_ratio": round(len(thin_pages) / len(topics), 2) if topics else 0.0,
     }
 
 
@@ -142,6 +164,7 @@ def classify(track, metrics):
         metrics["has_legacy_topic_html"]
         or metrics["missing_sidebar_jsons"]
         or metrics["unwired_sidebar_pages"]
+        or metrics["thin_ratio"] >= 0.5
     ):
         return "not_updated"
     return "converted"
@@ -240,6 +263,12 @@ def build_issues(track, metrics, status):
                     metrics["topic_pages"],
                     sample,
                 )
+            )
+        if metrics["thin_pages"]:
+            sample = ", ".join(metrics["thin_pages"][:6])
+            issues.append(
+                "{} of {} topic page(s) have under {} words of prose: skeleton lessons "
+                "({}).".format(len(metrics["thin_pages"]), metrics["topic_pages"], THIN_WORDS, sample)
             )
         if metrics["wip_pages"]:
             sample = ", ".join(metrics["wip_pages"][:6])
@@ -374,6 +403,7 @@ def main():
         if (
             item["status"] != "converted"
             or item["wip_pages"]
+            or item["thin_pages"]
             or item["unwired_sidebar_pages"]
             or item["missing_sidebar_jsons"]
             or item["has_legacy_topic_html"]
@@ -386,6 +416,7 @@ def main():
                     "status": item["status"],
                     "topic_pages": item["topic_pages"],
                     "wip_pages": item["wip_pages"],
+                    "thin_pages": item["thin_pages"],
                     "unwired_sidebar_pages": item["unwired_sidebar_pages"],
                     "issues": item["issues"],
                     "navigation_status": item["navigation_status"],
@@ -399,6 +430,7 @@ def main():
             "topics": item["topic_pages"],
             "wip": len(item["wip_pages"]),
             "unwired": len(item["unwired_sidebar_pages"]),
+            "thin": len(item["thin_pages"]),
             "issues": item["issues"],
         }
         for item in sorted_by_track
@@ -450,7 +482,7 @@ def main():
         print(f"Roadmaps: {document['summary']}")
         print("\nAction Needed:")
         for item in action_needed:
-            print(f"- {item['track']:10} [{item['kind']:11}] status: {item['status']:15} topics: {item['topic_pages']:2} unwired: {len(item['unwired_sidebar_pages']):2} wip: {len(item['wip_pages']):2}")
+            print(f"- {item['track']:10} [{item['kind']:11}] status: {item['status']:15} topics: {item['topic_pages']:2} unwired: {len(item['unwired_sidebar_pages']):2} wip: {len(item['wip_pages']):2} thin: {len(item['thin_pages']):2}")
         return
 
     print("Wrote", os.path.relpath(OUT, ROOT))

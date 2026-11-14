@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Java new features: sealed classes.">
+  <meta name="description" content="Java sealed classes and interfaces: permits, final, sealed and non-sealed subtypes, exhaustive switch, record patterns and data-oriented design.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="java, seald, classes">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -40,70 +40,141 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-
-
-      <hr>
-
 <h1 id="sealed-classes">Sealed Classes</h1>
 
-
 <div class="alert alert-secondary shadow-sm">
-A sealed class is almost like a regular class but there is a restricted list of children classes that can extend it. By sealing a class, you can specify which classes are permitted to extend it and prevent any other arbitrary class from doing so.</div>
+  A sealed class or interface lists exactly which classes may extend or implement it. Standard since Java 17, sealing sits between the two old extremes &mdash; a <code>final</code> class that nobody can extend, and an open class that anybody can &mdash; and it lets the compiler know every possible subtype. Combined with records and pattern matching in <code>switch</code> (Java 21), sealed types model data with a fixed set of shapes safely and concisely.
+</div>
 
-<pre class="line-numbers"><code class="language-java"
->public sealed class Shape
-    permits Circle, Square, Rectangle {
+<h2 id="declaring">Declaring a Sealed Type</h2>
+<p>Add the <code>sealed</code> modifier and a <code>permits</code> clause naming the allowed direct subtypes. The compiler rejects any other class that tries to extend or implement it.</p>
+<pre><code class="language-java">// A sealed interface lists every permitted implementation; switch can then be exhaustive.
+sealed interface Shape permits Circle, Square, Rectangle {}
+
+record Circle(double radius) implements Shape {}       // records are implicitly final
+record Square(double side) implements Shape {}
+record Rectangle(double width, double height) implements Shape {}
+
+class SealedShapes {
+    static double area(Shape shape) {
+        return switch (shape) {                         // no default needed: all cases covered
+            case Circle c -&gt; Math.PI * c.radius() * c.radius();
+            case Square s -&gt; s.side() * s.side();
+            case Rectangle r -&gt; r.width() * r.height();
+        };
+    }
+
+    public static void main(String[] args) {
+        for (Shape s : new Shape[] {new Circle(1), new Square(2), new Rectangle(2, 3)}) {
+            System.out.printf("%s -&gt; %.2f%n", s, area(s));
+        }
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">Circle[radius=1.0] -&gt; 3.14
+Square[side=2.0] -&gt; 4.00
+Rectangle[width=2.0, height=3.0] -&gt; 6.00</code></pre>
+
+<h3 id="rules">The Rules for Permitted Subtypes</h3>
+<ul>
+  <li>Every permitted subtype must directly extend or implement the sealed type.</li>
+  <li>Each must be declared <code>final</code>, <code>sealed</code> or <code>non-sealed</code>, so the hierarchy states how it continues. Records and enums are implicitly final.</li>
+  <li>Permitted subtypes must be in the same module as the sealed type, or in the same package if the code is not in a named module.</li>
+  <li>The <code>permits</code> clause may be omitted when all subtypes are declared in the same source file; the compiler then infers the list.</li>
+</ul>
+
+<h2 id="hierarchies">Shaping a Hierarchy</h2>
+<p>The three modifiers let each branch choose its own policy. A <code>final</code> subclass closes its branch; a <code>sealed</code> subclass restricts it further with its own <code>permits</code>; a <code>non-sealed</code> subclass deliberately reopens its branch to unknown extensions. Reflection exposes the structure through <code>Class.isSealed()</code> and <code>getPermittedSubclasses()</code>.</p>
+<pre><code class="language-java">// Each permitted subclass must say how the hierarchy continues: final, sealed or non-sealed.
+abstract sealed class Vehicle permits Car, Truck, Bike {
+    abstract int wheels();
 }
 
-final class Circle extends Shape {
-    float radius;
+final class Car extends Vehicle {                     // closed: no subclasses
+    int wheels() { return 4; }
 }
 
-non-sealed class Square extends Shape {
-    float side;
+sealed class Truck extends Vehicle permits TankTruck {   // still restricted
+    int wheels() { return 6; }
 }
 
-sealed class Rectangle extends Shape {
-    float length, width;
-}
-</code></pre>
-
-<h4>Notes:</h4> 
-
-<p>1. You can see two new keywords: "sealed" and "permits". The second keyword "permits" is optional. If the class extendign a sealed class are in the same file, the permits is default to current package. </p>
-
-<p>2. Subclasses of a seald class can be also sealed, float or none-sealed. One of these modifiers is mandatory but they are exclusive.</p>
-
-<h2 id="sealed-interfaces">Sealed Interfaces</h2>
-
-<p>Sealed interface similar to classes can be implemented by "permited" list of classes. In next example we implement the interface Expr in dwo record classes we have just learned.</p>
-
-<pre class="line-numbers"><code class="language-java"
->sealed interface Expr
-    permits ConstantExpr, PlusExpr {
-    public int eval();
+final class TankTruck extends Truck {
+    @Override int wheels() { return 10; }
 }
 
-record ConstantExpr(int i) implements Expr {
-    public int eval() { return i(); }
+non-sealed class Bike extends Vehicle {               // reopened: anyone may extend Bike
+    int wheels() { return 2; }
 }
 
-record PlusExpr(Expr a, Expr b) implements Expr {
-    public int eval() { return a.eval() + b.eval(); }
-}
-</code></pre>
+class ElectricBike extends Bike {}                    // allowed because Bike is non-sealed
 
-<p><b>Read more:</b>
-<a href="https://docs.oracle.com/en/java/javase/18/language/sealed-classes-and-interfaces.html" target="_blank">Java Sealed Classes</a></p>
+class SealedHierarchy {
+    public static void main(String[] args) {
+        Vehicle[] fleet = {new Car(), new TankTruck(), new ElectricBike()};
+        for (Vehicle v : fleet) {
+            System.out.println(v.getClass().getSimpleName() + ": " + v.wheels() + " wheels");
+        }
+        System.out.println(Vehicle.class.isSealed() + " "
+                + java.util.Arrays.toString(Vehicle.class.getPermittedSubclasses()));
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">Car: 4 wheels
+TankTruck: 10 wheels
+ElectricBike: 2 wheels
+true [class Car, class Truck, class Bike]</code></pre>
 
+<h3 id="why-seal">Why Seal a Type?</h3>
+<p>Sealing documents and enforces a design decision: <em>these are all the cases</em>. A library can expose an abstract type for callers to use without letting them add implementations it never anticipated. Unlike making the constructor package-private, sealing is visible in the type's declaration and known to the compiler, which enables exhaustive <code>switch</code>.</p>
 
-<!-- work in progress-->
+<h2 id="pattern-matching">Exhaustive switch and Record Patterns</h2>
+<p>Because the compiler knows every subtype of a sealed type, a <code>switch</code> over it can be <em>exhaustive</em> without a <code>default</code> branch, as <code>area</code> shows above. This matters when the hierarchy changes: add a <code>Triangle</code> to <code>permits</code>, and every such <code>switch</code> fails to compile until it handles the new case. A <code>default</code> branch would hide that, so leave it out on purpose. The arrow form <code>case X -&gt; value</code> used here is the switch expression introduced in <a href="/roadmap/java/switch.html">Switch</a>; a <em>type pattern</em> such as <code>case Circle c</code> both tests the type and binds a variable.</p>
 
-<hr>
+<h3 id="record-patterns">Deconstructing Records</h3>
+<p>Records, covered in <a href="/roadmap/java/records.html">Records</a>, are natural permitted subtypes: they are final and their components are public. <em>Record patterns</em> (Java 21) take a record apart directly in a <code>case</code>, binding its components to variables, and they nest. This small expression evaluator needs no casts, no visitor classes and no <code>default</code>:</p>
+<pre><code class="language-java">// Sealed types plus record patterns model data with a fixed set of shapes.
+sealed interface Expr permits Num, Add, Mul, Neg {}
+record Num(int value) implements Expr {}
+record Add(Expr left, Expr right) implements Expr {}
+record Mul(Expr left, Expr right) implements Expr {}
+record Neg(Expr operand) implements Expr {}
 
+class ExprEvaluator {
+    static int eval(Expr e) {
+        return switch (e) {
+            case Num(int v) -&gt; v;                         // record pattern: deconstruct in place
+            case Add(Expr l, Expr r) -&gt; eval(l) + eval(r);
+            case Mul(Expr l, Expr r) -&gt; eval(l) * eval(r);
+            case Neg(Expr inner) -&gt; -eval(inner);
+        };
+    }
 
+    static String show(Expr e) {
+        return switch (e) {
+            case Num(int v) -&gt; Integer.toString(v);
+            case Add(var l, var r) -&gt; "(" + show(l) + " + " + show(r) + ")";
+            case Mul(var l, var r) -&gt; show(l) + " * " + show(r);
+            case Neg(var inner) -&gt; "-" + show(inner);
+        };
+    }
 
-    
+    public static void main(String[] args) {
+        Expr e = new Mul(new Add(new Num(2), new Num(3)), new Neg(new Num(4)));
+        System.out.println(show(e) + " = " + eval(e));
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">(2 + 3) * -4 = -20</code></pre>
+<p>This style &mdash; a sealed interface of records, processed by exhaustive <code>switch</code> &mdash; is sometimes called <em>data-oriented programming</em>. It suits values with a fixed set of variants: syntax trees, protocol messages, results that are either a success or a failure. When new <em>operations</em> are added often, it is very convenient; when new <em>variants</em> are added often by other teams, classic polymorphism through overridden methods (see <a href="/roadmap/java/abstraction.html">Abstraction</a>) may fit better.</p>
+
+<h2 id="practice">Practice</h2>
+<h3 id="exercises">Exercises</h3>
+<ol>
+  <li>Add <code>Triangle</code> to the <code>Shape</code> example's <code>permits</code> clause without updating <code>area</code>, and read the compiler error; then fix it.</li>
+  <li>Model a payment <code>Result</code> as a sealed interface with records <code>Approved(String id)</code> and <code>Declined(String reason)</code>, and print a message for each with a <code>switch</code>.</li>
+  <li>Extend the expression evaluator with <code>Div</code>, and use a <em>guarded</em> pattern (<code>case Div(var l, var r) when eval(r) == 0 -&gt; ...</code>) to report division by zero.</li>
+</ol>
+
       </main>
 </div>
   </div>

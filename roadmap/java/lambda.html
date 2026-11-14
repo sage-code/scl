@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark"><head>
   <meta charset="utf-8">
-  <meta name="description" content="Java programming fundamentals: lambda expressions.">
+  <meta name="description" content="Java lambda expressions: functional interfaces, syntax, variable capture, java.util.function, method references, comparators and stream pipelines.">
   <meta name="author" content="Elucian Moise">
   <meta name="keywords" content="java, lambda expressions">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -40,98 +40,178 @@
       </aside>
 
       <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-
-
-      <hr>
-
 <h1 id="lambda-expressions">Lambda Expressions</h1>
 
-
 <div class="alert alert-secondary shadow-sm">
-Lambda expressions are new in Java. This feature makes the language slick and helps to simplify code. It is used mostly to create dynamic algorithms in core packages.</div>
+  A lambda expression is a short, anonymous function that you can pass around like a value. Introduced in Java 8, lambdas made behavior easy to hand to other code: a sort order to <code>sort</code>, a condition to <code>removeIf</code>, a pipeline step to a stream. This lesson covers functional interfaces, lambda syntax, variable capture, the standard <code>java.util.function</code> interfaces, method references, and lambdas in comparators and streams.
+</div>
 
-<p>A lambda expression is a short form for writing an anonymous class. By using a lambda expression, we can declare methods without any name. Whereas, Anonymous class is an inner class without a name, which means that we can declare and instantiate class at the same time.</p>
-
-<p>A lambda expression is simple to grasp. It consist of a list of arguments, follow by arrow symbol "->" follow by an aritmetic expression or other kind of expression that can produce a result.</p>
-
-<h4>Syntax</h4>
-
-<pre><code class="language-java">
-(arguments) -> expression
-</code></pre>
-
-<h4>Alternative</h4>
-
-<pre><code class="language-java">
-(arguments) -> { 
-    return expression
+<h2 id="functional-interfaces">Functional Interfaces</h2>
+<p>Java has no separate function type. A lambda is always an implementation of a <strong>functional interface</strong>: an interface with exactly one abstract method. The lambda's parameters and body become that method's implementation, and its types are inferred from the interface it is assigned to, its <em>target type</em> (see <a href="/roadmap/java/inference.html">Type Inference</a>). Marking such an interface <code>@FunctionalInterface</code> makes the compiler enforce the single-method rule.</p>
+<pre><code class="language-java">// A lambda is an implementation of a functional interface's single abstract method.
+@FunctionalInterface
+interface Operation {
+    int apply(int a, int b);
 }
-</code></pre>
 
+class LambdaBasics {
+    static int calculate(int a, int b, Operation op) { return op.apply(a, b); }
 
+    public static void main(String[] args) {
+        Operation add = (a, b) -&gt; a + b;                 // expression body
+        Operation max = (a, b) -&gt; {                      // block body needs return
+            if (a &gt; b) return a;
+            return b;
+        };
+        System.out.println(calculate(6, 3, add));
+        System.out.println(calculate(6, 3, max));
+        System.out.println(calculate(6, 3, (a, b) -&gt; a * b));   // inline lambda
 
-<h2 id="example">Example</h2>
-
-<p>Functional interfaces, can be implemented by a Lambda Expression. A Java lambda expression implements a single method from a Java interface.</p>
-
-<p>A labda expression looks nice, but using it require some skills. You can read the example below and convince yourself. In this example we use two lamda expressions as call-back functions.</p>
-
-<pre class="line-numbers"><code class="language-java"
->public class Calculator {
-  
-    // define a functional interface
-    interface IntegerMath {
-        int operation(int a, int b);   
-    }
-  
-    public int operateBinary(int a, int b, IntegerMath op) {
-        return op.operation(a, b);
-    }
- 
-    public static void main(String... args) {
-    
-        Calculator myApp = new Calculator();
-        IntegerMath addition = (a, b) -> a + b;
-        IntegerMath subtraction = (a, b) -> a - b;
-
-        // call using lamda expression as argument
-        System.out.println("40 + 2 = " +
-            myApp.operateBinary(40, 2, addition));
-
-        // call using lamda expression as argument    
-        System.out.println("20 - 10 = " +
-            myApp.operateBinary(20, 10, subtraction));    
+        int offset = 100;                                // captured: must be effectively final
+        Operation shifted = (a, b) -&gt; a + b + offset;
+        System.out.println(shifted.apply(1, 2));
+        // offset++;                                     // error: would break the capture
     }
 }</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">9
+6
+18
+103</code></pre>
 
-<h4>Output</h4>
+<h3 id="syntax">Syntax Forms</h3>
+<table class="table table-striped table-bordered">
+  <thead class="table-dark">
+    <tr><th>Form</th><th>Example</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>No parameters</td><td><code>() -&gt; System.out.println("hi")</code></td></tr>
+    <tr><td>One parameter (parentheses optional)</td><td><code>s -&gt; s.length()</code></td></tr>
+    <tr><td>Several parameters</td><td><code>(a, b) -&gt; a + b</code></td></tr>
+    <tr><td>Explicit or <code>var</code> types</td><td><code>(int a, int b) -&gt; a + b</code>, <code>(var a, var b) -&gt; a + b</code></td></tr>
+    <tr><td>Block body</td><td><code>(a, b) -&gt; { int s = a + b; return s; }</code></td></tr>
+  </tbody>
+</table>
+<p>An expression body returns its value automatically; a block body needs an explicit <code>return</code> unless the method is <code>void</code>.</p>
 
-<pre><code class="language-output">
-&gt;java -classpath .:target/dependency/* Calculator
-40 + 2 = 42
-20 - 10 = 10
-</code></pre>
+<h3 id="capture">Capturing Variables</h3>
+<p>A lambda can read local variables from the enclosing method, but only if they are <em>effectively final</em> &mdash; never assigned after initialization, as <code>offset</code> is in the example. The lambda captures the value, so allowing later changes would make its behavior surprising, especially when it runs on another thread. Fields have no such restriction, which is one reason shared mutable fields inside lambdas cause concurrency bugs. Inside a lambda, <code>this</code> refers to the enclosing object, unlike in an anonymous class.</p>
 
-<h4>External references: </h4>
+<h2 id="standard-interfaces">Standard Functional Interfaces</h2>
+<p>You rarely need to declare your own interface: <code>java.util.function</code> provides the common shapes.</p>
+<table class="table table-striped table-bordered">
+  <thead class="table-dark">
+    <tr><th>Interface</th><th>Method</th><th>Shape</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>Function&lt;T, R&gt;</code></td><td><code>R apply(T)</code></td><td>transform a value</td></tr>
+    <tr><td><code>BiFunction&lt;T, U, R&gt;</code></td><td><code>R apply(T, U)</code></td><td>combine two values</td></tr>
+    <tr><td><code>UnaryOperator&lt;T&gt;</code> / <code>BinaryOperator&lt;T&gt;</code></td><td><code>T apply(T)</code> / <code>T apply(T, T)</code></td><td>same type in and out</td></tr>
+    <tr><td><code>Predicate&lt;T&gt;</code></td><td><code>boolean test(T)</code></td><td>a condition</td></tr>
+    <tr><td><code>Supplier&lt;T&gt;</code></td><td><code>T get()</code></td><td>produce a value on demand</td></tr>
+    <tr><td><code>Consumer&lt;T&gt;</code></td><td><code>void accept(T)</code></td><td>use a value for its side effect</td></tr>
+  </tbody>
+</table>
+<p>Primitive specializations such as <code>IntPredicate</code> and <code>ToIntFunction</code> avoid boxing in performance-sensitive code. Many interfaces have default methods to combine them: <code>andThen</code>, <code>compose</code>, <code>negate</code>, <code>and</code>, <code>or</code>.</p>
 
-<ul>
-<li><a href="https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html" target="_blank">
-Oracle Tutorial: Lambda Expressions</a>
-</li>
+<h3 id="method-references">Method References</h3>
+<p>When a lambda only calls an existing method, a <em>method reference</em> names that method directly. There are four kinds: a static method (<code>Math::max</code>), an instance method of a particular object (<code>System.out::println</code>), an instance method of an arbitrary object of a type (<code>String::length</code>, where the object is the first argument), and a constructor (<code>ArrayList::new</code>).</p>
+<pre><code class="language-java">// java.util.function interfaces and the four kinds of method reference.
+import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
-<li><a href="https://www.oracle.com/webfolder/technetwork/tutorials/obe/java/Lambda-QuickStart/index.html#overview"
-target="_blank">Lambda Quick Start guide</a></li>
+class StandardFunctions {
+    public static void main(String[] args) {
+        Function&lt;String, Integer&gt; length = String::length;         // instance method of any String
+        Predicate&lt;String&gt; isEmpty = String::isEmpty;
+        UnaryOperator&lt;String&gt; shout = s -&gt; s.toUpperCase() + "!";
+        BiFunction&lt;Integer, Integer, Integer&gt; power = (b, e) -&gt; (int) Math.pow(b, e);
+        Supplier&lt;List&lt;String&gt;&gt; fresh = java.util.ArrayList::new;    // constructor reference
+        Consumer&lt;Object&gt; print = System.out::println;                // method of a specific object
 
-<li><a href="https://blogs.oracle.com/javamagazine/post/functional-programming-in-java-part-2-lambda-reuse-lexical-scoping-and-closures-and-reduce" target="_blank">Using Lambda Expressions</a></li>
-</ul>
+        print.accept(length.apply("lambda"));
+        print.accept(isEmpty.negate().test("x"));
+        print.accept(shout.andThen(s -&gt; "[" + s + "]").apply("hi"));
+        print.accept(power.apply(2, 10));
+        List&lt;String&gt; list = fresh.get();
+        list.add("new list");
+        print.accept(list);
 
-<!-- work in progress-->
+        Function&lt;Integer, Integer&gt; twice = x -&gt; x * 2;
+        Function&lt;Integer, Integer&gt; plusOne = x -&gt; x + 1;
+        print.accept(twice.andThen(plusOne).apply(5));   // (5 * 2) + 1 = 11
+        print.accept(twice.compose(plusOne).apply(5));   // (5 + 1) * 2 = 12
+        BiFunction&lt;Integer, Integer, Integer&gt; larger = Math::max;   // static method reference
+        print.accept(larger.apply(3, 7));
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">6
+true
+[HI!]
+1024
+[new list]
+11
+12
+7</code></pre>
 
-<hr>
+<h2 id="in-practice">Lambdas in Practice</h2>
+<h3 id="streams">Comparators and Streams</h3>
+<p>Most lambdas you write will be arguments to library methods: <code>Comparator</code> factories, <code>Collection.removeIf</code>, <code>Map.computeIfAbsent</code>, and above all the Stream API. A stream pipeline takes a source, applies intermediate operations such as <code>filter</code>, <code>map</code> and <code>sorted</code>, and ends with a terminal operation such as <code>toList</code>, <code>sum</code> or <code>collect</code>.</p>
+<pre><code class="language-java">// Lambdas in practice: comparators and stream pipelines.
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+record Employee(String name, String team, int salary) {}
 
+class LambdaStreams {
+    public static void main(String[] args) {
+        List&lt;Employee&gt; staff = List.of(
+                new Employee("Ana", "dev", 5200),
+                new Employee("Bo", "ops", 4100),
+                new Employee("Cy", "dev", 6100),
+                new Employee("Di", "ops", 4800));
 
-    
+        List&lt;String&gt; byPay = staff.stream()
+                .sorted(Comparator.comparingInt(Employee::salary).reversed())
+                .map(Employee::name)
+                .toList();
+        System.out.println(byPay);
+
+        int devTotal = staff.stream()
+                .filter(e -&gt; e.team().equals("dev"))
+                .mapToInt(Employee::salary)
+                .sum();
+        System.out.println("dev payroll: " + devTotal);
+
+        Map&lt;String, Double&gt; avgByTeam = staff.stream()
+                .collect(Collectors.groupingBy(Employee::team, java.util.TreeMap::new,
+                        Collectors.averagingInt(Employee::salary)));
+        System.out.println(avgByTeam);
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">[Cy, Ana, Di, Bo]
+dev payroll: 11300
+{dev=5650.0, ops=4450.0}</code></pre>
+<h3 id="keep-short">Keep Lambdas Short</h3>
+<p>Keep lambdas short. When a lambda grows beyond two or three lines, move the body into a named method and pass a method reference: the name documents the intent, and the method can be tested on its own. Streams are evaluated lazily and only when the terminal operation runs; avoid side effects in intermediate steps. The <a href="/roadmap/java/performance.html">Performance</a> lesson covers parallel streams.</p>
+
+<h2 id="practice">Practice</h2>
+<h3 id="exercises">Exercises</h3>
+<ol>
+  <li>Sort a list of strings by length and then alphabetically, using <code>Comparator.comparingInt(String::length).thenComparing(...)</code>.</li>
+  <li>Write a method <code>static Predicate&lt;Integer&gt; between(int lo, int hi)</code> that returns a lambda, and combine two of them with <code>or</code>.</li>
+  <li>Rewrite the <code>dev payroll</code> calculation with a classic loop and compare readability; then find the highest-paid employee per team with <code>Collectors.groupingBy</code> and <code>Collectors.maxBy</code>.</li>
+</ol>
+
       </main>
 </div>
   </div>
