@@ -327,9 +327,14 @@ classifier except the thin legacy pages listed below.
 ## Next Priorities (from roadmaps-status.json / generate_roadmaps_status.py, 2026-11-14)
 - [ ] Compile the `cpp/modern.html` examples on a working C++20/23 toolchain (repair the VS
   install or use GCC/Clang), and run the `dba` PostgreSQL-specific statements on a real server.
-- [ ] Remaining `check:html` failures (44): mostly `projects/maj` and `projects/eve` (unknown
-  entities such as `&code;`), plus pre-existing unescaped HTML examples in `javascript/dom` and
-  `php/forms` code samples.
+- [x] 2026-11-14 follow-up: implicit end tags made explicit on 32 pages (`bee-ed balance` now
+  passes on all 1,009 tracked HTML files); `check:html` 0 failures; site-wide link check
+  (1,490 external + all internal) — 108 dead external links removed (63 reference entries
+  dropped, 45 unwrapped to text, playground "homework" prose rewritten), 21 broken internal
+  links repointed or removed. Kept on purpose: 403/999 bot-blocked sites (not verifiable),
+  `rubydoc.info` 521 (transient), placeholders (`partner.example`, `example.com`).
+- [ ] 20 Eve code-viewer links 404 until `eve-lang` is committed and pushed: the level 5/6
+  tests (e171–e180, e95, f19–f23) are staged renames in the local checkout only.
 - [ ] Thin legacy pages flagged only by a leftover `<!-- work in progress-->` comment: real
   content but ~4–5 KB with typos — rewrite to the current track standard, don't just drop the
   comment. `java/` (abstraction, annotations, collections, inference, inheritance, lambda,
