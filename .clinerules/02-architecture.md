@@ -1,6 +1,6 @@
 # Architecture — Sage-Code SCL (always active)
 
-SCL is a sophisticated static website for learning software engineering and programming — didactic, practical, and highly accurate. Static-first vanilla HTML/CSS/JS generator. Deployed to Vercel from `public/`. Supabase optional for roadmap auth.
+SCL is a sophisticated static website for learning software engineering and programming — didactic, practical, and highly accurate. Static-first vanilla HTML/CSS/JS generator. Deployed to Vercel from `public/`. Roadmap accounts/progress use Vercel functions in `api/` with Turso (libSQL) and Resend email.
 
 ## Layout
 - `assets/` — shared CSS/JS/fonts/images; templates `assets/roadmap_template.html`, `assets/topic_template.html`.

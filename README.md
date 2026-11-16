@@ -22,7 +22,8 @@ Sage-Code SCL is a static educational website for learning and open source proje
 /layouts          # Reusable HTML wrappers/fragments
 /public           # Generated deploy output (excluded)
 /manual           # Developer documentation and generated reports
-/database         # Supabase SQL setup scripts (profiles + roadmap progress)
+/api              # Vercel serverless functions (auth, progress, favorites)
+/database         # Turso schema migrations (database/turso/*.sql)
 /scripts          # Local tooling (Python/Node)
 /config           # Build and mapping configuration
 build.js          # Static site build pipeline
@@ -67,45 +68,28 @@ To force a full build manually:
 npm run build:full
 ```
 
-## Supabase Setup
+## Backend: Vercel Functions + Turso + Resend
 
-This repository includes browser-side Supabase client wiring for roadmap auth pages.
+Roadmap accounts and progress run on three Vercel serverless functions in [api/](api/), backed by a Turso (libSQL) database, with transactional email (confirmation and password reset) sent through Resend. See [database/README.md](database/README.md) for the schema and auth model.
 
-1. Install dependencies:
+Every visitor gets a user automatically: with no session cookie, the page calls `POST /api/auth/anonymous`, so progress syncs to the database from the first click. Registering upgrades that same anonymous user (progress is kept); logging in from an anonymous session merges its progress into the account.
 
-```bash
-npm install
-```
+Environment variables (Vercel project settings, and `env.local` for local work; `env.local` is git-ignored):
 
-2. Configure browser client values in [assets/js/supabase-config.js](assets/js/supabase-config.js):
-	- `url`
-	- `anonKey`
-	- `schema`
+| Variable | Purpose |
+|---|---|
+| `SCL_DATABASE_TURSO_DATABASE_URL` | Turso database URL (`libsql://...`); `TURSO_DATABASE_URL` also works |
+| `SCL_DATABASE_TURSO_AUTH_TOKEN` | Turso auth token; `TURSO_AUTH_TOKEN` also works |
+| `RESEND_SEND_KEY` | Resend key restricted to sending from `mail.sagecode.org` |
+| `RESEND_FROM` | Sender, e.g. `Sage-Code <noreply@mail.sagecode.org>` |
+| `RESEND_REPLY_TO` | Reply-To address for auth emails |
+| `APP_URL` | Optional; base URL for email links (defaults to the Vercel production URL) |
 
-	Or set these Vercel environment variables and let the build generate the public config file:
-	- `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_URL`
-	- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` or `SUPABASE_ANON_KEY`
-	- `SUPABASE_SCHEMA` (optional, defaults to `public`)
+`npm run build` applies pending schema migrations from [database/turso/](database/turso/) before building (skipped when the Turso variables are absent). Run them alone with `npm run db:migrate`.
 
-3. Run SQL scripts in Supabase SQL Editor:
-	- [database/001_user_profiles.sql](database/001_user_profiles.sql)
-	- [database/002_roadmap_progress.sql](database/002_roadmap_progress.sql)
-	- [database/003_delete_own_roadmap_account.sql](database/003_delete_own_roadmap_account.sql)
-	- [database/004_roadmap_favorites.sql](database/004_roadmap_favorites.sql)
+Local API + site: `npm run build && npm run dev:api`, then open `http://localhost:3000/roadmap/`.
 
-For automatic deployment with Supabase CLI, use the mirrored migrations in [supabase/migrations](supabase/migrations).
-Automated pushes run from [\.github/workflows/supabase-db-push.yml](.github/workflows/supabase-db-push.yml) when migration files change on `main`.
-
-4. Build and deploy:
-
-```bash
-npm run build
-```
-
-	In Supabase Auth settings, allow the redirect URL for password recovery:
-	- `https://sagecode.org/roadmap/reset-password.html`
-
-Roadmap pages wired for Supabase client usage:
+Roadmap account pages:
 - [roadmap/login.html](roadmap/login.html)
 - [roadmap/profile.html](roadmap/profile.html)
 - [roadmap/register.html](roadmap/register.html)

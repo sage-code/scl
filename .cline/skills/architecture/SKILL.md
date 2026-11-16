@@ -5,7 +5,7 @@ description: Orientation for the Sage-Code SCL static website. Use when starting
 
 # Sage-Code SCL — Architecture
 
-Static-first vanilla website generator (HTML5/CSS3/ES6+, Bootstrap), built by `node build.js` into `public/`, deployed on Vercel. Supabase optional for roadmap auth.
+Static-first vanilla website generator (HTML5/CSS3/ES6+, Bootstrap), built by `node build.js` into `public/`, deployed on Vercel. Roadmap accounts/progress use Vercel functions in `api/` with Turso (libSQL) and Resend email.
 
 ## Orientation steps
 1. `git status` + `git diff` — see current changes before reading anything.

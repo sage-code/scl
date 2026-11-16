@@ -3,7 +3,7 @@
 ## Project Context
 
 - This repository builds a static vanilla website for Sage-Code, deployed on Vercel.
-- Supabase may be used for dynamic integrations, but the core website is static-first.
+- Roadmap accounts and progress use Vercel functions (`api/`) with Turso and Resend, but the core website is static-first.
 - Primary source namespaces are `roadmap/` (learning content) and `projects/` (standalone project sites).
 
 ## Fast Onboarding Checklist

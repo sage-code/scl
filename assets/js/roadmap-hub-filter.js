@@ -23,11 +23,7 @@
   }
 
   function getClient() {
-    if (!window.supabaseClient || typeof window.supabaseClient.from !== "function") {
-      return null;
-    }
-
-    return window.supabaseClient;
+    return window.sclApi || null;
   }
 
   function getUserId() {
@@ -64,17 +60,13 @@
       return "";
     }
 
-    var result = await client
-      .from("roadmap_progress")
-      .select("topic_key,updated_at")
-      .eq("roadmap_code", REMOTE_PREF_ROADMAP_CODE)
-      .like("topic_key", REMOTE_PREF_TOPIC_PREFIX + "%");
+    var result = await client.progress.list(REMOTE_PREF_ROADMAP_CODE, REMOTE_PREF_TOPIC_PREFIX);
 
     if (result.error) {
       return "";
     }
 
-    var rows = result.data || [];
+    var rows = (result.data && result.data.rows) || [];
     if (!rows.length) {
       return "";
     }
@@ -110,22 +102,11 @@
     var normalized = normalizeStatusFilter(value);
     var prefix = REMOTE_PREF_TOPIC_PREFIX;
 
-    await client
-      .from("roadmap_progress")
-      .delete()
-      .eq("roadmap_code", REMOTE_PREF_ROADMAP_CODE)
-      .like("topic_key", prefix + "%");
-
-    var topicKey = prefix + normalized;
-    await client
-      .from("roadmap_progress")
-      .upsert([{
-        user_id: userId,
-        roadmap_code: REMOTE_PREF_ROADMAP_CODE,
-        topic_key: topicKey,
-        status: "done",
-        progress_percent: 100
-      }], { onConflict: "user_id,roadmap_code,topic_key" });
+    await client.progress.upsert(REMOTE_PREF_ROADMAP_CODE, [{
+      topic_key: prefix + normalized,
+      status: "done",
+      progress_percent: 100
+    }], prefix);
   }
 
   function resolveCardDomain(card) {

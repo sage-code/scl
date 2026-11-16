@@ -1,15 +1,14 @@
 (function () {
+  // Roadmap identity state. Every visitor has a user: when there is no session
+  // the page asks the API to create an anonymous one, so progress always syncs.
+  // getUser() returns that user (anonymous or registered); use isRegistered()
+  // for anything that depends on having an account (login/logout, profile).
   var state = {
-    client: null,
-    session: null,
+    api: null,
     user: null,
-    profile: null,
-    initialized: false
+    initialized: false,
+    pending: null
   };
-
-  function getText(value) {
-    return value ? String(value) : "";
-  }
 
   function setText(element, value) {
     if (element) {
@@ -64,6 +63,10 @@
     }
   }
 
+  function isRegistered() {
+    return !!(state.user && !state.user.is_anonymous);
+  }
+
   function getProfileRedirectUrl() {
     var inPublicPreview = (window.location.pathname || "").indexOf("/public/") === 0;
     var loginPath = inPublicPreview ? "/public/roadmap/login.html" : "/roadmap/login.html";
@@ -72,14 +75,11 @@
   }
 
   function formatIdentity() {
-    if (!state.user) {
+    if (!isRegistered()) {
       return "Anonymous";
     }
 
-    var profile = state.profile || {};
-    var metadata = state.user.user_metadata || {};
-    var handle = profile.handle || metadata.handle || profile.display_name || metadata.display_name;
-
+    var handle = state.user.handle || state.user.display_name;
     if (!handle && state.user.email) {
       handle = state.user.email.split("@")[0];
     }
@@ -88,34 +88,30 @@
   }
 
   function renderRoadmapTitle() {
-    var title = document.getElementById("roadmap-user-title");
-    if (!title) {
-      return;
-    }
-
-    setText(title, "User: " + formatIdentity());
+    setText(document.getElementById("roadmap-user-title"), "User: " + formatIdentity());
   }
 
   function renderRoadmapActions() {
+    var registered = isRegistered();
     var loginAction = document.getElementById("roadmap-login-action");
     var profileAction = document.getElementById("roadmap-profile-action");
     var registerAction = document.getElementById("roadmap-register-action");
 
     if (loginAction) {
-      setButtonLabel(loginAction, state.user ? "LOG-OUT" : "LOGIN");
-      setHref(loginAction, state.user ? "#roadmap-logout" : "/roadmap/login.html");
-      loginAction.setAttribute("aria-label", state.user ? "Log out of roadmap account" : "Sign in to roadmap account");
+      setButtonLabel(loginAction, registered ? "LOG-OUT" : "LOGIN");
+      setHref(loginAction, registered ? "#roadmap-logout" : "/roadmap/login.html");
+      loginAction.setAttribute("aria-label", registered ? "Log out of roadmap account" : "Sign in to roadmap account");
     }
 
     if (profileAction) {
       setDisabledLink(profileAction, false);
-      setHref(profileAction, state.user ? "/roadmap/profile.html" : getProfileRedirectUrl());
-      profileAction.setAttribute("aria-label", state.user ? "Open current roadmap profile" : "Sign in to open roadmap profile update page");
-      profileAction.setAttribute("title", state.user ? ("Signed in as " + formatIdentity()) : "Sign in first, then continue to update profile");
+      setHref(profileAction, registered ? "/roadmap/profile.html" : getProfileRedirectUrl());
+      profileAction.setAttribute("aria-label", registered ? "Open current roadmap profile" : "Sign in to open roadmap profile update page");
+      profileAction.setAttribute("title", registered ? ("Signed in as " + formatIdentity()) : "Sign in first, then continue to update profile");
     }
 
     if (registerAction) {
-      if (state.user) {
+      if (registered) {
         setButtonLabel(registerAction, "REMOVE");
         setButtonIcon(registerAction, "bi bi-person-dash");
         setHref(registerAction, "/roadmap/unregister.html");
@@ -131,36 +127,30 @@
     }
   }
 
+  function formatProfile(user) {
+    return [
+      "Display Name: " + (user.display_name || "(not set)"),
+      "Handle: " + (user.handle || "(not set)"),
+      "Email: " + (user.email || "(not set)") + (user.email && !user.email_verified ? " (not confirmed yet)" : ""),
+      "Created: " + (user.created_at || "(unknown)")
+    ].join("\n");
+  }
+
   function renderProfileSummary() {
     var summary = document.getElementById("roadmap-current-user");
     if (!summary) {
       return;
     }
 
-    if (!state.user) {
-      summary.textContent = "You are not signed in. Use the login page or register a new roadmap account.";
+    if (!isRegistered()) {
+      summary.textContent = "You are not signed in. Your progress is saved for this browser. Log in or register to keep it across devices.";
       return;
     }
 
-    var parts = [
+    summary.textContent = [
       "User: " + formatIdentity(),
-      "Email: " + getText(state.user.email),
-      "Status: signed in"
-    ];
-
-    summary.textContent = parts.join("\n");
-  }
-
-  function formatProfile(profile) {
-    if (!profile) {
-      return "No profile found.";
-    }
-
-    return [
-      "Display Name: " + (getText(profile.display_name) || "(not set)"),
-      "Handle: " + (getText(profile.handle) || "(not set)"),
-      "Email: " + (getText(profile.email) || "(not set)"),
-      "Created: " + (getText(profile.created_at) || "(unknown)")
+      "Email: " + (state.user.email || ""),
+      "Status: signed in" + (state.user.email_verified ? "" : " (confirm your email to sign in on other devices)")
     ].join("\n");
   }
 
@@ -170,12 +160,7 @@
       return;
     }
 
-    if (!state.user) {
-      output.textContent = "Sign in to load your roadmap profile.";
-      return;
-    }
-
-    output.textContent = formatProfile(state.profile);
+    output.textContent = isRegistered() ? formatProfile(state.user) : "Sign in to load your roadmap profile.";
   }
 
   function populateProfileInputs() {
@@ -184,25 +169,21 @@
       return;
     }
 
-    var handleField = profileForm.elements.handle;
-    var emailField = profileForm.elements.email;
-    var passwordField = profileForm.elements.password;
-    var confirmField = profileForm.elements.confirm_password;
-
-    if (handleField && state.user) {
-      handleField.value = state.profile && state.profile.handle ? state.profile.handle : formatIdentity();
+    var elements = profileForm.elements;
+    if (elements.handle && isRegistered()) {
+      elements.handle.value = state.user.handle || formatIdentity();
     }
 
-    if (emailField && state.user) {
-      emailField.value = state.user.email || "";
+    if (elements.email && isRegistered()) {
+      elements.email.value = state.user.email || "";
     }
 
-    if (passwordField) {
-      passwordField.value = "";
+    if (elements.password) {
+      elements.password.value = "";
     }
 
-    if (confirmField) {
-      confirmField.value = "";
+    if (elements.confirm_password) {
+      elements.confirm_password.value = "";
     }
   }
 
@@ -215,72 +196,71 @@
 
     var stateStatus = document.getElementById("roadmap-state-status");
     if (stateStatus) {
-      stateStatus.textContent = state.user
-        ? ("Signed in as " + formatIdentity())
-        : "Signed out. Login to activate profile and password tools.";
+      var verified = new URLSearchParams(window.location.search || "").get("verified") === "1";
+      stateStatus.textContent = isRegistered()
+        ? ((verified ? "Email confirmed. " : "") + "Signed in as " + formatIdentity())
+        : "Anonymous session: progress is saved for this browser. Login to sync across devices.";
     }
   }
 
-    function emitAuthChange() {
-      window.dispatchEvent(new CustomEvent("roadmap-auth-changed", {
-        detail: {
-          user: state.user,
-          profile: state.profile,
-          session: state.session
-        }
-      }));
-    }
-
-  async function loadProfile(client, user) {
-    if (!user) {
-      return null;
-    }
-
-    var query = client
-      .from("user_profiles")
-      .select("id, handle, display_name, email, created_at")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    var result = await query;
-    if (result.error) {
-      return null;
-    }
-
-    return result.data || null;
+  function emitAuthChange() {
+    window.dispatchEvent(new CustomEvent("roadmap-auth-changed", {
+      detail: {
+        user: state.user,
+        profile: state.user,
+        registered: isRegistered()
+      }
+    }));
   }
 
-  async function syncSession(session) {
-    state.session = session || null;
-    state.user = session && session.user ? session.user : null;
-    state.profile = null;
-
-    if (state.client && state.user) {
-      state.profile = await loadProfile(state.client, state.user);
-    }
-
+  function setUser(user) {
+    state.user = user || null;
     renderState();
     emitAuthChange();
     return state;
   }
 
-  async function refresh() {
-    if (!state.client) {
-      return state;
+  // Loads the session; creates an anonymous user when there is none.
+  // Concurrent callers share one in-flight request.
+  function refresh() {
+    if (!state.api) {
+      return Promise.resolve(state);
     }
 
-    var sessionResult = await state.client.auth.getSession();
-    await syncSession(sessionResult && sessionResult.data ? sessionResult.data.session : null);
-    return state;
+    if (state.pending) {
+      return state.pending;
+    }
+
+    state.pending = (async function () {
+      var result = await state.api.auth.session();
+      var user = result.data ? result.data.user : null;
+
+      if (!user && !result.error) {
+        var created = await state.api.auth.anonymous();
+        user = created.data ? created.data.user : null;
+      }
+
+      return setUser(user);
+    })().finally(function () {
+      state.pending = null;
+    });
+
+    return state.pending;
+  }
+
+  // Applies a user object returned by a login/register/profile call without
+  // another round trip.
+  function applyUser(user) {
+    return setUser(user);
   }
 
   async function signOut() {
-    if (!state.client) {
+    if (!state.api) {
       return;
     }
 
-    await state.client.auth.signOut();
-    await refresh();
+    await state.api.auth.logout();
+    state.user = null;
     window.location.href = "/roadmap/";
   }
 
@@ -292,7 +272,7 @@
 
     loginAction.dataset.roadmapWired = "true";
     loginAction.addEventListener("click", function (event) {
-      if (!state.user) {
+      if (!isRegistered()) {
         return;
       }
 
@@ -309,7 +289,7 @@
 
     profileAction.dataset.roadmapProfileWired = "true";
     profileAction.addEventListener("click", function (event) {
-      if (state.user) {
+      if (isRegistered()) {
         return;
       }
 
@@ -318,50 +298,38 @@
     });
   }
 
-  function wireRegisterLock() {
-    return;
-  }
-
-  async function initialize(client) {
-    if (!client || state.initialized) {
+  async function initialize(api) {
+    if (!api || state.initialized) {
       return state;
     }
 
-    state.client = client;
+    state.api = api;
     state.initialized = true;
-
-    var sessionResult = await client.auth.getSession();
-    await syncSession(sessionResult && sessionResult.data ? sessionResult.data.session : null);
-
-    client.auth.onAuthStateChange(function (_event, session) {
-      syncSession(session);
-    });
-
     wireLogoutAction();
     wireProfileLock();
-    wireRegisterLock();
-    return state;
+    return refresh();
   }
 
   window.roadmapState = {
     initialize: initialize,
     refresh: refresh,
+    applyUser: applyUser,
     signOut: signOut,
+    isRegistered: isRegistered,
     getUser: function () {
       return state.user;
     },
     getProfile: function () {
-      return state.profile;
+      return state.user;
     }
   };
 
   document.addEventListener("DOMContentLoaded", function () {
-    var client = window.supabaseClient;
-    if (!client) {
+    if (!window.sclApi) {
       renderState();
       return;
     }
 
-    initialize(client);
+    initialize(window.sclApi);
   });
 })();

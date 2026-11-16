@@ -54,52 +54,6 @@ const LAB_ROUTE_MAP = {
   videos: "videos"
 };
 
-function getSupabaseBuildConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
-  const anonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    "";
-  const schema = process.env.SUPABASE_SCHEMA || "public";
-
-  if (!url || !anonKey) {
-    return null;
-  }
-
-  return { url, anonKey, schema };
-}
-
-function writeSupabaseConfigAsset() {
-  const sourcePath = path.join(ASSETS_DIR, "js", "supabase-config.js");
-  const destinationPath = path.join(PUBLIC_DIR, "assets", "js", "supabase-config.js");
-  const runtimeConfig = getSupabaseBuildConfig();
-
-  if (!fs.existsSync(sourcePath)) {
-    return;
-  }
-
-  if (!runtimeConfig) {
-    copyRecursive(sourcePath, destinationPath);
-    return;
-  }
-
-  const contents = [
-    "// Generated during build from Vercel environment variables.",
-    "(function () {",
-    "  window.__SUPABASE_CONFIG__ = {",
-    `    url: ${JSON.stringify(runtimeConfig.url)},`,
-    `    anonKey: ${JSON.stringify(runtimeConfig.anonKey)},`,
-    `    schema: ${JSON.stringify(runtimeConfig.schema)}`,
-    "  };",
-    "})();",
-    ""
-  ].join("\n");
-
-  ensureDir(path.dirname(destinationPath));
-  fs.writeFileSync(destinationPath, contents, "utf8");
-}
-
 const ASSET_PATH_REWRITES = [
   { pattern: /(["'])\/(carousel\.css)\1/g, replacement: "$1/assets/css/carousel.css$1" },
   { pattern: /(["'])\/(manifesto\.css)\1/g, replacement: "$1/assets/css/manifesto.css$1" },
@@ -1049,7 +1003,7 @@ function injectRoadmapProgressScripts(html) {
     return html;
   }
 
-  const needsAuthStack = !/supabase-client\.js/i.test(html) || !/roadmap-state\.js/i.test(html);
+  const needsAuthStack = !/scl-api\.js/i.test(html) || !/roadmap-state\.js/i.test(html);
   const needsProgressSync = !/roadmap-progress-sync\.js/i.test(html);
 
   if (!needsAuthStack && !needsProgressSync) {
@@ -1060,9 +1014,7 @@ function injectRoadmapProgressScripts(html) {
 
   if (needsAuthStack) {
     scripts.push(
-      '<script src="/assets/js/supabase-config.js"></script>',
-      '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>',
-      '<script src="/assets/js/supabase-client.js"></script>',
+      '<script src="/assets/js/scl-api.js"></script>',
       '<script src="/assets/js/roadmap-state.js"></script>'
     );
   }
@@ -1884,7 +1836,6 @@ function generateRoadmapIndex() {
 function runFullBuild() {
   cleanPublicDir();
   copyAssets();
-  writeSupabaseConfigAsset();
   copySystemRuntimeFiles();
   copyLabHtml();
   copyLabStaticAssets();
@@ -1900,7 +1851,6 @@ function runFullBuild() {
 
 function runIncrementalBuild(changedFiles, deletedFiles, options = {}) {
   ensureDir(PUBLIC_DIR);
-  writeSupabaseConfigAsset();
 
   const optimizedHtmlTargets = new Set();
 

@@ -1,4 +1,8 @@
 (function () {
+  // Roadmap account forms (login, register, reset, profile, unregister) on top
+  // of window.sclApi. Server errors arrive as { error: { message } }.
+  var MIN_PASSWORD = 8;
+
   function setStatus(el, message, level) {
     if (!el) {
       return;
@@ -26,63 +30,84 @@
     return form.elements[name].value.trim();
   }
 
-  function getResetRedirectUrl() {
-    return window.location.origin + "/roadmap/reset-password.html";
+  function getRaw(form, name) {
+    return form && form.elements[name] ? form.elements[name].value : "";
+  }
+
+  function clearFields(form, names) {
+    names.forEach(function (name) {
+      if (form.elements[name]) {
+        form.elements[name].value = "";
+      }
+    });
   }
 
   function getRoadmapIndexUrl() {
     var path = window.location.pathname || "/";
-    if (path.startsWith("/public/")) {
-      return "/public/roadmap/";
-    }
-    return "/roadmap/";
+    return path.startsWith("/public/") ? "/public/roadmap/" : "/roadmap/";
   }
 
   function getPostLoginRedirectUrl() {
-    var params = new URLSearchParams(window.location.search || "");
-    var next = params.get("next");
-    if (!next) {
+    var next = String(new URLSearchParams(window.location.search || "").get("next") || "").trim();
+    if (!next.startsWith("/")) {
       return getRoadmapIndexUrl();
     }
 
-    var decoded = String(next || "").trim();
-    if (!decoded.startsWith("/")) {
-      return getRoadmapIndexUrl();
-    }
-
-    var isRoadmapPath = decoded.indexOf("/roadmap/") === 0 || decoded.indexOf("/public/roadmap/") === 0;
-    if (!isRoadmapPath) {
-      return getRoadmapIndexUrl();
-    }
-
-    return decoded;
+    var isRoadmapPath = next.indexOf("/roadmap/") === 0 || next.indexOf("/public/roadmap/") === 0;
+    return isRoadmapPath ? next : getRoadmapIndexUrl();
   }
 
-  function hasValidPasswordLength(password) {
-    return String(password || "").length > 4;
+  function passwordProblem(password, confirmPassword) {
+    if (!password || !confirmPassword) {
+      return "Enter and confirm the password.";
+    }
+    if (password !== confirmPassword) {
+      return "Passwords do not match.";
+    }
+    if (password.length < MIN_PASSWORD) {
+      return "Password must be at least " + MIN_PASSWORD + " characters.";
+    }
+    return "";
   }
 
-  async function getExistingHandler(client, handle, currentUserId) {
-    if (!handle) {
-      return null;
+  function state() {
+    return window.roadmapState || null;
+  }
+
+  function currentUser() {
+    var s = state();
+    return s && typeof s.getUser === "function" ? s.getUser() : null;
+  }
+
+  function isRegistered() {
+    var s = state();
+    return !!(s && typeof s.isRegistered === "function" && s.isRegistered());
+  }
+
+  function applyUser(user) {
+    var s = state();
+    if (s && typeof s.applyUser === "function") {
+      s.applyUser(user);
     }
+  }
 
-    var query = client
-      .from("user_profiles")
-      .select("id")
-      .eq("handle", handle)
-      .maybeSingle();
-
-    var result = await query;
-    if (result.error) {
-      return null;
-    }
-
-    if (result.data && result.data.id && result.data.id !== currentUserId) {
-      return result.data;
-    }
-
-    return null;
+  function withBusy(form, fn) {
+    var button = form.querySelector('button[type="submit"]');
+    return async function (event) {
+      event.preventDefault();
+      if (button) {
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+      }
+      try {
+        await fn();
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.setAttribute("aria-busy", "false");
+        }
+      }
+    };
   }
 
   function wirePasswordToggle(button) {
@@ -108,524 +133,238 @@
   }
 
   function wirePasswordVisibility() {
-    var buttons = document.querySelectorAll("[data-password-target]");
-    buttons.forEach(wirePasswordToggle);
+    document.querySelectorAll("[data-password-target]").forEach(wirePasswordToggle);
   }
 
-  function formatProfile(profile) {
-    if (!profile) {
-      return "No profile found.";
+  function handleLogin(form, api) {
+    var status = document.getElementById("auth-status");
+    var verified = new URLSearchParams(window.location.search || "").get("verified");
+    if (verified === "1") {
+      setStatus(status, "Email confirmed. You can sign in now.", "success");
+    } else if (verified === "0") {
+      setStatus(status, "That confirmation link is invalid or expired. Sign in to get a new one.", "warning");
     }
 
-    return [
-      "Display Name: " + (profile.display_name || "(not set)"),
-      "Handle: " + (profile.handle || "(not set)"),
-      "Email: " + (profile.email || "(not set)"),
-      "Created: " + (profile.created_at || "(unknown)")
-    ].join("\n");
-  }
-
-  async function handleLogin(form, client) {
-    var status = document.getElementById("auth-status");
-    form.addEventListener("submit", async function (event) {
-      event.preventDefault();
-
+    form.addEventListener("submit", withBusy(form, async function () {
       var email = getValue(form, "email");
-      var password = form.elements.password ? form.elements.password.value : "";
+      var password = getRaw(form, "password");
 
       if (!email || !password) {
         setStatus(status, "Email and password are required.", "warning");
         return;
       }
 
-      var result = await client.auth.signInWithPassword({
-        email: email,
-        password: password
-      });
-
+      var result = await api.auth.login(email, password);
       if (result.error) {
-        setStatus(status, result.error.message, "error");
+        setStatus(status, result.error.message, result.error.status === 403 ? "warning" : "error");
         return;
       }
 
+      applyUser(result.data.user);
       setStatus(status, "Login successful. Your roadmap session is active.", "success");
-
-      try {
-        if (window.roadmapState && typeof window.roadmapState.refresh === "function") {
-          await window.roadmapState.refresh();
-        }
-      } catch (_error) {
-        // Keep redirect behavior resilient even if profile hydration fails.
-      }
-
       window.setTimeout(function () {
         window.location.href = getPostLoginRedirectUrl();
       }, 600);
+    }));
+  }
+
+  // Live "is this username free?" hint, debounced so typing does not flood the API.
+  function wireHandleCheck(form, api) {
+    var input = form.elements.handle;
+    var hint = document.getElementById("register-handle-hint");
+    if (!input || !hint || !api.auth.checkHandle) {
+      return;
+    }
+
+    var defaultText = hint.textContent;
+    var timer = null;
+    var sequence = 0;
+
+    function show(text, ok) {
+      hint.textContent = text;
+      hint.className = "form-text" + (ok === true ? " text-success" : ok === false ? " text-warning" : "");
+      input.setCustomValidity(ok === false ? text : "");
+    }
+
+    input.addEventListener("input", function () {
+      window.clearTimeout(timer);
+      var value = input.value.trim();
+      if (value.length < 3) {
+        show(defaultText, null);
+        return;
+      }
+
+      timer = window.setTimeout(async function () {
+        var mine = ++sequence;
+        var result = await api.auth.checkHandle(value);
+        if (mine !== sequence || result.error) {
+          return;
+        }
+        if (result.data.error) {
+          show(result.data.error, false);
+        } else {
+          show(result.data.available ? "Username is available." : "Username already exists. Choose another.", !!result.data.available);
+        }
+      }, 400);
     });
   }
 
-  async function handleRegister(form, client) {
+  function showRegisterDone(form, api, email, emailSent) {
+    var done = document.getElementById("register-done");
     var status = document.getElementById("auth-status");
-    form.addEventListener("submit", async function (event) {
-      event.preventDefault();
+    if (!done) {
+      return false;
+    }
 
-      var authState = await client.auth.getUser();
-      if (authState && authState.data && authState.data.user) {
+    form.hidden = true;
+    var note = document.getElementById("register-note");
+    if (note) {
+      note.hidden = true;
+    }
+    var target = document.getElementById("register-done-email");
+    if (target) {
+      target.textContent = email;
+    }
+    done.hidden = false;
+
+    if (emailSent) {
+      status.hidden = true;
+    } else {
+      setStatus(status, "Your account is created, but the confirmation email could not be sent. Use Resend Link to try again.", "warning");
+    }
+
+    var resend = document.getElementById("register-resend");
+    if (resend && resend.dataset.wired !== "true") {
+      resend.dataset.wired = "true";
+      resend.addEventListener("click", async function () {
+        resend.disabled = true;
+        var result = await api.auth.resendConfirmation();
+        if (result.error) {
+          setStatus(status, result.error.message, "error");
+        } else if (result.data.already_verified) {
+          setStatus(status, "Your email is already confirmed.", "success");
+        } else {
+          setStatus(status, result.data.email_sent
+            ? "A new confirmation link is on its way."
+            : "The email could not be sent. Try again in a few minutes.",
+            result.data.email_sent ? "success" : "warning");
+        }
+        // Brief cool-down so repeated clicks do not burn the hourly quota.
+        window.setTimeout(function () { resend.disabled = false; }, 30000);
+      });
+    }
+
+    var heading = done.querySelector("h2");
+    if (heading) {
+      heading.setAttribute("tabindex", "-1");
+      heading.focus();
+    }
+    return true;
+  }
+
+  function handleRegister(form, api) {
+    var status = document.getElementById("auth-status");
+    wireHandleCheck(form, api);
+
+    // Registered but unconfirmed visitors land on the "check your inbox" panel.
+    function syncSignedIn() {
+      var user = currentUser();
+      if (user && isRegistered() && !form.hidden) {
+        if (!user.email_verified) {
+          showRegisterDone(form, api, user.email || "", true);
+        } else {
+          setStatus(status, "You are already signed in as " + (user.handle || user.email) + ". Log out before creating another account.", "warning");
+        }
+      }
+    }
+    window.addEventListener("roadmap-auth-changed", syncSignedIn);
+    syncSignedIn();
+
+    form.addEventListener("submit", withBusy(form, async function () {
+      if (isRegistered()) {
         setStatus(status, "You are already signed in. Log out before creating another account.", "warning");
         return;
       }
 
       var userName = getValue(form, "handle");
       var email = getValue(form, "email");
-      var password = form.elements.password ? form.elements.password.value : "";
-      var confirmPassword = form.elements.confirm_password ? form.elements.confirm_password.value : "";
+      var password = getRaw(form, "password");
 
       if (!userName || !email || !password) {
         setStatus(status, "Username, email, and password are required.", "warning");
         return;
       }
 
-      if (password !== confirmPassword) {
-        setStatus(status, "Passwords do not match.", "warning");
+      var problem = passwordProblem(password, getRaw(form, "confirm_password"));
+      var emailName = email.split("@")[0].toLowerCase();
+      var lowered = password.toLowerCase();
+      if (!problem && ((userName.length >= 3 && lowered.indexOf(userName.toLowerCase()) !== -1)
+        || (emailName.length >= 3 && lowered.indexOf(emailName) !== -1))) {
+        problem = "Password must not contain your username or email.";
+      }
+      if (problem) {
+        setStatus(status, problem, "warning");
         return;
       }
 
-      if (!hasValidPasswordLength(password)) {
-        setStatus(status, "Password must be longer than 4 characters.", "warning");
-        return;
-      }
-
-      var existingHandler = await getExistingHandler(client, userName, null);
-      if (existingHandler) {
-        setStatus(status, "Username already exists. Choose another.", "warning");
-        return;
-      }
-
-      var result = await client.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          data: {
-            handle: userName,
-            display_name: userName
-          }
-        }
-      });
-
+      var result = await api.auth.register(userName, email, password, getRaw(form, "website"));
       if (result.error) {
-        setStatus(status, result.error.message, "error");
+        setStatus(status, result.error.message, result.error.status === 429 ? "warning" : "error");
         return;
       }
 
-      setStatus(status, "Registration submitted. Check your email to confirm account activation.", "success");
-
-      if (window.roadmapState && typeof window.roadmapState.refresh === "function") {
-        await window.roadmapState.refresh();
+      clearFields(form, ["password", "confirm_password"]);
+      if (!showRegisterDone(form, api, email, result.data.email_sent)) {
+        setStatus(status, "Account created and your progress is kept. Check your email to confirm the address.", "success");
       }
-    });
+      applyUser(result.data.user);
+    }));
   }
 
-  async function handleResetRequest(form, client) {
+  function handleResetRequest(form, api) {
     var status = document.getElementById("auth-status");
-    form.addEventListener("submit", async function (event) {
-      event.preventDefault();
-
+    form.addEventListener("submit", withBusy(form, async function () {
       var email = getValue(form, "email");
       if (!email) {
         setStatus(status, "Enter the email address for your roadmap account.", "warning");
         return;
       }
 
-      var result = await client.auth.resetPasswordForEmail(email, {
-        redirectTo: getResetRedirectUrl()
-      });
-
+      var result = await api.auth.forgot(email);
       if (result.error) {
         setStatus(status, result.error.message, "error");
         return;
       }
 
-      setStatus(status, "Password reset email sent. Check your inbox and open the recovery link.", "success");
-    });
+      setStatus(status, "If an account exists for that email, a reset link is on its way. Check your inbox.", "success");
+    }));
   }
 
-  async function handleResetPassword(form, client) {
+  function handleResetPassword(form, api, token) {
     var status = document.getElementById("auth-status");
-    form.addEventListener("submit", async function (event) {
-      event.preventDefault();
-
-      var password = form.elements.password ? form.elements.password.value : "";
-      var confirmPassword = form.elements.confirm_password ? form.elements.confirm_password.value : "";
-
-      if (!password || !confirmPassword) {
-        setStatus(status, "Enter and confirm the new password.", "warning");
+    form.addEventListener("submit", withBusy(form, async function () {
+      var password = getRaw(form, "password");
+      var problem = passwordProblem(password, getRaw(form, "confirm_password"));
+      if (problem) {
+        setStatus(status, problem, "warning");
         return;
       }
 
-      if (password !== confirmPassword) {
-        setStatus(status, "Passwords do not match.", "warning");
-        return;
-      }
-
-      var result = await client.auth.updateUser({ password: password });
+      var result = await api.auth.reset(token, password);
       if (result.error) {
         setStatus(status, result.error.message, "error");
         return;
       }
 
-      if (window.roadmapState && typeof window.roadmapState.refresh === "function") {
-        await window.roadmapState.refresh();
-      }
-
+      clearFields(form, ["password", "confirm_password"]);
       setStatus(status, "Password updated. You can sign in with the new password now.", "success");
-
-      if (form.elements.password) {
-        form.elements.password.value = "";
-      }
-
-      if (form.elements.confirm_password) {
-        form.elements.confirm_password.value = "";
-      }
-
       window.setTimeout(function () {
         window.location.href = "/roadmap/login.html";
       }, 1200);
-    });
+    }));
   }
 
-  async function handleProfile(form, client) {
-    var status = document.getElementById("auth-status");
-    var output = document.getElementById("profile-output");
-    var currentUser = document.getElementById("roadmap-current-user");
-    var updateButton = document.getElementById("profile-update-btn");
-    var closeButton = document.getElementById("profile-close-btn");
-    var initialHandle = "";
-
-    function setButtonEnabled(button, enabled) {
-      if (!button) {
-        return;
-      }
-
-      button.disabled = !enabled;
-      if (enabled) {
-        button.classList.remove("disabled");
-        button.removeAttribute("aria-disabled");
-      } else {
-        button.classList.add("disabled");
-        button.setAttribute("aria-disabled", "true");
-      }
-    }
-
-    function refreshActionButtons() {
-      var currentHandle = getValue(form, "handle");
-      var password = form.elements.password ? form.elements.password.value : "";
-      var confirmPassword = form.elements.confirm_password ? form.elements.confirm_password.value : "";
-      var handlerChanged = !!currentHandle && currentHandle !== initialHandle;
-      var passwordMatched = !!password && !!confirmPassword && password === confirmPassword && hasValidPasswordLength(password);
-
-      setButtonEnabled(updateButton, handlerChanged || passwordMatched);
-    }
-
-    async function loadCurrentProfile() {
-      var authState = await client.auth.getUser();
-      if (authState.error || !authState.data || !authState.data.user) {
-        setStatus(status, "Sign in first to edit profile settings.", "warning");
-        return null;
-      }
-
-      var user = authState.data.user;
-      var profileResult = await client
-        .from("user_profiles")
-        .select("id, handle, display_name, email, created_at")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      var profile = profileResult && profileResult.data ? profileResult.data : null;
-      var resolvedHandle = (profile && profile.handle) ||
-        (user.user_metadata && user.user_metadata.handle) ||
-        (user.email ? user.email.split("@")[0] : "");
-
-      initialHandle = String(resolvedHandle || "").trim();
-
-      if (form.elements.handle) {
-        form.elements.handle.value = resolvedHandle || "";
-      }
-
-      if (form.elements.email) {
-        form.elements.email.value = user.email || "";
-      }
-
-      if (currentUser) {
-        currentUser.textContent = formatProfile(profile || {
-          handle: resolvedHandle || "(not set)",
-          display_name: resolvedHandle || "(not set)",
-          email: user.email || "(not set)",
-          created_at: user.created_at || "(unknown)"
-        });
-      }
-
-      if (output) {
-        output.textContent = formatProfile(profile || {
-          handle: resolvedHandle || "(not set)",
-          display_name: resolvedHandle || "(not set)",
-          email: user.email || "(not set)",
-          created_at: user.created_at || "(unknown)"
-        });
-      }
-
-      refreshActionButtons();
-      return user;
-    }
-
-    if (form.elements.handle) {
-      form.elements.handle.addEventListener("input", refreshActionButtons);
-    }
-
-    if (form.elements.password) {
-      form.elements.password.addEventListener("input", refreshActionButtons);
-    }
-
-    if (form.elements.confirm_password) {
-      form.elements.confirm_password.addEventListener("input", refreshActionButtons);
-    }
-
-    if (updateButton) {
-      updateButton.addEventListener("click", async function () {
-        var authState = await client.auth.getUser();
-        if (authState.error || !authState.data || !authState.data.user) {
-          setStatus(status, "Sign in first to edit profile settings.", "warning");
-          return;
-        }
-
-        var user = authState.data.user;
-        var handle = getValue(form, "handle");
-        var password = form.elements.password ? form.elements.password.value : "";
-        var confirmPassword = form.elements.confirm_password ? form.elements.confirm_password.value : "";
-
-        if (!handle) {
-          setStatus(status, "Username is required.", "warning");
-          return;
-        }
-
-        var passwordProvided = !!password || !!confirmPassword;
-        var handlerChanged = handle !== initialHandle;
-
-        if (!handlerChanged && !passwordProvided) {
-          setStatus(status, "No changes to save.", "warning");
-          return;
-        }
-
-        if (passwordProvided) {
-          if (!password || !confirmPassword) {
-            setStatus(status, "Enter and confirm the new password.", "warning");
-            return;
-          }
-
-          if (password !== confirmPassword) {
-            setStatus(status, "Passwords do not match.", "warning");
-            return;
-          }
-
-          if (!hasValidPasswordLength(password)) {
-            setStatus(status, "Password must be longer than 4 characters.", "warning");
-            return;
-          }
-        }
-
-        if (handlerChanged) {
-          var existingHandler = await getExistingHandler(client, handle, user.id);
-          if (existingHandler) {
-            setStatus(status, "Username already exists. Choose another.", "warning");
-            return;
-          }
-        }
-
-        var saveResult = await client.from("user_profiles").upsert(
-          {
-            id: user.id,
-            email: user.email || "",
-            handle: handle,
-            display_name: handle
-          },
-          {
-            onConflict: "id"
-          }
-        );
-
-        if (saveResult.error) {
-          setStatus(status, saveResult.error.message, "error");
-          return;
-        }
-
-        // Keep auth metadata aligned with profile casing so fallback identity paths
-        // never revert the username to an older lowercase value.
-        var metadataResult = await client.auth.updateUser({
-          data: {
-            handle: handle,
-            display_name: handle
-          }
-        });
-
-        if (metadataResult.error) {
-          setStatus(status, metadataResult.error.message, "error");
-          return;
-        }
-
-        initialHandle = handle;
-
-        if (passwordProvided) {
-          var passwordResult = await client.auth.updateUser({ password: password });
-          if (passwordResult.error) {
-            setStatus(status, passwordResult.error.message, "error");
-            return;
-          }
-
-          if (form.elements.password) {
-            form.elements.password.value = "";
-          }
-
-          if (form.elements.confirm_password) {
-            form.elements.confirm_password.value = "";
-          }
-        }
-
-        setStatus(status, "Profile updated successfully.", "success");
-        await loadCurrentProfile();
-
-        if (window.roadmapState && typeof window.roadmapState.refresh === "function") {
-          await window.roadmapState.refresh();
-        }
-      });
-    }
-
-    if (closeButton) {
-      closeButton.addEventListener("click", function () {
-        window.location.href = getRoadmapIndexUrl();
-      });
-    }
-
-    loadCurrentProfile();
-
-    if (window.roadmapState && typeof window.roadmapState.refresh === "function") {
-      window.roadmapState.refresh();
-    }
-  }
-
-  async function handleUnregister(form, client) {
-    var status = document.getElementById("auth-status");
-    var submitButton = form.querySelector('button[type="submit"]');
-
-    function setSubmitting(isSubmitting) {
-      if (!submitButton) {
-        return;
-      }
-
-      submitButton.disabled = isSubmitting;
-      submitButton.setAttribute("aria-busy", isSubmitting ? "true" : "false");
-    }
-
-    form.addEventListener("submit", async function (event) {
-      event.preventDefault();
-      setSubmitting(true);
-
-      var authState = await client.auth.getUser();
-      if (authState.error || !authState.data || !authState.data.user) {
-        setSubmitting(false);
-        setStatus(status, "Sign in first to remove your roadmap account.", "warning");
-        return;
-      }
-
-      var user = authState.data.user;
-      var password = form.elements.password ? form.elements.password.value : "";
-
-      if (!password) {
-        setSubmitting(false);
-        setStatus(status, "Enter your password to confirm account removal.", "warning");
-        return;
-      }
-
-      var verification = await client.auth.signInWithPassword({
-        email: user.email,
-        password: password
-      });
-
-      if (verification.error) {
-        setSubmitting(false);
-        setStatus(status, verification.error.message, "error");
-        return;
-      }
-
-      var removalResult = await client.rpc("delete_current_user_account");
-      if (removalResult.error) {
-        setSubmitting(false);
-        if ((removalResult.error.message || "").toLowerCase().indexOf("schema cache") !== -1) {
-          setStatus(status, "Supabase has not picked up the delete migration yet. Check that the GitHub Action ran, the SUPABASE_DB_URL secret is set, and the migration exists in supabase/migrations.", "error");
-          return;
-        }
-
-        setStatus(status, removalResult.error.message, "error");
-        return;
-      }
-
-      if (!removalResult.data) {
-        setSubmitting(false);
-        setStatus(status, "Removal could not be confirmed. Please try again.", "error");
-        return;
-      }
-
-      if (form.elements.password) {
-        form.elements.password.value = "";
-      }
-
-      await client.auth.signOut();
-      setStatus(status, "Your roadmap account has been removed.", "success");
-
-      window.setTimeout(function () {
-        window.location.href = "/roadmap/";
-      }, 1500);
-    });
-  }
-
-  function wireEmailLockHelp() {
-    var trigger = document.getElementById("profile-email-help");
-    var note = document.getElementById("profile-email-lock-note");
-    var sageButton = document.getElementById("profile-email-note-sage");
-    var closeButton = document.getElementById("profile-email-note-close");
-
-    if (!trigger || !note) {
-      return;
-    }
-
-    function showNote() {
-      note.hidden = false;
-    }
-
-    function hideNote() {
-      note.hidden = true;
-    }
-
-    trigger.addEventListener("click", function () {
-      if (note.hidden) {
-        showNote();
-      } else {
-        hideNote();
-      }
-    });
-
-    if (sageButton) {
-      sageButton.addEventListener("click", function () {
-        hideNote();
-      });
-    }
-
-    if (closeButton) {
-      closeButton.addEventListener("click", function () {
-        hideNote();
-      });
-    }
-  }
-
-  function configureResetPage(client) {
+  function configureResetPage(api) {
     var requestSection = document.getElementById("reset-request-panel");
     var recoverySection = document.getElementById("reset-password-panel");
     var requestForm = document.getElementById("roadmap-reset-request-form");
@@ -635,66 +374,204 @@
       return;
     }
 
+    var token = new URLSearchParams(window.location.search || "").get("token") || "";
+    if (requestSection) {
+      requestSection.hidden = !!token;
+    }
+    if (recoverySection) {
+      recoverySection.hidden = !token;
+    }
+
     if (requestForm) {
-      handleResetRequest(requestForm, client);
+      handleResetRequest(requestForm, api);
     }
-
-    if (recoveryForm) {
-      handleResetPassword(recoveryForm, client);
-    }
-
-    if (window.roadmapState && typeof window.roadmapState.refresh === "function") {
-      window.roadmapState.refresh().then(function () {
-        var hasUser = !!(window.roadmapState.getUser && window.roadmapState.getUser());
-
-        if (requestSection) {
-          requestSection.hidden = hasUser;
-        }
-
-        if (recoverySection) {
-          recoverySection.hidden = !hasUser;
-        }
-
-        if (!hasUser && recoverySection) {
-          recoverySection.hidden = true;
-        }
-      });
+    if (recoveryForm && token) {
+      handleResetPassword(recoveryForm, api, token);
     }
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
-    var client = window.supabaseClient;
+  function handleProfile(form, api) {
     var status = document.getElementById("auth-status");
+    var updateButton = document.getElementById("profile-update-btn");
+    var closeButton = document.getElementById("profile-close-btn");
 
-    if (!client) {
-      setStatus(status, "Supabase is not configured. Update assets/js/supabase-config.js.", "warning");
+    function initialHandle() {
+      var user = currentUser();
+      return user && user.handle ? user.handle : "";
+    }
+
+    function refreshActionButtons() {
+      var currentHandle = getValue(form, "handle");
+      var password = getRaw(form, "password");
+      var confirmPassword = getRaw(form, "confirm_password");
+      var handleChanged = !!currentHandle && currentHandle !== initialHandle();
+      var passwordReady = !passwordProblem(password, confirmPassword);
+      var enabled = isRegistered() && (handleChanged || passwordReady);
+
+      if (updateButton) {
+        updateButton.disabled = !enabled;
+        updateButton.classList.toggle("disabled", !enabled);
+        if (enabled) {
+          updateButton.removeAttribute("aria-disabled");
+        } else {
+          updateButton.setAttribute("aria-disabled", "true");
+        }
+      }
+    }
+
+    ["handle", "password", "confirm_password"].forEach(function (name) {
+      if (form.elements[name]) {
+        form.elements[name].addEventListener("input", refreshActionButtons);
+      }
+    });
+
+    window.addEventListener("roadmap-auth-changed", function () {
+      if (!isRegistered()) {
+        setStatus(status, "Sign in first to edit profile settings.", "warning");
+      }
+      refreshActionButtons();
+    });
+
+    if (updateButton) {
+      updateButton.addEventListener("click", async function () {
+        if (!isRegistered()) {
+          setStatus(status, "Sign in first to edit profile settings.", "warning");
+          return;
+        }
+
+        var handle = getValue(form, "handle");
+        var password = getRaw(form, "password");
+        var confirmPassword = getRaw(form, "confirm_password");
+        var changes = {};
+
+        if (!handle) {
+          setStatus(status, "Username is required.", "warning");
+          return;
+        }
+        if (handle !== initialHandle()) {
+          changes.handle = handle;
+        }
+        if (password || confirmPassword) {
+          var problem = passwordProblem(password, confirmPassword);
+          if (problem) {
+            setStatus(status, problem, "warning");
+            return;
+          }
+          changes.password = password;
+        }
+        if (!changes.handle && !changes.password) {
+          setStatus(status, "No changes to save.", "warning");
+          return;
+        }
+
+        updateButton.disabled = true;
+        var result = await api.auth.updateProfile(changes);
+        if (result.error) {
+          setStatus(status, result.error.message, "error");
+          refreshActionButtons();
+          return;
+        }
+
+        applyUser(result.data.user);
+        setStatus(status, changes.password
+          ? "Profile updated. Other devices were signed out because the password changed."
+          : "Profile updated successfully.", "success");
+        refreshActionButtons();
+      });
+    }
+
+    if (closeButton) {
+      closeButton.addEventListener("click", function () {
+        window.location.href = getRoadmapIndexUrl();
+      });
+    }
+
+    refreshActionButtons();
+  }
+
+  function handleUnregister(form, api) {
+    var status = document.getElementById("auth-status");
+    form.addEventListener("submit", withBusy(form, async function () {
+      if (!isRegistered()) {
+        setStatus(status, "Sign in first to remove your roadmap account.", "warning");
+        return;
+      }
+
+      var password = getRaw(form, "password");
+      if (!password) {
+        setStatus(status, "Enter your password to confirm account removal.", "warning");
+        return;
+      }
+
+      var result = await api.auth.deleteAccount(password);
+      if (result.error) {
+        setStatus(status, result.error.message, "error");
+        return;
+      }
+
+      clearFields(form, ["password"]);
+      setStatus(status, "Your roadmap account has been removed.", "success");
+      window.setTimeout(function () {
+        window.location.href = "/roadmap/";
+      }, 1500);
+    }));
+  }
+
+  function wireEmailLockHelp() {
+    var trigger = document.getElementById("profile-email-help");
+    var note = document.getElementById("profile-email-lock-note");
+    if (!trigger || !note) {
       return;
     }
 
-    var loginForm = document.getElementById("roadmap-login-form");
-    var profileForm = document.getElementById("roadmap-profile-form");
-    var registerForm = document.getElementById("roadmap-register-form");
-    var unregisterForm = document.getElementById("roadmap-unregister-form");
-
-    if (loginForm) {
-      handleLogin(loginForm, client);
+    function hideNote() {
+      note.hidden = true;
     }
 
-    if (profileForm) {
-      handleProfile(profileForm, client);
-    }
+    trigger.addEventListener("click", function () {
+      note.hidden = !note.hidden;
+    });
 
-    if (registerForm) {
-      handleRegister(registerForm, client);
-    }
+    ["profile-email-note-sage", "profile-email-note-close"].forEach(function (id) {
+      var button = document.getElementById(id);
+      if (button) {
+        button.addEventListener("click", hideNote);
+      }
+    });
+  }
 
-    if (unregisterForm) {
-      handleUnregister(unregisterForm, client);
-    }
-
-    configureResetPage(client);
-    wireEmailLockHelp();
+  document.addEventListener("DOMContentLoaded", function () {
+    var api = window.sclApi;
+    var status = document.getElementById("auth-status");
 
     wirePasswordVisibility();
+    wireEmailLockHelp();
+
+    if (!api) {
+      setStatus(status, "The roadmap API client did not load. Reload the page.", "warning");
+      return;
+    }
+
+    var forms = {
+      login: document.getElementById("roadmap-login-form"),
+      profile: document.getElementById("roadmap-profile-form"),
+      register: document.getElementById("roadmap-register-form"),
+      unregister: document.getElementById("roadmap-unregister-form")
+    };
+
+    if (forms.login) {
+      handleLogin(forms.login, api);
+    }
+    if (forms.profile) {
+      handleProfile(forms.profile, api);
+    }
+    if (forms.register) {
+      handleRegister(forms.register, api);
+    }
+    if (forms.unregister) {
+      handleUnregister(forms.unregister, api);
+    }
+
+    configureResetPage(api);
   });
 })();

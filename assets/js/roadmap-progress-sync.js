@@ -3,11 +3,7 @@
   var META_PREFIX = "@";
 
   function getClient() {
-    if (!window.supabaseClient || typeof window.supabaseClient.from !== "function") {
-      return null;
-    }
-
-    return window.supabaseClient;
+    return window.sclApi || null;
   }
 
   function getUser() {
@@ -131,17 +127,14 @@
       return [];
     }
 
-    var result = await client
-      .from("roadmap_progress")
-      .select("topic_key,status,progress_percent,updated_at")
-      .eq("roadmap_code", courseId);
+    var result = await client.progress.list(courseId);
 
     if (result.error) {
       console.warn("Unable to load roadmap progress:", result.error.message || result.error);
       return [];
     }
 
-    return result.data || [];
+    return (result.data && result.data.rows) || [];
   }
 
   function mergeTopicStats(target, percent, done) {
@@ -239,7 +232,9 @@
     };
   }
 
-  async function upsertRows(courseId, rows) {
+  // replacePrefix (optional) deletes existing keys with that prefix in the same
+  // transaction, used for single-valued meta rows like the last-read position.
+  async function upsertRows(courseId, rows, replacePrefix) {
     var client = getClient();
     var user = getUser();
 
@@ -249,17 +244,13 @@
 
     var payload = rows.map(function (row) {
       return {
-        user_id: user.id,
-        roadmap_code: courseId,
         topic_key: row.topic_key,
         status: row.status,
         progress_percent: normalizePercent(row.progress_percent)
       };
     });
 
-    var result = await client
-      .from("roadmap_progress")
-      .upsert(payload, { onConflict: "user_id,roadmap_code,topic_key" });
+    var result = await client.progress.upsert(courseId, payload, replacePrefix);
 
     if (result.error) {
       console.warn("Unable to save roadmap progress:", result.error.message || result.error);
@@ -331,11 +322,7 @@
       return true;
     }
 
-    var result = await client
-      .from("roadmap_progress")
-      .delete()
-      .eq("roadmap_code", courseId)
-      .in("topic_key", keys);
+    var result = await client.progress.remove(courseId, { keys: keys });
 
     if (result.error) {
       console.warn("Unable to clear roadmap progress:", result.error.message || result.error);
@@ -351,10 +338,7 @@
       return false;
     }
 
-    var result = await client
-      .from("roadmap_progress")
-      .delete()
-      .eq("roadmap_code", courseId);
+    var result = await client.progress.remove(courseId);
 
     if (result.error) {
       console.warn("Unable to clear roadmap progress:", result.error.message || result.error);
@@ -377,17 +361,11 @@
       return false;
     }
 
-    await client
-      .from("roadmap_progress")
-      .delete()
-      .eq("roadmap_code", courseId)
-      .like("topic_key", keyPrefix + "%");
-
     return upsertRows(courseId, [{
       topic_key: key,
       status: "done",
       progress_percent: 100
-    }]);
+    }], keyPrefix);
   }
 
   async function loadLastReadPosition(courseId, topicId) {
@@ -411,15 +389,10 @@
     }
 
     var prefix = topicMetaKey(topicId, "collapsed") + SECTION_SEPARATOR;
-    await client
-      .from("roadmap_progress")
-      .delete()
-      .eq("roadmap_code", courseId)
-      .like("topic_key", prefix + "%");
-
     var nodeIds = Array.isArray(collapsedNodeIds) ? collapsedNodeIds.filter(Boolean) : [];
     if (nodeIds.length === 0) {
-      return true;
+      var cleared = await client.progress.remove(courseId, { prefix: prefix });
+      return !cleared.error;
     }
 
     var rows = nodeIds.map(function (nodeId) {
@@ -430,7 +403,7 @@
       };
     });
 
-    return upsertRows(courseId, rows);
+    return upsertRows(courseId, rows, prefix);
   }
 
   async function loadCollapsedNodes(courseId, topicId) {

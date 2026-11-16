@@ -11,11 +11,7 @@
   STATUS_LABELS[STATUS_COMPLETED] = "Completed";
 
   function getClient() {
-    if (!window.supabaseClient || typeof window.supabaseClient.from !== "function") {
-      return null;
-    }
-
-    return window.supabaseClient;
+    return window.sclApi || null;
   }
 
   function getUserId() {
@@ -155,8 +151,6 @@
   function buildFavoriteRow(topicKey, card) {
     var category = card && card.dataset ? (card.dataset.category || "") : "";
     return {
-      user_id: getUserId(),
-      roadmap_code: ROADMAP_CODE,
       topic_key: topicKey,
       category: category
     };
@@ -168,17 +162,14 @@
       return [];
     }
 
-    var result = await client
-      .from("roadmap_favorites")
-      .select("topic_key")
-      .eq("roadmap_code", ROADMAP_CODE);
+    var result = await client.favorites.list(ROADMAP_CODE);
 
     if (result.error) {
       console.warn("Unable to load CSP favorites:", result.error.message || result.error);
       return [];
     }
 
-    return (result.data || []).map(function (row) {
+    return ((result.data && result.data.rows) || []).map(function (row) {
       return row.topic_key;
     });
   }
@@ -199,9 +190,7 @@
       return;
     }
 
-    var result = await client
-      .from("roadmap_favorites")
-      .upsert(payload, { onConflict: "user_id,roadmap_code,topic_key" });
+    var result = await client.favorites.upsert(ROADMAP_CODE, payload);
 
     if (result.error) {
       console.warn("Unable to save CSP favorites:", result.error.message || result.error);
@@ -214,11 +203,7 @@
       return;
     }
 
-    var result = await client
-      .from("roadmap_favorites")
-      .delete()
-      .eq("roadmap_code", ROADMAP_CODE)
-      .eq("topic_key", topicKey);
+    var result = await client.favorites.remove(ROADMAP_CODE, [topicKey]);
 
     if (result.error) {
       console.warn("Unable to remove CSP favorite:", result.error.message || result.error);

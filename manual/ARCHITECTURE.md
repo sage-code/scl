@@ -21,7 +21,7 @@ This repository is a static-site source workspace. The build pipeline assembles 
 /layouts             # Shared HTML wrappers/fragments
 /public              # Generated deploy/runtime output
 /manual              # Developer docs and generated reports
-/database            # Supabase SQL setup scripts
+/database            # Turso schema migrations
 /scripts             # Local tooling (Node, Python)
 build.js             # Main build orchestrator
 run.sh               # Project maintenance CLI wrapper
@@ -65,7 +65,7 @@ The `run.sh` script provides a unified command-line interface for managing the l
 1. Generates roadmap index metadata via `roadmap.py`.
 2. Recreates `public/` from scratch.
 3. Copies `assets/` to `public/assets/`.
-4. Writes runtime Supabase config to `public/assets/js/supabase-config.js` from env vars when available (otherwise copies the source config file).
+4. (`npm run build` first applies pending Turso migrations via `scripts/db/migrate.js`.)
 5. Copies root runtime files (`robots.txt`, `sitemap.xml`) to `public/`.
 6. Copies source content into publish namespaces:
    - `projects/**` -> `public/projects/**`
@@ -104,21 +104,14 @@ Build does not run validations; verification is a separate step (`run test` for 
 - Topic/runtime script injection is handled by `build.js`; source pages should not duplicate injected stacks unless required.
 - Executable inline scripts in authored HTML are extracted at build time into `public/assets/js/inline/`.
 
-## Supabase Integration Baseline
+## Backend Baseline (Vercel + Turso + Resend)
 
-- Browser config source: `assets/js/supabase-config.js`.
-- Runtime client stack: `assets/js/supabase-client.js`, `assets/js/roadmap-state.js`, `assets/js/roadmap-progress-sync.js`.
-- SQL scripts:
-  - `database/001_user_profiles.sql`
-  - `database/002_roadmap_progress.sql`
-  - `database/003_delete_own_roadmap_account.sql`
-  - `database/004_roadmap_favorites.sql`
-
-Build-time env support:
-
-- `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` or `SUPABASE_ANON_KEY`
-- `SUPABASE_SCHEMA` (optional, default `public`)
+- Functions: `api/auth/[action].js` (session, anonymous, register, login, logout, verify, forgot, reset, profile, delete), `api/progress.js`, `api/favorites.js`; shared code in `api/_lib/` (underscore = not deployed as a route).
+- Database: Turso/libSQL, schema in `database/turso/*.sql`, applied by `scripts/db/migrate.js` before each build.
+- Sessions: random token in an HttpOnly `scl_sid` cookie, stored as a SHA-256 hash. Passwords: scrypt. Writes require `application/json` and a same-origin `Origin`.
+- Browser client: `assets/js/scl-api.js` (`window.sclApi`), then `roadmap-state.js` (identity; creates the anonymous user), `roadmap-progress-sync.js`, `roadmap-auth.js` (account forms).
+- `roadmapState.getUser()` returns the anonymous user too; use `roadmapState.isRegistered()` for account-only UI.
+- Email: Resend REST API from `api/_lib/mail.js` with the domain-restricted `RESEND_SEND_KEY`.
 
 ## Validation Workflow
 
