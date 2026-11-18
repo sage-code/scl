@@ -159,6 +159,7 @@ async function maybeCleanup() {
     { sql: "delete from auth_events where created_at < ?", args: [oldEvents] },
     { sql: "delete from roadmap_progress where user_id in (select id from users where is_anonymous = 1 and last_seen_at < ?)", args: [staleAnon] },
     { sql: "delete from roadmap_favorites where user_id in (select id from users where is_anonymous = 1 and last_seen_at < ?)", args: [staleAnon] },
+    { sql: "delete from quiz_attempts where user_id in (select id from users where is_anonymous = 1 and last_seen_at < ?)", args: [staleAnon] },
     { sql: "delete from users where is_anonymous = 1 and last_seen_at < ? and id not in (select user_id from sessions)", args: [staleAnon] }
   ], "write");
 }
@@ -332,6 +333,13 @@ const actions = {
                   from roadmap_favorites where user_id = ? on conflict do nothing`,
             args: [user.id, anonId]
           },
+          {
+            sql: `insert into quiz_attempts
+                    (id, user_id, quiz_id, track, topic, level, revision, points_earned, points_possible, score_percent, status, completed_at)
+                  select id, ?, quiz_id, track, topic, level, revision, points_earned, points_possible, score_percent, status, completed_at
+                  from quiz_attempts where user_id = ? on conflict do nothing`,
+            args: [user.id, anonId]
+          },
           ...S.deleteUserStatements(anonId)
         );
       }
@@ -469,7 +477,25 @@ const actions = {
       }
     }
 
+    let avatarUrl = null;
+    const mediaToken = String(process.env.MEDIA_READ_WRITE_TOKEN || "").trim();
+    if (Number(user.is_anonymous) !== 1 && mediaToken) {
+      const memberRes = await getDb().execute({
+        sql: "select avatar_url from community_members where user_id = ?",
+        args: [user.id]
+      });
+      avatarUrl = memberRes.rows[0] && memberRes.rows[0].avatar_url;
+    }
+
     await getDb().batch(S.deleteUserStatements(user.id), "write");
+    if (avatarUrl && mediaToken) {
+      try {
+        const { del } = require("@vercel/blob");
+        await del(avatarUrl, { token: mediaToken });
+      } catch (error) {
+        console.error("[auth/delete] failed to remove community avatar:", error.message);
+      }
+    }
     S.clearSessionCookie(req, res);
     sendJson(res, 200, { ok: true });
   }

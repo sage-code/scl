@@ -77,16 +77,12 @@ function clientIp(req) {
   return forwarded || String(req.headers["x-real-ip"] || "").trim() || (req.socket && req.socket.remoteAddress) || "unknown";
 }
 
-// CSRF guard for state-changing requests: JSON content type (forces a CORS
-// preflight cross-origin) and, when the browser sends Origin, the same host.
-function assertSameOriginJson(req) {
-  if (req.method !== "POST") {
+// CSRF guard for state-changing requests; when the browser sends Origin, require
+// it to match the request host.
+function assertSameOrigin(req, allowedMethods) {
+  const methods = Array.isArray(allowedMethods) && allowedMethods.length ? allowedMethods : ["POST"];
+  if (!methods.includes(req.method)) {
     throw new HttpError(405, "Method not allowed.");
-  }
-
-  const contentType = String(req.headers["content-type"] || "").toLowerCase();
-  if (contentType.indexOf("application/json") !== 0) {
-    throw new HttpError(415, "Content-Type must be application/json.");
   }
 
   const origin = req.headers.origin;
@@ -101,6 +97,15 @@ function assertSameOriginJson(req) {
     if (!originHost || originHost !== requestHost(req)) {
       throw new HttpError(403, "Cross-origin request rejected.");
     }
+  }
+}
+
+// JSON content type forces a CORS preflight for browser state-changing calls.
+function assertSameOriginJson(req) {
+  assertSameOrigin(req);
+  const contentType = String(req.headers["content-type"] || "").toLowerCase();
+  if (contentType.indexOf("application/json") !== 0) {
+    throw new HttpError(415, "Content-Type must be application/json.");
   }
 }
 
@@ -171,6 +176,7 @@ module.exports = {
   readJson,
   requestHost,
   clientIp,
+  assertSameOrigin,
   assertSameOriginJson,
   parseCookies,
   setCookie,

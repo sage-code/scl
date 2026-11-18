@@ -4,7 +4,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { test } = require("node:test");
-const quiz = require("../../roadmap/go/quiz/syntax-A.json");
+const answerKeys = require("../../api/_lib/quiz-answer-keys.json");
+const { qualifiedRoadmaps } = require("../../api/_lib/quiz");
+const publicQuiz = require("../../roadmap/go/quiz/syntax-A.json");
+const quiz = withAnswerKey(publicQuiz);
 const pilotQuiz = {
   ...quiz,
   questions: quiz.questions.slice(0, 5),
@@ -35,16 +38,28 @@ const quizFiles = fs.readdirSync(roadmapRoot, { withFileTypes: true })
 
 const goQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`go${path.sep}quiz${path.sep}`))
-  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 const htmlQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`html${path.sep}quiz${path.sep}`))
-  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 const cssQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`css${path.sep}quiz${path.sep}`))
-  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 const javascriptQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`javascript${path.sep}quiz${path.sep}`))
-  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+
+function withAnswerKey(publicData) {
+  const privateSet = answerKeys[publicData.id];
+  assert.ok(privateSet, `private answer key should exist for ${publicData.id}`);
+  return {
+    ...publicData,
+    questions: publicData.questions.map((question) => ({
+      ...question,
+      ...privateSet.questions[question.id]
+    }))
+  };
+}
 
 test("validates the Go syntax pilot and its declared point total", () => {
   assert.ok(quizFiles.length > 0, "at least one roadmap quiz JSON file should exist");
@@ -117,9 +132,34 @@ test("each JavaScript quiz has 42 questions, brief code examples, and varied res
 
 for (const file of quizFiles) {
   test(`validates quiz data ${path.relative(roadmapRoot, file)}`, () => {
-    assert.equal(validateQuiz(JSON.parse(fs.readFileSync(file, "utf8"))), true);
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    assert.equal(validateQuiz(data), true);
+    data.questions.forEach((question) => {
+      assert.equal(Object.prototype.hasOwnProperty.call(question, "correctOptionIds"), false);
+      assert.equal(Object.prototype.hasOwnProperty.call(question, "correctByRow"), false);
+      assert.equal(Object.prototype.hasOwnProperty.call(question, "explanation"), false);
+    });
+    assert.equal(validateQuiz(withAnswerKey(data), { requireAnswerKey: true }), true);
   });
 }
+
+test("requires current passing A, B, and C attempts from one roadmap", () => {
+  const attempts = [
+    { quiz_id: "go-syntax-A", revision: 2, status: "pass" },
+    { quiz_id: "go-syntax-B", revision: 2, status: "pass" },
+    { quiz_id: "go-syntax-C", revision: 2, status: "pass" },
+    { quiz_id: "html-fundamentals-A", revision: 1, status: "pass" },
+    { quiz_id: "html-fundamentals-B", revision: 1, status: "fail" },
+    { quiz_id: "html-fundamentals-C", revision: 1, status: "pass" }
+  ];
+
+  assert.deepEqual(qualifiedRoadmaps(attempts), [{ track: "go", topic: "syntax" }]);
+  assert.deepEqual(qualifiedRoadmaps(attempts.slice(0, 2)), []);
+  assert.deepEqual(qualifiedRoadmaps([
+    ...attempts.slice(0, 2),
+    { quiz_id: "go-syntax-C", revision: 1, status: "pass" }
+  ]), []);
+});
 
 test("awards partial multi-select credit and deducts incorrect selections", () => {
   const question = quiz.questions.find((item) => item.type === "multi-select");

@@ -43,7 +43,8 @@
     }
   }
 
-  function validateQuiz(quiz) {
+  function validateQuiz(quiz, options) {
+    const requireAnswerKey = options === true || !!(options && options.requireAnswerKey);
     requireCondition(quiz && typeof quiz === "object" && !Array.isArray(quiz), "Quiz data must be an object.");
     requireCondition(quiz.schemaVersion === 1, "Unsupported quiz schema version.");
     requireCondition(Number.isInteger(quiz.revision) && quiz.revision > 0, "Quiz revision must be a positive integer.");
@@ -57,6 +58,7 @@
 
     const questionIds = new Set();
     let calculatedPoints = 0;
+    let hasAnswerKey = true;
 
     for (const question of quiz.questions) {
       requireCondition(question && typeof question === "object", "Each question must be an object.");
@@ -64,7 +66,12 @@
       requireCondition(!questionIds.has(question.id), `Duplicate question ID: ${question.id}.`);
       questionIds.add(question.id);
       requireCondition(typeof question.prompt === "string" && question.prompt.trim().length > 0, `Question ${question.id} needs a prompt.`);
-      requireCondition(typeof question.explanation === "string" && question.explanation.trim().length > 0, `Question ${question.id} needs an explanation.`);
+      if (question.explanation !== undefined) {
+        requireCondition(typeof question.explanation === "string" && question.explanation.trim().length > 0, `Question ${question.id} has an invalid explanation.`);
+      } else {
+        hasAnswerKey = false;
+        requireCondition(!requireAnswerKey, `Question ${question.id} needs a private explanation.`);
+      }
 
       if (question.code !== undefined) {
         requireCondition(
@@ -83,13 +90,22 @@
           requireCondition(typeof option.text === "string" && option.text.trim().length > 0, `Question ${question.id} has an empty option.`);
           optionIds.add(option.id);
         }
-        validateIdList(question.correctOptionIds, `Question ${question.id} correct options`, optionIds);
-        if (question.type === "single-choice") {
-          requireCondition(question.correctOptionIds.length === 1, `Question ${question.id} must have one correct option.`);
-          calculatedPoints += 1;
+        if (question.correctOptionIds !== undefined) {
+          validateIdList(question.correctOptionIds, `Question ${question.id} correct options`, optionIds);
         } else {
+          hasAnswerKey = false;
+          requireCondition(!requireAnswerKey, `Question ${question.id} needs private correct options.`);
+        }
+        if (question.type === "single-choice") {
+          if (question.correctOptionIds !== undefined) {
+            requireCondition(question.correctOptionIds.length === 1, `Question ${question.id} must have one correct option.`);
+          }
+          calculatedPoints += 1;
+        } else if (question.correctOptionIds !== undefined) {
           requireCondition(question.correctOptionIds.length >= 2, `Question ${question.id} must have at least two correct options.`);
           calculatedPoints += question.correctOptionIds.length;
+        } else {
+          hasAnswerKey = false;
         }
         continue;
       }
@@ -110,18 +126,25 @@
           columnIds.add(column.id);
         }
         requireCondition(question.selectionByRow && typeof question.selectionByRow === "object", `Question ${question.id} needs selection modes.`);
-        requireCondition(question.correctByRow && typeof question.correctByRow === "object", `Question ${question.id} needs correct row answers.`);
+        const hasRowAnswers = question.correctByRow && typeof question.correctByRow === "object";
+        if (!hasRowAnswers) {
+          hasAnswerKey = false;
+          requireCondition(!requireAnswerKey, `Question ${question.id} needs private correct row answers.`);
+        }
         for (const row of question.rows) {
           const mode = question.selectionByRow[row.id];
-          const correct = question.correctByRow[row.id];
           requireCondition(mode === "single" || mode === "multiple", `Question ${question.id} has an invalid selection mode for ${row.id}.`);
-          validateIdList(correct, `Question ${question.id} answers for ${row.id}`, columnIds);
-          requireCondition(mode !== "single" || correct.length === 1, `Question ${question.id} row ${row.id} needs one correct column.`);
-          calculatedPoints += correct.length;
+          if (hasRowAnswers) {
+            const correct = question.correctByRow[row.id];
+            validateIdList(correct, `Question ${question.id} answers for ${row.id}`, columnIds);
+            requireCondition(mode !== "single" || correct.length === 1, `Question ${question.id} row ${row.id} needs one correct column.`);
+            calculatedPoints += correct.length;
+          }
         }
         requireCondition(
-          Object.keys(question.selectionByRow).length === rowIds.size && Object.keys(question.correctByRow).length === rowIds.size,
-          `Question ${question.id} row answer maps must match its rows.`
+          Object.keys(question.selectionByRow).length === rowIds.size &&
+            (!hasRowAnswers || Object.keys(question.correctByRow).length === rowIds.size),
+          `Question ${question.id} row maps must match its rows.`
         );
         continue;
       }
@@ -129,7 +152,9 @@
       throw new Error(`Question ${question.id} has an unsupported type.`);
     }
 
-    requireCondition(calculatedPoints === quiz.pointsPossible, `Quiz pointsPossible is ${quiz.pointsPossible}; expected ${calculatedPoints}.`);
+    if (hasAnswerKey) {
+      requireCondition(calculatedPoints === quiz.pointsPossible, `Quiz pointsPossible is ${quiz.pointsPossible}; expected ${calculatedPoints}.`);
+    }
     return true;
   }
 
@@ -162,7 +187,7 @@
   }
 
   function scoreQuiz(quiz, answers) {
-    validateQuiz(quiz);
+    validateQuiz(quiz, { requireAnswerKey: true });
     const questionResults = quiz.questions.map((question) => {
       const answer = answers && Object.prototype.hasOwnProperty.call(answers, question.id) ? answers[question.id] : null;
       return {
@@ -391,6 +416,14 @@
     };
 
     async function loadQuiz() {
+      if (!windowRef.sclApi || !windowRef.sclApi.auth) {
+        throw new Error("Quiz services are unavailable. Reload the page and try again.");
+      }
+      const session = await windowRef.sclApi.auth.anonymous();
+      if (session.error) {
+        throw new Error(session.error.message);
+      }
+
       const params = new URLSearchParams(windowRef.location.search);
       const track = params.get("track");
       const topic = params.get("topic");
@@ -415,6 +448,8 @@
       const title = documentRef.getElementById("quiz-title");
       title.textContent = quiz.name;
       documentRef.title = `${quiz.name} | Sage-Code`;
+      documentRef.getElementById("quiz-description").textContent =
+        `Assess your ${roadmapTitle(quiz.track)} skills with ${quiz.questions.length} questions. You have two minutes per question; a score of at least 70% passes.`;
       const roadmapLink = documentRef.getElementById("quiz-roadmap-link");
       roadmapLink.href = `/roadmap/${quiz.track}/`;
       roadmapLink.textContent = `Return to the ${roadmapTitle(quiz.track)} roadmap`;
@@ -531,28 +566,67 @@
       });
 
       let resultFile;
-      quizForm.addEventListener("submit", (event) => {
+      quizForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         windowRef.clearInterval(timerInterval);
         documentRef.getElementById("quiz-timeout-notice").hidden = !timeExpired;
-        const scored = scoreQuiz(quiz, answers);
-        const completedAt = new Date().toISOString();
+        submit.disabled = true;
+        let response;
+        try {
+          response = await windowRef.fetch("/api/quizzes/submit", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ quiz_id: quiz.id, answers })
+          });
+        } catch (_error) {
+          submit.disabled = false;
+          setError(new Error("Quiz submission failed because the network could not be reached. Try again."));
+          return;
+        }
+
+        let payload;
+        try {
+          payload = await response.json();
+        } catch (_error) {
+          submit.disabled = false;
+          setError(new Error("Quiz submission returned an invalid response. Try again."));
+          return;
+        }
+        if (!response.ok) {
+          submit.disabled = false;
+          setError(new Error(payload.error || `Quiz submission failed (HTTP ${response.status}).`));
+          return;
+        }
+        if (!payload.quiz || payload.quiz.id !== quiz.id || !payload.scored || !payload.completedAt) {
+          submit.disabled = false;
+          setError(new Error("Quiz submission returned incomplete results. Try again."));
+          return;
+        }
+
+        const scoredQuiz = payload.quiz;
+        const scored = payload.scored;
+        const completedAt = payload.completedAt;
+        validateQuiz(scoredQuiz, { requireAnswerKey: true });
         const statusSaveWarning = documentRef.getElementById("quiz-status-save-warning");
         try {
-          saveQuizStatus(windowRef.localStorage, quiz, scored, completedAt);
+          saveQuizStatus(windowRef.localStorage, scoredQuiz, scored, completedAt);
           statusSaveWarning.hidden = true;
         } catch (error) {
           statusSaveWarning.hidden = false;
-          statusSaveWarning.textContent = `Quiz result was scored, but its status could not be saved in this browser: ${error.message || String(error)}`;
+          statusSaveWarning.textContent = `Quiz result was saved on the server, but this browser could not save the catalog status: ${error.message || String(error)}`;
         }
         resultFile = {
           quiz: {
-            id: quiz.id,
-            name: quiz.name,
-            revision: quiz.revision,
-            track: quiz.track,
-            topic: quiz.topic,
-            level: quiz.level
+            id: scoredQuiz.id,
+            name: scoredQuiz.name,
+            revision: scoredQuiz.revision,
+            track: scoredQuiz.track,
+            topic: scoredQuiz.topic,
+            level: scoredQuiz.level
           },
           completedAt,
           pointsEarned: scored.pointsEarned,
@@ -560,12 +634,12 @@
           scorePercent: scored.scorePercent,
           questions: scored.questions.map((result, index) => ({
             ...result,
-            prompt: quiz.questions[index].prompt,
-            explanation: quiz.questions[index].explanation,
-            correctAnswer: cloneAnswer(quiz.questions[index].correctOptionIds || quiz.questions[index].correctByRow)
+            prompt: scoredQuiz.questions[index].prompt,
+            explanation: scoredQuiz.questions[index].explanation,
+            correctAnswer: cloneAnswer(scoredQuiz.questions[index].correctOptionIds || scoredQuiz.questions[index].correctByRow)
           }))
         };
-        showResults(documentRef, quiz, scored);
+        showResults(documentRef, scoredQuiz, scored);
       });
 
       documentRef.getElementById("quiz-download").addEventListener("click", () => {

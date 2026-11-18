@@ -2,6 +2,7 @@
   var pageSize = 5;
   var page = 0;
   var members = [];
+  var status = document.getElementById('members-status');
 
   var body = document.getElementById('members-body');
   var prev = document.getElementById('prev-members');
@@ -29,9 +30,16 @@
 
     for (var i = start; i < end; i += 1) {
       var m = members[i];
-      var profileUrl = '/community/vcp/' + m.slug + '.html';
+      var profileUrl = m.public_id
+        ? '/community/profile/' + encodeURIComponent(m.public_id) + '/'
+        : '/community/vcp/' + encodeURIComponent(m.slug) + '.html';
+      var avatarUrl = safeAvatarUrl(m.avatar_url);
       html += '<tr>';
-      html += '<td><a href="' + profileUrl + '">' + escapeHtml(m.name) + '</a></td>';
+      html += '<td>';
+      if (avatarUrl) {
+        html += '<img class="directory-avatar" src="' + escapeHtml(avatarUrl) + '" alt="" loading="lazy"> ';
+      }
+      html += '<a href="' + escapeHtml(profileUrl) + '">' + escapeHtml(m.name) + '</a></td>';
       html += '<td>' + escapeHtml(m.role) + '</td>';
       html += '<td>' + escapeHtml(m.certification) + '</td>';
       html += '<td>' + escapeHtml(m.since) + '</td>';
@@ -55,22 +63,80 @@
     pageLabel.textContent = 'Showing ' + (members.length ? (start + 1) : 0) + '-' + end + ' of ' + members.length;
   }
 
-  function loadMembers() {
-    fetch('/community/members.json', { cache: 'no-store' })
-      .then(function (response) {
-        if (!response.ok) {
-          throw new Error('Failed to load members');
-        }
-        return response.json();
-      })
-      .then(function (data) {
-        members = Array.isArray(data) ? data : [];
-        render();
-      })
-      .catch(function () {
-        members = [];
-        render();
-      });
+  function trackName(track) {
+    return window.sclApi && window.sclApi.community && window.sclApi.community.trackLabel
+      ? window.sclApi.community.trackLabel(track)
+      : track;
+  }
+
+  function safeAvatarUrl(value) {
+    try {
+      var url = new URL(value);
+      return url.protocol === 'https:' ? url.href : '';
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  function mapGraduate(member) {
+    var claimedAt = member.claimed_at ? new Date(member.claimed_at) : null;
+    return {
+      public_id: member.public_id,
+      name: member.display_name,
+      role: 'VCP Graduate',
+      certification: trackName(member.qualified_track) + ' roadmap',
+      since: !claimedAt || Number.isNaN(claimedAt.getTime()) ? '—' : claimedAt.getFullYear(),
+      avatar_url: member.avatar_url
+    };
+  }
+
+  function setStatus(message, kind) {
+    status.hidden = !message;
+    status.className = 'alert alert-' + kind;
+    status.textContent = message;
+  }
+
+  async function loadMembers() {
+    var errors = [];
+    var legacyMembers = [];
+    var graduateMembers = [];
+
+    try {
+      var response = await fetch('/community/members.json', { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('Legacy member list request failed (HTTP ' + response.status + ').');
+      }
+      var data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new Error('Legacy member list has an invalid format.');
+      }
+      legacyMembers = data;
+    } catch (error) {
+      errors.push(error.message || 'Legacy member list could not be loaded.');
+    }
+
+    var result = await window.sclApi.community.directory();
+    if (result.error) {
+      errors.push('VCP graduate directory could not be loaded: ' + result.error.message);
+    } else if (!result.data || !Array.isArray(result.data.members)) {
+      errors.push('VCP directory returned an invalid response.');
+    } else {
+      graduateMembers = result.data.members
+        .filter(function (member) {
+          return member && typeof member.public_id === 'string' && typeof member.display_name === 'string';
+        })
+        .map(mapGraduate);
+    }
+
+    members = graduateMembers.concat(legacyMembers);
+    render();
+    if (errors.length) {
+      setStatus(errors.join(' '), 'warning');
+    } else if (graduateMembers.length === 0) {
+      setStatus('No exam-qualified VCP profiles are listed yet.', 'info');
+    } else {
+      setStatus(graduateMembers.length + ' exam-qualified VCP profile(s) listed.', 'success');
+    }
   }
 
   prev.addEventListener('click', function () {
@@ -88,5 +154,9 @@
     }
   });
 
-  loadMembers();
+  loadMembers().catch(function (error) {
+    setStatus(error.message || 'Community members could not be loaded.', 'danger');
+    members = [];
+    render();
+  });
 })();

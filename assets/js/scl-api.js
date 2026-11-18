@@ -74,6 +74,28 @@
       list: function (roadmap) { return request("GET", "/api/favorites" + query({ roadmap: roadmap })); },
       upsert: function (roadmap, rows) { return post("/api/favorites", { roadmap: roadmap, rows: rows }); },
       remove: function (roadmap, keys) { return post("/api/favorites", { action: "delete", roadmap: roadmap, keys: keys }); }
+    },
+    community: {
+      profile: function () { return request("GET", "/api/community/profile"); },
+      saveProfile: function (profile) { return post("/api/community/profile", profile); },
+      removeAvatar: function () { return request("DELETE", "/api/community/avatar"); },
+      directory: function () { return request("GET", "/api/community/directory"); },
+      member: function (publicId) { return request("GET", "/api/community/member" + query({ public_id: publicId })); },
+      trackLabel: function (track) {
+        var labels = {
+          ada: "Ada", assembly: "Assembly", bash: "Bash", c: "C", cpp: "C++",
+          cse: "CSE", csharp: "C#", css: "CSS", dart: "Dart", dba: "DBA",
+          dsa: "DSA", dsl: "DSL", elixir: "Elixir", flutter: "Flutter",
+          fortran: "Fortran", go: "Go", hpc: "HPC", html: "HTML", java: "Java",
+          javascript: "JavaScript", julia: "Julia", kotlin: "Kotlin", nim: "Nim",
+          node: "Node.js", odin: "Odin", osd: "OSD", pgp: "PGP", php: "PHP",
+          plsql: "PL/SQL", python: "Python", react: "React", ruby: "Ruby",
+          rust: "Rust", scala: "Scala", sml: "SML", svelte: "Svelte",
+          swift: "Swift", tek: "TechOps", tscript: "TypeScript", vue: "Vue",
+          wasm: "WebAssembly", zig: "Zig"
+        };
+        return labels[track] || track;
+      }
     }
   };
 })();

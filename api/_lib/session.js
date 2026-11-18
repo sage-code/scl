@@ -126,6 +126,8 @@ async function requireRegistered(req) {
 // SQLite foreign-key enforcement being enabled on the connection).
 function deleteUserStatements(userId) {
   return [
+    { sql: "delete from community_members where user_id = ?", args: [userId] },
+    { sql: "delete from quiz_attempts where user_id = ?", args: [userId] },
     { sql: "delete from roadmap_progress where user_id = ?", args: [userId] },
     { sql: "delete from roadmap_favorites where user_id = ?", args: [userId] },
     { sql: "delete from email_tokens where user_id = ?", args: [userId] },

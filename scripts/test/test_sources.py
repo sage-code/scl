@@ -4,7 +4,7 @@
 Scope (source only; public/ is never read):
 - JSON (roadmap/, projects/, community/): strict parse; roadmap topic sidebars
   (roadmap/*/data/*.json) must be hierarchical (children lists, titled entries).
-- JS (assets/js/, scripts/): node --check syntax validation.
+- JS (api/, assets/js/, community/, scripts/): node --check syntax validation.
 - Python (scripts/): py_compile syntax validation.
 - HTML (roadmap/, projects/, community/, layouts/): readable markup. Roadmap
   topic pages (roadmap/<track>/<topic>.html) are additionally checked against
@@ -30,7 +30,7 @@ from validation_lib import H1_RE, H2_RE, read_text, sidebar_issues, validate_jso
 
 HTML_ROOTS = ["roadmap", "projects", "community", "layouts"]
 JSON_ROOTS = ["roadmap", "projects", "community"]
-JS_ROOTS = ["assets/js", "scripts"]
+JS_ROOTS = ["api", "assets/js", "community", "scripts"]
 PY_ROOTS = ["scripts"]
 
 failures: list[str] = []
@@ -109,19 +109,23 @@ def check_html(path: Path) -> None:
             warn(f"{rel}: has data/{path.stem}.json but never loads topic-loader.js, so its sidebar stays empty")
 
 
-def check_roadmap_quiz_runtime() -> None:
-    test_file = ROOT / "scripts" / "test" / "test_roadmap_quiz.js"
-    result = subprocess.run(
-        ["node", "--test", str(test_file)],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        detail = (result.stdout + result.stderr).strip()
-        fail(f"roadmap quiz runtime tests failed\n{detail}")
-    else:
-        print(result.stdout.strip())
+def check_runtime_tests() -> None:
+    test_files = [
+        ("roadmap quiz", ROOT / "scripts" / "test" / "test_roadmap_quiz.js"),
+        ("community API", ROOT / "scripts" / "test" / "test_community_api.js"),
+    ]
+    for label, test_file in test_files:
+        result = subprocess.run(
+            ["node", "--test", str(test_file)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            detail = (result.stdout + result.stderr).strip()
+            fail(f"{label} runtime tests failed\n{detail}")
+        else:
+            print(result.stdout.strip())
 
 
 def main() -> int:
@@ -145,7 +149,7 @@ def main() -> int:
             check_html(path)
             checked += 1
 
-    check_roadmap_quiz_runtime()
+    check_runtime_tests()
     print(f"Checked {checked} source file(s).")
 
     if failures:
