@@ -109,6 +109,21 @@ def check_html(path: Path) -> None:
             warn(f"{rel}: has data/{path.stem}.json but never loads topic-loader.js, so its sidebar stays empty")
 
 
+def check_roadmap_quiz_runtime() -> None:
+    test_file = ROOT / "scripts" / "test" / "test_roadmap_quiz.js"
+    result = subprocess.run(
+        ["node", "--test", str(test_file)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = (result.stdout + result.stderr).strip()
+        fail(f"roadmap quiz runtime tests failed\n{detail}")
+    else:
+        print(result.stdout.strip())
+
+
 def main() -> int:
     print("Verifying source files (originals)...")
     checked = 0
@@ -130,6 +145,7 @@ def main() -> int:
             check_html(path)
             checked += 1
 
+    check_roadmap_quiz_runtime()
     print(f"Checked {checked} source file(s).")
 
     if failures:

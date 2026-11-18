@@ -126,6 +126,7 @@ Build does not run validations; verification is a separate step (`run test` for 
 
 - `manual/ARCHITECTURE.md` is the canonical architecture reference.
 - `manual/PROJECTS-ARCHITECTURE.md` defines the shared topic-page contract for `/projects/*` namespaces.
+- `manual/QUIZ-STRATEGY.md` defines the roadmap quiz content model and player approach.
 
 ### Syntax Highlighting — One Prism Bundle
 
