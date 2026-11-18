@@ -80,25 +80,30 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function cleanEnv(name) {
+  return String(process.env[name] || "").trim().replace(/^(['"])(.*)\1$/, "$2").trim();
+}
+
 // Sends one email. Never throws: returns { ok, id } or { ok: false, error } so a
 // mail outage cannot block sign-up. Retries network errors, 429 and 5xx.
 async function sendTemplate(kind, to, handle, link, idempotencyKey) {
-  const apiKey = process.env.RESEND_SEND_KEY || "";
+  const apiKey = cleanEnv("RESEND_SEND_KEY") || cleanEnv("RESEND_API_KEY");
   if (!apiKey) {
-    console.warn("[mail] RESEND_SEND_KEY is not set; email not sent.");
+    console.warn("[mail] RESEND_SEND_KEY / RESEND_API_KEY is not set; email not sent.");
     return { ok: false, error: "Email is not configured." };
   }
 
   const content = TEMPLATES[kind](handle || "there", link);
   const payload = {
-    from: process.env.RESEND_FROM || "Sage-Code <noreply@mail.sagecode.org>",
+    from: cleanEnv("RESEND_FROM") || "Sage-Code <noreply@mail.sagecode.org>",
     to: [to],
     subject: content.subject,
     html: content.html,
     text: content.text
   };
-  if (process.env.RESEND_REPLY_TO) {
-    payload.reply_to = process.env.RESEND_REPLY_TO;
+  const replyTo = cleanEnv("RESEND_REPLY_TO");
+  if (replyTo) {
+    payload.reply_to = replyTo;
   }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {

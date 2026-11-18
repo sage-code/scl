@@ -115,7 +115,7 @@ async function sendTokenEmail(req, user, purpose) {
 
   const base = siteUrl(req);
   const link = purpose === "verify"
-    ? `${base}/api/auth/verify?token=${encodeURIComponent(token)}`
+    ? `${base}/api/auth/verify/?token=${encodeURIComponent(token)}`
     : `${base}/roadmap/reset-password.html?token=${encodeURIComponent(token)}`;
 
   return sendTemplate(purpose, user.email, user.handle, link, `${purpose}-${tokenHash.slice(0, 32)}`);
@@ -265,7 +265,7 @@ const actions = {
 
     const user = (await db.execute({ sql: "select * from users where id = ?", args: [userId] })).rows[0];
     const mail = await sendTokenEmail(req, user, "verify");
-    sendJson(res, 201, { user: S.publicUser(user), email_sent: mail.ok });
+    sendJson(res, 201, { user: S.publicUser(user), email_sent: mail.ok, email_error: mail.ok ? undefined : mail.error });
   },
 
   async resend(req, res) {

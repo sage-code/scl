@@ -211,7 +211,7 @@
     });
   }
 
-  function showRegisterDone(form, api, email, emailSent) {
+  function showRegisterDone(form, api, email, emailSent, emailError) {
     var done = document.getElementById("register-done");
     var status = document.getElementById("auth-status");
     if (!done) {
@@ -232,7 +232,13 @@
     if (emailSent) {
       status.hidden = true;
     } else {
-      setStatus(status, "Your account is created, but the confirmation email could not be sent. Use Resend Link to try again.", "warning");
+      var msg = "Your account is created, but the confirmation email could not be sent.";
+      if (emailError) {
+        msg += " (" + emailError + ")";
+      } else {
+        msg += " Use Resend Link to try again.";
+      }
+      setStatus(status, msg, "warning");
     }
 
     var resend = document.getElementById("register-resend");
@@ -316,7 +322,7 @@
       }
 
       clearFields(form, ["password", "confirm_password"]);
-      if (!showRegisterDone(form, api, email, result.data.email_sent)) {
+      if (!showRegisterDone(form, api, email, result.data.email_sent, result.data.email_error)) {
         setStatus(status, "Account created and your progress is kept. Check your email to confirm the address.", "success");
       }
       applyUser(result.data.user);
