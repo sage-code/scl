@@ -20,6 +20,10 @@
 
   const IDENTIFIER = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const QUIZ_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*-[ABC]$/;
+  const PASSING_SCORE_PERCENT = 70;
+  const QUIZ_STATUS_STORAGE_KEY = "sage-roadmap-quiz-status";
+  const SECONDS_PER_QUESTION = 120;
+  const TIMER_UPDATE_INTERVAL_MS = 5000;
 
   function requireCondition(condition, message) {
     if (!condition) {
@@ -177,6 +181,52 @@
     };
   }
 
+  function quizStatus(scorePercent) {
+    return scorePercent >= PASSING_SCORE_PERCENT ? "pass" : "fail";
+  }
+
+  function quizDurationSeconds(questionCount) {
+    requireCondition(Number.isInteger(questionCount) && questionCount > 0, "Question count must be a positive integer.");
+    return questionCount * SECONDS_PER_QUESTION;
+  }
+
+  function roadmapTitle(track) {
+    if (track === "go") {
+      return "Go";
+    }
+    if (track === "html") {
+      return "HTML";
+    }
+    if (track === "css") {
+      return "CSS";
+    }
+    if (track === "javascript") {
+      return "JavaScript";
+    }
+    return track.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+  }
+
+  function readQuizStatuses(storage) {
+    const stored = storage.getItem(QUIZ_STATUS_STORAGE_KEY);
+    if (!stored) {
+      return {};
+    }
+
+    const statuses = JSON.parse(stored);
+    requireCondition(statuses && typeof statuses === "object" && !Array.isArray(statuses), "Saved quiz status data is invalid.");
+    return statuses;
+  }
+
+  function saveQuizStatus(storage, quiz, scored, completedAt) {
+    const statuses = readQuizStatuses(storage);
+    statuses[quiz.id] = {
+      status: quizStatus(scored.scorePercent),
+      scorePercent: scored.scorePercent,
+      completedAt
+    };
+    storage.setItem(QUIZ_STATUS_STORAGE_KEY, JSON.stringify(statuses));
+  }
+
   function element(documentRef, tag, text, className) {
     const node = documentRef.createElement(tag);
     if (text !== undefined) {
@@ -227,7 +277,7 @@
       input.checked = selected.has(option.id);
       input.dataset.answer = "true";
       input.setAttribute("aria-label", option.text);
-      const text = element(documentRef, "span", ` ${String.fromCharCode(65 + index)}. ${option.text}`, "form-check-label");
+      const text = element(documentRef, "span", ` ${index + 1}: ${option.text}`, "form-check-label");
       label.append(input, text);
       parent.append(label);
     });
@@ -300,14 +350,18 @@
   function showResults(documentRef, quiz, scored) {
     const resultSection = documentRef.getElementById("quiz-results");
     const score = documentRef.getElementById("quiz-score");
+    const outcome = documentRef.getElementById("quiz-outcome");
     const review = documentRef.getElementById("quiz-review");
-    score.textContent = `${scored.pointsEarned} / ${scored.pointsPossible} points (${scored.scorePercent}%)`;
+    const passed = quizStatus(scored.scorePercent) === "pass";
+    score.textContent = `${scored.scorePercent}% (${scored.pointsEarned} / ${scored.pointsPossible} points)`;
+    outcome.textContent = passed ? "Pass" : "Fail";
+    outcome.className = `badge ${passed ? "text-bg-success" : "text-bg-danger"}`;
     review.replaceChildren();
 
     quiz.questions.forEach((question, index) => {
       const result = scored.questions[index];
       const article = element(documentRef, "article", undefined, "quiz-review-item py-3");
-      const heading = element(documentRef, "h3", `Question ${index + 1}: ${result.pointsEarned} / ${result.pointsPossible} points`, "h5");
+      const heading = element(documentRef, "h3", `Question ${index + 1}: ${result.pointsEarned} / ${result.pointsPossible} points`, "h4");
       const yourAnswer = element(documentRef, "p", undefined, "mb-1");
       yourAnswer.append(element(documentRef, "strong", "Your answer: "));
       yourAnswer.append(documentRef.createTextNode(selectedAnswerLabels(question, result.selectedAnswer).join("; ") || "No answer"));
@@ -361,7 +415,9 @@
       const title = documentRef.getElementById("quiz-title");
       title.textContent = quiz.name;
       documentRef.title = `${quiz.name} | Sage-Code`;
-      documentRef.getElementById("quiz-name").textContent = `${quiz.name} · ${quiz.questions.length} questions`;
+      const roadmapLink = documentRef.getElementById("quiz-roadmap-link");
+      roadmapLink.href = `/roadmap/${quiz.track}/`;
+      roadmapLink.textContent = `Return to the ${roadmapTitle(quiz.track)} roadmap`;
       status.hidden = true;
       app.hidden = false;
 
@@ -373,6 +429,33 @@
       const submit = documentRef.getElementById("quiz-submit");
       const progress = documentRef.getElementById("quiz-progress");
       const progressBar = progress.parentElement;
+      const timer = documentRef.getElementById("quiz-timer");
+      const timerProgress = documentRef.getElementById("quiz-timer-progress");
+      const timerText = documentRef.getElementById("quiz-timer-text");
+      const quizForm = documentRef.getElementById("quiz-form");
+      const timerDuration = quizDurationSeconds(quiz.questions.length);
+      const timerDeadline = Date.now() + timerDuration * 1000;
+      let timerInterval;
+      let timeExpired = false;
+
+      function updateTimer() {
+        const remainingSeconds = Math.max(0, Math.ceil((timerDeadline - Date.now()) / 1000));
+        const elapsedRatio = (timerDuration - remainingSeconds) / timerDuration;
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = String(remainingSeconds % 60).padStart(2, "0");
+        timerText.textContent = `${minutes}:${seconds}`;
+        timerProgress.style.strokeDashoffset = String(125.66 * elapsedRatio);
+        timer.dataset.timeLow = String(remainingSeconds <= 30);
+
+        if (remainingSeconds === 0 && !timeExpired) {
+          timeExpired = true;
+          windowRef.clearInterval(timerInterval);
+          quizForm.requestSubmit();
+        }
+      }
+
+      timerInterval = windowRef.setInterval(updateTimer, TIMER_UPDATE_INTERVAL_MS);
+      updateTimer();
 
       questionContainer.addEventListener("change", (event) => {
         if (!event.target.matches("input[data-answer]")) {
@@ -400,10 +483,19 @@
 
       function render() {
         const question = quiz.questions[questionIndex];
+        const examplePanel = documentRef.getElementById("quiz-example-panel");
+        const exampleContainer = documentRef.getElementById("quiz-example");
+        exampleContainer.replaceChildren();
+        examplePanel.hidden = !question.code;
+        if (question.code) {
+          appendCode(documentRef, exampleContainer, question.code, windowRef);
+        }
+
+        const prompt = element(documentRef, "p", question.prompt, "quiz-question-prompt mb-4");
+        prompt.id = "quiz-question-prompt";
         const fieldset = element(documentRef, "fieldset", undefined, "border-0 p-0 m-0");
-        const legend = element(documentRef, "legend", `Question ${questionIndex + 1}. ${question.prompt}`, "h5");
-        fieldset.append(legend);
-        appendCode(documentRef, fieldset, question.code, windowRef);
+        fieldset.setAttribute("aria-labelledby", prompt.id);
+        fieldset.append(element(documentRef, "legend", "Answer choices", "visually-hidden"));
         if (question.type === "multi-select") {
           fieldset.append(element(documentRef, "p", "Select all that apply.", "small text-secondary"));
         }
@@ -412,7 +504,7 @@
         } else {
           renderMatrix(documentRef, fieldset, question, answers);
         }
-        questionContainer.replaceChildren(fieldset);
+        questionContainer.replaceChildren(prompt, fieldset);
 
         const percent = Math.round(((questionIndex + 1) / quiz.questions.length) * 100);
         progress.style.width = `${percent}%`;
@@ -439,9 +531,20 @@
       });
 
       let resultFile;
-      documentRef.getElementById("quiz-form").addEventListener("submit", (event) => {
+      quizForm.addEventListener("submit", (event) => {
         event.preventDefault();
+        windowRef.clearInterval(timerInterval);
+        documentRef.getElementById("quiz-timeout-notice").hidden = !timeExpired;
         const scored = scoreQuiz(quiz, answers);
+        const completedAt = new Date().toISOString();
+        const statusSaveWarning = documentRef.getElementById("quiz-status-save-warning");
+        try {
+          saveQuizStatus(windowRef.localStorage, quiz, scored, completedAt);
+          statusSaveWarning.hidden = true;
+        } catch (error) {
+          statusSaveWarning.hidden = false;
+          statusSaveWarning.textContent = `Quiz result was scored, but its status could not be saved in this browser: ${error.message || String(error)}`;
+        }
         resultFile = {
           quiz: {
             id: quiz.id,
@@ -451,7 +554,7 @@
             topic: quiz.topic,
             level: quiz.level
           },
-          completedAt: new Date().toISOString(),
+          completedAt,
           pointsEarned: scored.pointsEarned,
           pointsPossible: scored.pointsPossible,
           scorePercent: scored.scorePercent,
@@ -489,6 +592,10 @@
     validateQuiz,
     scoreQuestion,
     scoreQuiz,
+    quizStatus,
+    quizDurationSeconds,
+    readQuizStatuses,
+    saveQuizStatus,
     start
   };
 });

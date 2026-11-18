@@ -65,19 +65,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (heading.parentNode.id === 'roadmap-progress-header-row') {
-      if (button.parentNode !== heading.parentNode) {
-        heading.parentNode.appendChild(button);
+      let actions = document.getElementById('roadmap-progress-actions');
+      if (!actions) {
+        actions = document.createElement('div');
+        actions.id = 'roadmap-progress-actions';
+        actions.className = 'd-flex align-items-center gap-2';
+        heading.parentNode.appendChild(actions);
+      }
+      if (button.parentNode !== actions) {
+        actions.appendChild(button);
       }
       return true;
     }
 
     const row = document.createElement('div');
     row.id = 'roadmap-progress-header-row';
-    row.className = 'd-flex justify-content-between align-items-center gap-2 flex-wrap';
+    row.className = 'd-flex justify-content-between align-items-center gap-2 flex-wrap mb-2';
+    const actions = document.createElement('div');
+    actions.id = 'roadmap-progress-actions';
+    actions.className = 'd-flex align-items-center gap-2';
     heading.parentNode.insertBefore(row, heading);
     row.appendChild(heading);
-    row.appendChild(button);
+    row.appendChild(actions);
+    actions.appendChild(button);
     return true;
+  }
+
+  function createQuizButton() {
+    if (!progressBar) return null;
+    if (document.getElementById('roadmap-quiz-button')) {
+      return document.getElementById('roadmap-quiz-button');
+    }
+
+    const button = document.createElement('a');
+    const trackId = resolveTrackId() || labId || courseId;
+    button.id = 'roadmap-quiz-button';
+    button.className = 'btn btn-outline-info btn-sm';
+    button.href = `/roadmap/quizzes.html?track=${encodeURIComponent(trackId)}`;
+    button.textContent = 'Quizzes';
+    button.setAttribute('aria-label', 'Open roadmap quizzes');
+
+    if (ensureProgressHeaderLayout(button)) {
+      return button;
+    }
+
+    const progressWrapper = progressBar.closest('.progress') || progressBar.parentElement;
+    if (!progressWrapper || !progressWrapper.parentNode) {
+      return null;
+    }
+
+    progressWrapper.parentNode.insertBefore(button, progressWrapper);
+    return button;
   }
 
   function createResetButton() {
@@ -89,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const button = document.createElement('button');
     button.type = 'button';
     button.id = 'roadmap-reset-progress';
-    button.className = 'btn btn-outline-warning btn-sm mb-2 ms-auto';
+    button.className = 'btn btn-outline-warning btn-sm';
     button.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i><span>Reset</span>';
     button.setAttribute('aria-label', 'Reset roadmap progress');
 
@@ -488,6 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hydrateRemoteRoadmap();
   });
 
+  createQuizButton();
   resetButton = createResetButton();
   if (resetButton) {
     resetButton.addEventListener('click', () => {

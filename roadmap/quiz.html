@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Take a roadmap practice quiz and download your detailed results for local backup or mentor review.">
+  <meta name="description" content="Complete a roadmap quiz, review explanations, and track your pass status in this browser.">
   <title>Roadmap Quiz | Sage-Code</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/assets/css/roadmap-quiz.css">
   <script src="/assets/prism.js" defer></script>
   <script src="/assets/js/roadmap-quiz.js" defer></script>
+  <script src="/assets/js/sage.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -19,45 +20,70 @@
 
     <main id="main-content" class="py-4">
       <h1 id="quiz-title">Roadmap Quiz</h1>
-      <p class="text-secondary">Practice locally. Your answers stay in this browser; download the detailed result if you want to keep it or share it with a mentor.</p>
-
       <div id="quiz-status" class="alert alert-info" role="status" aria-live="polite">Loading quiz…</div>
 
-      <section id="quiz-content" class="quiz-card card shadow-sm" aria-labelledby="quiz-name" hidden>
-        <div class="card-body">
-          <h2 id="quiz-name" class="h3"></h2>
-          <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
-            <p id="quiz-progress-label" class="mb-0 small text-secondary"></p>
+      <div id="quiz-content" hidden>
+        <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+          <div>
+            <h2 id="quiz-progress-label" class="h4 mb-0"></h2>
             <span id="quiz-answered-label" class="small text-secondary"></span>
           </div>
-          <div class="progress mb-4" role="progressbar" aria-label="Quiz progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-            <div id="quiz-progress" class="progress-bar bg-info" style="width: 0%"></div>
+          <div id="quiz-timer" class="quiz-timer" role="timer" aria-label="Time remaining" aria-live="off">
+            <svg class="quiz-timer-ring" viewBox="0 0 48 48" aria-hidden="true">
+              <circle class="quiz-timer-track" cx="24" cy="24" r="20"></circle>
+              <circle id="quiz-timer-progress" class="quiz-timer-progress" cx="24" cy="24" r="20"></circle>
+            </svg>
+            <span id="quiz-timer-text" class="quiz-timer-text">--:--</span>
           </div>
-
-          <form id="quiz-form">
-            <div id="quiz-question" class="quiz-question mb-4" tabindex="-1"></div>
-            <div class="d-flex justify-content-between gap-2">
-              <button id="quiz-previous" class="btn btn-outline-secondary" type="button">Previous</button>
-              <div class="d-flex gap-2">
-                <button id="quiz-next" class="btn btn-outline-info" type="button">Next</button>
-                <button id="quiz-submit" class="btn btn-primary" type="submit" hidden>Submit quiz</button>
-              </div>
-            </div>
-          </form>
         </div>
-      </section>
+        <div class="progress mb-4" role="progressbar" aria-label="Quiz progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="quiz-progress" class="progress-bar bg-info" style="width: 0%"></div>
+        </div>
+
+        <section id="quiz-example-panel" class="quiz-card card shadow-sm mb-3" aria-labelledby="quiz-example-heading" hidden>
+          <div class="card-body">
+            <h3 id="quiz-example-heading" class="h5">Program Example</h3>
+            <div id="quiz-example"></div>
+          </div>
+        </section>
+
+        <section class="quiz-card card shadow-sm" aria-label="Current question">
+          <div class="card-body">
+            <form id="quiz-form">
+              <div id="quiz-question" class="quiz-question mb-4" tabindex="-1"></div>
+              <div class="d-flex justify-content-between gap-2">
+                <button id="quiz-previous" class="btn btn-outline-secondary" type="button">Previous</button>
+                <div class="d-flex gap-2">
+                  <button id="quiz-next" class="btn btn-outline-info" type="button">Next</button>
+                  <button id="quiz-submit" class="btn btn-primary" type="submit" hidden>Submit quiz</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
 
       <section id="quiz-results" class="quiz-card card shadow-sm" aria-labelledby="quiz-results-heading" hidden>
         <div class="card-body">
-          <h2 id="quiz-results-heading" class="h3">Quiz results</h2>
+          <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+            <h2 id="quiz-results-heading" class="h3 mb-0">Quiz results</h2>
+            <button id="quiz-download" class="btn btn-primary d-inline-flex align-items-center gap-2 flex-shrink-0" type="button" aria-label="Download quiz results" title="Download quiz results">
+              <svg class="quiz-download-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M8 1.75v8.5m-3.5-3.5L8 10.25l3.5-3.5M3 14.25h10"></path>
+              </svg>
+              <span class="d-none d-sm-inline">Download results</span>
+            </button>
+          </div>
           <p id="quiz-score" class="lead"></p>
+          <p class="mb-3"><strong>Outcome: </strong><span id="quiz-outcome" class="badge text-bg-secondary" role="status" aria-live="polite"></span></p>
+          <p id="quiz-timeout-notice" class="alert alert-warning" role="status" hidden>Time expired. Your current answers were submitted automatically; unanswered questions received no points.</p>
+          <p id="quiz-status-save-warning" class="alert alert-warning" role="status" hidden></p>
           <p class="small text-secondary">Detailed answers are only in the file you download. They are not sent to Sage-Code.</p>
-          <button id="quiz-download" class="btn btn-primary" type="button">Download results</button>
           <div id="quiz-review" class="mt-4"></div>
         </div>
       </section>
 
-      <p class="mt-4"><a href="/roadmap/go/">Return to the Go roadmap</a></p>
+      <p class="mt-4"><a id="quiz-roadmap-link" href="/roadmap/">Return to roadmaps</a></p>
       <noscript><p class="alert alert-warning">JavaScript is required to run this quiz.</p></noscript>
     </main>
 

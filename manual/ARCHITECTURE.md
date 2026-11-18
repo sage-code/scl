@@ -190,6 +190,12 @@ Roadmap pages may include **hand-authored SVG diagrams** to explain spatial or r
   - **UML / logic-workflow shapes.** Use standard shapes: rounded rectangle = process/object, plain rectangle = data/terminal, diamond = decision, arrow with arrowhead = flow. No free-floating unboxed nodes.
   - **Alignment & spacing.** Shapes align to one axis/grid; columnar shapes share one width and one center-x; leave explicit gaps of at least 12px between shapes (they must never touch); arrows are labeled.
 
+### Raster image storage (Git LFS)
+
+- Raster image extensions in `.gitattributes` use Git LFS; SVG diagrams and editable `.drawio` sources remain ordinary text files in Git.
+- Install Git LFS for a new development environment with `git lfs install` before adding raster images. Newly added matching files are stored as LFS objects rather than full Git blobs.
+- Existing tracked images and their history are not converted by changing attributes. Migrating history with `git lfs migrate` rewrites commits and requires coordinated approval; do not do it as part of routine asset changes.
+- Git LFS uses separate GitHub storage and bandwidth quotas. Prefer optimized image dimensions and formats before adding large assets.
 
 ## Roadmap Blueprint — the track pattern (template-defined)
 

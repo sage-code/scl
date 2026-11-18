@@ -26,6 +26,7 @@ metadata in `data/`:
 
 ```text
 roadmap/
+  quizzes.html                      # Shared catalog; track selected by query parameter
   quiz.html                         # Shared static player page
   <track>/
     quiz/
@@ -33,7 +34,9 @@ roadmap/
       <topic>-B.json
       <topic>-C.json
 assets/
+  css/roadmap-quiz-catalog.css
   css/roadmap-quiz.css
+  js/roadmap-quiz-catalog.js
   js/roadmap-quiz.js
 ```
 
@@ -52,8 +55,9 @@ Each topic may have three separate quizzes:
 | B | Intermediate | Combining concepts, reading code, and common edge cases |
 | C | Advanced | Trade-offs, debugging, design choices, and production scenarios |
 
-Target about 42 questions per complete quiz. A smaller pilot is useful while the
-schema and interaction model are being validated.
+Each complete quiz contains 42 questions. A smaller pilot is useful while the
+schema and interaction model are being validated, but should be expanded before
+the set is published as complete.
 
 ## JSON data model
 
@@ -158,6 +162,14 @@ screens.
   possible total.
 - Show the score and explanations after submission. An incorrect selection can only
   reduce its own question's earned points; it never affects other questions.
+- The roadmap quiz catalog shows `None`, `Fail`, or `Pass` for each set. A score of
+  at least 70% passes; the status and score are stored locally in the browser, not
+  on the server. Learners must pass sets A, B, and C before claiming a completion
+  certificate.
+- Allow two minutes per question. Show a circular countdown that updates every five
+  seconds, calculate remaining time from a fixed deadline so delayed browser ticks
+  cannot extend an attempt, and submit the learner's current answers automatically
+  when time expires. Unanswered questions receive no points.
 - Build a self-contained result JSON locally with quiz ID/name/revision, completion
   time, selected answers, correct answers, per-question points, and totals. Offer a
   download so the learner can back it up or share it with a mentor for review.
@@ -212,16 +224,17 @@ and scoring.
 
 ## Rollout
 
-1. Implement the initial schema checks and shared player for single-choice,
-   multi-select, matrix, and code questions.
-2. Pilot `/roadmap/go/quiz/syntax-A.json` from the Go roadmap index; verify scoring,
-   keyboard use, responsive matrix layout, Go code highlighting, and result download.
-3. Add Go syntax levels B and C only after the first quiz has been reviewed.
-4. Add the quiz catalog, summary-only API, and database migration for account score
-   history. Verify account deletion removes these records.
-5. Add quiz links to additional roadmap pages and expand content only after each quiz
-   passes validation.
+1. Track per-roadmap status and the programming-then-engineering order in
+   `manual/QUIZ-ROLLOUT-PLAN.md`.
+2. Prepare A, B, and C for one roadmap at a time. Validate all 42 questions per
+   set, answer formats, code examples, scoring, and answer-position variety.
+3. Run source tests, build, and generated-output checks, then report that roadmap's
+   counts and any content issues.
+4. Pause for the user's review after each roadmap. Do not start the next roadmap or
+   expose a new set in the catalog until the user approves the current set.
+5. Generalize catalog metadata as reviewed roadmaps are approved. Account score
+   history and its summary-only API remain a separate future feature.
 
-The initial implementation is a five-question Go syntax A pilot. It exercises each
-supported question type and keeps detailed results in a user-downloaded JSON file.
+The Go syntax catalog contains 42-question A, B, and C sets and exercises each
+supported question type. Detailed results stay in a user-downloaded JSON file.
 Account score submission and progress restoration are not implemented.

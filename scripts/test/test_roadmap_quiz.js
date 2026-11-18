@@ -5,7 +5,20 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test } = require("node:test");
 const quiz = require("../../roadmap/go/quiz/syntax-A.json");
-const { scoreQuestion, scoreQuiz, validateQuiz } = require("../../assets/js/roadmap-quiz.js");
+const pilotQuiz = {
+  ...quiz,
+  questions: quiz.questions.slice(0, 5),
+  pointsPossible: 7
+};
+const {
+  quizStatus,
+  quizDurationSeconds,
+  readQuizStatuses,
+  saveQuizStatus,
+  scoreQuestion,
+  scoreQuiz,
+  validateQuiz
+} = require("../../assets/js/roadmap-quiz.js");
 
 const roadmapRoot = path.resolve(__dirname, "../../roadmap");
 const quizFiles = fs.readdirSync(roadmapRoot, { withFileTypes: true })
@@ -20,11 +33,86 @@ const quizFiles = fs.readdirSync(roadmapRoot, { withFileTypes: true })
       .map((file) => path.join(quizDirectory, file));
   });
 
+const goQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`go${path.sep}quiz${path.sep}`))
+  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+const htmlQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`html${path.sep}quiz${path.sep}`))
+  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+const cssQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`css${path.sep}quiz${path.sep}`))
+  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+const javascriptQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`javascript${path.sep}quiz${path.sep}`))
+  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+
 test("validates the Go syntax pilot and its declared point total", () => {
   assert.ok(quizFiles.length > 0, "at least one roadmap quiz JSON file should exist");
   assert.equal(validateQuiz(quiz), true);
-  assert.equal(quiz.questions.length, 5);
-  assert.equal(quiz.pointsPossible, 7);
+  assert.equal(quiz.questions.length, 42);
+  assert.equal(quiz.pointsPossible, 61);
+});
+
+function assertCompleteQuizSeries(quizzes, track, topic, language, revision) {
+  assert.deepEqual(quizzes.map((item) => item.level).sort(), ["A", "B", "C"]);
+  quizzes.forEach((item) => {
+    assert.equal(item.track, track, `${item.id} should belong to the ${track} roadmap`);
+    assert.equal(item.topic, topic, `${item.id} should use the ${topic} topic slug`);
+    assert.ok(item.revision >= revision, `${item.id} should use the expected content revision`);
+    assert.equal(item.questions.length, 42, `${item.id} should contain 42 questions`);
+    const shortExamples = item.questions.filter((question) =>
+      question.code &&
+      question.code.language === language &&
+      question.code.source.length <= 120 &&
+      question.code.source.split(/\r?\n/).length <= 4
+    );
+    assert.ok(
+      shortExamples.length >= Math.ceil(item.questions.length * 0.1),
+      `${item.id} should have short code examples in at least 10% of its questions`
+    );
+    assert.ok(
+      item.questions.filter((question) => question.type === "multi-select").length >= 5,
+      `${item.id} should include several multi-select questions`
+    );
+    assert.ok(
+      item.questions.filter((question) => question.type === "matrix").length >= 3,
+      `${item.id} should include several matrix questions`
+    );
+    const multiAnswerPositions = item.questions
+      .filter((question) => question.type === "multi-select")
+      .map((question) => question.options
+        .map((option, index) => question.correctOptionIds.includes(option.id) ? index : null)
+        .filter((index) => index !== null)
+        .join(","));
+    assert.ok(new Set(multiAnswerPositions).size >= 3, `${item.id} should vary multi-select answer positions`);
+    const singleQuestions = item.questions.filter((question) => question.type === "single-choice");
+    const answerPositionCounts = [0, 1, 2, 3].map((position) =>
+      singleQuestions.filter((question) =>
+        question.options.findIndex((option) => option.id === question.correctOptionIds[0]) === position
+      ).length
+    );
+    assert.ok(answerPositionCounts.every((count) => count > 0), `${item.id} should vary single-choice answer positions`);
+    assert.ok(
+      Math.max(...answerPositionCounts) <= Math.ceil(singleQuestions.length / 2),
+      `${item.id} should not overuse one single-choice answer position`
+    );
+  });
+}
+
+test("each Go quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(goQuizzes, "go", "syntax", "go", 2);
+});
+
+test("each HTML quiz has 42 questions, brief markup examples, and varied response formats", () => {
+  assertCompleteQuizSeries(htmlQuizzes, "html", "fundamentals", "markup", 1);
+});
+
+test("each CSS quiz has 42 questions, brief CSS examples, and varied response formats", () => {
+  assertCompleteQuizSeries(cssQuizzes, "css", "foundations", "css", 1);
+});
+
+test("each JavaScript quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(javascriptQuizzes, "javascript", "fundamentals", "javascript", 1);
 });
 
 for (const file of quizFiles) {
@@ -64,19 +152,47 @@ test("calculates quiz totals and rounds percentages to two decimals", () => {
     },
     q005: ["c"]
   };
-  const result = scoreQuiz(quiz, answers);
+  const result = scoreQuiz(pilotQuiz, answers);
   assert.equal(result.pointsEarned, 7);
   assert.equal(result.pointsPossible, 7);
   assert.equal(result.scorePercent, 100);
 
   answers.q003 = ["a"];
-  const partialResult = scoreQuiz(quiz, answers);
+  const partialResult = scoreQuiz(pilotQuiz, answers);
   assert.equal(partialResult.pointsEarned, 6);
   assert.equal(partialResult.scorePercent, 85.71);
+});
+
+test("classifies quiz results at the 70 percent passing threshold", () => {
+  assert.equal(quizStatus(69.99), "fail");
+  assert.equal(quizStatus(70), "pass");
+});
+
+test("sets the quiz timer to two minutes per question", () => {
+  assert.equal(quizDurationSeconds(1), 120);
+  assert.equal(quizDurationSeconds(5), 600);
+  assert.throws(() => quizDurationSeconds(0), /positive integer/);
+});
+
+test("persists quiz status and score for the roadmap catalog", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value)
+  };
+  const scored = { scorePercent: 70 };
+
+  saveQuizStatus(storage, quiz, scored, "2026-11-18T00:00:00.000Z");
+
+  assert.deepEqual(readQuizStatuses(storage)[quiz.id], {
+    status: "pass",
+    scorePercent: 70,
+    completedAt: "2026-11-18T00:00:00.000Z"
+  });
 });
 
 test("rejects quiz data whose possible-points total is incorrect", () => {
   const invalidQuiz = JSON.parse(JSON.stringify(quiz));
   invalidQuiz.pointsPossible += 1;
-  assert.throws(() => validateQuiz(invalidQuiz), /expected 7/);
+  assert.throws(() => validateQuiz(invalidQuiz), /expected 61/);
 });

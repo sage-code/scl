@@ -1,0 +1,182 @@
+(function () {
+  "use strict";
+
+  const identifierPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  const statusLabels = {
+    none: "None",
+    fail: "Fail",
+    pass: "Pass"
+  };
+  const statusClasses = {
+    none: "text-bg-secondary",
+    fail: "text-bg-danger",
+    pass: "text-bg-success"
+  };
+  const quizSetsByTrack = {
+    go: [
+      {
+        level: "A",
+        topic: "syntax",
+        title: "Go Foundations",
+        description: "Check package structure, declarations, operators, and basic Go execution."
+      },
+      {
+        level: "B",
+        topic: "syntax",
+        title: "Go Applied Programming",
+        description: "Apply scope, control flow, slices, and explicit error returns to short programs."
+      },
+      {
+        level: "C",
+        topic: "syntax",
+        title: "Go Engineering Practice",
+        description: "Reason about defer, wrapped errors, nil slices, and channel behavior."
+      }
+    ],
+    html: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "HTML Foundations",
+        description: "Review document structure, elements, attributes, links, tables, forms, and semantic basics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "HTML Applied Practice",
+        description: "Apply forms, accessible tables, responsive media, resource loading, and browser validation."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "HTML Engineering Practice",
+        description: "Evaluate production trade-offs in accessibility, rendering, performance, native APIs, and safe DOM construction."
+      }
+    ],
+    css: [
+      {
+        level: "A",
+        topic: "foundations",
+        title: "CSS Foundations",
+        description: "Review CSS rule syntax, selectors, values, units, the box model, and core layout concepts."
+      },
+      {
+        level: "B",
+        topic: "foundations",
+        title: "CSS Applied Practice",
+        description: "Apply cascade layers, responsive layout, Grid and flexbox sizing, container queries, and motion preferences."
+      },
+      {
+        level: "C",
+        topic: "foundations",
+        title: "CSS Engineering Practice",
+        description: "Evaluate cascade architecture, design tokens, accessibility, browser support, rendering cost, and maintainable component contracts."
+      }
+    ],
+    javascript: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "JavaScript Foundations",
+        description: "Review values, scope, operators, functions, arrays, objects, modules, and core syntax."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "JavaScript Applied Practice",
+        description: "Apply collection methods, DOM events, modules, fetch, Promises, and browser scheduling."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "JavaScript Engineering Practice",
+        description: "Evaluate asynchronous reliability, safe DOM updates, lifecycle cleanup, performance, workers, and testing."
+      }
+    ]
+  };
+  const trackTitles = {
+    go: "Go",
+    html: "HTML",
+    css: "CSS",
+    javascript: "JavaScript"
+  };
+
+  function titleCase(track) {
+    return track.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+  }
+
+  function start() {
+    const params = new URLSearchParams(window.location.search);
+    const track = params.get("track");
+    const error = document.getElementById("quiz-catalog-error");
+    const list = document.getElementById("quiz-set-list");
+    const template = document.getElementById("quiz-card-template");
+    const trackTitle = Object.prototype.hasOwnProperty.call(trackTitles, track)
+      ? trackTitles[track]
+      : titleCase(track || "");
+
+    if (!identifierPattern.test(track || "")) {
+      error.hidden = false;
+      error.textContent = "This roadmap link is invalid. Return to the roadmap and open its quiz page again.";
+      list.hidden = true;
+      return;
+    }
+
+    document.title = `${trackTitle} Quizzes | Sage-Code`;
+    document.getElementById("quiz-catalog-title").textContent = `${trackTitle} Quizzes`;
+    document.getElementById("quiz-catalog-description").textContent =
+      `These quizzes measure how well you recall, apply, and reason about ${trackTitle} concepts. Set A checks foundations, Set B combines core techniques, and Set C tests engineering judgment. Use the results to identify gaps and guide further study. Each quiz allows two minutes per question.`;
+    document.getElementById("roadmap-return-link").href = `/roadmap/${track}/`;
+    document.getElementById("roadmap-return-link").textContent = `Return to the ${trackTitle} roadmap`;
+
+    let statuses;
+    try {
+      statuses = window.RoadmapQuiz.readQuizStatuses(window.localStorage);
+    } catch (readError) {
+      error.hidden = false;
+      error.textContent = `Quiz status could not be read from this browser: ${readError.message || String(readError)}`;
+      statuses = null;
+    }
+
+    const sets = Object.prototype.hasOwnProperty.call(quizSetsByTrack, track)
+      ? quizSetsByTrack[track]
+      : ["A", "B", "C"].map((level) => ({
+        level,
+        title: `Quiz ${level}`,
+        description: "Quiz content for this roadmap has not been published yet."
+      }));
+
+    sets.forEach((quizSet) => {
+      const card = template.content.firstElementChild.cloneNode(true);
+      const statusBadge = card.querySelector(".quiz-set-status");
+      const startLink = card.querySelector(".quiz-set-start");
+      const savedStatus = statuses && quizSet.topic
+        ? statuses[`${track}-${quizSet.topic}-${quizSet.level}`]
+        : null;
+      const status = savedStatus ? savedStatus.status : "none";
+      const validStatus = statuses !== null && Object.prototype.hasOwnProperty.call(statusLabels, status);
+
+      card.querySelector("[data-quiz-set-title]").textContent = quizSet.title;
+      card.querySelector("[data-quiz-set-description]").textContent = quizSet.description;
+      statusBadge.textContent = validStatus ? statusLabels[status] : "Unavailable";
+      statusBadge.className = `quiz-set-status badge ${validStatus ? statusClasses[status] : "text-bg-warning"}`;
+
+      if (quizSet.topic) {
+        startLink.href = `/roadmap/quiz.html?track=${track}&topic=${quizSet.topic}&level=${quizSet.level}`;
+      } else {
+        startLink.removeAttribute("href");
+        startLink.classList.add("disabled");
+        startLink.setAttribute("aria-disabled", "true");
+        startLink.title = "Quiz content for this roadmap has not been published yet.";
+      }
+
+      list.append(card);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start, { once: true });
+  } else {
+    start();
+  }
+})();

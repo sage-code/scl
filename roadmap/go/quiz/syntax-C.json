@@ -1,0 +1,1446 @@
+{
+  "schemaVersion": 1,
+  "id": "go-syntax-C",
+  "revision": 2,
+  "name": "Go Engineering Practice: C",
+  "track": "go",
+  "topic": "syntax",
+  "level": "C",
+  "pointsPossible": 84,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "Which wrapping preserves the sentinel so callers can test it with errors.Is?",
+      "code": {
+        "language": "go",
+        "source": "wrapped := fmt.Errorf(\"load config: %w\", ErrMissing)"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "fmt.Errorf(\"load config: %w\", ErrMissing)"
+        },
+        {
+          "id": "b",
+          "text": "fmt.Errorf(\"load config: %v\", ErrMissing)"
+        },
+        {
+          "id": "c",
+          "text": "errors.New(\"load config: \" + ErrMissing.Error())"
+        },
+        {
+          "id": "d",
+          "text": "fmt.Sprint(\"load config: \", ErrMissing)"
+        }
+      ],
+      "correctOptionIds": [
+        "a"
+      ],
+      "explanation": "The %w formatting verb creates an error that unwraps to ErrMissing, preserving the chain for errors.Is and errors.As. Formatting with %v or constructing a new string loses that relationship."
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "A lower layer wraps a concrete *os.PathError. Which standard operation can find that typed error through the chain?",
+      "options": [
+        {
+          "id": "a",
+          "text": "errors.Is(err, &os.PathError{})"
+        },
+        {
+          "id": "b",
+          "text": "errors.As(err, &pathErr)"
+        },
+        {
+          "id": "c",
+          "text": "err == &os.PathError{}"
+        },
+        {
+          "id": "d",
+          "text": "fmt.Sprint(err) == \"*os.PathError\""
+        }
+      ],
+      "correctOptionIds": [
+        "b"
+      ],
+      "explanation": "errors.As walks the error chain and assigns the first value assignable to the target type. errors.Is checks identity or an error's Is method, not whether the chain contains a particular concrete type."
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "When should an API wrap an underlying error with %w rather than format it with %v?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Whenever the error message should be longer"
+        },
+        {
+          "id": "b",
+          "text": "Only when the wrapped error is a string"
+        },
+        {
+          "id": "c",
+          "text": "When callers are intended to inspect the underlying cause as part of the API contract"
+        },
+        {
+          "id": "d",
+          "text": "Whenever the implementation wants to prevent callers from identifying the cause"
+        }
+      ],
+      "correctOptionIds": [
+        "c"
+      ],
+      "explanation": "Wrapping exposes the underlying error to errors.Is and errors.As, which makes that cause observable to callers. Use wrapping deliberately when that observability is part of the contract; otherwise return a stable abstraction or format without %w."
+    },
+    {
+      "id": "q004",
+      "type": "single-choice",
+      "prompt": "What value does this deferred closure print when the function returns?",
+      "code": {
+        "language": "go",
+        "source": "n := 1\ndefer func() { fmt.Println(n) }()\nn = 2"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "1, because all defer operands are copied immediately"
+        },
+        {
+          "id": "b",
+          "text": "No output, because deferred closures are discarded"
+        },
+        {
+          "id": "c",
+          "text": "The program does not compile because defer cannot use a closure"
+        },
+        {
+          "id": "d",
+          "text": "2, because the closure reads n when it runs"
+        }
+      ],
+      "correctOptionIds": [
+        "d"
+      ],
+      "explanation": "The deferred function value is evaluated at the defer statement, but this closure reads the captured variable n when the function executes. Since n is set to 2 before return, it prints 2."
+    },
+    {
+      "id": "q005",
+      "type": "single-choice",
+      "prompt": "What happens to deferred calls when a function executes several defer statements?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They run in last-in, first-out order as the function returns."
+        },
+        {
+          "id": "b",
+          "text": "They run in the same order they were registered."
+        },
+        {
+          "id": "c",
+          "text": "Only the last defer runs."
+        },
+        {
+          "id": "d",
+          "text": "They run concurrently after the function returns."
+        }
+      ],
+      "correctOptionIds": [
+        "a"
+      ],
+      "explanation": "Deferred calls execute in LIFO order when the surrounding function returns, including during panic unwinding. This order is useful for nested resource acquisition and cleanup."
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "A function acquires a lock and immediately defers Unlock. What is the main benefit?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The lock is released as soon as the defer statement is evaluated."
+        },
+        {
+          "id": "b",
+          "text": "The lock is released on every normal return path from that function."
+        },
+        {
+          "id": "c",
+          "text": "The lock becomes safe to use from any goroutine without coordination."
+        },
+        {
+          "id": "d",
+          "text": "The defer makes a non-reentrant lock reentrant."
+        }
+      ],
+      "correctOptionIds": [
+        "b"
+      ],
+      "explanation": "A deferred Unlock runs when the function returns, preventing missed unlocks across early returns. The critical section still lasts until that function exits, so defer placement and function size matter."
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "What does this comparison report?",
+      "code": {
+        "language": "go",
+        "source": "var p *Widget\nvar x any = p\nfmt.Println(x == nil)"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "true, because p is a nil pointer"
+        },
+        {
+          "id": "b",
+          "text": "It panics because interfaces cannot hold pointers"
+        },
+        {
+          "id": "c",
+          "text": "false, because x contains the dynamic type *Widget and a nil pointer value"
+        },
+        {
+          "id": "d",
+          "text": "It does not compile because nil cannot be assigned to any"
+        }
+      ],
+      "correctOptionIds": [
+        "c"
+      ],
+      "explanation": "An interface is nil only when both its dynamic type and dynamic value are absent. Assigning a typed nil pointer gives x a dynamic type, so x != nil even though the contained pointer is nil."
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "A function returns an error interface. Which return represents a genuinely nil error?",
+      "options": [
+        {
+          "id": "a",
+          "text": "return (*MyError)(nil)"
+        },
+        {
+          "id": "b",
+          "text": "return error((*MyError)(nil))"
+        },
+        {
+          "id": "c",
+          "text": "return fmt.Errorf(\"%w\", (*MyError)(nil))"
+        },
+        {
+          "id": "d",
+          "text": "return nil"
+        }
+      ],
+      "correctOptionIds": [
+        "d"
+      ],
+      "explanation": "Returning an untyped nil produces a nil error interface. Converting a nil *MyError to error creates a non-nil interface with a dynamic type, a common typed-nil bug."
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "If a has spare capacity, what can happen when this append runs?",
+      "code": {
+        "language": "go",
+        "source": "a := make([]int, 1, 3)\nb := append(a, 2)"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "b may share a's backing array, while a's length remains unchanged."
+        },
+        {
+          "id": "b",
+          "text": "append always allocates a separate backing array."
+        },
+        {
+          "id": "c",
+          "text": "a's length changes to 2 because append mutates its argument."
+        },
+        {
+          "id": "d",
+          "text": "The append panics because a is not full."
+        }
+      ],
+      "correctOptionIds": [
+        "a"
+      ],
+      "explanation": "append can reuse the backing array when capacity is sufficient and returns a new slice header with a larger length. The original slice header keeps its length, but elements within the shared backing array can be visible through aliases."
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "Why might code use a full slice expression such as s[:len(s):len(s)] before passing a slice to code that may append?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It copies all elements into a new independent backing array."
+        },
+        {
+          "id": "b",
+          "text": "It limits the resulting slice capacity so append must allocate instead of extending into the caller's spare capacity."
+        },
+        {
+          "id": "c",
+          "text": "It makes the slice immutable."
+        },
+        {
+          "id": "d",
+          "text": "It prevents the callee from changing existing elements."
+        }
+      ],
+      "correctOptionIds": [
+        "b"
+      ],
+      "explanation": "The third index sets capacity to len(s), preventing append from using the original slice's spare capacity. It does not copy the elements or prevent mutation of the shared existing elements."
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "Which value is valid as a Go map key?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A slice of strings"
+        },
+        {
+          "id": "b",
+          "text": "A map from string to int"
+        },
+        {
+          "id": "c",
+          "text": "A struct containing only strings and integers"
+        },
+        {
+          "id": "d",
+          "text": "A function value"
+        }
+      ],
+      "correctOptionIds": [
+        "c"
+      ],
+      "explanation": "Map key types must be comparable. A struct is comparable when all its fields are comparable; slices, maps, and functions are not comparable and cannot be map keys."
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "Several goroutines need to read and update one map. Which design provides safe concurrent access?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use a map[string]int; string keys make all map operations concurrency-safe."
+        },
+        {
+          "id": "b",
+          "text": "Protect writes only; concurrent reads and writes are safe."
+        },
+        {
+          "id": "c",
+          "text": "Recover from a runtime panic; recovery makes concurrent map access safe."
+        },
+        {
+          "id": "d",
+          "text": "Use a mutex around every access that can overlap, or give one goroutine exclusive ownership and communicate by channels."
+        }
+      ],
+      "correctOptionIds": [
+        "d"
+      ],
+      "explanation": "Ordinary Go maps do not support unsynchronized concurrent reads and writes. Coordinate all potentially overlapping access with a synchronization strategy; a runtime failure is not a substitute for synchronization."
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "Who should normally close a channel used to signal that a producer has finished?",
+      "code": {
+        "language": "go",
+        "source": "close(done)"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "The sender or coordinator that can establish no further sends will occur"
+        },
+        {
+          "id": "b",
+          "text": "The receiver, after it has consumed enough values"
+        },
+        {
+          "id": "c",
+          "text": "Every goroutine that receives from the channel"
+        },
+        {
+          "id": "d",
+          "text": "Any goroutine, because closing twice is harmless"
+        }
+      ],
+      "correctOptionIds": [
+        "a"
+      ],
+      "explanation": "The goroutine that owns production, or a coordinator that knows all producers have stopped, should close the channel. Receivers generally do not close producer-owned channels; sending to a closed channel or closing it twice panics."
+    },
+    {
+      "id": "q014",
+      "type": "single-choice",
+      "prompt": "What happens if a goroutine sends on a channel after another goroutine has closed it?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The send blocks until another goroutine reopens the channel."
+        },
+        {
+          "id": "b",
+          "text": "The send panics."
+        },
+        {
+          "id": "c",
+          "text": "The send is discarded and returns a false status."
+        },
+        {
+          "id": "d",
+          "text": "The channel is automatically reopened."
+        }
+      ],
+      "correctOptionIds": [
+        "b"
+      ],
+      "explanation": "Sending on a closed channel panics. Channel closure is a one-way signal that no more values will be sent, so send ownership and close coordination must be explicit."
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "In a select, what happens when the receive case below is selected after ch is closed and drained?",
+      "code": {
+        "language": "go",
+        "source": "case v, ok := <-ch:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "The case is disabled automatically."
+        },
+        {
+          "id": "b",
+          "text": "It blocks forever."
+        },
+        {
+          "id": "c",
+          "text": "It receives the zero value and ok is false, so the loop may spin if the case remains enabled."
+        },
+        {
+          "id": "d",
+          "text": "The receive panics."
+        }
+      ],
+      "correctOptionIds": [
+        "c"
+      ],
+      "explanation": "A receive from a closed, drained channel is always ready and yields the zero value with ok false. A select loop should usually detect closure and stop or set that channel variable to nil to disable the case."
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What does a mutex unlock/lock pair provide when one goroutine writes data before Unlock and another reads it after Lock?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A guarantee that the two goroutines run on the same processor."
+        },
+        {
+          "id": "b",
+          "text": "A guarantee that all unrelated goroutines stop."
+        },
+        {
+          "id": "c",
+          "text": "Only mutual exclusion during Unlock; it provides no ordering or visibility."
+        },
+        {
+          "id": "d",
+          "text": "A happens-before relationship that makes the protected write visible to the later reader."
+        }
+      ],
+      "correctOptionIds": [
+        "d"
+      ],
+      "explanation": "A mutex establishes synchronization: an Unlock synchronizes before a later successful Lock returns. This ordering makes writes in the critical section visible to code protected by the later lock."
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "Why should a WaitGroup counter be incremented before starting the goroutine it tracks?",
+      "code": {
+        "language": "go",
+        "source": "var wg sync.WaitGroup\nwg.Add(1)\ngo func() { defer wg.Done() }()"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "It ensures Wait cannot observe a zero counter and return before the task is registered."
+        },
+        {
+          "id": "b",
+          "text": "It forces the new goroutine to run before the caller."
+        },
+        {
+          "id": "c",
+          "text": "It makes Done optional."
+        },
+        {
+          "id": "d",
+          "text": "WaitGroup requires Add only after the goroutine completes."
+        }
+      ],
+      "correctOptionIds": [
+        "a"
+      ],
+      "explanation": "Add(1) must happen before the goroutine can finish and before a concurrent Wait is allowed to conclude that the counter is zero. Deferring Done in the goroutine balances the increment across its return paths."
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "Why is it important to call cancel when a derived context is no longer needed?",
+      "code": {
+        "language": "go",
+        "source": "ctx, cancel := context.WithCancel(parent)\ndefer cancel()"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "It guarantees every goroutine using ctx has already stopped."
+        },
+        {
+          "id": "b",
+          "text": "It releases resources associated with the derived context and signals its descendants to stop."
+        },
+        {
+          "id": "c",
+          "text": "It resets the parent context to its original state."
+        },
+        {
+          "id": "d",
+          "text": "It converts context cancellation into a successful result."
+        }
+      ],
+      "correctOptionIds": [
+        "b"
+      ],
+      "explanation": "Calling cancel releases resources associated with the derived context and propagates cancellation. It requests cooperative shutdown; goroutines must observe ctx.Done and return for leaks to be prevented."
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "A worker blocks sending a result, but its caller may stop receiving early. What is the most robust design?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Assume goroutines blocked on sends are automatically stopped when the caller returns."
+        },
+        {
+          "id": "b",
+          "text": "Close the result channel from the receiver to wake the sender."
+        },
+        {
+          "id": "c",
+          "text": "Make the send cancellation-aware and ensure the caller cancels or drains work when it stops early."
+        },
+        {
+          "id": "d",
+          "text": "Add a sleep before sending so the receiver has time to run."
+        }
+      ],
+      "correctOptionIds": [
+        "c"
+      ],
+      "explanation": "A goroutine blocked on an unreceived send can remain alive indefinitely. A cancellation-aware send lets it exit when the operation is abandoned, and the caller must define how remaining work is stopped or drained."
+    },
+    {
+      "id": "q020",
+      "type": "single-choice",
+      "prompt": "What does a clean run of Go's race detector establish?",
+      "options": [
+        {
+          "id": "a",
+          "text": "No data race exists in any execution of the program."
+        },
+        {
+          "id": "b",
+          "text": "All goroutine leaks and deadlocks are absent."
+        },
+        {
+          "id": "c",
+          "text": "The program is deterministic across all schedules."
+        },
+        {
+          "id": "d",
+          "text": "No data race was detected on the code paths exercised by that run."
+        }
+      ],
+      "correctOptionIds": [
+        "d"
+      ],
+      "explanation": "The race detector reports races observed during execution, so test coverage and workloads matter. A clean run is useful evidence but does not prove that unexecuted paths are race-free or that the program has no deadlocks."
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "Which test strategy best verifies that a cancellation path does not leave a worker blocked?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Cancel the context and wait for an explicit completion signal with a bounded timeout."
+        },
+        {
+          "id": "b",
+          "text": "Sleep for a fixed duration and assume the worker has exited."
+        },
+        {
+          "id": "c",
+          "text": "Check only that cancel returns without error."
+        },
+        {
+          "id": "d",
+          "text": "Recover any panic from the worker and treat the test as passed."
+        }
+      ],
+      "correctOptionIds": [
+        "a"
+      ],
+      "explanation": "A completion signal directly verifies that the worker observed cancellation and returned. A timeout bounds a broken test; a fixed sleep is scheduler-dependent and does not prove the worker exited."
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "When is returning a sentinel error preferable to exposing a concrete implementation error?",
+      "options": [
+        {
+          "id": "a",
+          "text": "When callers should depend on every operating-system-specific detail."
+        },
+        {
+          "id": "b",
+          "text": "When callers need a stable category to branch on while implementation details may change."
+        },
+        {
+          "id": "c",
+          "text": "When the function must silently suppress all failures."
+        },
+        {
+          "id": "d",
+          "text": "When an error should no longer satisfy errors.Is."
+        }
+      ],
+      "correctOptionIds": [
+        "b"
+      ],
+      "explanation": "A stable sentinel or package-defined error category can decouple callers from lower-level implementation types. Wrapping a concrete cause is appropriate when exposing that cause is intentional; the choice is part of API design."
+    },
+    {
+      "id": "q023",
+      "type": "multi-select",
+      "prompt": "Which statements about Go error chains and errors.Is/errors.As are correct?",
+      "options": [
+        {
+          "id": "a",
+          "text": "fmt.Errorf with %w can wrap an error while preserving a chain."
+        },
+        {
+          "id": "b",
+          "text": "Formatting an error with %v preserves the wrapped error identity for errors.Is."
+        },
+        {
+          "id": "c",
+          "text": "errors.Is is useful for testing a sentinel or an error's Is behavior through a chain."
+        },
+        {
+          "id": "d",
+          "text": "errors.As searches a chain for a value assignable to its target type."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "c",
+        "d"
+      ],
+      "explanation": "Use %w when the underlying error should remain inspectable. errors.Is checks semantic identity through the chain, while errors.As finds an assignable typed error. %v formats text but does not create an unwrap relationship."
+    },
+    {
+      "id": "q024",
+      "type": "multi-select",
+      "prompt": "Which statements correctly describe defer behavior?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Arguments to a deferred function call are evaluated when the defer statement executes."
+        },
+        {
+          "id": "b",
+          "text": "A deferred closure can observe later changes to variables it captures."
+        },
+        {
+          "id": "c",
+          "text": "A defer inside a loop runs at the end of each loop iteration."
+        },
+        {
+          "id": "d",
+          "text": "Deferred calls execute in LIFO order when the surrounding function returns."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "b",
+        "d"
+      ],
+      "explanation": "A direct deferred call saves its function value and arguments immediately, while a closure can read captured variables when it runs. Defers run at the end of the surrounding function, not at each loop iteration's end."
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Which statements about nil interfaces and typed nil values are correct?",
+      "options": [
+        {
+          "id": "a",
+          "text": "An interface value is nil only when it has no dynamic type and no dynamic value."
+        },
+        {
+          "id": "b",
+          "text": "Any interface whose contained pointer is nil compares equal to nil."
+        },
+        {
+          "id": "c",
+          "text": "An interface holding a nil *T is not itself nil."
+        },
+        {
+          "id": "d",
+          "text": "Returning untyped nil from a function returning error produces a nil error interface."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "c",
+        "d"
+      ],
+      "explanation": "An interface carries a dynamic type and value. A typed nil pointer gives the interface a dynamic type, so it is non-nil; returning plain nil avoids that mismatch when no error occurred."
+    },
+    {
+      "id": "q026",
+      "type": "multi-select",
+      "prompt": "Which statements about slice aliasing and append are correct?",
+      "code": {
+        "language": "go",
+        "source": "base := make([]int, 1, 4)\nview := base[:1]\nnext := append(view, 9)"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "append always copies every existing element into a fresh array."
+        },
+        {
+          "id": "b",
+          "text": "base, view, and next can refer to the same backing array."
+        },
+        {
+          "id": "c",
+          "text": "Appending may reuse spare capacity and write into storage also reachable through another slice."
+        },
+        {
+          "id": "d",
+          "text": "append returns a slice header that the caller should use for the new length."
+        }
+      ],
+      "correctOptionIds": [
+        "b",
+        "c",
+        "d"
+      ],
+      "explanation": "Slices are descriptors over backing arrays. With enough capacity, append may reuse shared storage and returns a descriptor with the new length; callers should use that returned descriptor rather than assuming the input header changed."
+    },
+    {
+      "id": "q027",
+      "type": "multi-select",
+      "prompt": "Which practices are sound when using maps in production code?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Choose a comparable key type and define stable equality semantics for keys."
+        },
+        {
+          "id": "b",
+          "text": "Synchronize overlapping map reads and writes, or confine the map to one owner."
+        },
+        {
+          "id": "c",
+          "text": "Concurrent reads and writes are safe whenever map keys are immutable."
+        },
+        {
+          "id": "d",
+          "text": "Use a mutex consistently for operations that need to be atomic as a group."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "b",
+        "d"
+      ],
+      "explanation": "Map keys must be comparable, and ordinary maps require synchronization when access can overlap with mutation. A mutex can protect both individual access and larger invariants; immutable keys do not make concurrent map operations safe."
+    },
+    {
+      "id": "q028",
+      "type": "multi-select",
+      "prompt": "Which statements are correct about channel closing and ownership?",
+      "code": {
+        "language": "go",
+        "source": "close(results)"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "The goroutine that knows no more sends will occur is the natural close owner."
+        },
+        {
+          "id": "b",
+          "text": "A receiver should close the channel as soon as it has enough values."
+        },
+        {
+          "id": "c",
+          "text": "Closing a channel makes future receives complete with zero values after buffered values drain."
+        },
+        {
+          "id": "d",
+          "text": "A send on a closed channel panics."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "c",
+        "d"
+      ],
+      "explanation": "Closing signals that production is complete; it does not discard already-buffered values. The sender or a coordinator should close only when it can ensure there will be no further sends. A receiver generally does not own that decision."
+    },
+    {
+      "id": "q029",
+      "type": "multi-select",
+      "prompt": "Which select-loop techniques help handle cancellation and channel closure correctly?",
+      "code": {
+        "language": "go",
+        "source": "select {\ncase <-ctx.Done(): return\ncase v, ok := <-ch: _ = v; _ = ok\n}"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": "Assume select always chooses the cancellation case immediately whenever it is ready."
+        },
+        {
+          "id": "b",
+          "text": "Include a ctx.Done case when the operation should stop on cancellation."
+        },
+        {
+          "id": "c",
+          "text": "Check ok on receives when the channel may be closed."
+        },
+        {
+          "id": "d",
+          "text": "Disable a permanently ready closed-channel case when appropriate, for example by setting its local channel variable to nil."
+        }
+      ],
+      "correctOptionIds": [
+        "b",
+        "c",
+        "d"
+      ],
+      "explanation": "A select chooses among ready cases; it does not prioritize cancellation. Checking ok handles closure, and setting a closed channel variable to nil disables that case while other work continues."
+    },
+    {
+      "id": "q030",
+      "type": "multi-select",
+      "prompt": "Which statements correctly describe synchronization and happens-before reasoning?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A mutex can order a protected write before a later protected read."
+        },
+        {
+          "id": "b",
+          "text": "A WaitGroup can coordinate completion when each task is registered and decremented correctly."
+        },
+        {
+          "id": "c",
+          "text": "A channel send/receive can establish synchronization between participating goroutines."
+        },
+        {
+          "id": "d",
+          "text": "A goroutine starting guarantees visibility of every later write it performs to all other goroutines."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "b",
+        "c"
+      ],
+      "explanation": "Mutexes, channel operations, and WaitGroup completion are synchronization mechanisms with defined ordering. Goroutine creation alone does not publish writes that happen later; shared state still needs synchronization."
+    },
+    {
+      "id": "q031",
+      "type": "multi-select",
+      "prompt": "Which practices help prevent goroutine leaks in cancellable operations?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Have blocking loops and sends observe a cancellation signal."
+        },
+        {
+          "id": "b",
+          "text": "Ensure every derived context's cancel function is called when its work is finished."
+        },
+        {
+          "id": "c",
+          "text": "Assume returning from the caller automatically terminates child goroutines."
+        },
+        {
+          "id": "d",
+          "text": "Define who drains or stops producers when a consumer exits early."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "b",
+        "d"
+      ],
+      "explanation": "Go does not terminate goroutines when a caller returns. Cancellation must be propagated, observed at blocking points, and paired with an ownership plan for outstanding sends and work."
+    },
+    {
+      "id": "q032",
+      "type": "multi-select",
+      "prompt": "Which statements describe effective Go testing and race-detector use?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Test observable behavior and include failure and cancellation paths, not only the happy path."
+        },
+        {
+          "id": "b",
+          "text": "A clean race-detector run proves every possible schedule is race-free."
+        },
+        {
+          "id": "c",
+          "text": "A race-detector run can find races exercised by its test workload."
+        },
+        {
+          "id": "d",
+          "text": "Use explicit completion coordination and bounded timeouts for asynchronous behavior."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "c",
+        "d"
+      ],
+      "explanation": "Tests should exercise important error and shutdown paths and coordinate asynchronous work explicitly. The race detector is dynamic: it can detect exercised races but does not prove unexecuted paths safe."
+    },
+    {
+      "id": "q033",
+      "type": "multi-select",
+      "prompt": "Which are sound Go API design considerations for errors and cancellation?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use context values as a general-purpose optional-parameter bag for arbitrary settings."
+        },
+        {
+          "id": "b",
+          "text": "Wrap an underlying error when callers are meant to inspect its cause."
+        },
+        {
+          "id": "c",
+          "text": "Use a stable package-level error category when callers need a durable classification."
+        },
+        {
+          "id": "d",
+          "text": "Accept context.Context as an explicit operation-scoped input when cancellation or deadlines apply."
+        }
+      ],
+      "correctOptionIds": [
+        "b",
+        "c",
+        "d"
+      ],
+      "explanation": "Error wrapping and stable categories are contract choices, while context is appropriate for request-scoped deadlines, cancellation, and values crossing API boundaries. Context values should not replace optional parameters or ordinary configuration."
+    },
+    {
+      "id": "q034",
+      "type": "multi-select",
+      "prompt": "Which statements are good engineering guidance for shared mutable state?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Document and enforce which mutex protects a shared invariant."
+        },
+        {
+          "id": "b",
+          "text": "Keep critical sections focused while preserving the invariant they protect."
+        },
+        {
+          "id": "c",
+          "text": "A channel-based design is always faster and simpler than a mutex."
+        },
+        {
+          "id": "d",
+          "text": "Consider single-goroutine ownership when it makes mutation and lifecycle clearer."
+        }
+      ],
+      "correctOptionIds": [
+        "a",
+        "b",
+        "d"
+      ],
+      "explanation": "Correctness depends on a clear ownership or locking rule. Keep synchronization understandable and protect complete invariants; channels and mutexes are tools with different trade-offs, not universal performance rankings."
+    },
+    {
+      "id": "q035",
+      "type": "matrix",
+      "prompt": "Match each error-handling operation to its purpose.",
+      "rows": [
+        {
+          "id": "wrap",
+          "label": "fmt.Errorf with %w"
+        },
+        {
+          "id": "is",
+          "label": "errors.Is"
+        },
+        {
+          "id": "as",
+          "label": "errors.As"
+        }
+      ],
+      "columns": [
+        {
+          "id": "preserve",
+          "label": "Preserve an underlying error in a chain"
+        },
+        {
+          "id": "classify",
+          "label": "Test for a sentinel or semantic match"
+        },
+        {
+          "id": "typed",
+          "label": "Find a typed error assignable to a target"
+        },
+        {
+          "id": "message",
+          "label": "Compare only rendered message text"
+        }
+      ],
+      "selectionByRow": {
+        "wrap": "single",
+        "is": "single",
+        "as": "single"
+      },
+      "correctByRow": {
+        "wrap": [
+          "preserve"
+        ],
+        "is": [
+          "classify"
+        ],
+        "as": [
+          "typed"
+        ]
+      },
+      "explanation": "%w retains the wrapped error relationship; errors.Is tests semantic identity through a chain; errors.As finds a value assignable to a requested target type. Comparing rendered text is not a substitute for either inspection operation."
+    },
+    {
+      "id": "q036",
+      "type": "matrix",
+      "prompt": "Match each deferred expression to the behavior it demonstrates.",
+      "rows": [
+        {
+          "id": "args",
+          "label": "defer f(x)"
+        },
+        {
+          "id": "closure",
+          "label": "defer func() { use(x) }()"
+        },
+        {
+          "id": "order",
+          "label": "Several defer statements"
+        }
+      ],
+      "columns": [
+        {
+          "id": "saved",
+          "label": "Call arguments are evaluated at the defer statement"
+        },
+        {
+          "id": "captured",
+          "label": "Closure reads the captured variable when it runs"
+        },
+        {
+          "id": "lifo",
+          "label": "Deferred calls execute in LIFO order"
+        },
+        {
+          "id": "iteration",
+          "label": "Runs at each loop iteration's end automatically"
+        }
+      ],
+      "selectionByRow": {
+        "args": "single",
+        "closure": "single",
+        "order": "single"
+      },
+      "correctByRow": {
+        "args": [
+          "saved"
+        ],
+        "closure": [
+          "captured"
+        ],
+        "order": [
+          "lifo"
+        ]
+      },
+      "explanation": "Direct call arguments are evaluated when defer executes, whereas a deferred closure can read the captured variable later. All deferred calls run at the surrounding function's return in last-in, first-out order."
+    },
+    {
+      "id": "q037",
+      "type": "matrix",
+      "prompt": "Match each synchronization primitive to a reliable use.",
+      "rows": [
+        {
+          "id": "mutex",
+          "label": "Mutex"
+        },
+        {
+          "id": "waitgroup",
+          "label": "WaitGroup"
+        },
+        {
+          "id": "channel",
+          "label": "Channel send/receive"
+        }
+      ],
+      "columns": [
+        {
+          "id": "exclusive",
+          "label": "Protect a shared invariant with exclusive access"
+        },
+        {
+          "id": "completion",
+          "label": "Wait for a known set of tasks to finish"
+        },
+        {
+          "id": "communicate",
+          "label": "Communicate values and synchronize participants"
+        },
+        {
+          "id": "priority",
+          "label": "Guarantee that one select case always has priority"
+        }
+      ],
+      "selectionByRow": {
+        "mutex": "single",
+        "waitgroup": "single",
+        "channel": "single"
+      },
+      "correctByRow": {
+        "mutex": [
+          "exclusive"
+        ],
+        "waitgroup": [
+          "completion"
+        ],
+        "channel": [
+          "communicate"
+        ]
+      },
+      "explanation": "A mutex protects shared state, a WaitGroup coordinates task completion, and channel operations can communicate and synchronize. A select does not provide priority among simultaneously ready cases."
+    },
+    {
+      "id": "q038",
+      "type": "matrix",
+      "prompt": "For each channel situation, choose the correct consequence or action.",
+      "rows": [
+        {
+          "id": "closed-receive",
+          "label": "Receive from closed and drained channel"
+        },
+        {
+          "id": "closed-send",
+          "label": "Send to closed channel"
+        },
+        {
+          "id": "loop-case",
+          "label": "Closed channel in a continuing select loop"
+        }
+      ],
+      "columns": [
+        {
+          "id": "zero-false",
+          "label": "Receive zero value with ok false"
+        },
+        {
+          "id": "panic",
+          "label": "Panics"
+        },
+        {
+          "id": "disable",
+          "label": "Handle closure or nil the local channel to disable its case"
+        },
+        {
+          "id": "reopen",
+          "label": "Channel reopens after a receive"
+        }
+      ],
+      "selectionByRow": {
+        "closed-receive": "single",
+        "closed-send": "single",
+        "loop-case": "single"
+      },
+      "correctByRow": {
+        "closed-receive": [
+          "zero-false"
+        ],
+        "closed-send": [
+          "panic"
+        ],
+        "loop-case": [
+          "disable"
+        ]
+      },
+      "explanation": "After buffered values drain, receive returns the element zero value with ok false. Sending to a closed channel panics. A closed receive remains ready, so a continuing select loop needs to handle closure or disable that case."
+    },
+    {
+      "id": "q039",
+      "type": "matrix",
+      "prompt": "Match each context design choice to the appropriate responsibility.",
+      "rows": [
+        {
+          "id": "caller",
+          "label": "Operation caller"
+        },
+        {
+          "id": "worker",
+          "label": "Long-running worker"
+        },
+        {
+          "id": "api",
+          "label": "Public operation API"
+        }
+      ],
+      "columns": [
+        {
+          "id": "cancel",
+          "label": "Call the cancel function when derived work is done"
+        },
+        {
+          "id": "observe",
+          "label": "Observe cancellation at blocking points and exit cooperatively"
+        },
+        {
+          "id": "accept",
+          "label": "Accept context explicitly when operation cancellation/deadlines apply"
+        },
+        {
+          "id": "kill",
+          "label": "Assume context forcibly terminates the goroutine"
+        }
+      ],
+      "selectionByRow": {
+        "caller": "single",
+        "worker": "single",
+        "api": "single"
+      },
+      "correctByRow": {
+        "caller": [
+          "cancel"
+        ],
+        "worker": [
+          "observe"
+        ],
+        "api": [
+          "accept"
+        ]
+      },
+      "explanation": "The creator of a derived context should call its cancel function, workers must cooperate by observing cancellation, and APIs should accept context where the operation has cancellation or deadline semantics. Context does not forcibly kill goroutines."
+    },
+    {
+      "id": "q040",
+      "type": "matrix",
+      "prompt": "Match each slice or map property to its consequence.",
+      "rows": [
+        {
+          "id": "slice-header",
+          "label": "Slice header"
+        },
+        {
+          "id": "append",
+          "label": "append with spare capacity"
+        },
+        {
+          "id": "map-key",
+          "label": "Map key type"
+        },
+        {
+          "id": "map-race",
+          "label": "Concurrent map mutation"
+        }
+      ],
+      "columns": [
+        {
+          "id": "descriptor",
+          "label": "Carries pointer, length, and capacity"
+        },
+        {
+          "id": "alias",
+          "label": "May reuse backing storage shared by aliases"
+        },
+        {
+          "id": "comparable",
+          "label": "Must be comparable"
+        },
+        {
+          "id": "synchronize",
+          "label": "Requires a synchronization or ownership strategy"
+        }
+      ],
+      "selectionByRow": {
+        "slice-header": "single",
+        "append": "single",
+        "map-key": "single",
+        "map-race": "single"
+      },
+      "correctByRow": {
+        "slice-header": [
+          "descriptor"
+        ],
+        "append": [
+          "alias"
+        ],
+        "map-key": [
+          "comparable"
+        ],
+        "map-race": [
+          "synchronize"
+        ]
+      },
+      "explanation": "A slice is a descriptor over backing storage; append may reuse that storage when capacity permits. Map keys must be comparable, and concurrent access involving mutation requires synchronization or exclusive ownership."
+    },
+    {
+      "id": "q041",
+      "type": "matrix",
+      "prompt": "Match each testing practice to the claim it can reasonably support.",
+      "rows": [
+        {
+          "id": "race-run",
+          "label": "Run tests with the race detector"
+        },
+        {
+          "id": "timeout",
+          "label": "Use a bounded timeout in a concurrency test"
+        },
+        {
+          "id": "completion",
+          "label": "Wait for an explicit worker completion signal"
+        }
+      ],
+      "columns": [
+        {
+          "id": "observed-races",
+          "label": "Detect races that occur on exercised paths"
+        },
+        {
+          "id": "bounded",
+          "label": "Keep a stuck test from waiting forever"
+        },
+        {
+          "id": "exit",
+          "label": "Verify the worker reached its completion point"
+        },
+        {
+          "id": "proof",
+          "label": "Prove all schedules and paths correct"
+        }
+      ],
+      "selectionByRow": {
+        "race-run": "single",
+        "timeout": "single",
+        "completion": "single"
+      },
+      "correctByRow": {
+        "race-run": [
+          "observed-races"
+        ],
+        "timeout": [
+          "bounded"
+        ],
+        "completion": [
+          "exit"
+        ]
+      },
+      "explanation": "The race detector is dynamic and only reports races encountered in the run. A timeout bounds waiting, while a completion signal verifies the worker reached that point; none alone proves all possible executions correct."
+    },
+    {
+      "id": "q042",
+      "type": "matrix",
+      "prompt": "Match each API design choice to the concern it addresses.",
+      "rows": [
+        {
+          "id": "wrap-cause",
+          "label": "Wrap cause with %w"
+        },
+        {
+          "id": "sentinel",
+          "label": "Return a stable sentinel/category"
+        },
+        {
+          "id": "context-param",
+          "label": "Accept context.Context"
+        },
+        {
+          "id": "context-value",
+          "label": "Put arbitrary configuration in context values"
+        }
+      ],
+      "columns": [
+        {
+          "id": "cause",
+          "label": "Let callers inspect an underlying cause"
+        },
+        {
+          "id": "stable",
+          "label": "Offer a stable classification boundary"
+        },
+        {
+          "id": "lifecycle",
+          "label": "Carry cancellation and deadline through an operation"
+        },
+        {
+          "id": "avoid",
+          "label": "Generally avoid as a substitute for explicit parameters"
+        }
+      ],
+      "selectionByRow": {
+        "wrap-cause": "single",
+        "sentinel": "single",
+        "context-param": "single",
+        "context-value": "single"
+      },
+      "correctByRow": {
+        "wrap-cause": [
+          "cause"
+        ],
+        "sentinel": [
+          "stable"
+        ],
+        "context-param": [
+          "lifecycle"
+        ],
+        "context-value": [
+          "avoid"
+        ]
+      },
+      "explanation": "Error wrapping exposes an underlying cause, while stable error categories can shield callers from implementation changes. Context carries operation-scoped cancellation and deadlines; arbitrary configuration belongs in explicit API parameters rather than context values."
+    }
+  ]
+}

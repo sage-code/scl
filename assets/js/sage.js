@@ -159,6 +159,12 @@ function generateBreadcrumbs() {
         const pathArray = path
             .split('/')
             .filter(p => p && !p.includes("index.html") && p !== 'public');
+        const quizTrack = new URLSearchParams(window.location.search).get('track');
+        const isQuizRoute = pathArray[0] === 'roadmap' &&
+            (pathArray[1] === 'quiz.html' || pathArray[1] === 'quizzes.html');
+        if (isQuizRoute && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(quizTrack || '')) {
+            pathArray.splice(1, 0, quizTrack);
+        }
         
         // 1. Permanent Home Link
         let html = `<a href="${MAIN_HUB}"><i class="bi bi-house-door"></i> HOME</a>`;
