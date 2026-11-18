@@ -134,7 +134,7 @@
   async function uploadAvatar(file) {
     var response;
     try {
-      response = await fetch("/api/community/avatar", {
+      response = await fetch("/api/community/avatar/", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": file.type },
@@ -151,7 +151,10 @@
       throw new Error("Avatar upload returned an invalid response.");
     }
     if (!response.ok) {
-      throw new Error(result.error || "Avatar upload failed.");
+      var errMsg = (result && typeof result.error === "string" && result.error)
+        || (result && result.error && typeof result.error.message === "string" && result.error.message)
+        || "Avatar upload failed.";
+      throw new Error(errMsg);
     }
     return result;
   }

@@ -573,7 +573,7 @@
         submit.disabled = true;
         let response;
         try {
-          response = await windowRef.fetch("/api/quizzes/submit", {
+          response = await windowRef.fetch("/api/quizzes/submit/", {
             method: "POST",
             credentials: "same-origin",
             headers: {

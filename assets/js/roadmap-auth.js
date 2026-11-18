@@ -18,7 +18,9 @@
     }
 
     el.className = classes;
-    el.textContent = message;
+    el.textContent = typeof message === "string"
+      ? message
+      : (message && typeof message.message === "string" ? message.message : String(message || "Request failed."));
     el.hidden = false;
   }
 
