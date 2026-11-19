@@ -3,6 +3,9 @@
  * Handles the Dynamic Header and Alignment
  */
 
+const HERO_CARET_UP_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="m7.247 4.86-4.796 5.481c-.566.647-.106 1.659.753 1.659h9.592a1 1 0 0 0 .753-1.659l-4.796-5.48a1 1 0 0 0-1.506 0z"/></svg>';
+const HERO_CARET_DOWN_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/></svg>';
+
 document.addEventListener("DOMContentLoaded", function () {
     normalizeLocalPublicLinks();
     initDynamicHeader();
@@ -78,7 +81,7 @@ function initDynamicHeader() {
                         aria-expanded="true"
                         title="Toggle hero section"
                     >
-                        <i class="bi bi-caret-up-fill" aria-hidden="true"></i>
+                        ${HERO_CARET_UP_SVG}
                     </button>
                 </div>
             </div>
@@ -159,11 +162,18 @@ function generateBreadcrumbs() {
         const pathArray = path
             .split('/')
             .filter(p => p && !p.includes("index.html") && p !== 'public');
-        const quizTrack = new URLSearchParams(window.location.search).get('track');
-        const isQuizRoute = pathArray[0] === 'roadmap' &&
-            (pathArray[1] === 'quiz.html' || pathArray[1] === 'quizzes.html');
-        if (isQuizRoute && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(quizTrack || '')) {
-            pathArray.splice(1, 0, quizTrack);
+        const searchParams = new URLSearchParams(window.location.search);
+        const quizTrack = searchParams.get('track');
+        const quizLevel = (searchParams.get('level') || '').toUpperCase();
+        const isQuizCatalogRoute = pathArray[0] === 'roadmap' && pathArray[1] === 'quizzes.html';
+        const isQuizPlayerRoute = pathArray[0] === 'roadmap' && pathArray[1] === 'quiz.html';
+        const hasValidQuizTrack = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(quizTrack || '');
+        if ((isQuizCatalogRoute || isQuizPlayerRoute) && hasValidQuizTrack) {
+            if (isQuizPlayerRoute) {
+                pathArray.splice(1, 1, quizTrack, 'quizzes.html', /^[ABC]$/.test(quizLevel) ? `${quizLevel} TEST` : 'QUIZ');
+            } else {
+                pathArray.splice(1, 0, quizTrack);
+            }
         }
         
         // 1. Permanent Home Link
@@ -207,6 +217,10 @@ function generateBreadcrumbs() {
                     html += `<a href="${MAIN_HUB}/roadmap/">ROADMAP</a>`;
                     return;
                 }
+                if (isQuizPlayerRoute && hasValidQuizTrack && normalizedSegment === 'quizzes.html') {
+                    html += `<a href="${MAIN_HUB}/roadmap/quizzes.html?track=${encodeURIComponent(quizTrack)}">QUIZZES</a>`;
+                    return;
+                }
 
                 // If on topic.html, make the topic name clickable to reload the page
                 if (isTopicPage && topicId) {
@@ -218,6 +232,10 @@ function generateBreadcrumbs() {
             } else {
                 if (isRoadmapSegment) {
                     html += `<a href="${MAIN_HUB}/roadmap/">ROADMAP</a>`;
+                    return;
+                }
+                if (isQuizPlayerRoute && hasValidQuizTrack && normalizedSegment === 'quizzes.html') {
+                    html += `<a href="${MAIN_HUB}/roadmap/quizzes.html?track=${encodeURIComponent(quizTrack)}">QUIZZES</a>`;
                     return;
                 }
 
@@ -263,7 +281,7 @@ function initHeroVisibilityToggle() {
         toggleButton.setAttribute("aria-expanded", "false");
         toggleButton.setAttribute("aria-label", "Hero section is not available on this page");
         toggleButton.title = "Hero section is not available on this page";
-        toggleButton.innerHTML = '<i class="bi bi-caret-down-fill" aria-hidden="true"></i>';
+        toggleButton.innerHTML = HERO_CARET_DOWN_SVG;
         return;
     }
 
@@ -279,15 +297,18 @@ function initHeroVisibilityToggle() {
     const pagePath = window.location.pathname || "/";
     const pageQuery = window.location.search || "";
     const storageKey = `sage.hero.visible:${pagePath}${pageQuery}`;
-    let heroVisible = true;
+    const defaultCollapsed = heroSection.getAttribute("data-hero-default") === "collapsed";
+    let heroVisible = !defaultCollapsed;
 
     try {
         const saved = window.localStorage.getItem(storageKey);
         if (saved === "0") {
             heroVisible = false;
+        } else if (saved === "1") {
+            heroVisible = true;
         }
     } catch (e) {
-        heroVisible = true;
+        heroVisible = !defaultCollapsed;
     }
 
     function applyState(visible) {
@@ -297,8 +318,8 @@ function initHeroVisibilityToggle() {
         toggleButton.setAttribute("aria-label", heroVisible ? "Hide hero section" : "Show hero section");
         toggleButton.title = heroVisible ? "Hide hero section" : "Show hero section";
         toggleButton.innerHTML = heroVisible
-            ? '<i class="bi bi-caret-up-fill" aria-hidden="true"></i>'
-            : '<i class="bi bi-caret-down-fill" aria-hidden="true"></i>';
+            ? HERO_CARET_UP_SVG
+            : HERO_CARET_DOWN_SVG;
     }
 
     applyState(heroVisible);
