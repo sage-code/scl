@@ -22,8 +22,9 @@
 - Dart (`fundamentals`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - TypeScript (`fundamentals`, track `tscript`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - React (`fundamentals`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Vue (`fundamentals`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: Vue (or next requested track), after review of pending sets.
+- Next roadmap: Flutter (or next requested track), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -66,7 +67,7 @@ Apply these requirements to each roadmap before moving to the next:
 3. JavaScript — **Review pending**
 4. TypeScript — **Review pending** (`tscript`, `fundamentals`, A/B/C prepared & activated)
 5. React — **Review pending** (`fundamentals`, A/B/C prepared & activated)
-6. Vue — Pending
+6. Vue — **Review pending** (`fundamentals`, A/B/C prepared & activated)
 7. Flutter — Pending
 8. WebAssembly — Pending
 9. Svelte — Pending

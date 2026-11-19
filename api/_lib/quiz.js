@@ -24,7 +24,10 @@ const publicQuizzes = {
   "tscript-fundamentals-C": require("../../roadmap/tscript/quiz/fundamentals-C.json"),
   "react-fundamentals-A": require("../../roadmap/react/quiz/fundamentals-A.json"),
   "react-fundamentals-B": require("../../roadmap/react/quiz/fundamentals-B.json"),
-  "react-fundamentals-C": require("../../roadmap/react/quiz/fundamentals-C.json")
+  "react-fundamentals-C": require("../../roadmap/react/quiz/fundamentals-C.json"),
+  "vue-fundamentals-A": require("../../roadmap/vue/quiz/fundamentals-A.json"),
+  "vue-fundamentals-B": require("../../roadmap/vue/quiz/fundamentals-B.json"),
+  "vue-fundamentals-C": require("../../roadmap/vue/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

@@ -172,6 +172,26 @@
         title: "React Engineering Practice",
         description: "Evaluate SSR/hydration, re-render isolation, race-free async effects, virtualization, accessibility, and testing."
       }
+    ],
+    vue: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Vue Foundations",
+        description: "Review SFC structure, template directives, ref and reactive, computed, props/emits, slots, and Vue Router basics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Vue Applied Practice",
+        description: "Apply composables, watch cleanup, Pinia stores, defineModel, KeepAlive, Teleport, and route navigation guards."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Vue Engineering Practice",
+        description: "Evaluate SSR hydration, shallowRef, effectScope, optimistic rollback, vue-tsc, XSS safety, and production observability."
+      }
     ]
   };
   const trackTitles = {
@@ -182,7 +202,8 @@
     python: "Python",
     dart: "Dart",
     tscript: "TypeScript",
-    react: "React"
+    react: "React",
+    vue: "Vue"
   };
 
   function titleCase(track) {
