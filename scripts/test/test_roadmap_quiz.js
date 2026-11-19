@@ -57,6 +57,9 @@ const dartQuizzes = quizFiles
 const tscriptQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`tscript${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const reactQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`react${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -149,6 +152,10 @@ test("each Dart quiz has 42 questions, brief code examples, and varied response 
 
 test("each TypeScript quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(tscriptQuizzes, "tscript", "fundamentals", "typescript", 1);
+});
+
+test("each React quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(reactQuizzes, "react", "fundamentals", "javascript", 1);
 });
 
 for (const file of quizFiles) {

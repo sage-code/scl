@@ -152,6 +152,26 @@
         title: "TypeScript Engineering Practice",
         description: "Evaluate mapped and conditional types, boundary validation, strict compiler flags, module resolution, and migration."
       }
+    ],
+    react: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "React Foundations",
+        description: "Review components, JSX rules, props, lists and keys, useState, events, and unidirectional data flow."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "React Applied Practice",
+        description: "Apply functional state updates, useEffect cleanup, refs, controlled forms, Context, and memoization."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "React Engineering Practice",
+        description: "Evaluate SSR/hydration, re-render isolation, race-free async effects, virtualization, accessibility, and testing."
+      }
     ]
   };
   const trackTitles = {
@@ -161,7 +181,8 @@
     javascript: "JavaScript",
     python: "Python",
     dart: "Dart",
-    tscript: "TypeScript"
+    tscript: "TypeScript",
+    react: "React"
   };
 
   function titleCase(track) {
