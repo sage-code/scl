@@ -232,6 +232,26 @@
         title: "WebAssembly Engineering Practice",
         description: "Evaluate boundary batching, memory growth, SIMD, threads, Component Model, CSP, and sandboxed runtimes."
       }
+    ],
+    svelte: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Svelte Foundations",
+        description: "Review compiler-first reactivity, SFC structure, template blocks, runes, bindings, stores, and scoped CSS."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Svelte Applied Practice",
+        description: "Apply $derived, $effect cleanup, snippets, actions, transitions, keyed lists, and SvelteKit loaders."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Svelte Engineering Practice",
+        description: "Evaluate SSR isolation, hydration, $state.raw, security boundaries, compiler a11y checks, and CI testing."
+      }
     ]
   };
   const trackTitles = {
@@ -245,7 +265,8 @@
     react: "React",
     vue: "Vue",
     flutter: "Flutter",
-    wasm: "WebAssembly"
+    wasm: "WebAssembly",
+    svelte: "Svelte"
   };
 
   function titleCase(track) {

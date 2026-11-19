@@ -33,7 +33,10 @@ const publicQuizzes = {
   "flutter-fundamentals-C": require("../../roadmap/flutter/quiz/fundamentals-C.json"),
   "wasm-fundamentals-A": require("../../roadmap/wasm/quiz/fundamentals-A.json"),
   "wasm-fundamentals-B": require("../../roadmap/wasm/quiz/fundamentals-B.json"),
-  "wasm-fundamentals-C": require("../../roadmap/wasm/quiz/fundamentals-C.json")
+  "wasm-fundamentals-C": require("../../roadmap/wasm/quiz/fundamentals-C.json"),
+  "svelte-fundamentals-A": require("../../roadmap/svelte/quiz/fundamentals-A.json"),
+  "svelte-fundamentals-B": require("../../roadmap/svelte/quiz/fundamentals-B.json"),
+  "svelte-fundamentals-C": require("../../roadmap/svelte/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");
