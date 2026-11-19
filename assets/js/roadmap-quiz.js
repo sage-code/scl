@@ -446,11 +446,7 @@
 
     loadQuiz().then((quiz) => {
       const title = documentRef.getElementById("quiz-title");
-      const activeTitle = documentRef.getElementById("quiz-active-title");
       title.textContent = quiz.name;
-      if (activeTitle) {
-        activeTitle.textContent = quiz.name;
-      }
       documentRef.title = `${quiz.name} | Sage-Code`;
       documentRef.getElementById("quiz-description").textContent =
         `Assess your ${roadmapTitle(quiz.track)} skills with ${quiz.questions.length} questions. You have two minutes per question; a score of at least 70% passes.`;

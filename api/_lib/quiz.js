@@ -18,7 +18,10 @@ const publicQuizzes = {
   "python-fundamentals-C": require("../../roadmap/python/quiz/fundamentals-C.json"),
   "dart-fundamentals-A": require("../../roadmap/dart/quiz/fundamentals-A.json"),
   "dart-fundamentals-B": require("../../roadmap/dart/quiz/fundamentals-B.json"),
-  "dart-fundamentals-C": require("../../roadmap/dart/quiz/fundamentals-C.json")
+  "dart-fundamentals-C": require("../../roadmap/dart/quiz/fundamentals-C.json"),
+  "tscript-fundamentals-A": require("../../roadmap/tscript/quiz/fundamentals-A.json"),
+  "tscript-fundamentals-B": require("../../roadmap/tscript/quiz/fundamentals-B.json"),
+  "tscript-fundamentals-C": require("../../roadmap/tscript/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

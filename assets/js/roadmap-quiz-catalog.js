@@ -132,6 +132,26 @@
         title: "Dart Engineering Practice",
         description: "Evaluate flow promotion, isolates, sealed exhaustiveness, stream lifecycle, AOT compilation, and CI tooling."
       }
+    ],
+    tscript: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "TypeScript Foundations",
+        description: "Review static type annotations, interfaces, unions, tuples, strict null checks, and tsconfig basics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "TypeScript Applied Practice",
+        description: "Apply generics, type narrowing, discriminated unions, utility types, satisfies, and type predicates."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "TypeScript Engineering Practice",
+        description: "Evaluate mapped and conditional types, boundary validation, strict compiler flags, module resolution, and migration."
+      }
     ]
   };
   const trackTitles = {
@@ -140,7 +160,8 @@
     css: "CSS",
     javascript: "JavaScript",
     python: "Python",
-    dart: "Dart"
+    dart: "Dart",
+    tscript: "TypeScript"
   };
 
   function titleCase(track) {
