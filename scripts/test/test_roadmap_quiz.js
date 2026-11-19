@@ -48,6 +48,12 @@ const cssQuizzes = quizFiles
 const javascriptQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`javascript${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const pythonQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`python${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const dartQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`dart${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -128,6 +134,14 @@ test("each CSS quiz has 42 questions, brief CSS examples, and varied response fo
 
 test("each JavaScript quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(javascriptQuizzes, "javascript", "fundamentals", "javascript", 1);
+});
+
+test("each Python quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(pythonQuizzes, "python", "fundamentals", "python", 1);
+});
+
+test("each Dart quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(dartQuizzes, "dart", "fundamentals", "dart", 1);
 });
 
 for (const file of quizFiles) {

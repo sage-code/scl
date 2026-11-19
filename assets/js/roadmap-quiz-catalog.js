@@ -92,13 +92,55 @@
         title: "JavaScript Engineering Practice",
         description: "Evaluate asynchronous reliability, safe DOM updates, lifecycle cleanup, performance, workers, and testing."
       }
+    ],
+    python: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Python Foundations",
+        description: "Review indentation, built-in types, collections, control flow, functions, modules, and basic classes."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Python Applied Practice",
+        description: "Apply slicing, comprehensions, generators, exceptions, decorators, dataclasses, and standard library tools."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Python Engineering Practice",
+        description: "Evaluate typing, packaging, pytest, concurrency, memory trade-offs, security, and production service design."
+      }
+    ],
+    dart: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Dart Foundations",
+        description: "Review sound null safety, variables, built-in types, functions, collections, classes, and pub basics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Dart Applied Practice",
+        description: "Apply null-aware operators, collection if/for, mixins, extensions, futures, streams, and Dart 3 patterns."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Dart Engineering Practice",
+        description: "Evaluate flow promotion, isolates, sealed exhaustiveness, stream lifecycle, AOT compilation, and CI tooling."
+      }
     ]
   };
   const trackTitles = {
     go: "Go",
     html: "HTML",
     css: "CSS",
-    javascript: "JavaScript"
+    javascript: "JavaScript",
+    python: "Python",
+    dart: "Dart"
   };
 
   function titleCase(track) {
