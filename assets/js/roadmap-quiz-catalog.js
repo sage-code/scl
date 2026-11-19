@@ -212,6 +212,26 @@
         title: "Flutter Engineering Practice",
         description: "Evaluate the three trees, keys, isolates, slivers, RepaintBoundary, accessibility, testing, and release builds."
       }
+    ],
+    wasm: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "WebAssembly Foundations",
+        description: "Review WAT/Wasm modules, scalar types, stack execution, linear memory, imports/exports, and WASI basics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "WebAssembly Applied Practice",
+        description: "Apply structured control flow, memory loads/stores, tables, streaming instantiation, and JS/Wasm data passing."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "WebAssembly Engineering Practice",
+        description: "Evaluate boundary batching, memory growth, SIMD, threads, Component Model, CSP, and sandboxed runtimes."
+      }
     ]
   };
   const trackTitles = {
@@ -224,7 +244,8 @@
     tscript: "TypeScript",
     react: "React",
     vue: "Vue",
-    flutter: "Flutter"
+    flutter: "Flutter",
+    wasm: "WebAssembly"
   };
 
   function titleCase(track) {

@@ -1,0 +1,1077 @@
+{
+  "schemaVersion": 1,
+  "id": "wasm-fundamentals-C",
+  "revision": 1,
+  "name": "WebAssembly Engineering Practice: C",
+  "track": "wasm",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 64,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "Why can a chatty JS-to-Wasm loop (calling a tiny Wasm function 1,000,000 times) be slower than pure JS?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Wasm arithmetic is slower"
+        },
+        {
+          "id": "b",
+          "text": "Wasm runs over HTTP on every call"
+        },
+        {
+          "id": "c",
+          "text": "V8 cannot JIT pure JS"
+        },
+        {
+          "id": "d",
+          "text": "Each JS<->Wasm boundary crossing has marshaling/call overhead that can outweigh tiny per-call compute"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "What subtle bug happens if JS caches `const view = new Uint8Array(memory.buffer)` at startup and Wasm later calls `memory.grow`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`view` points to a detached `ArrayBuffer` (length 0), causing silent empty reads or errors until re-wrapped"
+        },
+        {
+          "id": "b",
+          "text": "`view` grows automatically"
+        },
+        {
+          "id": "c",
+          "text": "Wasm traps on `memory.grow`"
+        },
+        {
+          "id": "d",
+          "text": "`view` doubles in size"
+        }
+      ],
+      "code": {
+        "language": "wasm",
+        "source": ";; Any memory.grow inside Wasm detaches prior JS ArrayBuffer views!"
+      }
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "Why is `'wasm-unsafe-eval'` preferred over `'unsafe-eval'` in a web app's CSP `script-src`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It blocks all scripts"
+        },
+        {
+          "id": "b",
+          "text": "It permits WebAssembly compilation without re-enabling dangerous JavaScript `eval()` / `new Function()`"
+        },
+        {
+          "id": "c",
+          "text": "It disables HTTPS"
+        },
+        {
+          "id": "d",
+          "text": "It speeds up `fetch`"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "type": "matrix",
+      "prompt": "Match each Wasm host/deployment environment to its strength.",
+      "rows": [
+        {
+          "id": "worker",
+          "label": "Browser Web Worker + Wasm"
+        },
+        {
+          "id": "edge",
+          "label": "Serverless / Edge Wasm runtime"
+        },
+        {
+          "id": "plug",
+          "label": "Embedded plugin host (e.g., Wasmtime)"
+        }
+      ],
+      "columns": [
+        {
+          "id": "ui",
+          "label": "Heavy client compute without blocking the main UI thread"
+        },
+        {
+          "id": "cold",
+          "label": "Sub-millisecond cold starts and isolated multi-tenant execution"
+        },
+        {
+          "id": "sand",
+          "label": "Safely runs untrusted user plugins with CPU fuel/memory caps"
+        }
+      ],
+      "selectionByRow": {
+        "worker": "single",
+        "edge": "single",
+        "plug": "single"
+      }
+    },
+    {
+      "id": "q005",
+      "type": "single-choice",
+      "prompt": "How do Wasm runtimes like Wasmtime prevent an untrusted plugin from running an infinite loop?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They don't; the host hangs"
+        },
+        {
+          "id": "b",
+          "text": "By running in CSS"
+        },
+        {
+          "id": "c",
+          "text": "Using deterministic instruction 'fuel' metering or epoch interruption to trap after a budget"
+        },
+        {
+          "id": "d",
+          "text": "By disabling `loop` in WAT"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "type": "multi-select",
+      "prompt": "Select all memory-safety properties that WebAssembly guarantees vs native C/C++ binaries. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Control-flow integrity prevents jumping into arbitrary data or mid-instruction bytes"
+        },
+        {
+          "id": "b",
+          "text": "Call stack return addresses live in a protected host stack, not linear memory"
+        },
+        {
+          "id": "c",
+          "text": "Buffer overflows inside linear memory between two C arrays are automatically impossible"
+        },
+        {
+          "id": "d",
+          "text": "Linear memory accesses are bounds-checked against the sandboxed memory size"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "What does the WebAssembly Component Model + WIT (Wasm Interface Types) solve?",
+      "options": [
+        {
+          "id": "a",
+          "text": "CSS animations"
+        },
+        {
+          "id": "b",
+          "text": "Minifying HTML"
+        },
+        {
+          "id": "c",
+          "text": "Replacing HTTP"
+        },
+        {
+          "id": "d",
+          "text": "Standardizing high-level typed interfaces (strings, records, lists, variants) across languages without manual pointer/memory ABI glue"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "When compiling C/C++ to Wasm, why can `malloc`/`free` inside Wasm still leak memory even though linear memory is sandboxed?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Linear memory is managed by the guest allocator (`dlmalloc`/Rust allocator), so unfreed allocations keep growing pages until the tab runs out of memory"
+        },
+        {
+          "id": "b",
+          "text": "Wasm has a garbage collector that leaks"
+        },
+        {
+          "id": "c",
+          "text": "JS `GC` frees Wasm linear memory automatically"
+        },
+        {
+          "id": "d",
+          "text": "`memory.grow` shrinks memory automatically"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "What is Wasm SIMD (`v128`) used for?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Networking"
+        },
+        {
+          "id": "b",
+          "text": "128-bit data-parallel vector operations (e.g., 4x `f32` or 16x `i8` in one instruction) for media, ML, and physics"
+        },
+        {
+          "id": "c",
+          "text": "DOM manipulation"
+        },
+        {
+          "id": "d",
+          "text": "String formatting"
+        }
+      ],
+      "code": {
+        "language": "wasm",
+        "source": "(func (param $a v128) (param $b v128) (result v128)\n  local.get $a\n  local.get $b\n  f32x4.add)"
+      }
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "What is a common deployment failure when using Wasm threads (`SharedArrayBuffer`) behind a CDN or reverse proxy?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`SharedArrayBuffer` is only for Safari"
+        },
+        {
+          "id": "b",
+          "text": "Using `https://`"
+        },
+        {
+          "id": "c",
+          "text": "Missing `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers, or third-party resources lacking `Cross-Origin-Resource-Policy`"
+        },
+        {
+          "id": "d",
+          "text": "Using `application/wasm`"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "multi-select",
+      "prompt": "Select all practices that keep a Wasm + JS architecture maintainable. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Keep a narrow, well-typed boundary API between JS and Wasm"
+        },
+        {
+          "id": "b",
+          "text": "Copy/marshal data in batches rather than per-item callbacks"
+        },
+        {
+          "id": "c",
+          "text": "Wrap Wasm initialization in an async singleton or worker wrapper with clear error handling"
+        },
+        {
+          "id": "d",
+          "text": "Expose raw linear memory pointers directly to every UI component"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "Why is `WebAssembly.instantiateStreaming` with a fallback to `arrayBuffer()` sometimes still seen, or what should you verify first?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Streaming requires `COEP`"
+        },
+        {
+          "id": "b",
+          "text": "Streaming only works in IE11"
+        },
+        {
+          "id": "c",
+          "text": "`arrayBuffer()` is always faster"
+        },
+        {
+          "id": "d",
+          "text": "Ensure the server/CDN always sends `Content-Type: application/wasm` so streaming works in all modern browsers"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "What does Wasm's `multi-memory` proposal (or separate `WebAssembly.Memory` instances) allow?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Isolating distinct heaps/buffers (e.g., guest heap vs shared I/O buffer) within one module"
+        },
+        {
+          "id": "b",
+          "text": "Infinite RAM"
+        },
+        {
+          "id": "c",
+          "text": "Automatic SQL indexing"
+        },
+        {
+          "id": "d",
+          "text": "Running CSS in Wasm"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "single-choice",
+      "prompt": "When should you NOT use WebAssembly for a web feature?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Image/video transcoding in the browser"
+        },
+        {
+          "id": "b",
+          "text": "Simple CRUD UI, DOM manipulation, and standard form validation where native JS is already fast and avoids bundle overhead"
+        },
+        {
+          "id": "c",
+          "text": "Client-side physics simulation"
+        },
+        {
+          "id": "d",
+          "text": "Compiling a Rust parser for the browser"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "matrix",
+      "prompt": "Match each Wasm security or isolation feature to what it protects.",
+      "rows": [
+        {
+          "id": "sandbox",
+          "label": "Capability-based imports (no ambient I/O)"
+        },
+        {
+          "id": "cfi",
+          "label": "Typed `call_indirect` + separate host call stack"
+        },
+        {
+          "id": "fuel",
+          "label": "Instruction metering / memory `maximum`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "host-io",
+          "label": "Prevents unauthorized file, network, or DOM access"
+        },
+        {
+          "id": "hijack",
+          "label": "Prevents return-oriented programming / arbitrary code jumps"
+        },
+        {
+          "id": "dos",
+          "label": "Prevents infinite loops and unbounded RAM exhaustion"
+        }
+      ],
+      "selectionByRow": {
+        "sandbox": "single",
+        "cfi": "single",
+        "fuel": "single"
+      }
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What is the role of `WasmGC` (WebAssembly Garbage Collection)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Garbage-collecting JS `div`s"
+        },
+        {
+          "id": "b",
+          "text": "Deleting unused `.wasm` files"
+        },
+        {
+          "id": "c",
+          "text": "Adding native managed struct/array heap types so GC languages (Kotlin, Dart, Java) compile to smaller, faster Wasm without bundling a full GC"
+        },
+        {
+          "id": "d",
+          "text": "Freeing `SharedArrayBuffer`"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "Why does shipping a custom C/Go garbage collector inside linear memory (without WasmGC) risk reference cycles across the JS/Wasm boundary?",
+      "options": [
+        {
+          "id": "a",
+          "text": "JS has no garbage collector"
+        },
+        {
+          "id": "b",
+          "text": "Linear memory is read-only"
+        },
+        {
+          "id": "c",
+          "text": "WasmGC deletes JS variables"
+        },
+        {
+          "id": "d",
+          "text": "Neither collector can see references held on the other side without weak refs / explicit `free()` / `FinalizationRegistry`"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What does `memory.atomic.wait32` / `memory.atomic.notify` enable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Synchronization primitives (mutexes, condition variables) across Wasm threads sharing memory"
+        },
+        {
+          "id": "b",
+          "text": "HTTP long polling"
+        },
+        {
+          "id": "c",
+          "text": "DOM mutation observers"
+        },
+        {
+          "id": "d",
+          "text": "CSS transitions"
+        }
+      ],
+      "code": {
+        "language": "wasm",
+        "source": "local.get $lock_addr\ni32.const 1\nmemory.atomic.notify"
+      }
+    },
+    {
+      "id": "q019",
+      "type": "multi-select",
+      "prompt": "Select all valid reasons to cache a compiled `WebAssembly.Module` in IndexedDB or share it across Workers.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Allows bypassing `application/wasm` MIME checks on initial `fetch`"
+        },
+        {
+          "id": "b",
+          "text": "Avoids re-parsing/re-validating bytes on subsequent worker spawns"
+        },
+        {
+          "id": "c",
+          "text": "Browsers also cache HTTP streaming compilation artifacts when `Cache-Control` is configured properly"
+        },
+        {
+          "id": "d",
+          "text": "Reduces CPU work on startup for multi-worker pools"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "single-choice",
+      "prompt": "What does `wasm-tools strip` / `wasm-strip` remove?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Exported functions"
+        },
+        {
+          "id": "b",
+          "text": "Custom debug/name sections (such as DWARF) that are not needed for runtime execution"
+        },
+        {
+          "id": "c",
+          "text": "The `memory` section"
+        },
+        {
+          "id": "d",
+          "text": "All `i32` constants"
+        }
+      ]
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "Why can `f32` / `f64` NaN bit patterns differ subtly if a Wasm app expects deterministic bit-exact NaNs across architectures?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Wasm only has `i32`"
+        },
+        {
+          "id": "b",
+          "text": "JS `Math.sqrt` is exact"
+        },
+        {
+          "id": "c",
+          "text": "Hardware FPUs may produce different non-canonical NaN payloads unless normalized by the runtime"
+        },
+        {
+          "id": "d",
+          "text": "Wasm has no NaN"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "matrix",
+      "prompt": "Match each Wasm profiling/diagnostic symptom to its likely cause.",
+      "rows": [
+        {
+          "id": "copy",
+          "label": "High time spent in `TextEncoder` / `Uint8Array` copies"
+        },
+        {
+          "id": "grow-err",
+          "label": "`TypeError: Cannot perform ... on a detached ArrayBuffer`"
+        },
+        {
+          "id": "link",
+          "label": "`LinkError: WebAssembly.instantiate(): Import ...`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "boundary",
+          "label": "Chatty string/array marshaling across JS<->Wasm boundary"
+        },
+        {
+          "id": "detach",
+          "label": "Cached JS view not refreshed after `memory.grow`"
+        },
+        {
+          "id": "imp",
+          "label": "Missing or mismatched host import object passed to `instantiate`"
+        }
+      ],
+      "selectionByRow": {
+        "copy": "single",
+        "grow-err": "single",
+        "link": "single"
+      }
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "In `Emscripten` or `wasm-bindgen`, why should you expose a `destroy()` / `free()` method on long-lived Wasm wrapper classes?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To reload the page"
+        },
+        {
+          "id": "b",
+          "text": "To close WebSockets"
+        },
+        {
+          "id": "c",
+          "text": "To clear `localStorage`"
+        },
+        {
+          "id": "d",
+          "text": "Because JS garbage collection does not automatically free C++/Rust heap allocations in Wasm linear memory on demand"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What does `FinalizationRegistry` in JS help with as a safety net (not a primary replacement) for Wasm objects?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Running a cleanup callback to free Wasm memory if a JS wrapper is garbage-collected without calling `.free()`"
+        },
+        {
+          "id": "b",
+          "text": "Faster math"
+        },
+        {
+          "id": "c",
+          "text": "Compiling WAT"
+        },
+        {
+          "id": "d",
+          "text": "Validating COOP headers"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all statements that are true about WASI Preview 2 (WASI 0.2) and the Component Model. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Provides standard worlds like `wasi:cli` and `wasi:http`"
+        },
+        {
+          "id": "b",
+          "text": "Requires every component to run inside a web browser"
+        },
+        {
+          "id": "c",
+          "text": "Uses WIT interfaces to define typed boundaries"
+        },
+        {
+          "id": "d",
+          "text": "Supports composable components without sharing raw linear memory"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "Why is `wasm32` (32-bit addresses) still the dominant Wasm target over `memory64` for most web apps?",
+      "options": [
+        {
+          "id": "a",
+          "text": "64-bit integers don't exist in Wasm"
+        },
+        {
+          "id": "b",
+          "text": "32-bit pointers use half the memory/cache footprint and fit within browser 2-4 GiB sandbox limits"
+        },
+        {
+          "id": "c",
+          "text": "`memory64` has no `i32`"
+        },
+        {
+          "id": "d",
+          "text": "Browsers only support 16-bit addresses"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What happens if a Wasm module compiled with `memory.grow` tries to allocate beyond its `(memory 1 16)` maximum?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It grows to 32 pages anyway"
+        },
+        {
+          "id": "b",
+          "text": "It overwrites page 0"
+        },
+        {
+          "id": "c",
+          "text": "`memory.grow` returns `-1` and the guest allocator typically returns `NULL` or traps/panics"
+        },
+        {
+          "id": "d",
+          "text": "It deletes exports"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What is a 'zero-copy' read pattern from JS into Wasm linear memory?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Using `JSON.stringify`"
+        },
+        {
+          "id": "b",
+          "text": "Using `localStorage`"
+        },
+        {
+          "id": "c",
+          "text": "Sending data over WebSockets"
+        },
+        {
+          "id": "d",
+          "text": "Creating a `Float32Array` / `Uint8Array` view directly over `memory.buffer` at the Wasm buffer pointer instead of copying arrays"
+        }
+      ],
+      "code": {
+        "language": "wasm",
+        "source": ";; JS: new Float32Array(memory.buffer, ptr, len)"
+      }
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "Why must `TextDecoder('utf-8')` NOT be called on a `SharedArrayBuffer`-backed `Uint8Array` directly?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The Web Encoding spec throws a `TypeError` if decoding a shared buffer view directly; copy the slice to a non-shared `Uint8Array` first"
+        },
+        {
+          "id": "b",
+          "text": "`TextDecoder` only supports ASCII"
+        },
+        {
+          "id": "c",
+          "text": "It is slower"
+        },
+        {
+          "id": "d",
+          "text": "It requires `COEP`"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "What does `wasm-bindgen`'s `panic=abort` vs `panic=unwind` trade off in Rust Wasm builds?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`panic=abort` disables all exports"
+        },
+        {
+          "id": "b",
+          "text": "`panic=abort` produces smaller binaries and avoids unwinding machinery, whereas `unwind` adds size"
+        },
+        {
+          "id": "c",
+          "text": "`panic=unwind` is smaller"
+        },
+        {
+          "id": "d",
+          "text": "They are identical"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "matrix",
+      "prompt": "Match each Wasm optimization flag/technique to its effect.",
+      "rows": [
+        {
+          "id": "lto",
+          "label": "`lto = true` (Rust) / `-flto` (C++)"
+        },
+        {
+          "id": "optz",
+          "label": "`wasm-opt -Oz`"
+        },
+        {
+          "id": "bro",
+          "label": "Brotli pre-compression (`app.wasm.br`)"
+        }
+      ],
+      "columns": [
+        {
+          "id": "dead",
+          "label": "Cross-module dead-code elimination and inlining"
+        },
+        {
+          "id": "size",
+          "label": "Peephole Wasm bytecode shrinking"
+        },
+        {
+          "id": "net",
+          "label": "Reduces wire transfer size over HTTP"
+        }
+      ],
+      "selectionByRow": {
+        "lto": "single",
+        "optz": "single",
+        "bro": "single"
+      }
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "Why is testing Wasm-backed modules in both Node/Wasmtime AND real browsers important?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Browsers don't support `i32`"
+        },
+        {
+          "id": "b",
+          "text": "Node doesn't support `WebAssembly`"
+        },
+        {
+          "id": "c",
+          "text": "Browser-specific constraints (MIME type, CSP, COOP/COEP for `SharedArrayBuffer`, bundle size) only surface in browser environments"
+        },
+        {
+          "id": "d",
+          "text": "Wasmtime uses different opcodes"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "type": "multi-select",
+      "prompt": "Select all statements that are true about WebAssembly tail calls (`return_call`) and exceptions proposals.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Exception handling adds native zero-cost-style try/catch blocks without JS trampolines"
+        },
+        {
+          "id": "b",
+          "text": "Both extend core Wasm without breaking existing `wasm32` modules"
+        },
+        {
+          "id": "c",
+          "text": "Tail calls require `SharedArrayBuffer`"
+        },
+        {
+          "id": "d",
+          "text": "Tail calls allow constant-stack-space recursion for state machines and interpreters"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What does `(func $f (export \"f\") ...)` + `(table ...)` + `(elem ...)` set up in WAT?",
+      "options": [
+        {
+          "id": "a",
+          "text": "HTTP headers"
+        },
+        {
+          "id": "b",
+          "text": "Imports `window`"
+        },
+        {
+          "id": "c",
+          "text": "Allocates 100 MB"
+        },
+        {
+          "id": "d",
+          "text": "Populates a function table at instantiation so `call_indirect` can invoke `$f` dynamically"
+        }
+      ],
+      "code": {
+        "language": "wasm",
+        "source": "(table 1 funcref)\n(elem (i32.const 0) $f)"
+      }
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What happens if an imported JS function called from Wasm throws a JavaScript exception?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Execution unwinds out of Wasm and propagates the JS error to the JS caller"
+        },
+        {
+          "id": "b",
+          "text": "Wasm catches it automatically in `i32`"
+        },
+        {
+          "id": "c",
+          "text": "The browser silently ignores it"
+        },
+        {
+          "id": "d",
+          "text": "Linear memory is erased"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "Why is feature-detecting Wasm extensions (like SIMD or threads) with `wasm-feature-detect` useful in production?",
+      "options": [
+        {
+          "id": "a",
+          "text": "All browsers shipped every extension in 2017"
+        },
+        {
+          "id": "b",
+          "text": "Older browsers or restricted environments may lack newer proposals, so you can serve a baseline `.wasm` fallback"
+        },
+        {
+          "id": "c",
+          "text": "It compresses `.wasm`"
+        },
+        {
+          "id": "d",
+          "text": "It replaces `fetch`"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "single-choice",
+      "prompt": "In a plugin architecture using Wasmtime/WasmEdge, why is passing immutable input bytes + returning output bytes safer than sharing a host database handle directly?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Wasm cannot read bytes"
+        },
+        {
+          "id": "b",
+          "text": "Databases don't work with Wasm"
+        },
+        {
+          "id": "c",
+          "text": "Pure data-in/data-out (or tightly scoped host functions) keeps the attack surface minimal and easy to audit"
+        },
+        {
+          "id": "d",
+          "text": "It disables `i64`"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "multi-select",
+      "prompt": "Select all valid steps when profiling a slow Wasm-powered web feature. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Measure JS<->Wasm boundary call counts and copy overhead in DevTools Performance"
+        },
+        {
+          "id": "b",
+          "text": "Check whether work is blocking the main thread instead of running in a Web Worker"
+        },
+        {
+          "id": "c",
+          "text": "Verify release optimizations (`-O3`, `wasm-opt`) are enabled rather than a debug `.wasm` build"
+        },
+        {
+          "id": "d",
+          "text": "Assume Wasm is always faster without profiling"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "What does `i32.clz` / `i32.popcnt` provide in WebAssembly?",
+      "options": [
+        {
+          "id": "a",
+          "text": "String length"
+        },
+        {
+          "id": "b",
+          "text": "HTTP status codes"
+        },
+        {
+          "id": "c",
+          "text": "Memory allocation"
+        },
+        {
+          "id": "d",
+          "text": "Hardware-accelerated bit manipulation (count leading zeros / population count)"
+        }
+      ],
+      "code": {
+        "language": "wasm",
+        "source": "local.get $mask\ni32.popcnt"
+      }
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "What is the purpose of `WebAssembly.validate(bytes)` in JavaScript?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Synchronously checks whether a byte buffer is a valid `.wasm` module without instantiating it"
+        },
+        {
+          "id": "b",
+          "text": "Executes `main()`"
+        },
+        {
+          "id": "c",
+          "text": "Downloads `.wasm`"
+        },
+        {
+          "id": "d",
+          "text": "Formats `.wat`"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "single-choice",
+      "prompt": "Why should `Cache-Control: public, max-age=31536000, immutable` be paired with content-hashed filenames (like `engine.a1b2c3.wasm`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "So browsers never cache `.wasm`"
+        },
+        {
+          "id": "b",
+          "text": "So browsers cache the compiled Wasm artifact long-term while new deploys get a fresh URL"
+        },
+        {
+          "id": "c",
+          "text": "Because `.wasm` cannot use `ETag`"
+        },
+        {
+          "id": "d",
+          "text": "To disable `instantiateStreaming`"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "matrix",
+      "prompt": "Match each Wasm architectural decision to its rationale.",
+      "rows": [
+        {
+          "id": "batch",
+          "label": "Batch 10k items per Wasm call"
+        },
+        {
+          "id": "worker",
+          "label": "Run Wasm inside a Web Worker"
+        },
+        {
+          "id": "wit",
+          "label": "Adopt WIT / Component Model on server"
+        }
+      ],
+      "columns": [
+        {
+          "id": "overhead",
+          "label": "Minimizes JS<->Wasm boundary crossing cost"
+        },
+        {
+          "id": "inp",
+          "label": "Keeps browser main thread responsive for user input"
+        },
+        {
+          "id": "poly",
+          "label": "Enables typed, multi-language component composition"
+        }
+      ],
+      "selectionByRow": {
+        "batch": "single",
+        "worker": "single",
+        "wit": "single"
+      }
+    }
+  ]
+}

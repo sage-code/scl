@@ -66,6 +66,9 @@ const vueQuizzes = quizFiles
 const flutterQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`flutter${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const wasmQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`wasm${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -170,6 +173,10 @@ test("each Vue quiz has 42 questions, brief code examples, and varied response f
 
 test("each Flutter quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(flutterQuizzes, "flutter", "fundamentals", "dart", 1);
+});
+
+test("each WebAssembly quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(wasmQuizzes, "wasm", "fundamentals", "wasm", 1);
 });
 
 for (const file of quizFiles) {
