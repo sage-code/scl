@@ -35,6 +35,32 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+// Canonicalizes provider aliases (+tags, and dots / googlemail.com for Gmail)
+// so one inbox cannot register multiple usernames.
+function canonicalEmail(value) {
+  const normalized = normalizeEmail(value);
+  const at = normalized.lastIndexOf("@");
+  if (at <= 0) {
+    return normalized;
+  }
+
+  let local = normalized.slice(0, at);
+  let domain = normalized.slice(at + 1);
+  if (domain === "googlemail.com") {
+    domain = "gmail.com";
+  }
+
+  const plus = local.indexOf("+");
+  if (plus > 0) {
+    local = local.slice(0, plus);
+  }
+  if (domain === "gmail.com") {
+    local = local.replace(/\./g, "");
+  }
+
+  return `${local}@${domain}`;
+}
+
 // `related` holds values the password must not contain (username, email name).
 function validatePassword(password, related) {
   if (typeof password !== "string" || password.length < MIN_PASSWORD) {
@@ -86,6 +112,14 @@ async function logEvent(kind, subject) {
 
 async function findUserByEmail(email) {
   const result = await getDb().execute({ sql: "select * from users where email = ?", args: [email] });
+  return result.rows[0] || null;
+}
+
+async function findUserByCanonicalEmail(email, canonical) {
+  const result = await getDb().execute({
+    sql: "select id from users where email_canonical = ? or email = ? or email = ? limit 1",
+    args: [canonical, email, canonical]
+  });
   return result.rows[0] || null;
 }
 
@@ -220,6 +254,7 @@ const actions = {
     if (!EMAIL_PATTERN.test(email) || email.length > 254) {
       throw new HttpError(400, "Enter a valid email address.");
     }
+    const emailCanonical = canonicalEmail(email);
     validatePassword(body.password, [handleValue, email.split("@")[0]]);
 
     const session = await S.readSession(req);
@@ -230,7 +265,7 @@ const actions = {
     if (await handleTaken(handleValue, session && session.user.id)) {
       throw new HttpError(409, "Username already exists. Choose another.");
     }
-    if (await findUserByEmail(email)) {
+    if (await findUserByCanonicalEmail(email, emailCanonical)) {
       throw new HttpError(409, "An account with this email already exists. Sign in or reset the password.");
     }
 
@@ -244,15 +279,15 @@ const actions = {
         // Upgrade the anonymous user in place so its progress is kept.
         userId = session.user.id;
         await db.execute({
-          sql: "update users set handle = ?, email = ?, password_hash = ?, is_anonymous = 0, updated_at = ? where id = ?",
-          args: [handleValue, email, passwordHash, now, userId]
+          sql: "update users set handle = ?, email = ?, email_canonical = ?, password_hash = ?, is_anonymous = 0, updated_at = ? where id = ?",
+          args: [handleValue, email, emailCanonical, passwordHash, now, userId]
         });
       } else {
         userId = S.newId();
         await db.execute({
-          sql: `insert into users (id, handle, email, password_hash, is_anonymous, created_at, updated_at, last_seen_at)
-                values (?, ?, ?, ?, 0, ?, ?, ?)`,
-          args: [userId, handleValue, email, passwordHash, now, now, now]
+          sql: `insert into users (id, handle, email, email_canonical, password_hash, is_anonymous, created_at, updated_at, last_seen_at)
+                values (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+          args: [userId, handleValue, email, emailCanonical, passwordHash, now, now, now]
         });
         await S.createSession(req, res, userId);
       }
