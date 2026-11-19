@@ -192,6 +192,26 @@
         title: "Vue Engineering Practice",
         description: "Evaluate SSR hydration, shallowRef, effectScope, optimistic rollback, vue-tsc, XSS safety, and production observability."
       }
+    ],
+    flutter: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Flutter Foundations",
+        description: "Review StatelessWidget and StatefulWidget, Material layout widgets, Flex alignment, ListView.builder, and assets."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Flutter Applied Practice",
+        description: "Apply widget lifecycles, controllers, forms, FutureBuilder, LayoutBuilder, InheritedWidget, and navigation."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Flutter Engineering Practice",
+        description: "Evaluate the three trees, keys, isolates, slivers, RepaintBoundary, accessibility, testing, and release builds."
+      }
     ]
   };
   const trackTitles = {
@@ -203,7 +223,8 @@
     dart: "Dart",
     tscript: "TypeScript",
     react: "React",
-    vue: "Vue"
+    vue: "Vue",
+    flutter: "Flutter"
   };
 
   function titleCase(track) {
