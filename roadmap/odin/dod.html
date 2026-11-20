@@ -69,6 +69,7 @@
         <p>The layout you get for free is the one you would write down naturally: define a record, then make an array of them.</p>
 
         <h3 id="aos-shape">Records Stored Whole</h3>
+        <p>Declaring a <code>Particle</code> struct and allocating a slice of it places all four fields of each particle back to back in memory:</p>
         <pre><code class="language-odin line-numbers">Vector2 :: [2]f32           // two floats = 8 bytes, with array arithmetic
 
 Particle :: struct {
@@ -114,6 +115,7 @@ for i in 0..&lt;len(particles) {
         <p>The remedy is almost embarrassingly simple: stop storing the records whole. Keep one array per field, so that the values a loop needs are the only values in the lines it loads.</p>
 
         <h3 id="soa-shape">One Array Per Field</h3>
+        <p>Splitting the same particle data into one slice per field packs identical values together so each cache line serves a single loop:</p>
         <pre><code class="language-odin line-numbers">// The same particles, split by field: each field becomes a contiguous array.
 positions  := make([]Vector2, count)
 velocities := make([]Vector2, count)
@@ -173,7 +175,9 @@ growing: #soa[dynamic]Particle   // grows like a dynamic array
 
         <h3 id="zip"><code>soa_zip</code> and <code>soa_unzip</code></h3>
         <p>Often the data already lives in separate arrays, because that is how it arrived or how another part of the system prefers it. Two built-ins convert between the views in one call. Here are their signatures, quoted exactly as the language declares them:</p>
-        <pre><code class="language-odin line-numbers">soa_zip   :: proc(slices: ...) -&gt; #soa[]Struct
+        <pre><code class="language-odin line-numbers">// Combine parallel field slices into one #soa view without copying data.
+soa_zip   :: proc(slices: ...) -&gt; #soa[]Struct
+// Split an #soa slice back into its underlying per-field slices.
 soa_unzip :: proc(value: $S/#soa[]$E) -&gt; (slices: ...)
 </code></pre>
         <p><code>soa_zip</code> takes several field slices and presents them as one SOA array; <code>soa_unzip</code> hands the field slices back. That is what makes the style practical in a real program: your hot loop sees the layout it wants, and the rest of the code keeps working field by field without knowing that anything changed.</p>

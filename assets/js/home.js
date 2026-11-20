@@ -7,10 +7,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById("typewriter");
     const actions = document.getElementById("hero-actions");
     const fromRoadmapShortcut = window.location.hash === "#sage-code-roadmap";
-    const heroMessage = `Write Code That Moves Iron. 
-* Zero tracking, zero obligation.
-* Pure signal, direct execution.
-* Build, break, and iterate.
+    const heroMessage = `We write Code and Tutorials. 
+* Learn for free, zero obligation.
+* Register to track your progress.
+* Learn, build, break, and iterate.
 `;
 
     function toHtmlWithBreaks(text) {

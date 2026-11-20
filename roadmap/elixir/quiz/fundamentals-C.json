@@ -1,0 +1,1068 @@
+{
+  "schemaVersion": 1,
+  "id": "elixir-fundamentals-C",
+  "revision": 1,
+  "name": "Elixir Engineering Practice: C",
+  "track": "elixir",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 59,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "multi-select",
+      "prompt": "Select all true statements about BEAM processes compared to OS threads. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Each BEAM process has its own isolated heap and mailbox"
+        },
+        {
+          "id": "b",
+          "text": "A single BEAM node can run hundreds of thousands of concurrent processes"
+        },
+        {
+          "id": "c",
+          "text": "BEAM processes share a single mutable heap without message passing"
+        },
+        {
+          "id": "d",
+          "text": "BEAM processes are lightweight (~2 KB initial memory) and preemptively scheduled across CPU cores"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "What happens when a process calls `send(pid, msg)`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It blocks until `pid` finishes processing `msg`"
+        },
+        {
+          "id": "b",
+          "text": "It executes `msg` in the caller's process"
+        },
+        {
+          "id": "c",
+          "text": "It terminates `pid`"
+        },
+        {
+          "id": "d",
+          "text": "It copies `msg` asynchronously into `pid`'s mailbox and returns immediately"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "send(pid, {:ping, self()})"
+      }
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "What is the key difference between `Process.link/1` and `Process.monitor/1`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Links are bidirectional crash propagation (unless `trap_exit` is true); monitors are unidirectional notifications delivering `{:DOWN, ref, :process, pid, reason}`"
+        },
+        {
+          "id": "b",
+          "text": "Links are unidirectional and monitors are bidirectional"
+        },
+        {
+          "id": "c",
+          "text": "Monitors kill the caller when the target exits"
+        },
+        {
+          "id": "d",
+          "text": "Links only work across different machines"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "type": "single-choice",
+      "prompt": "What does `Process.flag(:trap_exit, true)` do inside a process?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Ignores all incoming messages"
+        },
+        {
+          "id": "b",
+          "text": "Converts incoming exit signals from linked processes (except `:kill`) into `{:EXIT, from_pid, reason}` mailbox messages"
+        },
+        {
+          "id": "c",
+          "text": "Prevents the process from ever crashing"
+        },
+        {
+          "id": "d",
+          "text": "Disables `GenServer.call/3` timeouts"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "Process.flag(:trap_exit, true)"
+      }
+    },
+    {
+      "id": "q005",
+      "type": "single-choice",
+      "prompt": "In `receive do ... end`, what happens to messages in the mailbox that do NOT match any clause?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They are immediately deleted"
+        },
+        {
+          "id": "b",
+          "text": "They raise `MatchError`"
+        },
+        {
+          "id": "c",
+          "text": "They remain in the mailbox in order until a later `receive` matches them (or can cause unbounded mailbox growth if never matched)"
+        },
+        {
+          "id": "d",
+          "text": "They are sent back to the sender"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "When should you use `Task.async/1` + `Task.await/2` vs `Task.Supervisor.start_child/2`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use `Task.async` for fire-and-forget work and `Task.Supervisor` when you need a return value"
+        },
+        {
+          "id": "b",
+          "text": "`Task.Supervisor` runs tasks synchronously in the caller"
+        },
+        {
+          "id": "c",
+          "text": "`Task.async` never times out"
+        },
+        {
+          "id": "d",
+          "text": "Use `Task.async/await` when the caller needs the result and should link to the task; use `Task.Supervisor` for isolated or fire-and-forget tasks"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "task = Task.async(fn -> fetch_profile(id) end)\nTask.await(task, 5_000)"
+      }
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "What does `Task.async_stream(items, fun, max_concurrency: 8)` provide over spawning `Task.async` for every item in a huge list?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It bounds concurrency to `max_concurrency` workers and streams results with backpressure"
+        },
+        {
+          "id": "b",
+          "text": "It runs everything sequentially"
+        },
+        {
+          "id": "c",
+          "text": "It disables timeouts"
+        },
+        {
+          "id": "d",
+          "text": "It persists tasks to disk"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "Task.async_stream(items, &process/1, max_concurrency: 8)"
+      }
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What is `Agent` best used for in Elixir?",
+      "options": [
+        {
+          "id": "a",
+          "text": "CPU-intensive matrix multiplication"
+        },
+        {
+          "id": "b",
+          "text": "Simple state wrapper around a single process when you don't need custom `handle_info` or complex lifecycle callbacks"
+        },
+        {
+          "id": "c",
+          "text": "Replacing `Supervisor`"
+        },
+        {
+          "id": "d",
+          "text": "Distributed consensus"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "matrix",
+      "prompt": "Match each `GenServer` callback to what triggers it.",
+      "rows": [
+        {
+          "id": "call",
+          "label": "`handle_call/3`"
+        },
+        {
+          "id": "cast",
+          "label": "`handle_cast/2`"
+        },
+        {
+          "id": "info",
+          "label": "`handle_info/2`"
+        },
+        {
+          "id": "continue",
+          "label": "`handle_continue/2`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "call-d",
+          "label": "Synchronous `GenServer.call/3` expecting a reply"
+        },
+        {
+          "id": "cast-d",
+          "label": "Asynchronous `GenServer.cast/2` fire-and-forget message"
+        },
+        {
+          "id": "info-d",
+          "label": "Any other message sent to the process (e.g., `send/2`, `:DOWN`, timers)"
+        },
+        {
+          "id": "continue-d",
+          "label": "Post-`init` or post-callback continuation before processing the mailbox"
+        }
+      ],
+      "selectionByRow": {
+        "call": "single",
+        "cast": "single",
+        "info": "single",
+        "continue": "single"
+      }
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "Why is returning `{:ok, state, {:continue, :load_cache}}` from `GenServer.init/1` better than doing slow I/O directly in `init/1`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`init/1` cannot call other modules"
+        },
+        {
+          "id": "b",
+          "text": "`{:continue, ...}` runs in a separate OS process"
+        },
+        {
+          "id": "c",
+          "text": "`init/1` blocks the parent `Supervisor` until it returns; `{:continue, ...}` unblocks the supervisor immediately while running setup before any mailbox messages"
+        },
+        {
+          "id": "d",
+          "text": "It skips `terminate/2`"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "{:ok, state, {:continue, :load_cache}}"
+      }
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "Why can a single `GenServer` become a scalability bottleneck if placed in front of every HTTP request?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`GenServer` cannot use `ETS`"
+        },
+        {
+          "id": "b",
+          "text": "`GenServer.call` always takes 5 seconds"
+        },
+        {
+          "id": "c",
+          "text": "`GenServer` only runs on one CPU core for the whole VM"
+        },
+        {
+          "id": "d",
+          "text": "A `GenServer` processes its mailbox sequentially one message at a time, serializing all callers"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What happens when `GenServer.call(pid, :work, 5_000)` times out on the caller?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The caller raises an exit (`:timeout`), while the `GenServer` may still finish processing `:work` unless handled"
+        },
+        {
+          "id": "b",
+          "text": "The `GenServer` is automatically killed"
+        },
+        {
+          "id": "c",
+          "text": "The message is removed from the `GenServer`'s mailbox"
+        },
+        {
+          "id": "d",
+          "text": "The BEAM node restarts"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "matrix",
+      "prompt": "Match each OTP `Supervisor` restart strategy to its behavior when a child crashes.",
+      "rows": [
+        {
+          "id": "one-for-one",
+          "label": "`:one_for_one`"
+        },
+        {
+          "id": "one-for-all",
+          "label": "`:one_for_all`"
+        },
+        {
+          "id": "rest-for-one",
+          "label": "`:rest_for_one`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "one-for-one-d",
+          "label": "Restarts only the crashed child process"
+        },
+        {
+          "id": "one-for-all-d",
+          "label": "Terminates and restarts all children in the supervisor"
+        },
+        {
+          "id": "rest-for-one-d",
+          "label": "Terminates and restarts the crashed child plus any children started after it"
+        }
+      ],
+      "selectionByRow": {
+        "one-for-one": "single",
+        "one-for-all": "single",
+        "rest-for-one": "single"
+      }
+    },
+    {
+      "id": "q014",
+      "type": "single-choice",
+      "prompt": "When should you use `DynamicSupervisor` instead of a static `Supervisor`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "When all children are known at boot time"
+        },
+        {
+          "id": "b",
+          "text": "When children are started and stopped dynamically on demand (e.g., one process per user session or job)"
+        },
+        {
+          "id": "c",
+          "text": "When you need `:one_for_all`"
+        },
+        {
+          "id": "d",
+          "text": "When you want to disable restarts"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "matrix",
+      "prompt": "Match each OTP child spec `restart:` option to its restart policy.",
+      "rows": [
+        {
+          "id": "permanent",
+          "label": "`:permanent`"
+        },
+        {
+          "id": "transient",
+          "label": "`:transient`"
+        },
+        {
+          "id": "temporary",
+          "label": "`:temporary`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "permanent-d",
+          "label": "Always restarts the child regardless of exit reason"
+        },
+        {
+          "id": "transient-d",
+          "label": "Restarts only if the child exits abnormally (not `:normal`, `:shutdown`, `{:shutdown, _}`)"
+        },
+        {
+          "id": "temporary-d",
+          "label": "Never restarts the child"
+        }
+      ],
+      "selectionByRow": {
+        "permanent": "single",
+        "transient": "single",
+        "temporary": "single"
+      }
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What is `max_restarts` and `max_seconds` on a `Supervisor` for?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Limiting HTTP requests per second"
+        },
+        {
+          "id": "b",
+          "text": "Setting database pool size"
+        },
+        {
+          "id": "c",
+          "text": "Preventing infinite crash-restart loops: if a supervisor exceeds `max_restarts` within `max_seconds`, it shuts down and escalates to its own parent"
+        },
+        {
+          "id": "d",
+          "text": "Configuring garbage collection frequency"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "What does `mix release` produce?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A single-file Python wheel"
+        },
+        {
+          "id": "b",
+          "text": "A static C binary with no BEAM"
+        },
+        {
+          "id": "c",
+          "text": "A Docker image automatically"
+        },
+        {
+          "id": "d",
+          "text": "A self-contained directory bundling compiled BEAM bytecode, ERTS (optional), and boot scripts with no Mix or source required at runtime"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "In distributed Elixir, what happens when two connected BEAM nodes experience a network partition (net-split)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Each node continues running independently; global registries or split state must be reconciled or avoided via `:pg`, PubSub, or external consensus"
+        },
+        {
+          "id": "b",
+          "text": "BEAM automatically elects a Raft leader and freezes the minority"
+        },
+        {
+          "id": "c",
+          "text": "Both nodes immediately halt"
+        },
+        {
+          "id": "d",
+          "text": "All ETS tables are replicated automatically"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "What is `:pg` (process groups) in modern Erlang/OTP and Elixir?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A PostgreSQL driver"
+        },
+        {
+          "id": "b",
+          "text": "A built-in OTP distributed process group registry replacing the older `:pg2`"
+        },
+        {
+          "id": "c",
+          "text": "A Phoenix template engine"
+        },
+        {
+          "id": "d",
+          "text": "A compiler flag"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "single-choice",
+      "prompt": "In Ecto, what is the role of an `Ecto.Changeset`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It executes raw SQL migrations only"
+        },
+        {
+          "id": "b",
+          "text": "It replaces `GenServer`"
+        },
+        {
+          "id": "c",
+          "text": "It casts, filters, validates, and tracks changes to data before persisting to a database or using in-memory schemas"
+        },
+        {
+          "id": "d",
+          "text": "It compiles `.eex` templates"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "user\n|> cast(params, [:email, :name])\n|> validate_required([:email])\n|> unique_constraint(:email)"
+      }
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "Why is `Ecto.Multi` used when performing multiple database writes together?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It bypasses database transactions"
+        },
+        {
+          "id": "b",
+          "text": "It runs queries across multiple databases without transactions"
+        },
+        {
+          "id": "c",
+          "text": "It caches queries in ETS"
+        },
+        {
+          "id": "d",
+          "text": "It composes named operations into a single atomic database transaction, returning `{:ok, results}` or `{:error, failed_op, reason, changes}`"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "How do you avoid N+1 query problems in Ecto when loading associations for a list of records?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use `Repo.preload/2` or join+preload in the initial query"
+        },
+        {
+          "id": "b",
+          "text": "Call `Repo.get!` inside `Enum.map`"
+        },
+        {
+          "id": "c",
+          "text": "Disable database indexes"
+        },
+        {
+          "id": "d",
+          "text": "Store associations in atoms"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "Repo.preload(posts, :author)"
+      }
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "In Phoenix, what is a `Plug`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A browser extension"
+        },
+        {
+          "id": "b",
+          "text": "A composable specification (`init/1` and `call/2`) for transforming `%Plug.Conn{}` through the HTTP request/response pipeline"
+        },
+        {
+          "id": "c",
+          "text": "A database migration"
+        },
+        {
+          "id": "d",
+          "text": "An Erlang NIF"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "In Phoenix LiveView, why is `stream/3` preferred over plain assigns for large, growing lists of items?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`stream/3` stores lists in cookies"
+        },
+        {
+          "id": "b",
+          "text": "`stream/3` disables WebSockets"
+        },
+        {
+          "id": "c",
+          "text": "`stream/3` avoids keeping the entire list in LiveView server memory after rendering, sending only diffs to the client"
+        },
+        {
+          "id": "d",
+          "text": "`stream/3` converts HTML to JSON"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "single-choice",
+      "prompt": "Why does `mount/3` in Phoenix LiveView often run twice on an initial page load?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Because of a bug in BEAM"
+        },
+        {
+          "id": "b",
+          "text": "To compile templates at runtime"
+        },
+        {
+          "id": "c",
+          "text": "Once per CPU core"
+        },
+        {
+          "id": "d",
+          "text": "Once for the initial stateless HTTP `GET` render, and a second time when the stateful WebSocket connection establishes"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `ETS` (Erlang Term Storage) in Elixir. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "ETS is an in-memory key-value store supporting concurrent reads/writes without routing through a single `GenServer`"
+        },
+        {
+          "id": "b",
+          "text": "ETS tables support `:set`, `:ordered_set`, `:bag`, and `:duplicate_bag` table types"
+        },
+        {
+          "id": "c",
+          "text": "ETS tables are owned by a BEAM process and destroyed when the owner exits (unless an `:heir` is set)"
+        },
+        {
+          "id": "d",
+          "text": "ETS automatically replicates writes across all nodes in a distributed cluster"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "When is `:persistent_term` a better fit than `ETS`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "For rarely updated, frequently read global config/lookup data (zero-copy reads, but updates trigger global GC)"
+        },
+        {
+          "id": "b",
+          "text": "For high-frequency writes and per-request counters"
+        },
+        {
+          "id": "c",
+          "text": "For storing user session tokens"
+        },
+        {
+          "id": "d",
+          "text": "For streaming large files"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "How does garbage collection work on BEAM?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A single stop-the-world pause freezes all processes"
+        },
+        {
+          "id": "b",
+          "text": "Each BEAM process has its own small heap and is garbage-collected independently, avoiding global GC pauses"
+        },
+        {
+          "id": "c",
+          "text": "BEAM uses reference counting only"
+        },
+        {
+          "id": "d",
+          "text": "Memory is freed only when the node restarts"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "What is `:telemetry` used for in Elixir applications (Phoenix, Ecto, Oban)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Sending emails"
+        },
+        {
+          "id": "b",
+          "text": "Replacing `ExUnit`"
+        },
+        {
+          "id": "c",
+          "text": "Emitting lightweight synchronous instrumentation events (`:telemetry.execute/3`) that libraries and apps attach handlers to for metrics and tracing"
+        },
+        {
+          "id": "d",
+          "text": "Compiling NIFs"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "What is the critical risk of writing a C/Rust NIF (Native Implemented Function) vs an OS Port?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Ports run inside the BEAM memory space"
+        },
+        {
+          "id": "b",
+          "text": "Ports cannot pass binary data"
+        },
+        {
+          "id": "c",
+          "text": "NIFs cannot use Rust"
+        },
+        {
+          "id": "d",
+          "text": "A segfault or long blocking call in a NIF can crash the entire BEAM VM or stall schedulers (unless using dirty schedulers), whereas a Port runs in a separate OS process"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "multi-select",
+      "prompt": "Select all true statements about Elixir's `Registry` module. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Replicates all entries across every node in a cluster automatically"
+        },
+        {
+          "id": "b",
+          "text": "Provides a local, decentralized, scalable key-value process registry backed by ETS"
+        },
+        {
+          "id": "c",
+          "text": "Supports `:unique` keys (e.g., via tuples `{:via, Registry, {MyReg, id}}`) and `:duplicate` keys for pub/sub"
+        },
+        {
+          "id": "d",
+          "text": "Automatically cleans up entries when a registered process exits"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What does `{:via, Registry, {MyApp.Registry, order_id}}` as a `GenServer` `name:` option do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Registers the `GenServer` under `order_id` in `MyApp.Registry` so callers can address it without holding its raw PID"
+        },
+        {
+          "id": "b",
+          "text": "Stores the `GenServer` state in PostgreSQL"
+        },
+        {
+          "id": "c",
+          "text": "Spawns a `Task`"
+        },
+        {
+          "id": "d",
+          "text": "Creates an atom dynamically"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "GenServer.start_link(OrderWorker, id,\n  name: {:via, Registry, {MyApp.Reg, id}})"
+      }
+    },
+    {
+      "id": "q033",
+      "type": "single-choice",
+      "prompt": "What happens when an ETS table's owner process terminates?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The ETS table stays alive forever"
+        },
+        {
+          "id": "b",
+          "text": "The ETS table is automatically destroyed (unless an `heir` process was configured)"
+        },
+        {
+          "id": "c",
+          "text": "The table is written to disk"
+        },
+        {
+          "id": "d",
+          "text": "Another random process adopts it"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What is the purpose of `Process.send_after(self(), :tick, 1_000)` inside a `GenServer`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Blocks the `GenServer` for 1 second"
+        },
+        {
+          "id": "b",
+          "text": "Spawns a new `Task` every second"
+        },
+        {
+          "id": "c",
+          "text": "Schedules `:tick` to arrive in `handle_info/2` after 1,000 ms without blocking the process"
+        },
+        {
+          "id": "d",
+          "text": "Restarts the `GenServer`"
+        }
+      ],
+      "code": {
+        "language": "elixir",
+        "source": "Process.send_after(self(), :tick, 1_000)"
+      }
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What is the advantage of `PartitionSupervisor` (introduced in Elixir 1.14)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It partitions PostgreSQL tables"
+        },
+        {
+          "id": "b",
+          "text": "It replaces `Ecto.Multi`"
+        },
+        {
+          "id": "c",
+          "text": "It splits a `mix.exs` file"
+        },
+        {
+          "id": "d",
+          "text": "It starts multiple independent instances of a child (default: one per scheduler) to eliminate single-process bottlenecks"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "In `mix.exs`, what does `mod: {MyApp.Application, []}` inside `def application` specify?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The `Application` callback module whose `start/2` function boots the root supervision tree"
+        },
+        {
+          "id": "b",
+          "text": "The compiler version"
+        },
+        {
+          "id": "c",
+          "text": "The default test module"
+        },
+        {
+          "id": "d",
+          "text": "The Phoenix router"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "single-choice",
+      "prompt": "Why should you prefer `System.unique_integer([:positive, :monotonic])` over `Enum.random/1` for ordering/IDs inside a node?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`System.unique_integer` is cryptographically random"
+        },
+        {
+          "id": "b",
+          "text": "It guarantees strictly increasing, collision-free integers across processes on that BEAM node"
+        },
+        {
+          "id": "c",
+          "text": "`Enum.random/1` is not available in releases"
+        },
+        {
+          "id": "d",
+          "text": "It persists across restarts"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `Nx` and `Nerves` in the Elixir ecosystem. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Both `Nx` and `Nerves` run on the BEAM ecosystem"
+        },
+        {
+          "id": "b",
+          "text": "`Nx` replaces `Supervisor` for web HTTP routing"
+        },
+        {
+          "id": "c",
+          "text": "`Nx` provides multi-dimensional tensors and numerical computing (with backends like EXLA/Torchx)"
+        },
+        {
+          "id": "d",
+          "text": "`Nerves` builds embedded Linux firmware and IoT systems in Elixir"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "In Phoenix, why are business logic modules organized into Contexts (e.g., `MyApp.Accounts`) rather than calling `Repo` directly from controllers or LiveViews?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Phoenix forbids `Repo` in controllers at compile time"
+        },
+        {
+          "id": "b",
+          "text": "Contexts run on separate BEAM nodes"
+        },
+        {
+          "id": "c",
+          "text": "Contexts encapsulate domain boundaries, invariants, and data access behind a clean API, decoupling web transport from persistence"
+        },
+        {
+          "id": "d",
+          "text": "Contexts automatically generate GraphQL schemas"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "What does `Observer` (`:observer.start()`) or `Phoenix.LiveDashboard` let you inspect on a running BEAM node?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Only CSS styles"
+        },
+        {
+          "id": "b",
+          "text": "Git commit history"
+        },
+        {
+          "id": "c",
+          "text": "Only PostgreSQL query plans"
+        },
+        {
+          "id": "d",
+          "text": "Live process counts, memory/heap usage, message queue lengths, supervision trees, and ETS tables"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "single-choice",
+      "prompt": "What is a common cause of memory leaks in long-running BEAM processes that handle large binaries?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Holding small sub-binary slices (`binary_part`) that keep a reference to a much larger refc binary until `:binary.copy/1` or GC"
+        },
+        {
+          "id": "b",
+          "text": "Using too many atoms in pattern matching"
+        },
+        {
+          "id": "c",
+          "text": "Using `Enum.map/2` on 3-element lists"
+        },
+        {
+          "id": "d",
+          "text": "Calling `Logger.info/1`"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "multi-select",
+      "prompt": "Select all true statements about building reliable production Elixir/OTP systems. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Avoid routing all concurrent traffic through a single `GenServer` when `ETS` or `PartitionSupervisor` fits"
+        },
+        {
+          "id": "b",
+          "text": "Use `config/runtime.exs` for environment-specific secrets and runtime config in releases"
+        },
+        {
+          "id": "c",
+          "text": "Use `Task.async` without supervision for untrusted external webhooks so crashes kill the caller"
+        },
+        {
+          "id": "d",
+          "text": "Design supervision trees so independent subsystems isolate failures"
+        }
+      ]
+    }
+  ]
+}

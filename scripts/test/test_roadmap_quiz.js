@@ -126,6 +126,15 @@ const zigQuizzes = quizFiles
 const fortranQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`fortran${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const adaQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`ada${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const elixirQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`elixir${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const odinQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`odin${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -310,6 +319,18 @@ test("each Zig quiz has 42 questions, brief code examples, and varied response f
 
 test("each Fortran quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(fortranQuizzes, "fortran", "fundamentals", "fortran", 1);
+});
+
+test("each Ada quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(adaQuizzes, "ada", "fundamentals", "ada", 1);
+});
+
+test("each Elixir quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(elixirQuizzes, "elixir", "fundamentals", "elixir", 1);
+});
+
+test("each Odin quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(odinQuizzes, "odin", "fundamentals", "odin", 1);
 });
 
 for (const file of quizFiles) {

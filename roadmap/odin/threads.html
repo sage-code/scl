@@ -94,7 +94,8 @@ To start the thread, call `start()`. Also the `create_and_start()`
 procedure can be called to create and start the thread immediately.
 </code></pre>
         <p>And the signature, quoted from the same file:</p>
-        <pre><code class="language-odin line-numbers">create :: proc(procedure: Thread_Proc, priority := Thread_Priority.Normal, name: Maybe(string) = nil) -> ^Thread
+        <pre><code class="language-odin line-numbers">// Returns a suspended ^Thread handle; call start() after setting .data.
+create :: proc(procedure: Thread_Proc, priority := Thread_Priority.Normal, name: Maybe(string) = nil) -> ^Thread
 </code></pre>
         <p>Three things in one line. The priority is a defaulted parameter, so most calls do not mention it. The name is a <code>Maybe(string)</code> — the optional-value pattern from Phase 2, here defaulting to <code>nil</code>, which is a small and honest use of it: a thread may or may not have been given a name. And the result is a pointer, <code>^Thread</code>, because a thread is a thing the runtime owns and you hold a handle to.</p>
         <p>Because creation and starting are separate, there is a window in which you can fill in the handle's fields before the thread starts running — which is exactly how arguments are passed. The package is explicit that this is the design, quoted from the field comments in the <code>Thread</code> struct:</p>
@@ -109,11 +110,12 @@ data: rawptr,
 That includes calling `join`, which needs to dereference `^Thread`.
 </code></pre>
         <p>Threads come with a small state record so the runtime can keep track of where each one is. Quoted from the package:</p>
-        <pre><code class="language-odin line-numbers">Thread_State :: enum u8 {
-    Started,
-    Joined,
-    Done,
-    Self_Cleanup,
+        <pre><code class="language-odin line-numbers">// Bit flags tracked internally by core:thread to coordinate thread lifecycle.
+Thread_State :: enum u8 {
+    Started,        // start() has been called
+    Joined,         // join() has completed
+    Done,           // thread procedure has returned
+    Self_Cleanup,   // thread frees its own ^Thread handle on exit
 }
 </code></pre>
         <p>Those four names are the four things that can be true of a thread: it has been started, someone has joined it, it has finished, and it is responsible for cleaning up after itself. The framework is deliberately small — no scheduler states, no suspend and resume, no priorities in the state machine beyond the separate <code>Thread_Priority</code> enum.</p>

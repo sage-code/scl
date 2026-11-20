@@ -1,0 +1,1110 @@
+{
+  "schemaVersion": 1,
+  "id": "odin-fundamentals-C",
+  "revision": 1,
+  "name": "Odin Engineering Practice: C",
+  "track": "odin",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 66,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "What is Odin's implicit `context` parameter?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A global mutable singleton shared across all threads"
+        },
+        {
+          "id": "b",
+          "text": "An OS environment variable map"
+        },
+        {
+          "id": "c",
+          "text": "A compile-time macro environment"
+        },
+        {
+          "id": "d",
+          "text": "A hidden per-call-stack struct passed to Odin procedures containing `allocator`, `temp_allocator`, `logger`, and `user_ptr`"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "How do you temporarily override `context.allocator` for a block without affecting the caller?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Assign `context.allocator = arena_alloc` inside a new scope (optionally using `context = context` or `defer`)"
+        },
+        {
+          "id": "b",
+          "text": "Modify a global `SET_ALLOCATOR` macro"
+        },
+        {
+          "id": "c",
+          "text": "Recompile with `-allocator:arena`"
+        },
+        {
+          "id": "d",
+          "text": "It cannot be changed at runtime"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "context.allocator = mem.arena_allocator(&arena)\nbuf := make([]u8, 1024)"
+      }
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "What is `context.temp_allocator` designed for?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Long-lived application state that persists until exit"
+        },
+        {
+          "id": "b",
+          "text": "Short-lived scratch allocations (e.g., per-frame or per-request) freed all at once via `free_all(context.temp_allocator)`"
+        },
+        {
+          "id": "c",
+          "text": "Thread-safe global caching across threads"
+        },
+        {
+          "id": "d",
+          "text": "Static compile-time arrays"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "s := fmt.tprintf(\"id=%d\", id)\nfree_all(context.temp_allocator)"
+      }
+    },
+    {
+      "id": "q004",
+      "type": "single-choice",
+      "prompt": "How does `mem.Tracking_Allocator` help during development and testing?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It compresses heap allocations with LZ4"
+        },
+        {
+          "id": "b",
+          "text": "It automatically garbage-collects unreachable memory"
+        },
+        {
+          "id": "c",
+          "text": "It records allocations and frees so you can detect memory leaks and double/bad frees"
+        },
+        {
+          "id": "d",
+          "text": "It pins pages in kernel memory"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "type": "multi-select",
+      "prompt": "Select all valid statements about Odin's allocator model. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "An `Arena` allocator can free all its allocations in O(1) via `free_all`"
+        },
+        {
+          "id": "b",
+          "text": "Odin's `mem.Allocator` is a struct of `(procedure, data)` so custom allocators plug in uniformly"
+        },
+        {
+          "id": "c",
+          "text": "Individual `free()` calls are required on a linear arena before resetting it"
+        },
+        {
+          "id": "d",
+          "text": "`make`, `new`, and `append` use `context.allocator` by default unless given another allocator"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "type": "matrix",
+      "prompt": "Match each allocator or pattern to its best engineering use case.",
+      "rows": [
+        {
+          "id": "heap",
+          "label": "Default heap allocator"
+        },
+        {
+          "id": "temp",
+          "label": "`context.temp_allocator`"
+        },
+        {
+          "id": "arena",
+          "label": "`mem.Arena`"
+        },
+        {
+          "id": "track",
+          "label": "`mem.Tracking_Allocator`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "heap-d",
+          "label": "General-purpose allocations with individual lifetimes"
+        },
+        {
+          "id": "temp-d",
+          "label": "Per-frame or per-request scratch strings and buffers"
+        },
+        {
+          "id": "arena-d",
+          "label": "Phase-scoped objects freed together in one call"
+        },
+        {
+          "id": "track-d",
+          "label": "Test-time leak and bad-free verification"
+        }
+      ],
+      "selectionByRow": {
+        "heap": "single",
+        "temp": "single",
+        "arena": "single",
+        "track": "single"
+      }
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "Why can Struct-of-Arrays (`#soa`) outperform Array-of-Structs (AoS) in tight loops?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`#soa` compresses floats into 8-bit integers"
+        },
+        {
+          "id": "b",
+          "text": "`#soa` avoids bounds checking"
+        },
+        {
+          "id": "c",
+          "text": "`#soa` moves all data into CPU registers permanently"
+        },
+        {
+          "id": "d",
+          "text": "`#soa` stores each field contiguously, improving CPU cache line utilization and SIMD vectorization when only a subset of fields is accessed"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What does `#soa[100]Entity` or `#soa[]Entity` do in Odin?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Transforms the layout into Struct-of-Arrays while letting you index `entities[i].pos`"
+        },
+        {
+          "id": "b",
+          "text": "Declares a normal AoS array sorted by name"
+        },
+        {
+          "id": "c",
+          "text": "Serializes `Entity` to disk"
+        },
+        {
+          "id": "d",
+          "text": "Creates 100 threads"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "particles: #soa[1024]Particle\nparticles[0].vel.y -= 9.8"
+      }
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "What are `soa_zip` and `soa_unzip` used for in Odin?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Compressing files into `.zip` archives"
+        },
+        {
+          "id": "b",
+          "text": "Pairing separate slices into a virtual `#soa` slice (`soa_zip`) and extracting field slices back out (`soa_unzip`)"
+        },
+        {
+          "id": "c",
+          "text": "Encrypting network packets"
+        },
+        {
+          "id": "d",
+          "text": "Joining OS threads"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "for &e in soa_zip(pos=positions, vel=velocities) {\n    e.pos += e.vel * dt\n}"
+      }
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "What is a key difference between `when` and `if` regarding dead code and type checking?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`when` branches are both fully type-checked even if false"
+        },
+        {
+          "id": "b",
+          "text": "`if` eliminates code before parsing"
+        },
+        {
+          "id": "c",
+          "text": "An untaken `when` branch is not semantically checked for type errors or missing OS-specific symbols"
+        },
+        {
+          "id": "d",
+          "text": "There is no difference"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "How do you restrict an `.odin` source file to compile only on Linux?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`#ifdef __linux__`"
+        },
+        {
+          "id": "b",
+          "text": "`@(os=\"linux\")` on the package declaration"
+        },
+        {
+          "id": "c",
+          "text": "`package main if linux`"
+        },
+        {
+          "id": "d",
+          "text": "`#+build linux` at the top of the file"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What does `foreign import lib \"system:m\"` declare?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Links an external native library (such as C's math library `libm`) for `foreign` declarations"
+        },
+        {
+          "id": "b",
+          "text": "Imports an Odin package from GitHub"
+        },
+        {
+          "id": "c",
+          "text": "Compiles a Python module"
+        },
+        {
+          "id": "d",
+          "text": "Creates a dynamic plugin at runtime"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "foreign import libm \"system:m\"\nforeign libm {\n    sin :: proc(x: f64) -> f64 ---\n}"
+      }
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "Why must Odin C FFI procedures typically use `proc \"c\"` and `cstring`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`proc \"c\"` enables garbage collection"
+        },
+        {
+          "id": "b",
+          "text": "`proc \"c\"` matches the C ABI (no implicit Odin `context`), and `cstring` is a null-terminated `^u8` expected by C"
+        },
+        {
+          "id": "c",
+          "text": "`cstring` is a 16-bit UTF-16 string"
+        },
+        {
+          "id": "d",
+          "text": "Odin's `string` is already null-terminated in all cases"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "single-choice",
+      "prompt": "What does `@(link_name=\"custom_sym\")` on a `foreign` procedure do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Renames the Odin package"
+        },
+        {
+          "id": "b",
+          "text": "Inlines the C function into Odin"
+        },
+        {
+          "id": "c",
+          "text": "Maps an Odin procedure identifier to a different exported linker symbol name"
+        },
+        {
+          "id": "d",
+          "text": "Marks the symbol as private"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "When writing a callback in Odin passed to a C library, what calling convention should you use?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`\"odin\"`"
+        },
+        {
+          "id": "b",
+          "text": "`\"inline\"`"
+        },
+        {
+          "id": "c",
+          "text": "`\"stdcall\"` on all platforms"
+        },
+        {
+          "id": "d",
+          "text": "`\"c\"` (which omits `context`, or initialize `context = runtime.default_context()` inside if needed)"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What happens to `context` when spawning a new thread with `core:thread`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Each thread gets its own `context` (copied or initialized), and `thread.create` lets you provide `init_context`"
+        },
+        {
+          "id": "b",
+          "text": "The child thread shares the parent's `context` pointer unsafely"
+        },
+        {
+          "id": "c",
+          "text": "Threads cannot use `context` at all"
+        },
+        {
+          "id": "d",
+          "text": "Odin forces all allocations onto `temp_allocator` globally"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "multi-select",
+      "prompt": "Select all synchronization primitives provided in `core:sync` and `core:sync/chan`. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`sync.Mutex` and `sync.RW_Mutex`"
+        },
+        {
+          "id": "b",
+          "text": "`sync.Wait_Group` and `sync.Cond`"
+        },
+        {
+          "id": "c",
+          "text": "`sync.atomic_add` / `intrinsics.atomic_*`"
+        },
+        {
+          "id": "d",
+          "text": "BEAM actor mailboxes"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "How do you mark a procedure as a unit test discovered by `odin test`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Name it `test_*` without any attribute"
+        },
+        {
+          "id": "b",
+          "text": "Annotate it with `@(test)` and signature `proc(t: ^testing.T)`"
+        },
+        {
+          "id": "c",
+          "text": "Put it in a `tests.json` manifest"
+        },
+        {
+          "id": "d",
+          "text": "Use `when TESTING` inside `main`"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "@(test)\nadd_test :: proc(t: ^testing.T) {\n    testing.expect_value(t, 2 + 2, 4)\n}"
+      }
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "What does `testing.expect_value(t, got, expected)` do when `got != expected`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Immediately aborts the OS process with `SIGABRT`"
+        },
+        {
+          "id": "b",
+          "text": "Silently logs a warning"
+        },
+        {
+          "id": "c",
+          "text": "Records a test failure with both values and caller location without crashing other tests"
+        },
+        {
+          "id": "d",
+          "text": "Retries the assertion"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "single-choice",
+      "prompt": "What happens in `odin test` if a `@(test)` procedure leaks memory allocated via `context.allocator`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`odin test` never tracks memory"
+        },
+        {
+          "id": "b",
+          "text": "It only fails under `-o:speed`"
+        },
+        {
+          "id": "c",
+          "text": "Leaks are automatically freed without warning"
+        },
+        {
+          "id": "d",
+          "text": "The default test runner wraps `context.allocator` with a `Tracking_Allocator` and reports leaks as test failures"
+        }
+      ]
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "What does `thread.pool_init` / `thread.pool_add_task` in `core:thread` provide?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A fixed-size worker thread pool for executing queued tasks concurrently"
+        },
+        {
+          "id": "b",
+          "text": "An HTTP server router"
+        },
+        {
+          "id": "c",
+          "text": "A lock-free hash map"
+        },
+        {
+          "id": "d",
+          "text": "A compile-time task scheduler"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "Why is `defer sync.mutex_unlock(&m)` preferred after `sync.mutex_lock(&m)`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It makes the mutex lock-free"
+        },
+        {
+          "id": "b",
+          "text": "It unlocks the mutex on every exit path of the scope, preventing accidental deadlocks on early returns"
+        },
+        {
+          "id": "c",
+          "text": "It automatically upgrades the mutex to a read-write lock"
+        },
+        {
+          "id": "d",
+          "text": "It runs the unlock on a background thread"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "sync.mutex_lock(&mu)\ndefer sync.mutex_unlock(&mu)"
+      }
+    },
+    {
+      "id": "q023",
+      "type": "matrix",
+      "prompt": "Match each Odin attribute or directive to its effect.",
+      "rows": [
+        {
+          "id": "test",
+          "label": "`@(test)`"
+        },
+        {
+          "id": "init",
+          "label": "`@(init)`"
+        },
+        {
+          "id": "packed",
+          "label": "`#packed`"
+        },
+        {
+          "id": "no-bc",
+          "label": "`@(no_bounds_check)`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "test-d",
+          "label": "Registers procedure with `odin test` runner"
+        },
+        {
+          "id": "init-d",
+          "label": "Runs procedure automatically before `main`"
+        },
+        {
+          "id": "packed-d",
+          "label": "Eliminates padding bytes between struct fields"
+        },
+        {
+          "id": "no-bc-d",
+          "label": "Disables bounds checking inside a procedure"
+        }
+      ],
+      "selectionByRow": {
+        "test": "single",
+        "init": "single",
+        "packed": "single",
+        "no-bc": "single"
+      }
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What does `-vet` do when passed to the Odin compiler?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Runs an external C linter"
+        },
+        {
+          "id": "b",
+          "text": "Strips all debug symbols"
+        },
+        {
+          "id": "c",
+          "text": "Enables stricter warnings for unused variables, unused imports, shadowing, and style issues"
+        },
+        {
+          "id": "d",
+          "text": "Enables address sanitizer only"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "single-choice",
+      "prompt": "What is a common pitfall when returning a `string` formatted with `fmt.tprintf` from a function?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`fmt.tprintf` always returns `nil`"
+        },
+        {
+          "id": "b",
+          "text": "`fmt.tprintf` blocks all threads"
+        },
+        {
+          "id": "c",
+          "text": "`fmt.tprintf` leaks into kernel space"
+        },
+        {
+          "id": "d",
+          "text": "The returned string lives in `context.temp_allocator` and becomes invalid after `free_all(context.temp_allocator)`"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "What is the purpose of `strings.clone(s)`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Allocates an independent copy of `s` using `context.allocator` (or a specified allocator)"
+        },
+        {
+          "id": "b",
+          "text": "Creates a non-owning slice alias"
+        },
+        {
+          "id": "c",
+          "text": "Converts `s` to uppercase in place"
+        },
+        {
+          "id": "d",
+          "text": "Frees `s`"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "multi-select",
+      "prompt": "Select all true statements about Odin's `base:intrinsics` package. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Replaces `core:fmt` for console printing"
+        },
+        {
+          "id": "b",
+          "text": "Provides compile-time type queries like `type_is_numeric(T)` and `type_is_struct(T)`"
+        },
+        {
+          "id": "c",
+          "text": "Exposes low-level hardware operations like `count_leading_zeros` and atomic primitives"
+        },
+        {
+          "id": "d",
+          "text": "Enables SIMD vector operations via `#simd[N]T`"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What does `#simd[4]f32` represent in Odin?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A dynamic array of 4 floats"
+        },
+        {
+          "id": "b",
+          "text": "A 4-lane hardware SIMD vector of `f32` supporting element-wise arithmetic"
+        },
+        {
+          "id": "c",
+          "text": "A 4x4 matrix struct"
+        },
+        {
+          "id": "d",
+          "text": "A 4-byte packed struct"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "What happens when you pass `-sanitize:address` to `odin build` or `odin run`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Encrypts all pointer values"
+        },
+        {
+          "id": "b",
+          "text": "Disables all `^T` pointers"
+        },
+        {
+          "id": "c",
+          "text": "Enables AddressSanitizer (ASan) to detect out-of-bounds accesses and use-after-free bugs at runtime"
+        },
+        {
+          "id": "d",
+          "text": "Removes `context.allocator`"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "Why should `free_all(context.temp_allocator)` be called at a clear boundary (like the end of a frame or request)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Because `fmt.println` requires it"
+        },
+        {
+          "id": "b",
+          "text": "Because Odin crashes if `temp_allocator` is not freed every millisecond"
+        },
+        {
+          "id": "c",
+          "text": "Because `free_all` also frees `context.allocator`"
+        },
+        {
+          "id": "d",
+          "text": "Because `temp_allocator` never wraps or resets on its own unless told to"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "multi-select",
+      "prompt": "Select all practices that improve C FFI safety in Odin. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use `proc \"c\"` for foreign functions and callbacks"
+        },
+        {
+          "id": "b",
+          "text": "Pass Odin `[]u8` slices directly to C functions expecting `const char*` without a length"
+        },
+        {
+          "id": "c",
+          "text": "Use `strings.clone_to_cstring(s)` and `defer delete(cs)` when passing non-literal Odin strings to C"
+        },
+        {
+          "id": "d",
+          "text": "Verify struct field types and `#align` / `#packed` match the C ABI layout"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "matrix",
+      "prompt": "Match each `core:os` or `core:io` concept to its role.",
+      "rows": [
+        {
+          "id": "read",
+          "label": "`os.read_entire_file`"
+        },
+        {
+          "id": "write",
+          "label": "`os.write_entire_file`"
+        },
+        {
+          "id": "handle",
+          "label": "`os.Handle`"
+        },
+        {
+          "id": "args",
+          "label": "`os.args`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "read-d",
+          "label": "Reads a file into a newly allocated `[]u8`"
+        },
+        {
+          "id": "write-d",
+          "label": "Writes a `[]u8` buffer to a file path"
+        },
+        {
+          "id": "handle-d",
+          "label": "OS file descriptor / handle"
+        },
+        {
+          "id": "args-d",
+          "label": "Command-line arguments slice"
+        }
+      ],
+      "selectionByRow": {
+        "read": "single",
+        "write": "single",
+        "handle": "single",
+        "args": "single"
+      }
+    },
+    {
+      "id": "q033",
+      "type": "single-choice",
+      "prompt": "In `core:log`, what does `context.logger = log.create_console_logger()` enable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Structured leveled logging (`log.info`, `log.warn`, `log.error`) routed through `context.logger`"
+        },
+        {
+          "id": "b",
+          "text": "Automatic remote telemetry upload"
+        },
+        {
+          "id": "c",
+          "text": "Compile-time printf only"
+        },
+        {
+          "id": "d",
+          "text": "Disables `fmt.println`"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What does `@(require_results)` on a procedure declaration enforce?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The procedure must return at least two values"
+        },
+        {
+          "id": "b",
+          "text": "Callers cannot silently discard the procedure's return value(s)"
+        },
+        {
+          "id": "c",
+          "text": "The procedure must be called at compile time"
+        },
+        {
+          "id": "d",
+          "text": "The procedure cannot return `nil`"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "@(require_results)\ncompute :: proc() -> int { return 42 }"
+      }
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What does `mem.zero_slice(buf)` or `runtime.mem_zero(ptr, size)` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Frees the buffer"
+        },
+        {
+          "id": "b",
+          "text": "Shrinks the slice length to 0"
+        },
+        {
+          "id": "c",
+          "text": "Overwrites the memory region with zero bytes (useful for resetting buffers or clearing sensitive data)"
+        },
+        {
+          "id": "d",
+          "text": "Allocates a new slice"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "What is the effect of `-o:speed` vs `-debug` on runtime bounds checks?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`-o:speed` disables bounds checks automatically"
+        },
+        {
+          "id": "b",
+          "text": "Both flags behave identically"
+        },
+        {
+          "id": "c",
+          "text": "`-debug` disables bounds checks"
+        },
+        {
+          "id": "d",
+          "text": "`-o:speed` optimizes codegen while keeping bounds checks unless `-no-bounds-check` is explicitly passed"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "single-choice",
+      "prompt": "How can a library procedure in Odin remain allocator-agnostic?",
+      "options": [
+        {
+          "id": "a",
+          "text": "By accepting `allocator := context.allocator` as a default parameter"
+        },
+        {
+          "id": "b",
+          "text": "By hardcoding `libc.malloc` internally"
+        },
+        {
+          "id": "c",
+          "text": "By forbidding all heap allocations"
+        },
+        {
+          "id": "d",
+          "text": "By only returning fixed arrays"
+        }
+      ],
+      "code": {
+        "language": "odin",
+        "source": "make_buf :: proc(n: int, allocator := context.allocator) -> []u8 {\n    return make([]u8, n, allocator)\n}"
+      }
+    },
+    {
+      "id": "q038",
+      "type": "multi-select",
+      "prompt": "Select all valid reasons to prefer an Arena allocator over individual `malloc`/`free` calls. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "All objects sharing a phase lifetime are freed in one `free_all` call"
+        },
+        {
+          "id": "b",
+          "text": "Eliminates per-object heap fragmentation within the arena"
+        },
+        {
+          "id": "c",
+          "text": "Allows freeing individual middle objects in O(1) while shrinking the arena"
+        },
+        {
+          "id": "d",
+          "text": "Allocation is a fast pointer bump"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "What does `reflect.struct_fields_zipped(T)` in `core:reflect` allow at runtime?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Modifying struct definitions at runtime"
+        },
+        {
+          "id": "b",
+          "text": "Runtime inspection of a struct's field names, types, offsets, and struct tags using RTTI"
+        },
+        {
+          "id": "c",
+          "text": "Decompiling machine code"
+        },
+        {
+          "id": "d",
+          "text": "Bypassing type safety without pointers"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "multi-select",
+      "prompt": "Select all true statements about Data-Oriented Design in Odin. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Organizing hot data contiguously reduces CPU cache misses"
+        },
+        {
+          "id": "b",
+          "text": "`#soa` separates fields into parallel arrays while preserving indexed access syntax"
+        },
+        {
+          "id": "c",
+          "text": "`bit_set` packs boolean flags densely into machine words"
+        },
+        {
+          "id": "d",
+          "text": "Heap-allocated linked lists of polymorphic objects are preferred for inner loops"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "matrix",
+      "prompt": "Match each Odin compiler flag to its diagnostic or build role.",
+      "rows": [
+        {
+          "id": "vet",
+          "label": "`-vet`"
+        },
+        {
+          "id": "asan",
+          "label": "`-sanitize:address`"
+        },
+        {
+          "id": "nobc",
+          "label": "`-no-bounds-check`"
+        },
+        {
+          "id": "osize",
+          "label": "`-o:size`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "vet-d",
+          "label": "Report unused variables, imports, and shadowing"
+        },
+        {
+          "id": "asan-d",
+          "label": "Instrument binary with AddressSanitizer"
+        },
+        {
+          "id": "nobc-d",
+          "label": "Omit runtime slice/array bounds checks"
+        },
+        {
+          "id": "osize-d",
+          "label": "Optimize compiled output for smaller binary size"
+        }
+      ],
+      "selectionByRow": {
+        "vet": "single",
+        "asan": "single",
+        "nobc": "single",
+        "osize": "single"
+      }
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "What is the recommended way to prevent a `defer delete(res)` bug when transferring ownership of a slice to a caller?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Always `delete(res)` before returning"
+        },
+        {
+          "id": "b",
+          "text": "Return a pointer to a stack variable instead"
+        },
+        {
+          "id": "c",
+          "text": "Do not `defer delete(res)` on the success path\u2014or only `defer` cleanup on error paths (`if err != nil`)"
+        },
+        {
+          "id": "d",
+          "text": "Use `context.temp_allocator` for permanent data"
+        }
+      ]
+    }
+  ]
+}

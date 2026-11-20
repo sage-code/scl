@@ -612,6 +612,66 @@
         title: "Fortran Engineering Practice",
         description: "Evaluate submodules, OOP, iso_c_binding, f2py, OpenMP, coarrays, MPI, GPU offload, and SIMD performance."
       }
+    ],
+    ada: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Ada Foundations",
+        description: "Review .ads/.adb splits, Alire/GPRbuild, strong typing, ranges, modular types, short-circuit logic, case, and loops."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Ada Applied Practice",
+        description: "Apply unconstrained arrays, attributes, variant records, limited private types, generics, exceptions, and streams."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Ada Engineering Practice",
+        description: "Evaluate tagged OOP, Ada 2012 contracts, SPARK/GNATprove, tasking, protected objects, Ravenscar, and C interop."
+      }
+    ],
+    elixir: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Elixir Foundations",
+        description: "Review BEAM/Mix/IEx, modules and arity, pipes, immutable data, pattern matching, guards, sigils, and structs."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Elixir Applied Practice",
+        description: "Apply closures, Enum/Stream, comprehensions, protocols vs behaviours, tagged tuples, binaries, macros, ExUnit, and Mox."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Elixir Engineering Practice",
+        description: "Evaluate BEAM processes, Task/Agent/GenServer, Supervisors, releases, Ecto, Phoenix LiveView, ETS, and Telemetry."
+      }
+    ],
+    odin: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Odin Foundations",
+        description: "Review explicitness, toolchain commands, declarations, zero-init, distinct types, operators, when/switch, and for loops."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Odin Applied Practice",
+        description: "Apply multiple returns, defer, or_return/or_else, structs/unions/bit_sets, slices, dynamic arrays, maps, pointers, and generics."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Odin Engineering Practice",
+        description: "Evaluate implicit context, custom/temp/arena allocators, #soa data-oriented design, C FFI, core:thread/sync, and testing."
+      }
     ]
   };
   const trackTitles = {
@@ -644,7 +704,10 @@
     kotlin: "Kotlin",
     nim: "Nim",
     zig: "Zig",
-    fortran: "Fortran"
+    fortran: "Fortran",
+    ada: "Ada",
+    elixir: "Elixir",
+    odin: "Odin"
   };
 
   function titleCase(track) {

@@ -128,6 +128,7 @@ context = runtime.default_context()
         <p>The context is a convenience, not a cage. When a particular collection needs a particular allocator, say so — the built-ins accept one as an extra argument.</p>
 
         <h3 id="make-allocator">make with an Allocator</h3>
+        <p>Pass an allocator as the final argument to <code>make</code> or <code>new</code> whenever a single allocation should bypass the ambient context:</p>
         <pre><code class="language-odin line-numbers">// The allocator becomes an ordinary argument; the context is not consulted.
 buffer := make([]u8, 4096, context.allocator)
 defer delete(buffer)
@@ -137,6 +138,7 @@ fmt.println(len(buffer))     // 4096
         <p>Read that as: "make me a buffer, and take the memory from <em>this</em> allocator rather than from whatever happens to be installed." The same extra argument works for dynamic arrays, and it is how a function that receives an allocator from its caller can guarantee where its data lives.</p>
 
         <h3 id="why-explicit">When to Be Explicit</h3>
+        <p>Relying on the ambient context is convenient for application code, whereas explicit allocator parameters pay off in four recurring situations:</p>
         <table class="table table-bordered table-striped table-dark">
           <thead>
             <tr><th>Situation</th><th>Why an explicit allocator helps</th></tr>
@@ -180,6 +182,7 @@ c.allocator.data      = nil
         <p>Now the payoff. Because the allocator travels in the context, redirecting allocation for a block of work takes three lines of ordinary code.</p>
 
         <h3 id="save-restore">Save, Replace, Restore</h3>
+        <p>When redirecting allocations for an entire call subtree, save the caller's allocator first and restore it with <code>defer</code> so the swap never leaks past the block:</p>
         <pre><code class="language-odin line-numbers">// 1. remember what is in force
 previous := context.allocator
 
@@ -216,6 +219,7 @@ defer context.allocator = previous
         <p>Two pairs of procedures, and confusing them is a real bug rather than a matter of style.</p>
 
         <h3 id="pairing">Two Pairs You Must Not Mix Up</h3>
+        <p>Keep the two allocation primitives and their matching release procedures distinct:</p>
         <table class="table table-bordered table-striped table-dark">
           <thead>
             <tr><th>To create</th><th>Use</th><th>To release</th><th>What you get back</th></tr>

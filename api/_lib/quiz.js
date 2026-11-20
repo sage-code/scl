@@ -90,7 +90,16 @@ const publicQuizzes = {
   "zig-fundamentals-C": require("../../roadmap/zig/quiz/fundamentals-C.json"),
   "fortran-fundamentals-A": require("../../roadmap/fortran/quiz/fundamentals-A.json"),
   "fortran-fundamentals-B": require("../../roadmap/fortran/quiz/fundamentals-B.json"),
-  "fortran-fundamentals-C": require("../../roadmap/fortran/quiz/fundamentals-C.json")
+  "fortran-fundamentals-C": require("../../roadmap/fortran/quiz/fundamentals-C.json"),
+  "ada-fundamentals-A": require("../../roadmap/ada/quiz/fundamentals-A.json"),
+  "ada-fundamentals-B": require("../../roadmap/ada/quiz/fundamentals-B.json"),
+  "ada-fundamentals-C": require("../../roadmap/ada/quiz/fundamentals-C.json"),
+  "elixir-fundamentals-A": require("../../roadmap/elixir/quiz/fundamentals-A.json"),
+  "elixir-fundamentals-B": require("../../roadmap/elixir/quiz/fundamentals-B.json"),
+  "elixir-fundamentals-C": require("../../roadmap/elixir/quiz/fundamentals-C.json"),
+  "odin-fundamentals-A": require("../../roadmap/odin/quiz/fundamentals-A.json"),
+  "odin-fundamentals-B": require("../../roadmap/odin/quiz/fundamentals-B.json"),
+  "odin-fundamentals-C": require("../../roadmap/odin/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");
