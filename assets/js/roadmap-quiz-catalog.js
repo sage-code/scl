@@ -332,6 +332,46 @@
         title: "C Engineering Practice",
         description: "Evaluate undefined behavior, alignment, restrict/volatile/atomics, safe realloc, sanitizers, and systems-level safety."
       }
+    ],
+    cpp: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "C++ Foundations",
+        description: "Review namespaces, nullptr, references, const/constexpr, std::vector and std::string, classes, and range-based for."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "C++ Applied Practice",
+        description: "Apply RAII, smart pointers, Rule of Zero/Five, virtual/override, STL containers, lambdas, std::optional, and templates."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "C++ Engineering Practice",
+        description: "Evaluate move/forward semantics, string_view/span lifetimes, concepts/ranges, atomics/jthread, Pimpl, and sanitizers."
+      }
+    ],
+    rust: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Rust Foundations",
+        description: "Review Cargo, ownership and borrowing, Copy vs move, String vs &str, structs, enums, match, and Option."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Rust Applied Practice",
+        description: "Apply Result and ?, traits and generics, impl vs dyn Trait, lifetimes, iterators, closures, and modules."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Rust Engineering Practice",
+        description: "Evaluate Rc/Arc/RefCell, Send/Sync, async Pin and cancellation, unsafe FFI invariants, Cow, and Miri."
+      }
     ]
   };
   const trackTitles = {
@@ -350,7 +390,9 @@
     ruby: "Ruby",
     php: "PHP",
     node: "Node.js",
-    c: "C"
+    c: "C",
+    cpp: "C++",
+    rust: "Rust"
   };
 
   function titleCase(track) {

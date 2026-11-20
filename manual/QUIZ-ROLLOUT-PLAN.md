@@ -30,8 +30,10 @@
 - PHP (`fundamentals`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Node.js (`fundamentals`, track `node`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - C (`fundamentals`, track `c`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- C++ (`fundamentals`, track `cpp`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Rust (`fundamentals`, track `rust`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: C++ (Phase 3 Systems-language), after review of pending sets.
+- Next roadmap: Assembly (Phase 3 Systems-language), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -91,8 +93,8 @@ Apply these requirements to each roadmap before moving to the next:
 ### Phase 3 — Systems-language roadmaps
 
 16. C — Review pending (`fundamentals` A/B/C in `roadmap/c/quiz/`)
-17. C++ — Pending
-18. Rust — Pending
+17. C++ — Review pending (`fundamentals` A/B/C in `roadmap/cpp/quiz/`)
+18. Rust — Review pending (`fundamentals` A/B/C in `roadmap/rust/quiz/`)
 19. Assembly — Pending
 20. Bash — Pending
 21. Swift — Pending
