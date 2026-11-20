@@ -75,6 +75,15 @@ const svelteQuizzes = quizFiles
 const rubyQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`ruby${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const phpQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`php${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const nodeQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`node${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const cQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`c${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -191,6 +200,18 @@ test("each Svelte quiz has 42 questions, brief code examples, and varied respons
 
 test("each Ruby quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(rubyQuizzes, "ruby", "fundamentals", "ruby", 1);
+});
+
+test("each PHP quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(phpQuizzes, "php", "fundamentals", "php", 1);
+});
+
+test("each Node.js quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(nodeQuizzes, "node", "fundamentals", "javascript", 1);
+});
+
+test("each C quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(cQuizzes, "c", "fundamentals", "c", 1);
 });
 
 for (const file of quizFiles) {

@@ -39,7 +39,16 @@ const publicQuizzes = {
   "svelte-fundamentals-C": require("../../roadmap/svelte/quiz/fundamentals-C.json"),
   "ruby-fundamentals-A": require("../../roadmap/ruby/quiz/fundamentals-A.json"),
   "ruby-fundamentals-B": require("../../roadmap/ruby/quiz/fundamentals-B.json"),
-  "ruby-fundamentals-C": require("../../roadmap/ruby/quiz/fundamentals-C.json")
+  "ruby-fundamentals-C": require("../../roadmap/ruby/quiz/fundamentals-C.json"),
+  "php-fundamentals-A": require("../../roadmap/php/quiz/fundamentals-A.json"),
+  "php-fundamentals-B": require("../../roadmap/php/quiz/fundamentals-B.json"),
+  "php-fundamentals-C": require("../../roadmap/php/quiz/fundamentals-C.json"),
+  "node-fundamentals-A": require("../../roadmap/node/quiz/fundamentals-A.json"),
+  "node-fundamentals-B": require("../../roadmap/node/quiz/fundamentals-B.json"),
+  "node-fundamentals-C": require("../../roadmap/node/quiz/fundamentals-C.json"),
+  "c-fundamentals-A": require("../../roadmap/c/quiz/fundamentals-A.json"),
+  "c-fundamentals-B": require("../../roadmap/c/quiz/fundamentals-B.json"),
+  "c-fundamentals-C": require("../../roadmap/c/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

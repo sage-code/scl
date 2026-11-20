@@ -1,0 +1,1077 @@
+{
+  "schemaVersion": 1,
+  "id": "node-fundamentals-C",
+  "revision": 1,
+  "name": "Node.js Engineering Practice: C",
+  "track": "node",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 64,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "What happens to a Node.js HTTP server if a route runs a synchronous 500ms CPU loop (e.g., `pbkdf2Sync` or huge regex)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Other requests run in parallel on V8"
+        },
+        {
+          "id": "b",
+          "text": "Only that user waits"
+        },
+        {
+          "id": "c",
+          "text": "Node spawns a worker automatically"
+        },
+        {
+          "id": "d",
+          "text": "The single event loop freezes for 500ms, stalling every other connected client and health check"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "Why must graceful shutdown handle `SIGTERM` by closing the HTTP server AND closing DB/Redis pools with a timeout?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Orchestrators (Kubernetes/ECS) send `SIGTERM` before `SIGKILL`; draining in-flight requests and closing pools prevents dropped responses and leaked DB connections"
+        },
+        {
+          "id": "b",
+          "text": "`SIGTERM` is ignored by containers"
+        },
+        {
+          "id": "c",
+          "text": "Pools close V8"
+        },
+        {
+          "id": "d",
+          "text": "`SIGKILL` runs `finally` blocks"
+        }
+      ],
+      "code": {
+        "language": "javascript",
+        "source": "process.on('SIGTERM', () => server.close(() => pool.end()));"
+      }
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "What is the risk of `process.on('uncaughtException', () => {})` (swallowing the error and keeping the server running)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing; it makes the server 100% reliable"
+        },
+        {
+          "id": "b",
+          "text": "The process may be left in a corrupted half-initialized state with leaked sockets; log the error, shut down, and let the supervisor restart"
+        },
+        {
+          "id": "c",
+          "text": "It disables `Promise`s"
+        },
+        {
+          "id": "d",
+          "text": "It speeds up GC"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "type": "matrix",
+      "prompt": "Match each Node.js production bottleneck to its root cause.",
+      "rows": [
+        {
+          "id": "evl",
+          "label": "High event-loop lag (`monitorEventLoopDelay`)"
+        },
+        {
+          "id": "oom",
+          "label": "Steadily climbing RSS / heap until OOM kill"
+        },
+        {
+          "id": "fdes",
+          "label": "`EMFILE: too many open files`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "cpu",
+          "label": "Synchronous CPU work or `JSON.parse` on huge payloads on main thread"
+        },
+        {
+          "id": "leak",
+          "label": "Unbounded in-memory caches, unclosed streams, or growing listener arrays"
+        },
+        {
+          "id": "fd",
+          "label": "Unclosed file handles or unpooled outbound sockets"
+        }
+      ],
+      "selectionByRow": {
+        "evl": "single",
+        "oom": "single",
+        "fdes": "single"
+      }
+    },
+    {
+      "id": "q005",
+      "type": "single-choice",
+      "prompt": "Why should `http.Server` timeouts (`requestTimeout`, `headersTimeout`, `keepAliveTimeout`) be tuned behind a load balancer like ALB or Nginx?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To disable keep-alive"
+        },
+        {
+          "id": "b",
+          "text": "Load balancers ignore timeouts"
+        },
+        {
+          "id": "c",
+          "text": "If Node's `keepAliveTimeout` is shorter than the load balancer's idle timeout, the LB can send a request on a closing socket and return a spurious `502`"
+        },
+        {
+          "id": "d",
+          "text": "Node's default is 10ms"
+        }
+      ],
+      "code": {
+        "language": "javascript",
+        "source": "server.keepAliveTimeout = 65000;\nserver.headersTimeout = 66000;"
+      }
+    },
+    {
+      "id": "q006",
+      "type": "multi-select",
+      "prompt": "Select all practices that prevent Prototype Pollution and injection vulnerabilities in Node.js APIs. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Validate and strip unknown fields from `req.body` at the API boundary (e.g., Zod)"
+        },
+        {
+          "id": "b",
+          "text": "Use parameterized SQL queries and `execFile` with `shell: false`"
+        },
+        {
+          "id": "c",
+          "text": "Recursively `target[k] = src[k]` on raw `JSON.parse` input without key checks"
+        },
+        {
+          "id": "d",
+          "text": "Reject or strip `__proto__`, `constructor`, and `prototype` keys when merging untrusted objects (or use `Map` / schema validation)"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "What is ReDoS (Regular Expression Denial of Service) in Node.js?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A SQL error"
+        },
+        {
+          "id": "b",
+          "text": "A `Buffer` overflow"
+        },
+        {
+          "id": "c",
+          "text": "A DNS outage"
+        },
+        {
+          "id": "d",
+          "text": "Evil/nested quantifier regexes taking exponential time on crafted input and freezing the single-threaded event loop"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "Why is `structured logging` (e.g., `pino` writing JSON to `stdout`) faster and better than `console.log` in high-RPS Node services?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`console.log` is synchronous on TTY/some streams and unstructured, whereas `pino` formats JSON with minimal overhead and request correlation IDs"
+        },
+        {
+          "id": "b",
+          "text": "`pino` skips `stdout`"
+        },
+        {
+          "id": "c",
+          "text": "`console.log` crashes on objects"
+        },
+        {
+          "id": "d",
+          "text": "JSON logs compress CPU"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "What happens when an Express/Node route forgets `return` before `res.status(400).json(...)`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Node stops execution automatically"
+        },
+        {
+          "id": "b",
+          "text": "Execution continues past `res.json(...)`, often calling `res.json(...)` a second time and throwing `ERR_HTTP_HEADERS_SENT`"
+        },
+        {
+          "id": "c",
+          "text": "The response is cached"
+        },
+        {
+          "id": "d",
+          "text": "It returns `200`"
+        }
+      ],
+      "code": {
+        "language": "javascript",
+        "source": "if (!valid) return res.status(400).json({ error: 'Invalid' });"
+      }
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "How should you scale a stateless Node.js HTTP service across an 8-vCPU machine in production?",
+      "options": [
+        {
+          "id": "a",
+          "text": "One Node process uses all 8 cores for JS automatically"
+        },
+        {
+          "id": "b",
+          "text": "Use `setTimeout`"
+        },
+        {
+          "id": "c",
+          "text": "Run multiple Node processes (e.g., container replicas behind a LB, or `node:cluster` / PM2) \u2014 one per vCPU"
+        },
+        {
+          "id": "d",
+          "text": "Increase `--max-old-space-size` to 64GB"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "multi-select",
+      "prompt": "Select all practices that keep Node.js `worker_threads` pools efficient. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Reuse a fixed-size pool of workers rather than spawning a new `Worker` per request"
+        },
+        {
+          "id": "b",
+          "text": "Transfer ownership of `ArrayBuffer`s (`postMessage(buf, [buf])`) instead of copying large buffers"
+        },
+        {
+          "id": "c",
+          "text": "Size the worker pool based on `os.availableParallelism()` / CPU quota"
+        },
+        {
+          "id": "d",
+          "text": "Spawn 500 workers for 500 concurrent requests on a 2-vCPU container"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What does `os.availableParallelism()` (Node 18.14+) return compared to `os.cpus().length` in containers?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Always 1"
+        },
+        {
+          "id": "b",
+          "text": "Network bandwidth"
+        },
+        {
+          "id": "c",
+          "text": "Total disk space"
+        },
+        {
+          "id": "d",
+          "text": "Respects container CPU cgroup quotas better as a concurrency hint"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "Why should `NODE_ENV=production` be set in production Node deployments?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Frameworks like Express enable view/template caching and omit verbose stack traces in error responses"
+        },
+        {
+          "id": "b",
+          "text": "It compiles TypeScript"
+        },
+        {
+          "id": "c",
+          "text": "It enables `--inspect`"
+        },
+        {
+          "id": "d",
+          "text": "It disables `fetch`"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "single-choice",
+      "prompt": "What is a common cause of `ERR_MODULE_NOT_FOUND` when migrating a Node project to ESM (`\"type\": \"module\"`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "ESM doesn't support `async`"
+        },
+        {
+          "id": "b",
+          "text": "Relative imports in Node ESM require explicit file extensions (`./utils.js`, not `./utils`)"
+        },
+        {
+          "id": "c",
+          "text": "Node ESM doesn't support `node:fs`"
+        },
+        {
+          "id": "d",
+          "text": "`package.json` must be deleted"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "matrix",
+      "prompt": "Match each Node.js stream or I/O failure mode to its fix.",
+      "rows": [
+        {
+          "id": "oom",
+          "label": "Reading 2GB file with `fs.readFile`"
+        },
+        {
+          "id": "hang",
+          "label": "Outbound `fetch` hangs forever"
+        },
+        {
+          "id": "leak",
+          "label": "Ignoring `'error'` on `createReadStream`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "pipe",
+          "label": "Stream chunks via `fs.createReadStream` + `pipeline()`"
+        },
+        {
+          "id": "sig",
+          "label": "Pass `AbortSignal.timeout(ms)`"
+        },
+        {
+          "id": "err",
+          "label": "Handle `'error'` or use `stream/promises` `pipeline()`"
+        }
+      ],
+      "selectionByRow": {
+        "oom": "single",
+        "hang": "single",
+        "leak": "single"
+      }
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "In a Node.js microservice, what is the difference between `/healthz` (liveness) and `/readyz` (readiness)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They are identical"
+        },
+        {
+          "id": "b",
+          "text": "Liveness runs DB migrations"
+        },
+        {
+          "id": "c",
+          "text": "Liveness checks the process is alive/not deadlocked; readiness checks dependencies (DB/cache) so traffic isn't routed before ready or during shutdown"
+        },
+        {
+          "id": "d",
+          "text": "Readiness restarts Node"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "Why should you avoid `Buffer.from(userString, 'base64')` or `JSON.parse` without size limits on public endpoints?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Base64 is invalid in Node"
+        },
+        {
+          "id": "b",
+          "text": "`JSON.parse` leaks to disk"
+        },
+        {
+          "id": "c",
+          "text": "Buffers are global"
+        },
+        {
+          "id": "d",
+          "text": "Unbounded payloads consume excessive CPU and V8/Buffer memory per request"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What does `perf_hooks.monitorEventLoopDelay()` measure in production Node.js?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Event-loop scheduling lag (p50/p99), revealing when synchronous code is blocking the main thread"
+        },
+        {
+          "id": "b",
+          "text": "Network DNS ping"
+        },
+        {
+          "id": "c",
+          "text": "SQL query count"
+        },
+        {
+          "id": "d",
+          "text": "Disk IOPS"
+        }
+      ],
+      "code": {
+        "language": "javascript",
+        "source": "import { monitorEventLoopDelay } from 'node:perf_hooks';\nconst h = monitorEventLoopDelay(); h.enable();"
+      }
+    },
+    {
+      "id": "q019",
+      "type": "multi-select",
+      "prompt": "Select all valid ways to prevent memory leaks in long-running Node.js processes. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Store every incoming HTTP `req` object in a module-level array for debugging"
+        },
+        {
+          "id": "b",
+          "text": "Use bounded LRU caches (with max entries / TTL) instead of unbounded `new Map()`"
+        },
+        {
+          "id": "c",
+          "text": "Remove `EventEmitter` listeners on cleanup or pass `{ signal }`"
+        },
+        {
+          "id": "d",
+          "text": "Use `WeakMap` when associating metadata with ephemeral objects"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "single-choice",
+      "prompt": "What does `--max-old-space-size=2048` configure in Node.js?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Max disk cache"
+        },
+        {
+          "id": "b",
+          "text": "The V8 JavaScript heap limit (~2 GB) before garbage collection / OOM"
+        },
+        {
+          "id": "c",
+          "text": "Max HTTP connections"
+        },
+        {
+          "id": "d",
+          "text": "Max worker threads"
+        }
+      ]
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "Why should Node.js containers leave headroom below the container's hard RAM limit for `Buffer`s and native addons?",
+      "options": [
+        {
+          "id": "a",
+          "text": "V8 uses 100% of disk"
+        },
+        {
+          "id": "b",
+          "text": "Node ignores `--max-old-space-size`"
+        },
+        {
+          "id": "c",
+          "text": "`Buffer` allocations live in external/array-buffer memory outside V8's old-space JS heap"
+        },
+        {
+          "id": "d",
+          "text": "Containers double RAM"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "matrix",
+      "prompt": "Match each Node.js security header or defense to what it protects.",
+      "rows": [
+        {
+          "id": "helmet",
+          "label": "Security headers (`CSP`, `X-Content-Type-Options: nosniff`)"
+        },
+        {
+          "id": "rate",
+          "label": "Rate limiting (per IP / user / token bucket)"
+        },
+        {
+          "id": "cors",
+          "label": "Strict `CORS` origin allowlist"
+        }
+      ],
+      "columns": [
+        {
+          "id": "xss",
+          "label": "Mitigates XSS, MIME-sniffing, and clickjacking"
+        },
+        {
+          "id": "abuse",
+          "label": "Protects login/API endpoints from brute-force and DoS floods"
+        },
+        {
+          "id": "orig",
+          "label": "Controls which browser origins can read API responses"
+        }
+      ],
+      "selectionByRow": {
+        "helmet": "single",
+        "rate": "single",
+        "cors": "single"
+      }
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "Why is `Access-Control-Allow-Origin: *` combined with `Access-Control-Allow-Credentials: true` invalid in browsers?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is valid everywhere"
+        },
+        {
+          "id": "b",
+          "text": "CORS disables cookies"
+        },
+        {
+          "id": "c",
+          "text": "Credentials require HTTP/1.0"
+        },
+        {
+          "id": "d",
+          "text": "Browsers reject wildcard `*` with credentials; you must echo a validated origin from an explicit allowlist"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What does `node --experimental-strip-types app.ts` (or Node 22.18+/23+ unflagged type stripping) support?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Running `.ts` files with erasable type annotations directly without a build step"
+        },
+        {
+          "id": "b",
+          "text": "All TypeScript compiler features including `const enum` and namespaces"
+        },
+        {
+          "id": "c",
+          "text": "Generating `.d.ts` files"
+        },
+        {
+          "id": "d",
+          "text": "Type-checking all files with `tsc`"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all practices that improve Node.js database reliability. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Never interpolate user input into SQL strings; use `$1`/`?` bound parameters"
+        },
+        {
+          "id": "b",
+          "text": "Open a brand-new TCP database connection on every single HTTP request without closing it"
+        },
+        {
+          "id": "c",
+          "text": "Use a connection pool with bounded `max` connections and idle/acquire timeouts"
+        },
+        {
+          "id": "d",
+          "text": "Wrap multi-step writes in SQL transactions (`BEGIN` / `COMMIT` / `ROLLBACK`)"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "Why is `npm ci --omit=dev` (or multi-stage Docker build) used for Node.js production images?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To run `eslint` in production"
+        },
+        {
+          "id": "b",
+          "text": "To exclude devDependencies (`typescript`, `vitest`, `eslint`) from the runtime image, reducing size and attack surface"
+        },
+        {
+          "id": "c",
+          "text": "To delete `package.json`"
+        },
+        {
+          "id": "d",
+          "text": "To disable ESM"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What is a 'prototype pollution' sink when merging `{ ... }` recursively?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`Object.freeze`"
+        },
+        {
+          "id": "b",
+          "text": "`JSON.stringify`"
+        },
+        {
+          "id": "c",
+          "text": "Copying untrusted `__proto__` or `constructor.prototype` keys onto `Object.prototype`"
+        },
+        {
+          "id": "d",
+          "text": "`Array.isArray`"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What does `stream.finished(stream)` or `pipeline()` detect that manual `'end'` listeners miss?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing"
+        },
+        {
+          "id": "b",
+          "text": "DNS lookups"
+        },
+        {
+          "id": "c",
+          "text": "Syntax errors"
+        },
+        {
+          "id": "d",
+          "text": "Premature `'close'` or `'error'` states when a client disconnects mid-response"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "Why should you avoid `eval()`, `new Function()`, and `vm.runInNewContext()` as a security sandbox for untrusted user JS?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Node's `node:vm` module explicitly warns it is NOT a security boundary against untrusted code; use isolated processes/containers or Wasm"
+        },
+        {
+          "id": "b",
+          "text": "`vm` is too slow"
+        },
+        {
+          "id": "c",
+          "text": "`eval` only runs in ESM"
+        },
+        {
+          "id": "d",
+          "text": "`new Function` is async"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "What does `diagnostics_channel` in Node.js enable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Interactive CLI prompts"
+        },
+        {
+          "id": "b",
+          "text": "Zero-overhead publish/subscribe instrumentation hooks for HTTP, `fetch`, and DB libraries"
+        },
+        {
+          "id": "c",
+          "text": "CSS debugging"
+        },
+        {
+          "id": "d",
+          "text": "File compression"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "matrix",
+      "prompt": "Match each Node.js testing strategy to what it verifies.",
+      "rows": [
+        {
+          "id": "unit",
+          "label": "Unit tests (`node:test` / Vitest)"
+        },
+        {
+          "id": "int",
+          "label": "Integration tests (supertest + test DB)"
+        },
+        {
+          "id": "cont",
+          "label": "Contract / schema tests"
+        }
+      ],
+      "columns": [
+        {
+          "id": "pure",
+          "label": "Pure domain logic and edge cases in milliseconds"
+        },
+        {
+          "id": "wire",
+          "label": "Real HTTP routing, status codes, middleware, and SQL queries"
+        },
+        {
+          "id": "api",
+          "label": "Request/response shapes match consumers and OpenAPI/Zod schemas"
+        }
+      ],
+      "selectionByRow": {
+        "unit": "single",
+        "int": "single",
+        "cont": "single"
+      }
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "Why is testing HTTP handlers with `server.listen(0)` (ephemeral port) better than hardcoding port `3000` in tests?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Port `0` disables TCP"
+        },
+        {
+          "id": "b",
+          "text": "Port `3000` is reserved for HTTPS"
+        },
+        {
+          "id": "c",
+          "text": "The OS assigns an unused port automatically, preventing `EADDRINUSE` collisions in parallel CI runs"
+        },
+        {
+          "id": "d",
+          "text": "It skips middleware"
+        }
+      ],
+      "code": {
+        "language": "javascript",
+        "source": "await new Promise((r) => server.listen(0, r));\nconst { port } = server.address();"
+      }
+    },
+    {
+      "id": "q033",
+      "type": "multi-select",
+      "prompt": "Select all statements that are true about `fs.watch` vs `chokidar` / polling.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Debounce file-watch callbacks because editors often emit multiple events per save"
+        },
+        {
+          "id": "b",
+          "text": "Use `--watch` for local dev, not as a critical production message queue"
+        },
+        {
+          "id": "c",
+          "text": "`fs.watch` guarantees exactly one event per byte written across all OSes"
+        },
+        {
+          "id": "d",
+          "text": "`fs.watch` behavior and duplicate events vary across Linux (inotify), macOS (FSEvents), and Windows"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What happens when a `Promise` rejects inside a `setTimeout` callback without a `try/catch`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The outer `try/catch` around `setTimeout` catches it"
+        },
+        {
+          "id": "b",
+          "text": "It retries `setTimeout`"
+        },
+        {
+          "id": "c",
+          "text": "Node ignores it silently"
+        },
+        {
+          "id": "d",
+          "text": "The outer `try/catch` does NOT catch it; it becomes an `unhandledRejection`"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "Why should `crypto.randomBytes` / `randomUUID` be used instead of `Math.random()` for session IDs or password-reset tokens?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`Math.random()` is a non-cryptographic PRNG whose state can be predicted by attackers"
+        },
+        {
+          "id": "b",
+          "text": "`Math.random()` is slower"
+        },
+        {
+          "id": "c",
+          "text": "`Math.random()` only returns integers"
+        },
+        {
+          "id": "d",
+          "text": "`crypto` works only in browsers"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "What does `zlib.createGzip()` / `zlib.createBrotliCompress()` in a stream pipeline achieve for large HTTP responses?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Encrypts the response"
+        },
+        {
+          "id": "b",
+          "text": "Compresses response chunks on the fly with low memory overhead"
+        },
+        {
+          "id": "c",
+          "text": "Validates JSON"
+        },
+        {
+          "id": "d",
+          "text": "Caches DNS"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "single-choice",
+      "prompt": "When returning an error JSON response in production, why should you log the full `err.stack` internally while returning a generic message + `requestId` to the client?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Clients cannot parse stack traces"
+        },
+        {
+          "id": "b",
+          "text": "`err.stack` is empty in Node"
+        },
+        {
+          "id": "c",
+          "text": "Stack traces leak internal file paths, SQL tables, and library versions to attackers"
+        },
+        {
+          "id": "d",
+          "text": "It speeds up `JSON.stringify`"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "multi-select",
+      "prompt": "Select all valid CI checks for a production Node.js repository. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`npm ci` to verify lockfile integrity"
+        },
+        {
+          "id": "b",
+          "text": "Linting (`eslint`) and type-checking (`tsc --noEmit` if TS)"
+        },
+        {
+          "id": "c",
+          "text": "Automated tests (`node --test` / `npm test`) and `npm audit`"
+        },
+        {
+          "id": "d",
+          "text": "Running `npm update --force` on every production deploy"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "What does `res.on('close', () => controller.abort())` in a streaming/SSE or slow endpoint achieve?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Closes the server"
+        },
+        {
+          "id": "b",
+          "text": "Flushes cookies"
+        },
+        {
+          "id": "c",
+          "text": "Restarts the request"
+        },
+        {
+          "id": "d",
+          "text": "Cancels upstream `fetch` or DB queries immediately when the client disconnects"
+        }
+      ],
+      "code": {
+        "language": "javascript",
+        "source": "const ac = new AbortController();\nreq.on('close', () => ac.abort());"
+      }
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "Why is `127.0.0.1` vs `0.0.0.0` important when binding `server.listen(port, host)` inside a Docker container?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Binding to `127.0.0.1` only accepts loopback connections inside the container, whereas `0.0.0.0` accepts external container/LB traffic"
+        },
+        {
+          "id": "b",
+          "text": "`0.0.0.0` blocks all traffic"
+        },
+        {
+          "id": "c",
+          "text": "They are identical in Docker"
+        },
+        {
+          "id": "d",
+          "text": "`127.0.0.1` requires TLS"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "single-choice",
+      "prompt": "What does `NODE_OPTIONS='--enable-source-maps'` do in production Node.js?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Minifies JS"
+        },
+        {
+          "id": "b",
+          "text": "Translates compiled/bundled JS stack traces (from TypeScript/esbuild) back to original source file line numbers"
+        },
+        {
+          "id": "c",
+          "text": "Exposes source maps over HTTP"
+        },
+        {
+          "id": "d",
+          "text": "Disables `OPcache`"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "matrix",
+      "prompt": "Match each Node.js architecture decision to its rationale.",
+      "rows": [
+        {
+          "id": "wt",
+          "label": "Offload image/crypto CPU work to `worker_threads`"
+        },
+        {
+          "id": "als",
+          "label": "Store `requestId` in `AsyncLocalStorage`"
+        },
+        {
+          "id": "sb",
+          "label": "Use `stream.pipeline` for file downloads"
+        }
+      ],
+      "columns": [
+        {
+          "id": "lag",
+          "label": "Keeps main event loop responsive for concurrent I/O"
+        },
+        {
+          "id": "corr",
+          "label": "Correlates logs across async calls without threading params everywhere"
+        },
+        {
+          "id": "mem",
+          "label": "Prevents OOMs and cleans up handles on client abort"
+        }
+      ],
+      "selectionByRow": {
+        "wt": "single",
+        "als": "single",
+        "sb": "single"
+      }
+    }
+  ]
+}

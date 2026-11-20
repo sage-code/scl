@@ -272,6 +272,66 @@
         title: "Ruby Engineering Practice",
         description: "Evaluate GVL concurrency, frozen string literals, N+1 queries, safe deserialization, YJIT, and CI security."
       }
+    ],
+    php: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "PHP Foundations",
+        description: "Review PHP syntax, scalar types, strict comparisons, arrays, functions, classes, and Composer basics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "PHP Applied Practice",
+        description: "Apply strict_types, match, nullsafe operators, constructor promotion, enums, PDO, and PSR-4 autoloading."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "PHP Engineering Practice",
+        description: "Evaluate SQLi/XSS/CSRF defenses, OPcache, PHP-FPM tuning, streaming I/O, PHPStan, and production security."
+      }
+    ],
+    node: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Node.js Foundations",
+        description: "Review V8 and libuv, ESM vs CommonJS, node: built-ins, fs/promises, http.createServer, and npm lockfiles."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Node.js Applied Practice",
+        description: "Apply event loop scheduling, streams and pipeline, AbortSignal, EventEmitter, child_process, and node:test."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Node.js Engineering Practice",
+        description: "Evaluate worker_threads, backpressure, graceful shutdown, prototype pollution, heap limits, and observability."
+      }
+    ],
+    c: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "C Foundations",
+        description: "Review compilation stages, main signatures, format specifiers, stdint types, control flow, arrays, and C strings."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "C Applied Practice",
+        description: "Apply pointers and arithmetic, structs and unions, bitwise masks, dynamic allocation, stdio files, and function pointers."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "C Engineering Practice",
+        description: "Evaluate undefined behavior, alignment, restrict/volatile/atomics, safe realloc, sanitizers, and systems-level safety."
+      }
     ]
   };
   const trackTitles = {
@@ -287,7 +347,10 @@
     flutter: "Flutter",
     wasm: "WebAssembly",
     svelte: "Svelte",
-    ruby: "Ruby"
+    ruby: "Ruby",
+    php: "PHP",
+    node: "Node.js",
+    c: "C"
   };
 
   function titleCase(track) {
