@@ -75,8 +75,8 @@
   }
 
   function formatIdentity() {
-    if (!isRegistered()) {
-      return "Anonymous";
+    if (!state.user) {
+      return "Learner";
     }
 
     var handle = state.user.handle || state.user.display_name;
@@ -84,7 +84,7 @@
       handle = state.user.email.split("@")[0];
     }
 
-    return handle || "User Handler";
+    return handle || "Learner";
   }
 
   function renderRoadmapTitle() {
@@ -98,16 +98,16 @@
     var registerAction = document.getElementById("roadmap-register-action");
 
     if (loginAction) {
-      setButtonLabel(loginAction, registered ? "LOG-OUT" : "LOGIN");
+      setButtonLabel(loginAction, registered ? "SIGN OUT" : "SIGN IN");
       setHref(loginAction, registered ? "#roadmap-logout" : "/roadmap/login.html");
-      loginAction.setAttribute("aria-label", registered ? "Log out of roadmap account" : "Sign in to roadmap account");
+      loginAction.setAttribute("aria-label", registered ? "Sign out of roadmap account" : "Sign in to roadmap account");
     }
 
     if (profileAction) {
       setDisabledLink(profileAction, false);
-      setHref(profileAction, registered ? "/roadmap/profile.html" : getProfileRedirectUrl());
-      profileAction.setAttribute("aria-label", registered ? "Open current roadmap profile" : "Sign in to open roadmap profile update page");
-      profileAction.setAttribute("title", registered ? ("Signed in as " + formatIdentity()) : "Sign in first, then continue to update profile");
+      setHref(profileAction, "/roadmap/profile.html");
+      profileAction.setAttribute("aria-label", "Open your learner profile");
+      profileAction.setAttribute("title", "Update your username or profile picture (" + formatIdentity() + ")");
     }
 
     if (registerAction) {
@@ -143,7 +143,7 @@
     }
 
     if (!isRegistered()) {
-      summary.textContent = "You are not signed in. Your progress is saved for this browser. Log in or register to keep it across devices.";
+      summary.textContent = "Guest learner: " + formatIdentity() + ". You can customize your username and picture now without an email, or register later to sync across devices.";
       return;
     }
 
@@ -160,22 +160,55 @@
       return;
     }
 
-    output.textContent = isRegistered() ? formatProfile(state.user) : "Sign in to load your roadmap profile.";
+    if (!state.user) {
+      output.textContent = "Loading your learner profile...";
+      return;
+    }
+
+    if (!isRegistered()) {
+      output.textContent = [
+        "Username: " + formatIdentity(),
+        "Status: Guest learner (no email required)",
+        "Picture: " + (state.user.avatar_url ? "Custom uploaded picture" : "Generic faceless avatar")
+      ].join("\n");
+      return;
+    }
+
+    output.textContent = formatProfile(state.user);
   }
 
   function populateProfileInputs() {
     var profileForm = document.getElementById("roadmap-profile-form");
+    var avatarImg = document.getElementById("profile-avatar-img");
+    var removeAvatarBtn = document.getElementById("profile-avatar-remove");
+    var registeredSection = document.getElementById("profile-registered-section");
+    var guestNote = document.getElementById("profile-guest-register-note");
+    var registered = isRegistered();
+
+    if (avatarImg) {
+      avatarImg.src = (state.user && state.user.avatar_url) ? state.user.avatar_url : "/assets/images/avatar-placeholder.svg";
+    }
+    if (removeAvatarBtn) {
+      removeAvatarBtn.hidden = !(state.user && state.user.avatar_url);
+    }
+    if (registeredSection) {
+      registeredSection.hidden = !registered;
+    }
+    if (guestNote) {
+      guestNote.hidden = registered;
+    }
+
     if (!profileForm) {
       return;
     }
 
     var elements = profileForm.elements;
-    if (elements.handle && isRegistered()) {
+    if (elements.handle && state.user) {
       elements.handle.value = state.user.handle || formatIdentity();
     }
 
-    if (elements.email && isRegistered()) {
-      elements.email.value = state.user.email || "";
+    if (elements.email) {
+      elements.email.value = registered ? (state.user.email || "") : "";
     }
 
     if (elements.password) {
@@ -306,7 +339,6 @@
     state.api = api;
     state.initialized = true;
     wireLogoutAction();
-    wireProfileLock();
     return refresh();
   }
 

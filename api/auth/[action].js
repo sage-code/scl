@@ -16,6 +16,7 @@
 //   POST profile      {handle?, password?}
 //   POST delete       {password} (password not needed for anonymous users)
 
+const crypto = require("node:crypto");
 const { getDb, nowIso, isoAfter } = require("../_lib/db");
 const { HttpError, sendJson, redirect, getQuery, readJson, clientIp, assertSameOriginJson, handle } = require("../_lib/http");
 const S = require("../_lib/session");
@@ -111,8 +112,16 @@ async function logEvent(kind, subject) {
 }
 
 async function findUserByEmail(email) {
-  const result = await getDb().execute({ sql: "select * from users where email = ?", args: [email] });
-  return result.rows[0] || null;
+  const exact = await getDb().execute({ sql: "select * from users where email = ? limit 1", args: [email] });
+  if (exact.rows[0]) {
+    return exact.rows[0];
+  }
+  const canonical = canonicalEmail(email);
+  const byCanonical = await getDb().execute({
+    sql: "select * from users where email_canonical = ? or email = ? limit 1",
+    args: [canonical, canonical]
+  });
+  return byCanonical.rows[0] || null;
 }
 
 async function findUserByCanonicalEmail(email, canonical) {
@@ -131,11 +140,22 @@ async function handleTaken(handleValue, exceptUserId) {
   return result.rows.length > 0;
 }
 
+async function generateUniqueHandle() {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const suffix = crypto.randomInt(1000, 100000);
+    const candidate = `Learner-${suffix}`;
+    if (!(await handleTaken(candidate, ""))) {
+      return candidate;
+    }
+  }
+  return `Learner-${crypto.randomBytes(3).toString("hex")}`;
+}
+
 // Creates a one-time token and emails it. At most 3 of each kind per user per hour.
 async function sendTokenEmail(req, user, purpose) {
   const kind = `email:${purpose}`;
   if ((await countEvents(kind, user.id, HOUR_MS)) >= 3) {
-    return { ok: false, error: "Too many emails requested. Try again in an hour." };
+    return { ok: false, rateLimited: true, error: "Too many emails requested. Try again in an hour." };
   }
 
   const token = S.newToken();
@@ -145,14 +165,19 @@ async function sendTokenEmail(req, user, purpose) {
     sql: "insert into email_tokens (token_hash, user_id, purpose, created_at, expires_at) values (?, ?, ?, ?, ?)",
     args: [tokenHash, user.id, purpose, nowIso(), isoAfter(ttl)]
   });
-  await logEvent(kind, user.id);
 
   const base = siteUrl(req);
+  const isLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(base);
+  const resetPath = isLocal ? "/roadmap/reset-password.html" : "/roadmap/reset-password/";
   const link = purpose === "verify"
     ? `${base}/api/auth/verify/?token=${encodeURIComponent(token)}`
-    : `${base}/roadmap/reset-password.html?token=${encodeURIComponent(token)}`;
+    : `${base}${resetPath}?token=${encodeURIComponent(token)}`;
 
-  return sendTemplate(purpose, user.email, user.handle, link, `${purpose}-${tokenHash.slice(0, 32)}`);
+  const result = await sendTemplate(purpose, user.email, user.handle, link, `${purpose}-${tokenHash.slice(0, 32)}`);
+  if (result.ok) {
+    await logEvent(kind, user.id);
+  }
+  return result;
 }
 
 // Consumes a valid unused token; returns the user id or throws.
@@ -201,6 +226,16 @@ async function maybeCleanup() {
 const actions = {
   async session(req, res) {
     const session = await S.readSession(req);
+    if (session && !session.user.handle) {
+      const generated = await generateUniqueHandle();
+      await getDb().execute({
+        sql: "update users set handle = ?, updated_at = ? where id = ? and handle is null",
+        args: [generated, nowIso(), session.user.id]
+      });
+      const refreshed = await getDb().execute({ sql: "select * from users where id = ?", args: [session.user.id] });
+      sendJson(res, 200, { user: S.publicUser(refreshed.rows[0] || session.user) });
+      return;
+    }
     sendJson(res, 200, { user: S.publicUser(session && session.user) });
   },
 
@@ -208,6 +243,16 @@ const actions = {
     assertSameOriginJson(req);
     const session = await S.readSession(req);
     if (session) {
+      if (!session.user.handle) {
+        const generated = await generateUniqueHandle();
+        await getDb().execute({
+          sql: "update users set handle = ?, updated_at = ? where id = ? and handle is null",
+          args: [generated, nowIso(), session.user.id]
+        });
+        const refreshed = await getDb().execute({ sql: "select * from users where id = ?", args: [session.user.id] });
+        sendJson(res, 200, { user: S.publicUser(refreshed.rows[0] || session.user) });
+        return;
+      }
       sendJson(res, 200, { user: S.publicUser(session.user) });
       return;
     }
@@ -219,10 +264,11 @@ const actions = {
     await assertIpLimit(req, "anonymous-ip", ANONYMOUS_PER_IP_HOUR, "Too many new sessions from this network. Try again later.");
 
     const id = S.newId();
+    const inventedHandle = await generateUniqueHandle();
     const now = nowIso();
     await getDb().execute({
-      sql: "insert into users (id, is_anonymous, created_at, updated_at, last_seen_at) values (?, 1, ?, ?, ?)",
-      args: [id, now, now, now]
+      sql: "insert into users (id, handle, is_anonymous, created_at, updated_at, last_seen_at) values (?, ?, 1, ?, ?, ?)",
+      args: [id, inventedHandle, now, now, now]
     });
     await S.createSession(req, res, id);
     await maybeCleanup().catch((error) => console.warn("[auth] cleanup failed:", error.message));
@@ -428,7 +474,14 @@ const actions = {
 
     const user = await findUserByEmail(email);
     if (user && Number(user.is_anonymous) !== 1) {
-      await sendTokenEmail(req, user, "reset");
+      const mail = await sendTokenEmail(req, user, "reset");
+      if (!mail.ok) {
+        console.error("[auth/forgot] reset email failed:", mail.error);
+        if (mail.rateLimited) {
+          throw new HttpError(429, mail.error);
+        }
+        throw new HttpError(502, mail.error || "Could not send the reset email. Please try again later.");
+      }
     }
 
     // Same answer whether or not the account exists, to avoid email enumeration.
@@ -457,14 +510,14 @@ const actions = {
 
   async profile(req, res) {
     assertSameOriginJson(req);
-    const session = await S.requireRegistered(req);
+    const session = await S.requireSession(req);
     const body = await readJson(req);
     const user = session.user;
     const db = getDb();
     const statements = [];
     const now = nowIso();
 
-    if (body.handle !== undefined && String(body.handle).trim() !== user.handle) {
+    if (body.handle !== undefined && String(body.handle).trim() !== String(user.handle || "")) {
       const handleValue = validateHandle(body.handle);
       if (await handleTaken(handleValue, user.id)) {
         throw new HttpError(409, "Username already exists. Choose another.");
@@ -473,6 +526,9 @@ const actions = {
     }
 
     if (body.password) {
+      if (Number(user.is_anonymous) === 1) {
+        throw new HttpError(403, "Register an account with an email address before setting a password.");
+      }
       validatePassword(body.password, [String(body.handle || "").trim() || user.handle, String(user.email || "").split("@")[0]]);
       const passwordHash = await S.hashPassword(body.password);
       statements.push(
@@ -513,6 +569,7 @@ const actions = {
     }
 
     let avatarUrl = null;
+    const userAvatarUrl = user.avatar_url || null;
     const mediaToken = String(process.env.MEDIA_READ_WRITE_TOKEN || "").trim();
     if (Number(user.is_anonymous) !== 1 && mediaToken) {
       const memberRes = await getDb().execute({
@@ -523,12 +580,14 @@ const actions = {
     }
 
     await getDb().batch(S.deleteUserStatements(user.id), "write");
-    if (avatarUrl && mediaToken) {
-      try {
-        const { del } = require("@vercel/blob");
-        await del(avatarUrl, { token: mediaToken });
-      } catch (error) {
-        console.error("[auth/delete] failed to remove community avatar:", error.message);
+    for (const blobUrl of [avatarUrl, userAvatarUrl]) {
+      if (blobUrl && mediaToken) {
+        try {
+          const { del } = require("@vercel/blob");
+          await del(blobUrl, { token: mediaToken });
+        } catch (error) {
+          console.error("[auth/delete] failed to remove avatar:", error.message);
+        }
       }
     }
     S.clearSessionCookie(req, res);

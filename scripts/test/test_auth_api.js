@@ -56,7 +56,7 @@ async function callAuth(action, method, body, headers = {}) {
 }
 
 before(async () => {
-  for (const file of ["001_init.sql", "002_community_profiles.sql", "003_email_canonical.sql"]) {
+  for (const file of ["001_init.sql", "002_community_profiles.sql", "003_email_canonical.sql", "004_user_avatar_and_legacy_members.sql"]) {
     for (const sql of loadSql(file)) {
       await db.execute(sql);
     }
@@ -127,4 +127,146 @@ test("register blocks +tag aliases on non-Gmail domains while preserving signifi
     website: ""
   }, ipHeader);
   assert.equal(bobNoDot.status, 201);
+});
+
+test("forgot resolves Gmail canonical aliases, sends reset link, and reset updates password", async () => {
+  const originalFetch = global.fetch;
+  const originalKey = process.env.RESEND_SEND_KEY;
+  const sentEmails = [];
+
+  process.env.RESEND_SEND_KEY = "re_test_key";
+  global.fetch = async (_url, options) => {
+    sentEmails.push(JSON.parse(options.body));
+    return {
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      async json() {
+        return { id: "email_test_123" };
+      }
+    };
+  };
+
+  try {
+    // Request reset using a canonical alias of Alice.User@gmail.com
+    const forgotRes = await callAuth("forgot", "POST", { email: "aliceuser@gmail.com" });
+    assert.equal(forgotRes.status, 200);
+    assert.equal(sentEmails.length, 1);
+    assert.deepEqual(sentEmails[0].to, ["alice.user@gmail.com"]);
+
+    const match = sentEmails[0].text.match(/token=([A-Za-z0-9._~%-]+)/);
+    assert.ok(match, "reset email should include a token query parameter");
+    const token = decodeURIComponent(match[1]);
+
+    const resetRes = await callAuth("reset", "POST", {
+      token,
+      password: "NewStrongPassword!42"
+    });
+    assert.equal(resetRes.status, 200);
+
+    // Reusing the same token must fail
+    const reuseRes = await callAuth("reset", "POST", {
+      token,
+      password: "AnotherStrongPassword!42"
+    });
+    assert.equal(reuseRes.status, 400);
+
+    // Signing in with the new password succeeds
+    const loginRes = await callAuth("login", "POST", {
+      email: "aliceuser@gmail.com",
+      password: "NewStrongPassword!42"
+    });
+    assert.equal(loginRes.status, 200);
+    assert.equal(loginRes.body.user.handle, "alice_one");
+  } finally {
+    global.fetch = originalFetch;
+    if (originalKey === undefined) {
+      delete process.env.RESEND_SEND_KEY;
+    } else {
+      process.env.RESEND_SEND_KEY = originalKey;
+    }
+  }
+});
+
+test("forgot surfaces mail delivery errors instead of silently succeeding", async () => {
+  const originalKey = process.env.RESEND_SEND_KEY;
+  const originalApiKey = process.env.RESEND_API_KEY;
+  delete process.env.RESEND_SEND_KEY;
+  delete process.env.RESEND_API_KEY;
+
+  try {
+    const res = await callAuth("forgot", "POST", { email: "alice.user@gmail.com" });
+    assert.equal(res.status, 502);
+    assert.match(res.body.error, /not configured/i);
+  } finally {
+    if (originalKey !== undefined) process.env.RESEND_SEND_KEY = originalKey;
+    if (originalApiKey !== undefined) process.env.RESEND_API_KEY = originalApiKey;
+  }
+});
+
+test("anonymous users get an invented handle and can change username without email", async () => {
+  const anonRes = await authHandler(
+    {
+      method: "POST",
+      url: "/api/auth/anonymous/?action=anonymous",
+      headers: {
+        host: "localhost",
+        origin: "http://localhost",
+        "content-type": "application/json",
+        "x-forwarded-for": "203.0.113.55"
+      },
+      body: {}
+    },
+    (() => {
+      const r = {
+        headers: {},
+        statusCode: 200,
+        setHeader(n, v) { this.headers[n.toLowerCase()] = v; },
+        getHeader(n) { return this.headers[n.toLowerCase()]; },
+        end(v) { this.body = v; }
+      };
+      return r;
+    })()
+  );
+  // Use a direct response capture to grab cookie
+  let capturedCookie = "";
+  const capRes = {
+    headers: {},
+    statusCode: 200,
+    setHeader(n, v) {
+      this.headers[n.toLowerCase()] = v;
+      if (n.toLowerCase() === "set-cookie") {
+        capturedCookie = String(Array.isArray(v) ? v[0] : v).split(";")[0];
+      }
+    },
+    getHeader(n) { return this.headers[n.toLowerCase()]; },
+    end(v) { this.body = v; }
+  };
+  await authHandler(
+    {
+      method: "POST",
+      url: "/api/auth/anonymous/?action=anonymous",
+      headers: {
+        host: "localhost",
+        origin: "http://localhost",
+        "content-type": "application/json",
+        "x-forwarded-for": "203.0.113.56"
+      },
+      body: {}
+    },
+    capRes
+  );
+  assert.equal(capRes.statusCode, 201);
+  const createdUser = JSON.parse(capRes.body).user;
+  assert.match(createdUser.handle, /^Learner-\d{4,5}$/);
+  assert.equal(createdUser.avatar_url, null);
+
+  // Anonymous user can update their username without an email
+  const updateRes = await callAuth("profile", "POST", { handle: "GuestCoder_77" }, { cookie: capturedCookie });
+  assert.equal(updateRes.status, 200);
+  assert.equal(updateRes.body.user.handle, "GuestCoder_77");
+
+  // Anonymous user cannot set a password without registering an email
+  const pwRes = await callAuth("profile", "POST", { password: "NewPassword!99" }, { cookie: capturedCookie });
+  assert.equal(pwRes.status, 403);
 });

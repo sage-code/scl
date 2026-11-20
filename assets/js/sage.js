@@ -205,7 +205,7 @@ function initNavAuthLink() {
         });
     }
 
-    window.addEventListener('roadmap:auth-change', function (event) {
+    window.addEventListener('roadmap-auth-changed', function (event) {
         const registered = Boolean(event && event.detail && event.detail.registered);
         applyAuthState(registered);
     });

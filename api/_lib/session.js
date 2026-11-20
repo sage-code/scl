@@ -59,6 +59,7 @@ function publicUser(row) {
     handle: row.handle || null,
     display_name: row.handle || null,
     email: row.email || null,
+    avatar_url: row.avatar_url || null,
     is_anonymous: Number(row.is_anonymous) === 1,
     email_verified: !!row.email_verified_at,
     created_at: row.created_at

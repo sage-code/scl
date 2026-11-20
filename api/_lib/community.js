@@ -75,7 +75,8 @@ async function getQualifiedTracks(user) {
 async function getMember(userId) {
   const result = await getDb().execute({
     sql: `select public_id, display_name, avatar_url, bio, country_code, projects_json,
-                 qualified_track, qualified_topic, is_published, claimed_at, created_at, updated_at
+                 qualified_track, qualified_topic, is_published, claimed_at, created_at, updated_at,
+                 role, certification_label, certificate_url, member_since, is_legacy_verified
           from community_members where user_id = ?`,
     args: [userId]
   });
@@ -104,6 +105,11 @@ function memberFromRow(row) {
     projects,
     qualified_track: row.qualified_track,
     qualified_topic: row.qualified_topic,
+    role: row.role || "VCP Graduate",
+    certification_label: row.certification_label || null,
+    certificate_url: row.certificate_url || null,
+    member_since: row.member_since != null ? Number(row.member_since) : null,
+    is_legacy_verified: Number(row.is_legacy_verified) === 1,
     published: Number(row.is_published) === 1,
     claimed_at: row.claimed_at,
     created_at: row.created_at,
@@ -125,6 +131,11 @@ function publicMemberFromRow(row) {
     projects: member.projects,
     qualified_track: member.qualified_track,
     qualified_topic: member.qualified_topic,
+    role: member.role,
+    certification_label: member.certification_label,
+    certificate_url: member.certificate_url,
+    member_since: member.member_since,
+    is_legacy_verified: member.is_legacy_verified,
     claimed_at: member.claimed_at
   };
 }
@@ -133,16 +144,21 @@ async function getPublicMember(publicId) {
   const result = await getDb().execute({
     sql: `select c.user_id, u.email_verified_at, u.is_anonymous, c.public_id, c.display_name,
                  c.avatar_url, c.bio, c.country_code, c.projects_json, c.qualified_track,
-                 c.qualified_topic, c.is_published, c.claimed_at, c.created_at, c.updated_at
+                 c.qualified_topic, c.is_published, c.claimed_at, c.created_at, c.updated_at,
+                 c.role, c.certification_label, c.certificate_url, c.member_since, c.is_legacy_verified
           from community_members c
           join users u on u.id = c.user_id
           where c.public_id = ? and c.is_published = 1
-            and u.is_anonymous = 0 and u.email_verified_at is not null`,
+            and u.is_anonymous = 0
+            and (c.is_legacy_verified = 1 or u.email_verified_at is not null)`,
     args: [publicId]
   });
   const row = result.rows[0];
   if (!row) {
     return null;
+  }
+  if (Number(row.is_legacy_verified) === 1) {
+    return publicMemberFromRow(row);
   }
 
   const qualified = (await getQualifiedTracks({
@@ -157,12 +173,13 @@ async function listPublishedMembers() {
   const result = await getDb().execute({
     sql: `select c.user_id, u.email_verified_at, c.public_id, c.display_name, c.avatar_url,
                  c.country_code, c.qualified_track, c.qualified_topic, c.claimed_at,
+                 c.role, c.certification_label, c.member_since, c.is_legacy_verified,
                  q.quiz_id, q.revision, q.status
           from community_members c
           join users u on u.id = c.user_id
           left join quiz_attempts q on q.user_id = c.user_id
           where c.is_published = 1 and u.is_anonymous = 0
-            and u.email_verified_at is not null
+            and (c.is_legacy_verified = 1 or u.email_verified_at is not null)
           order by c.claimed_at desc, c.display_name collate nocase`
   });
   const grouped = new Map();
@@ -178,8 +195,8 @@ async function listPublishedMembers() {
   }
 
   return [...grouped.values()]
-    .filter(({ row, attempts }) => qualifiedRoadmaps(attempts)
-      .some((track) => track.track === row.qualified_track && track.topic === row.qualified_topic))
+    .filter(({ row, attempts }) => Number(row.is_legacy_verified) === 1
+      || qualifiedRoadmaps(attempts).some((track) => track.track === row.qualified_track && track.topic === row.qualified_topic))
     .map(({ row }) => ({
       public_id: row.public_id,
       display_name: row.display_name,
@@ -187,6 +204,10 @@ async function listPublishedMembers() {
       country_code: row.country_code,
       qualified_track: row.qualified_track,
       qualified_topic: row.qualified_topic,
+      role: row.role || "VCP Graduate",
+      certification_label: row.certification_label || null,
+      member_since: row.member_since != null ? Number(row.member_since) : null,
+      is_legacy_verified: Number(row.is_legacy_verified) === 1,
       claimed_at: row.claimed_at
     }));
 }

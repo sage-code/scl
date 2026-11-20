@@ -88,6 +88,33 @@
       upsert: function (roadmap, rows) { return post("/api/favorites/", { roadmap: roadmap, rows: rows }); },
       remove: function (roadmap, keys) { return post("/api/favorites/", { action: "delete", roadmap: roadmap, keys: keys }); }
     },
+    profile: {
+      uploadAvatar: async function (file) {
+        try {
+          var response = await fetch("/api/profile/avatar/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": file.type || "application/octet-stream"
+            },
+            body: file
+          });
+          var payload = await response.json().catch(function () { return {}; });
+          if (!response.ok) {
+            return { data: null, error: { status: response.status, message: extractErrorMessage(payload, response.status) } };
+          }
+          return { data: payload, error: null };
+        } catch (_error) {
+          return { data: null, error: { status: 0, message: "Network error. Check your connection and try again." } };
+        }
+      },
+      removeAvatar: function () { return request("DELETE", "/api/profile/avatar/"); }
+    },
+    roadmap: {
+      learners: function () { return request("GET", "/api/roadmap/learners/"); },
+      leaderboard: function () { return request("GET", "/api/roadmap/leaderboard/"); }
+    },
     community: {
       profile: function () { return request("GET", "/api/community/profile/"); },
       saveProfile: function (profile) { return post("/api/community/profile/", profile); },

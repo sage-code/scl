@@ -402,6 +402,11 @@
     var status = document.getElementById("auth-status");
     var updateButton = document.getElementById("profile-update-btn");
     var closeButton = document.getElementById("profile-close-btn");
+    var avatarInput = document.getElementById("profile-avatar-input");
+    var avatarUploadBtn = document.getElementById("profile-avatar-upload");
+    var avatarRemoveBtn = document.getElementById("profile-avatar-remove");
+    var avatarImg = document.getElementById("profile-avatar-img");
+    var handleHint = document.getElementById("profile-handle-hint");
 
     function initialHandle() {
       var user = currentUser();
@@ -409,12 +414,13 @@
     }
 
     function refreshActionButtons() {
+      var user = currentUser();
       var currentHandle = getValue(form, "handle");
       var password = getRaw(form, "password");
       var confirmPassword = getRaw(form, "confirm_password");
       var handleChanged = !!currentHandle && currentHandle !== initialHandle();
-      var passwordReady = !passwordProblem(password, confirmPassword);
-      var enabled = isRegistered() && (handleChanged || passwordReady);
+      var passwordReady = isRegistered() && !passwordProblem(password, confirmPassword);
+      var enabled = !!user && (handleChanged || passwordReady);
 
       if (updateButton) {
         updateButton.disabled = !enabled;
@@ -427,6 +433,33 @@
       }
     }
 
+    if (form.elements.handle && handleHint && api.auth.checkHandle) {
+      var defaultHint = handleHint.textContent;
+      var hintTimer = null;
+      var hintSeq = 0;
+      form.elements.handle.addEventListener("input", function () {
+        window.clearTimeout(hintTimer);
+        var val = getValue(form, "handle");
+        if (!val || val === initialHandle() || val.length < 3) {
+          handleHint.textContent = defaultHint;
+          handleHint.className = "form-text";
+          return;
+        }
+        hintTimer = window.setTimeout(async function () {
+          var mine = ++hintSeq;
+          var res = await api.auth.checkHandle(val);
+          if (mine !== hintSeq || res.error) return;
+          if (res.data.error) {
+            handleHint.textContent = res.data.error;
+            handleHint.className = "form-text text-warning";
+          } else {
+            handleHint.textContent = res.data.available ? "Username is available." : "Username already exists. Choose another.";
+            handleHint.className = "form-text " + (res.data.available ? "text-success" : "text-warning");
+          }
+        }, 400);
+      });
+    }
+
     ["handle", "password", "confirm_password"].forEach(function (name) {
       if (form.elements[name]) {
         form.elements[name].addEventListener("input", refreshActionButtons);
@@ -434,16 +467,63 @@
     });
 
     window.addEventListener("roadmap-auth-changed", function () {
-      if (!isRegistered()) {
-        setStatus(status, "Sign in first to edit profile settings.", "warning");
-      }
       refreshActionButtons();
     });
 
+    if (avatarUploadBtn && avatarInput && api.profile) {
+      avatarUploadBtn.addEventListener("click", async function () {
+        var file = avatarInput.files && avatarInput.files[0];
+        if (!file) {
+          setStatus(status, "Choose a JPEG, PNG, or WebP image file first.", "warning");
+          return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+          setStatus(status, "Picture must be 2 MB or smaller.", "warning");
+          return;
+        }
+        avatarUploadBtn.disabled = true;
+        var res = await api.profile.uploadAvatar(file);
+        avatarUploadBtn.disabled = false;
+        if (res.error) {
+          setStatus(status, res.error.message, "error");
+          return;
+        }
+        var user = currentUser();
+        if (user) {
+          applyUser({ ...user, avatar_url: res.data.avatar_url });
+        }
+        if (avatarImg && res.data.avatar_url) {
+          avatarImg.src = res.data.avatar_url;
+        }
+        avatarInput.value = "";
+        setStatus(status, res.data.warning || "Profile picture updated.", res.data.warning ? "warning" : "success");
+      });
+    }
+
+    if (avatarRemoveBtn && api.profile) {
+      avatarRemoveBtn.addEventListener("click", async function () {
+        avatarRemoveBtn.disabled = true;
+        var res = await api.profile.removeAvatar();
+        avatarRemoveBtn.disabled = false;
+        if (res.error) {
+          setStatus(status, res.error.message, "error");
+          return;
+        }
+        var user = currentUser();
+        if (user) {
+          applyUser({ ...user, avatar_url: null });
+        }
+        if (avatarImg) {
+          avatarImg.src = "/assets/images/avatar-placeholder.svg";
+        }
+        setStatus(status, res.data.warning || "Profile picture removed.", res.data.warning ? "warning" : "success");
+      });
+    }
+
     if (updateButton) {
       updateButton.addEventListener("click", async function () {
-        if (!isRegistered()) {
-          setStatus(status, "Sign in first to edit profile settings.", "warning");
+        if (!currentUser()) {
+          setStatus(status, "Session is still loading. Try again in a moment.", "warning");
           return;
         }
 
@@ -459,7 +539,7 @@
         if (handle !== initialHandle()) {
           changes.handle = handle;
         }
-        if (password || confirmPassword) {
+        if (isRegistered() && (password || confirmPassword)) {
           var problem = passwordProblem(password, confirmPassword);
           if (problem) {
             setStatus(status, problem, "warning");
@@ -483,7 +563,7 @@
         applyUser(result.data.user);
         setStatus(status, changes.password
           ? "Profile updated. Other devices were signed out because the password changed."
-          : "Profile updated successfully.", "success");
+          : "Username updated.", "success");
         refreshActionButtons();
       });
     }

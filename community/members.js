@@ -80,12 +80,15 @@
 
   function mapGraduate(member) {
     var claimedAt = member.claimed_at ? new Date(member.claimed_at) : null;
+    var sinceValue = member.member_since != null
+      ? member.member_since
+      : (!claimedAt || Number.isNaN(claimedAt.getTime()) ? '—' : claimedAt.getFullYear());
     return {
       public_id: member.public_id,
       name: member.display_name,
-      role: 'VCP Graduate',
-      certification: trackName(member.qualified_track) + ' roadmap',
-      since: !claimedAt || Number.isNaN(claimedAt.getTime()) ? '—' : claimedAt.getFullYear(),
+      role: member.role || 'VCP Graduate',
+      certification: member.certification_label || (trackName(member.qualified_track) + ' roadmap'),
+      since: sinceValue,
       avatar_url: member.avatar_url
     };
   }
@@ -128,7 +131,11 @@
         .map(mapGraduate);
     }
 
-    members = graduateMembers.concat(legacyMembers);
+    var seenIds = new Set(graduateMembers.map(function (member) { return member.public_id; }));
+    var remainingLegacy = legacyMembers.filter(function (member) {
+      return !seenIds.has(member.slug);
+    });
+    members = graduateMembers.concat(remainingLegacy);
     render();
     if (errors.length) {
       setStatus(errors.join(' '), 'warning');

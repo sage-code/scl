@@ -55,8 +55,10 @@
   function renderProfile(profile) {
     title.textContent = profile.display_name;
     document.title = profile.display_name + " | Sage-Code Community";
-    document.getElementById("profile-qualification").textContent =
-      trackName(profile.qualified_track) + " roadmap qualification";
+    var qualText = profile.certification_label
+      ? (profile.role ? profile.role + " — " : "") + profile.certification_label
+      : trackName(profile.qualified_track) + " roadmap qualification";
+    document.getElementById("profile-qualification").textContent = qualText;
 
     var country = document.getElementById("profile-country");
     country.textContent = profile.country_code
@@ -65,10 +67,11 @@
     country.hidden = !profile.country_code;
 
     var claimed = profile.claimed_at ? new Date(profile.claimed_at) : null;
-    document.getElementById("profile-claimed").textContent =
-      claimed && !Number.isNaN(claimed.getTime())
+    document.getElementById("profile-claimed").textContent = profile.member_since
+      ? "Member since " + profile.member_since
+      : (claimed && !Number.isNaN(claimed.getTime())
         ? "Claimed " + claimed.toLocaleDateString(undefined, { year: "numeric", month: "long" })
-        : "";
+        : "");
 
     var bio = document.getElementById("profile-bio");
     bio.textContent = profile.bio || "";
@@ -85,6 +88,22 @@
         }
       } catch (_error) {
         avatar.hidden = true;
+      }
+    }
+
+    var certEmpty = document.getElementById("profile-certificate-empty");
+    var certBox = document.getElementById("profile-certificate-box");
+    var certLink = document.getElementById("profile-certificate-link");
+    if (certBox && certLink && profile.certificate_url) {
+      try {
+        var certUrl = new URL(profile.certificate_url, window.location.origin);
+        if (certUrl.protocol === "https:" || certUrl.protocol === "http:") {
+          certLink.href = certUrl.href;
+          certBox.hidden = false;
+          if (certEmpty) certEmpty.hidden = true;
+        }
+      } catch (_error) {
+        certBox.hidden = true;
       }
     }
 
