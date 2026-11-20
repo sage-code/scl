@@ -99,7 +99,10 @@ const publicQuizzes = {
   "elixir-fundamentals-C": require("../../roadmap/elixir/quiz/fundamentals-C.json"),
   "odin-fundamentals-A": require("../../roadmap/odin/quiz/fundamentals-A.json"),
   "odin-fundamentals-B": require("../../roadmap/odin/quiz/fundamentals-B.json"),
-  "odin-fundamentals-C": require("../../roadmap/odin/quiz/fundamentals-C.json")
+  "odin-fundamentals-C": require("../../roadmap/odin/quiz/fundamentals-C.json"),
+  "cse-fundamentals-A": require("../../roadmap/cse/quiz/fundamentals-A.json"),
+  "cse-fundamentals-B": require("../../roadmap/cse/quiz/fundamentals-B.json"),
+  "cse-fundamentals-C": require("../../roadmap/cse/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

@@ -672,6 +672,26 @@
         title: "Odin Engineering Practice",
         description: "Evaluate implicit context, custom/temp/arena allocators, #soa data-oriented design, C FFI, core:thread/sync, and testing."
       }
+    ],
+    cse: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "CSE Foundations",
+        description: "Review stack/heap memory, lexical scope, binary/hex, Boolean algebra, bit masks, compilation tiers, prompt anatomy, and Git."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "CSE Applied Practice",
+        description: "Apply MPA/SPA/SSG/SSR, CSS box model, GoF design patterns, SDLC/Agile, testing pyramid, security basics, and cloud/12-factor."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "CSE Engineering Practice",
+        description: "Evaluate SLOs/p99 latency, scaling, load balancing, caching, CAP/PACELC, queues/circuit breakers, architectures, and LLM evals."
+      }
     ]
   };
   const trackTitles = {
@@ -707,7 +727,8 @@
     fortran: "Fortran",
     ada: "Ada",
     elixir: "Elixir",
-    odin: "Odin"
+    odin: "Odin",
+    cse: "CSE"
   };
 
   function titleCase(track) {

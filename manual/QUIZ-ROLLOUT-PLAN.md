@@ -47,8 +47,9 @@
 - Ada (`fundamentals`, track `ada`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Elixir (`fundamentals`, track `elixir`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Odin (`fundamentals`, track `odin`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- CSE (`fundamentals`, track `cse`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: CSE (Phase 6 Engineering fundamentals), after review of pending sets.
+- Next roadmap: DSA (Phase 6 Engineering fundamentals), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -134,7 +135,7 @@ Apply these requirements to each roadmap before moving to the next:
 
 ### Phase 6 — Engineering fundamentals
 
-34. CSE — Pending
+34. CSE — Review pending (`fundamentals` A/B/C in `roadmap/cse/quiz/`)
 35. DSA — Pending
 36. PGP — Pending
 

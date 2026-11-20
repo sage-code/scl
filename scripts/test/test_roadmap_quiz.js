@@ -135,6 +135,9 @@ const elixirQuizzes = quizFiles
 const odinQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`odin${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const cseQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`cse${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -331,6 +334,10 @@ test("each Elixir quiz has 42 questions, brief code examples, and varied respons
 
 test("each Odin quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(odinQuizzes, "odin", "fundamentals", "odin", 1);
+});
+
+test("each CSE quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(cseQuizzes, "cse", "fundamentals", "python", 1);
 });
 
 for (const file of quizFiles) {
