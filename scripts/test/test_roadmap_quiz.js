@@ -108,6 +108,12 @@ const csharpQuizzes = quizFiles
 const javaQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`java${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const scalaQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`scala${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const plsqlQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`plsql${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -268,6 +274,14 @@ test("each C# quiz has 42 questions, brief code examples, and varied response fo
 
 test("each Java quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(javaQuizzes, "java", "fundamentals", "java", 1);
+});
+
+test("each Scala quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(scalaQuizzes, "scala", "fundamentals", "scala", 1);
+});
+
+test("each PL/SQL quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(plsqlQuizzes, "plsql", "fundamentals", "plsql", 1);
 });
 
 for (const file of quizFiles) {

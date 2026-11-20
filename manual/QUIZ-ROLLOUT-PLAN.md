@@ -38,8 +38,10 @@
 - Julia (`fundamentals`, track `julia`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - C# (`fundamentals`, track `csharp`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Java (`fundamentals`, track `java`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Scala (`fundamentals`, track `scala`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- PL/SQL (`fundamentals`, track `plsql`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: Scala (Phase 4 Enterprise-language), after review of pending sets.
+- Next roadmap: Kotlin (Phase 4 Enterprise-language), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -110,8 +112,8 @@ Apply these requirements to each roadmap before moving to the next:
 22. Julia — Review pending (`fundamentals` A/B/C in `roadmap/julia/quiz/`)
 23. C# — Review pending (`fundamentals` A/B/C in `roadmap/csharp/quiz/`)
 24. Java — Review pending (`fundamentals` A/B/C in `roadmap/java/quiz/`)
-25. Scala — Pending
-26. PL/SQL — Pending
+25. Scala — Review pending (`fundamentals` A/B/C in `roadmap/scala/quiz/`)
+26. PL/SQL — Review pending (`fundamentals` A/B/C in `roadmap/plsql/quiz/`)
 27. Kotlin — Pending
 
 ### Phase 5 — Disruptive-language roadmaps

@@ -1,0 +1,1047 @@
+{
+  "schemaVersion": 1,
+  "id": "plsql-fundamentals-C",
+  "revision": 1,
+  "name": "PL/SQL Engineering Practice: C",
+  "track": "plsql",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 58,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "Why does `FOR r IN (...) LOOP UPDATE tbl ...; END LOOP;` perform poorly on 100,000 rows compared to a single SQL `UPDATE` or `BULK COLLECT`/`FORALL`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "PL/SQL loops use too much CPU"
+        },
+        {
+          "id": "b",
+          "text": "Loops skip indexes"
+        },
+        {
+          "id": "c",
+          "text": "Cursors lock the whole database"
+        },
+        {
+          "id": "d",
+          "text": "Every row triggers a separate context switch between the PL/SQL engine and the SQL engine, plus extra redo/undo overhead"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "Why is `EXECUTE IMMEDIATE 'SELECT * FROM users WHERE name = ''' || p_name || ''''` a critical vulnerability AND performance bug?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Concatenating `p_name` enables SQL injection AND prevents bind-variable cursor sharing (causing hard-parse CPU/library-cache latch contention!)"
+        },
+        {
+          "id": "b",
+          "text": "Syntax error"
+        },
+        {
+          "id": "c",
+          "text": "It ignores indexes"
+        },
+        {
+          "id": "d",
+          "text": "It commits automatically"
+        }
+      ],
+      "code": {
+        "language": "plsql",
+        "source": "EXECUTE IMMEDIATE 'SELECT id FROM users WHERE name = :1'\n  INTO l_id USING p_name;"
+      }
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "When `EXECUTE IMMEDIATE` needs a dynamic table or column name (which bind variables CANNOT parameterize), how should you sanitize it?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use `NVL`"
+        },
+        {
+          "id": "b",
+          "text": "Validate against `DBMS_ASSERT.SIMPLE_SQL_NAME` / `SQL_OBJECT_NAME` or an explicit allowlist of known table names"
+        },
+        {
+          "id": "c",
+          "text": "Quote with `'`"
+        },
+        {
+          "id": "d",
+          "text": "Use `TO_CHAR`"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `PRAGMA AUTONOMOUS_TRANSACTION`. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Must end with an explicit `COMMIT` or `ROLLBACK` before returning, or Oracle raises `ORA-06519`"
+        },
+        {
+          "id": "b",
+          "text": "Cannot see uncommitted changes made by the caller's outer transaction"
+        },
+        {
+          "id": "c",
+          "text": "Automatically rolls back if the caller's outer transaction rolls back (no\u2014that's why it's dangerous for business data!)"
+        },
+        {
+          "id": "d",
+          "text": "Suspends the caller's transaction so the subprogram can `COMMIT`/`ROLLBACK` its own independent transaction (ideal for error/audit logging)"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "type": "matrix",
+      "prompt": "Match each PL/SQL `AUTHID` / caching pragma to its behavior.",
+      "rows": [
+        {
+          "id": "df",
+          "label": "`AUTHID DEFINER` (default)"
+        },
+        {
+          "id": "cu",
+          "label": "`AUTHID CURRENT_USER` (Invoker)"
+        },
+        {
+          "id": "rc",
+          "label": "`RESULT_CACHE` function"
+        }
+      ],
+      "columns": [
+        {
+          "id": "df-d",
+          "label": "Executes with the privileges and schema resolution of the package owner"
+        },
+        {
+          "id": "cu-d",
+          "label": "Executes with the privileges and schema resolution of the calling user"
+        },
+        {
+          "id": "rc-d",
+          "label": "Caches function return values in SGA across sessions, auto-invalidating on table DML"
+        }
+      ],
+      "selectionByRow": {
+        "df": "single",
+        "cu": "single",
+        "rc": "single"
+      }
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "What does `PRAGMA UDF` (Oracle 12c+) on a PL/SQL function optimize?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Triggers"
+        },
+        {
+          "id": "b",
+          "text": "Autonomous transactions"
+        },
+        {
+          "id": "c",
+          "text": "Tells the compiler the function is primarily called from SQL `SELECT`/`WHERE` clauses, reducing SQL-to-PL/SQL call overhead"
+        },
+        {
+          "id": "d",
+          "text": "Dynamic SQL"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "What is a `PIPELINED` table function (`FUNCTION gen_rows RETURN t_tab PIPELINED`) used for?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Storing BLOBs"
+        },
+        {
+          "id": "b",
+          "text": "Triggering emails"
+        },
+        {
+          "id": "c",
+          "text": "Locking tables"
+        },
+        {
+          "id": "d",
+          "text": "Streaming rows out incrementally via `PIPE ROW(rec)` as they are produced, without materializing the whole collection in PGA memory"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What does `ORA-04068: existing state of packages has been discarded` mean in a long-running connection pool?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A stateful package (one with package-level variables) was recompiled while pooled sessions still held old state, causing the next call to fail once"
+        },
+        {
+          "id": "b",
+          "text": "Disk is full"
+        },
+        {
+          "id": "c",
+          "text": "Invalid SQL"
+        },
+        {
+          "id": "d",
+          "text": "Deadlock"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "What does Edition-Based Redefinition (EBR) in Oracle enable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Table compression"
+        },
+        {
+          "id": "b",
+          "text": "Zero-downtime online upgrades of PL/SQL packages, views, and triggers in a new Edition while active sessions continue on the old Edition"
+        },
+        {
+          "id": "c",
+          "text": "Automatic sharding"
+        },
+        {
+          "id": "d",
+          "text": "SQL tuning"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "What does `ALTER SESSION SET PLSQL_WARNINGS = 'ENABLE:ALL';` help catch during CI/compilation?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Runtime deadlocks"
+        },
+        {
+          "id": "b",
+          "text": "Slow indexes"
+        },
+        {
+          "id": "c",
+          "text": "Unreachable code, implicit conversions, `WHEN OTHERS` without `RAISE`, and performance anti-patterns at compile time"
+        },
+        {
+          "id": "d",
+          "text": "Disk I/O"
+        }
+      ],
+      "code": {
+        "language": "plsql",
+        "source": "ALTER SESSION SET PLSQL_WARNINGS = 'ENABLE:ALL';"
+      }
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "What does `PLSQL_OPTIMIZE_LEVEL = 2` (default) automatically do for cursor `FOR` loops?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Turns them into triggers"
+        },
+        {
+          "id": "b",
+          "text": "Caches them in SGA"
+        },
+        {
+          "id": "c",
+          "text": "Runs them in parallel"
+        },
+        {
+          "id": "d",
+          "text": "Silently array-fetches 100 rows at a time (`BULK COLLECT` optimization) under the hood!"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "Why can `DETERMINISTIC` on a function cause wrong results if misused?",
+      "options": [
+        {
+          "id": "a",
+          "text": "You promise Oracle the function always returns the exact same output for the same inputs (no `SYSDATE`, no table reads)\u2014misuse lets SQL reuse stale cached results or build invalid function-based indexes"
+        },
+        {
+          "id": "b",
+          "text": "It disables indexes"
+        },
+        {
+          "id": "c",
+          "text": "It commits"
+        },
+        {
+          "id": "d",
+          "text": "It slows down loops"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "What does `DBMS_PROFILER` or `DBMS_HPROF` (Hierarchical Profiler) measure?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Table fragmentation"
+        },
+        {
+          "id": "b",
+          "text": "Line-by-line / subprogram-level execution time and call counts inside PL/SQL to pinpoint bottlenecks"
+        },
+        {
+          "id": "c",
+          "text": "Network latency"
+        },
+        {
+          "id": "d",
+          "text": "Redo log size"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `WITH FUNCTION` (Oracle 12c+ inline PL/SQL in SQL). (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Lets you define a temporary PL/SQL helper function directly inside a `WITH` clause of a `SELECT` query"
+        },
+        {
+          "id": "b",
+          "text": "Runs with reduced context-switch overhead (`PRAGMA UDF`-like)"
+        },
+        {
+          "id": "c",
+          "text": "Avoids creating permanent schema objects for one-off/ad-hoc SQL queries"
+        },
+        {
+          "id": "d",
+          "text": "Automatically persists the function into `USER_OBJECTS` permanently"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "What is a classic deadlock cause in concurrent PL/SQL transactions?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Using `SELECT`"
+        },
+        {
+          "id": "b",
+          "text": "Using `BULK COLLECT`"
+        },
+        {
+          "id": "c",
+          "text": "Session 1 updates row A then row B while Session 2 updates row B then row A (`ORA-00060`)"
+        },
+        {
+          "id": "d",
+          "text": "Using `%TYPE`"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What does `ORA-00060: deadlock detected while waiting for resource` do to the transaction?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Kills the database"
+        },
+        {
+          "id": "b",
+          "text": "Hangs forever"
+        },
+        {
+          "id": "c",
+          "text": "Commits both sessions"
+        },
+        {
+          "id": "d",
+          "text": "Oracle rolls back the single deadlocked *statement* (not the whole transaction) and raises `ORA-00060`\u2014so your handler should `ROLLBACK` or retry cleanly"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "Why should you avoid calling a PL/SQL function in a `WHERE` clause on an indexed column (`WHERE normalize(email) = :1`) without a Function-Based Index?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Applying a function to an unindexed column prevents Oracle from using a normal B-tree index on `email`, forcing a full table scan"
+        },
+        {
+          "id": "b",
+          "text": "Syntax error"
+        },
+        {
+          "id": "c",
+          "text": "Raises `NO_DATA_FOUND`"
+        },
+        {
+          "id": "d",
+          "text": "Locks the table"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What does `DBMS_SCHEDULER` replace in modern Oracle compared to legacy `DBMS_JOB`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`DBMS_OUTPUT`"
+        },
+        {
+          "id": "b",
+          "text": "Enterprise job scheduling with calendar expressions, job chains, credential management, resource-manager integration, and run history"
+        },
+        {
+          "id": "c",
+          "text": "Triggers"
+        },
+        {
+          "id": "d",
+          "text": "Sequences"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "What does `ACCESSIBLE BY (PACKAGE my_internal_api)` (Oracle 12c+ white-list clause) on a package or subprogram enforce?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Encrypts the package"
+        },
+        {
+          "id": "b",
+          "text": "Grants `PUBLIC` access"
+        },
+        {
+          "id": "c",
+          "text": "Restricts which specific PL/SQL units are allowed to call it at compile time\u2014great for internal helper packages"
+        },
+        {
+          "id": "d",
+          "text": "Disables `AUTHID`"
+        }
+      ],
+      "code": {
+        "language": "plsql",
+        "source": "CREATE PACKAGE helper ACCESSIBLE BY (PACKAGE orders_api) AS ..."
+      }
+    },
+    {
+      "id": "q020",
+      "type": "matrix",
+      "prompt": "Match each PL/SQL security/engineering feature to its purpose.",
+      "rows": [
+        {
+          "id": "ab",
+          "label": "`ACCESSIBLE BY (...)`"
+        },
+        {
+          "id": "wr",
+          "label": "`DBMS_DDL.WRAP`"
+        },
+        {
+          "id": "ps",
+          "label": "`PLSCOPE_SETTINGS`)"
+        }
+      ],
+      "columns": [
+        {
+          "id": "ab-d",
+          "label": "Compile-time allowlist restricting which units may call a helper package"
+        },
+        {
+          "id": "wr-d",
+          "label": "Obfuscates PL/SQL source code in `USER_SOURCE` (note: obfuscation, not strong encryption)"
+        },
+        {
+          "id": "ps-d",
+          "label": "Collects identifier cross-reference metadata (`USER_IDENTIFIERS`) for static analysis"
+        }
+      ],
+      "selectionByRow": {
+        "ab": "single",
+        "wr": "single",
+        "ps": "single"
+      }
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "What does `PL/SQL` `CLOB` / `BLOB` temporary LOB management require when creating temp LOBs via `DBMS_LOB.CREATETEMPORARY` in a loop?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing"
+        },
+        {
+          "id": "b",
+          "text": "They live in PGA only"
+        },
+        {
+          "id": "c",
+          "text": "They auto-free per iteration"
+        },
+        {
+          "id": "d",
+          "text": "Always free them with `DBMS_LOB.FREETEMPORARY` when done (or reuse one) to avoid leaking temporary tablespace!"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "What does `PARALLEL_ENABLE` on a `PIPELINED` function allow?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Allows Oracle Parallel Query (`PX` slaves) to execute the pipelined table function across partitioned cursor streams (`PARTITION p BY HASH(...)`)"
+        },
+        {
+          "id": "b",
+          "text": "Running on client"
+        },
+        {
+          "id": "c",
+          "text": "Disables locks"
+        },
+        {
+          "id": "d",
+          "text": "Auto-commits"
+        }
+      ]
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "What is a subtle risk of implicit data-type conversion in SQL/PLSQL (`WHERE varchar_id = 123`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Faster lookup"
+        },
+        {
+          "id": "b",
+          "text": "Oracle converts the *column* `TO_NUMBER(varchar_id) = 123`, disabling any index on `varchar_id` AND risking `ORA-01722: invalid number`!"
+        },
+        {
+          "id": "c",
+          "text": "Converts `123` to `VARCHAR2`"
+        },
+        {
+          "id": "d",
+          "text": "No risk"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What does `DBMS_LOCK.ALLOCATE_UNIQUE` + `DBMS_LOCK.REQUEST` provide?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Row locking"
+        },
+        {
+          "id": "b",
+          "text": "Memory allocation"
+        },
+        {
+          "id": "c",
+          "text": "Application-level named advisory distributed locks across Oracle sessions (for serializing critical batch jobs)"
+        },
+        {
+          "id": "d",
+          "text": "Password hashing"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all best practices for high-performance, maintainable PL/SQL in production. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use `WHEN OTHERS THEN NULL;` and `AUTONOMOUS_TRANSACTION` for every business DML procedure"
+        },
+        {
+          "id": "b",
+          "text": "Set-based SQL (`INSERT...SELECT`, `MERGE`, `UPDATE`) first; `BULK COLLECT` + `FORALL` second; row-by-row loops last"
+        },
+        {
+          "id": "c",
+          "text": "Always use bind variables in `EXECUTE IMMEDIATE` / `OPEN ... FOR ... USING`"
+        },
+        {
+          "id": "d",
+          "text": "Instrument jobs with `DBMS_APPLICATION_INFO` and log errors with `FORMAT_ERROR_BACKTRACE`"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "What does `OPEN rc FOR 'SELECT * FROM emp WHERE dept = :1' USING p_dept;` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Fails to bind"
+        },
+        {
+          "id": "b",
+          "text": "Runs DDL"
+        },
+        {
+          "id": "c",
+          "text": "Closes `rc`"
+        },
+        {
+          "id": "d",
+          "text": "Opens a `SYS_REFCURSOR` using dynamic SQL safely with bind variable `:1`"
+        }
+      ],
+      "code": {
+        "language": "plsql",
+        "source": "OPEN rc FOR l_sql USING p_dept_id;"
+      }
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does `SQLERRM` truncation or `FORMAT_ERROR_STACK` vs `SQLERRM` differ on?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`DBMS_UTILITY.FORMAT_ERROR_STACK` returns the complete error stack without `SQLERRM`'s 512-byte truncation limit"
+        },
+        {
+          "id": "b",
+          "text": "Identical"
+        },
+        {
+          "id": "c",
+          "text": "`SQLERRM` includes line numbers"
+        },
+        {
+          "id": "d",
+          "text": "`FORMAT_ERROR_STACK` is deprecated"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What does `utPLSQL` provide for Oracle PL/SQL teams?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A SQL client"
+        },
+        {
+          "id": "b",
+          "text": "An open-source unit-testing framework (xUnit-style annotations `--%test`, `--%suite`, matchers, coverage) for CI/CD"
+        },
+        {
+          "id": "c",
+          "text": "A profiler"
+        },
+        {
+          "id": "d",
+          "text": "A schema diff tool"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "What does `INDICES OF` vs `VALUES OF` in `FORALL` allow?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Identical"
+        },
+        {
+          "id": "b",
+          "text": "Both sort"
+        },
+        {
+          "id": "c",
+          "text": "`INDICES OF` iterates over existing keys of a sparse collection; `VALUES OF` uses the *values* of an index-mapping collection as subscripts into another collection"
+        },
+        {
+          "id": "d",
+          "text": "Both commit"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "Why does `SELECT *` inside production PL/SQL cursors (`CURSOR c IS SELECT * FROM orders`) carry maintenance risk?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Syntax error"
+        },
+        {
+          "id": "b",
+          "text": "Locks the table"
+        },
+        {
+          "id": "c",
+          "text": "Disables `%ROWTYPE`"
+        },
+        {
+          "id": "d",
+          "text": "Adding/reordering columns can break positional `FETCH INTO` variable lists or fetch wide unused `CLOB`/`BLOB` columns unnecessarily"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "single-choice",
+      "prompt": "What does `PRAGMA INLINE(subprogram, 'YES')` (Oracle 11g+) do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Hints the PL/SQL optimizer to inline a small hot subprogram call inside a loop"
+        },
+        {
+          "id": "b",
+          "text": "Forces SQL execution"
+        },
+        {
+          "id": "c",
+          "text": "Creates a trigger"
+        },
+        {
+          "id": "d",
+          "text": "Enables `AUTONOMOUS_TRANSACTION`"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What happens when `COMMIT WRITE BATCH NOWAIT` is abused instead of default `COMMIT`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Safer durability"
+        },
+        {
+          "id": "b",
+          "text": "Skips waiting for redo log flush to disk, risking loss of committed transactions on instance crash (never use for financial/critical data!)"
+        },
+        {
+          "id": "c",
+          "text": "Faster `SELECT`"
+        },
+        {
+          "id": "d",
+          "text": "Locks redo logs"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "type": "matrix",
+      "prompt": "Match each Oracle PL/SQL diagnostic/admin package to its role.",
+      "rows": [
+        {
+          "id": "sq",
+          "label": "`DBMS_SQL`"
+        },
+        {
+          "id": "ut",
+          "label": "`utPLSQL`"
+        },
+        {
+          "id": "hp",
+          "label": "`DBMS_HPROF`)"
+        }
+      ],
+      "columns": [
+        {
+          "id": "sq-d",
+          "label": "Dynamic SQL when the number of select columns or binds isn't known until runtime"
+        },
+        {
+          "id": "ut-d",
+          "label": "Automated unit testing and coverage for PL/SQL"
+        },
+        {
+          "id": "hp-d",
+          "label": "Hierarchical PL/SQL + SQL execution-time profiling"
+        }
+      ],
+      "selectionByRow": {
+        "sq": "single",
+        "ut": "single",
+        "hp": "single"
+      }
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "When do you need `DBMS_SQL` instead of `EXECUTE IMMEDIATE`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "For every `INSERT`"
+        },
+        {
+          "id": "b",
+          "text": "For static `SELECT`"
+        },
+        {
+          "id": "c",
+          "text": "When the number of bind variables or `SELECT` list columns is unknown at compile time (e.g., generic CSV exporter)"
+        },
+        {
+          "id": "d",
+          "text": "For triggers"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What does `DBMS_ERRLOG.CREATE_ERROR_LOG` + `INSERT INTO ... SELECT ... LOG ERRORS REJECT LIMIT UNLIMITED` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Stops on first error"
+        },
+        {
+          "id": "b",
+          "text": "Disables constraints"
+        },
+        {
+          "id": "c",
+          "text": "Uses `AUTONOMOUS_TRANSACTION` only"
+        },
+        {
+          "id": "d",
+          "text": "Logs failing rows of a pure SQL `INSERT`/`UPDATE`/`MERGE` into an error-logging table without aborting the set-based SQL statement"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "Why is `COUNT(*)` to check existence (`SELECT COUNT(*) INTO l_cnt FROM t WHERE ...; IF l_cnt > 0`) slower than `SELECT 1 ... WHERE EXISTS` or `ROWNUM = 1`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`COUNT(*)` scans *all* matching rows, whereas `ROWNUM = 1` / `FETCH FIRST 1 ROW ONLY` stops immediately on the first match"
+        },
+        {
+          "id": "b",
+          "text": "`COUNT(*)` locks rows"
+        },
+        {
+          "id": "c",
+          "text": "`COUNT(*)` returns `NULL`"
+        },
+        {
+          "id": "d",
+          "text": "No difference"
+        }
+      ],
+      "code": {
+        "language": "plsql",
+        "source": "SELECT COUNT(*) INTO l_found FROM DUAL\nWHERE EXISTS (SELECT 1 FROM users WHERE id = p_id);"
+      }
+    },
+    {
+      "id": "q037",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `IN OUT` / `REF CURSOR` / `JSON` boundaries in PL/SQL APIs. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Using `JSON` or schema-level `TABLE` types simplifies passing batch payloads from Java/Node/Python in one DB round-trip"
+        },
+        {
+          "id": "b",
+          "text": "Opening a `SYS_REFCURSOR` and never closing it in the client leaks DB cursors"
+        },
+        {
+          "id": "c",
+          "text": "Returning `SYS_REFCURSOR` lets client apps stream rows without buffering huge arrays in PGA"
+        },
+        {
+          "id": "d",
+          "text": "Always document cursor ownership so the caller knows to close the `SYS_REFCURSOR`"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "single-choice",
+      "prompt": "What does `ALTER PACKAGE my_pkg COMPILE BODY;` do without invalidating callers?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Recompiles the spec"
+        },
+        {
+          "id": "b",
+          "text": "Recompiles only the Package Body; dependents of the Package Specification stay valid"
+        },
+        {
+          "id": "c",
+          "text": "Drops the package"
+        },
+        {
+          "id": "d",
+          "text": "Clears tables"
+        }
+      ],
+      "code": {
+        "language": "plsql",
+        "source": "ALTER PACKAGE orders_pkg COMPILE BODY;"
+      }
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "What does `PRAGMA RESTRICT_REFERENCES` historically check (now largely handled automatically by Oracle)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Memory size"
+        },
+        {
+          "id": "b",
+          "text": "Trigger order"
+        },
+        {
+          "id": "c",
+          "text": "Purity levels (`WNDS`, `RNDS`, `WNPS`, `RNPS`) for functions called from SQL"
+        },
+        {
+          "id": "d",
+          "text": "Network access"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "Why can't a PL/SQL function called from a `SELECT` statement execute an `INSERT` or `UPDATE` on a table (without `AUTONOMOUS_TRANSACTION`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Syntax error"
+        },
+        {
+          "id": "b",
+          "text": "Only triggers can DML"
+        },
+        {
+          "id": "c",
+          "text": "Functions cannot run SQL"
+        },
+        {
+          "id": "d",
+          "text": "Oracle enforces read-consistency (`ORA-14551: cannot perform a DML operation inside a query`) to prevent side-effecting queries"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "multi-select",
+      "prompt": "Select all valid ways to prevent `ORA-01000` (maximum open cursors exceeded) in PL/SQL and client code. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Close explicit cursors (`IF c%ISOPEN THEN CLOSE c; END IF;`) in `EXCEPTION` handlers"
+        },
+        {
+          "id": "b",
+          "text": "Ensure client callers (`JDBC`/`ODP.NET`) close `ResultSet`/`Statement` / `RefCursor` handles in `try-with-resources`"
+        },
+        {
+          "id": "c",
+          "text": "Increase `OPEN_CURSORS` to 1,000,000 and never close any cursor"
+        },
+        {
+          "id": "d",
+          "text": "Use cursor `FOR` loops instead of manual `OPEN`/`FETCH`/`CLOSE` when iterating all rows"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "What does `SQL%ISOPEN` ALWAYS evaluate to for the implicit `SQL` cursor?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`FALSE` (Oracle automatically closes the implicit `SQL` cursor immediately after its statement finishes)"
+        },
+        {
+          "id": "b",
+          "text": "`TRUE`"
+        },
+        {
+          "id": "c",
+          "text": "`NULL`"
+        },
+        {
+          "id": "d",
+          "text": "Throws `INVALID_CURSOR`"
+        }
+      ]
+    }
+  ]
+}

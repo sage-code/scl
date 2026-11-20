@@ -492,6 +492,46 @@
         title: "Java Engineering Practice",
         description: "Evaluate JMM volatile, Virtual Threads, ConcurrentHashMap, CompletableFuture, ThreadLocal, and JVM GC."
       }
+    ],
+    scala: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Scala Foundations",
+        description: "Review val vs var, lazy val, type hierarchy, string interpolators, case classes, Option, and immutable collections."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Scala Applied Practice",
+        description: "Apply for-comprehensions, sealed ADTs, Either/Try, given/using, opaque types, variance, and trait linearization."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Scala Engineering Practice",
+        description: "Evaluate @tailrec, Future vs IO, LazyList vs Iterator, ClassTag, inline macros, TASTy, and binary compatibility."
+      }
+    ],
+    plsql: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "PL/SQL Foundations",
+        description: "Review DECLARE/BEGIN/EXCEPTION blocks, %TYPE/%ROWTYPE, NULL logic, loops, SELECT INTO, and transactions."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "PL/SQL Applied Practice",
+        description: "Apply cursors, SYS_REFCURSOR, packages, collections, BULK COLLECT/FORALL, triggers, and compound triggers."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "PL/SQL Engineering Practice",
+        description: "Evaluate context switching, bind variables, AUTHID/RESULT_CACHE, pipelined functions, EBR, and profiling."
+      }
     ]
   };
   const trackTitles = {
@@ -518,7 +558,9 @@
     swift: "Swift",
     julia: "Julia",
     csharp: "C#",
-    java: "Java"
+    java: "Java",
+    scala: "Scala",
+    plsql: "PL/SQL"
   };
 
   function titleCase(track) {
