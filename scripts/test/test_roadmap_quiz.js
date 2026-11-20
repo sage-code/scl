@@ -114,6 +114,12 @@ const scalaQuizzes = quizFiles
 const plsqlQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`plsql${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const kotlinQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`kotlin${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const nimQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`nim${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -282,6 +288,14 @@ test("each Scala quiz has 42 questions, brief code examples, and varied response
 
 test("each PL/SQL quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(plsqlQuizzes, "plsql", "fundamentals", "plsql", 1);
+});
+
+test("each Kotlin quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(kotlinQuizzes, "kotlin", "fundamentals", "kotlin", 1);
+});
+
+test("each Nim quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(nimQuizzes, "nim", "fundamentals", "nim", 1);
 });
 
 for (const file of quizFiles) {

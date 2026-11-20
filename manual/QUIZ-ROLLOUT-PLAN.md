@@ -40,8 +40,10 @@
 - Java (`fundamentals`, track `java`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Scala (`fundamentals`, track `scala`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - PL/SQL (`fundamentals`, track `plsql`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Kotlin (`fundamentals`, track `kotlin`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Nim (`fundamentals`, track `nim`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: Kotlin (Phase 4 Enterprise-language), after review of pending sets.
+- Next roadmap: Zig (Phase 5 Disruptive-language), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -114,11 +116,11 @@ Apply these requirements to each roadmap before moving to the next:
 24. Java — Review pending (`fundamentals` A/B/C in `roadmap/java/quiz/`)
 25. Scala — Review pending (`fundamentals` A/B/C in `roadmap/scala/quiz/`)
 26. PL/SQL — Review pending (`fundamentals` A/B/C in `roadmap/plsql/quiz/`)
-27. Kotlin — Pending
+27. Kotlin — Review pending (`fundamentals` A/B/C in `roadmap/kotlin/quiz/`)
 
 ### Phase 5 — Disruptive-language roadmaps
 
-28. Nim — Pending
+28. Nim — Review pending (`fundamentals` A/B/C in `roadmap/nim/quiz/`)
 29. Zig — Pending
 30. Fortran — Pending
 31. Ada — Pending

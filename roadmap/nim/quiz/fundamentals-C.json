@@ -1,0 +1,1047 @@
+{
+  "schemaVersion": 1,
+  "id": "nim-fundamentals-C",
+  "revision": 1,
+  "name": "Nim Engineering Practice: C",
+  "track": "nim",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 59,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "How does Nim's default memory management (`--mm:arc` / `--mm:orc`) manage heap memory without stop-the-world GC pauses?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Manual `malloc`/`free` everywhere"
+        },
+        {
+          "id": "b",
+          "text": "Boehm conservative GC"
+        },
+        {
+          "id": "c",
+          "text": "A tracing mark-and-sweep collector on a background thread"
+        },
+        {
+          "id": "d",
+          "text": "Deterministic Automatic Reference Counting (ARC) injected by the compiler using move/sink optimizations, plus ORC cycle collection"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "When does `--mm:arc` suffice instead of `--mm:orc`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "When your data structures are acyclic (trees, seqs, strings, value objects), avoiding cycle-collector overhead completely"
+        },
+        {
+          "id": "b",
+          "text": "When you have cyclic `ref object` graphs"
+        },
+        {
+          "id": "c",
+          "text": "Only on Windows"
+        },
+        {
+          "id": "d",
+          "text": "Never; ARC leaks all `seq`s"
+        }
+      ]
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "What does a `sink T` parameter tell Nim's ARC/ORC optimizer?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The parameter is read-only"
+        },
+        {
+          "id": "b",
+          "text": "Ownership of the argument's resources can be moved into the proc, avoiding a copy when the caller passes its last-use or rvalue"
+        },
+        {
+          "id": "c",
+          "text": "The parameter is allocated on the C stack only"
+        },
+        {
+          "id": "d",
+          "text": "The parameter is `nil`"
+        }
+      ],
+      "code": {
+        "language": "nim",
+        "source": "proc store(x: sink string) =\n  cache.add(x)"
+      }
+    },
+    {
+      "id": "q004",
+      "type": "multi-select",
+      "prompt": "Select all lifecycle hooks (type-bound operators) that Nim's ARC/ORC uses for resource management (RAII). (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`=copy` (customizes deep/reference copy)"
+        },
+        {
+          "id": "b",
+          "text": "`=sink` (moves resources from a temporary/last-use)"
+        },
+        {
+          "id": "c",
+          "text": "`=finalize_gc_later`"
+        },
+        {
+          "id": "d",
+          "text": "`=destroy` (runs when a value leaves scope)"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "type": "matrix",
+      "prompt": "Match each Nim memory/ownership concept to its role.",
+      "rows": [
+        {
+          "id": "arc",
+          "label": "ARC"
+        },
+        {
+          "id": "orc",
+          "label": "ORC"
+        },
+        {
+          "id": "lent",
+          "label": "`lent T` return"
+        }
+      ],
+      "columns": [
+        {
+          "id": "arc-d",
+          "label": "Deterministic reference counting + move semantics without cycle collector"
+        },
+        {
+          "id": "orc-d",
+          "label": "ARC plus a cycle collector for cyclic `ref` graphs"
+        },
+        {
+          "id": "lent-d",
+          "label": "Borrows an immutable view of a field/element without copying"
+        }
+      ],
+      "selectionByRow": {
+        "arc": "single",
+        "orc": "single",
+        "lent": "single"
+      }
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "What does `macro` in Nim operate on at compile time?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Raw token strings only"
+        },
+        {
+          "id": "b",
+          "text": "x86 assembly instructions"
+        },
+        {
+          "id": "c",
+          "text": "`NimNode` Abstract Syntax Trees (ASTs) representing parsed Nim code"
+        },
+        {
+          "id": "d",
+          "text": "Runtime reflection metadata"
+        }
+      ],
+      "code": {
+        "language": "nim",
+        "source": "import std/macros\nmacro debugExpr(x: untyped): untyped =\n  quote do: echo astToStr(`x`), \" = \", `x`"
+      }
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "In a Nim `macro`, what is the difference between `typed` and `untyped` parameters?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`typed` skips semantic checking; `untyped` requires resolved types"
+        },
+        {
+          "id": "b",
+          "text": "They are identical"
+        },
+        {
+          "id": "c",
+          "text": "`untyped` is slower at runtime"
+        },
+        {
+          "id": "d",
+          "text": "`untyped` receives raw syntax before type/symbol resolution; `typed` receives AST after type checking"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What does `{.raises: [].}` on a `proc` guarantee at compile time?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The proc cannot raise any `CatchableError` exception"
+        },
+        {
+          "id": "b",
+          "text": "The proc runs in a separate thread"
+        },
+        {
+          "id": "c",
+          "text": "The proc allocates zero memory"
+        },
+        {
+          "id": "d",
+          "text": "The proc is exported to C"
+        }
+      ],
+      "code": {
+        "language": "nim",
+        "source": "proc safeAdd(a, b: int): int {.raises: [].} =\n  a + b"
+      }
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "What does `{.gcsafe.}` check in Nim multi-threaded code?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Whether the proc uses ARC"
+        },
+        {
+          "id": "b",
+          "text": "Whether the proc avoids accessing unprotected thread-local/global mutable heap state"
+        },
+        {
+          "id": "c",
+          "text": "Whether `-d:release` is enabled"
+        },
+        {
+          "id": "d",
+          "text": "Whether all loops terminate"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "How do you bind an external C function `double sin(double x)` from `<math.h>` in Nim?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`extern \"C\" double sin(double x)`"
+        },
+        {
+          "id": "b",
+          "text": "`import c \"<math.h>\"`"
+        },
+        {
+          "id": "c",
+          "text": "`proc cSin(x: cdouble): cdouble {.importc: \"sin\", header: \"<math.h>\".}`"
+        },
+        {
+          "id": "d",
+          "text": "`ffi.bind(\"sin\")`"
+        }
+      ],
+      "code": {
+        "language": "nim",
+        "source": "proc cSin(x: cdouble): cdouble\n  {.importc: \"sin\", header: \"<math.h>\".}"
+      }
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "Why should you use `cint`, `cdouble`, and `cstring` instead of `int`, `float`, and `string` in C FFI signatures?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nim `int` is always 16-bit"
+        },
+        {
+          "id": "b",
+          "text": "`float` is decimal"
+        },
+        {
+          "id": "c",
+          "text": "`string` is UTF-16"
+        },
+        {
+          "id": "d",
+          "text": "C ABI types (`cint`, `csize_t`, `cstring`) match the C compiler's exact width and NUL-terminated pointer layout"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What is a critical lifetime rule when passing a Nim `string` as a `cstring` to a C function that stores the pointer?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The Nim `string` must stay alive (and not reallocate) as long as C holds the `cstring` pointer"
+        },
+        {
+          "id": "b",
+          "text": "`cstring` is automatically reference-counted by C"
+        },
+        {
+          "id": "c",
+          "text": "C frees the `cstring` automatically"
+        },
+        {
+          "id": "d",
+          "text": "`cstring` is always copied"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "What does `{.exportc, dynlib.}` on a Nim `proc` enable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Imports a Python module"
+        },
+        {
+          "id": "b",
+          "text": "Exposes the Nim proc with a C-compatible symbol in a shared library (`.so`/`.dll`/`.dylib`)"
+        },
+        {
+          "id": "c",
+          "text": "Enables `async`"
+        },
+        {
+          "id": "d",
+          "text": "Disables ARC"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "multi-select",
+      "prompt": "Select all valid Nim compiler optimization and safety build flags. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`-d:release` (enables C optimizer `-O3` and disables debug checks like `assert`, keeping runtime safety checks? Wait\u2014in Nim `-d:release` turns off some checks unless enabled, while `-d:danger` turns off ALL runtime checks)"
+        },
+        {
+          "id": "b",
+          "text": "`-d:danger` (maximum speed, disables bounds/nil/overflow checks\u2014use only on verified code)"
+        },
+        {
+          "id": "c",
+          "text": "`--opt:size` (optimizes binary size)"
+        },
+        {
+          "id": "d",
+          "text": "`--mm:orc` (selects ORC memory management)"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "Why is `-d:danger` discouraged as a blind default in production services?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It makes binaries 10x larger"
+        },
+        {
+          "id": "b",
+          "text": "It disables C optimization"
+        },
+        {
+          "id": "c",
+          "text": "It disables array bounds, integer overflow, and nil checks, turning bugs into undefined behavior/memory corruption"
+        },
+        {
+          "id": "d",
+          "text": "It requires `nimble` at runtime"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "How do `Channel[T]` and `Thread[T]` in Nim support safe concurrency?",
+      "options": [
+        {
+          "id": "a",
+          "text": "By sharing unsynchronized `var` globals"
+        },
+        {
+          "id": "b",
+          "text": "By spawning OS processes only"
+        },
+        {
+          "id": "c",
+          "text": "By using Python's GIL"
+        },
+        {
+          "id": "d",
+          "text": "By passing messages/ownership over typed `Channel[T]` queues between isolated threads"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "In `std/asyncdispatch` (or `chronos`), how does `async` / `await` work?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Runs cooperative single-threaded (or event-loop) I/O futures using state machines"
+        },
+        {
+          "id": "b",
+          "text": "Spawns one OS thread per `await`"
+        },
+        {
+          "id": "c",
+          "text": "Blocks the OS thread until `recv` finishes"
+        },
+        {
+          "id": "d",
+          "text": "Requires `--mm:boehm`"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What happens if you call a blocking `sleep(1000)` or synchronous `readFile` inside an `{.async.}` proc?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It automatically runs on a thread pool"
+        },
+        {
+          "id": "b",
+          "text": "It stalls the entire async event loop for all concurrent tasks on that thread"
+        },
+        {
+          "id": "c",
+          "text": "It raises `AsyncError`"
+        },
+        {
+          "id": "d",
+          "text": "Compile error"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "What does `nimble.lock` (or pinned version constraints in `.nimble`) solve for production builds?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Faster C compilation"
+        },
+        {
+          "id": "b",
+          "text": "Smaller binaries"
+        },
+        {
+          "id": "c",
+          "text": "Reproducible dependency versions across developer machines and CI"
+        },
+        {
+          "id": "d",
+          "text": "Automatic FFI bindings"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "matrix",
+      "prompt": "Match each Nim compilation target or flag to its purpose.",
+      "rows": [
+        {
+          "id": "js",
+          "label": "`nim js app.nim`"
+        },
+        {
+          "id": "cross",
+          "label": "`nim c --os:linux --cpu:amd64 app.nim`"
+        },
+        {
+          "id": "lib",
+          "label": "`nim c --app:lib app.nim`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "js-d",
+          "label": "Compiles Nim to JavaScript"
+        },
+        {
+          "id": "cross-d",
+          "label": "Cross-compiles C output for Linux x86_64"
+        },
+        {
+          "id": "lib-d",
+          "label": "Builds a shared library (`.so`/`.dll`/`.dylib`)"
+        }
+      ],
+      "selectionByRow": {
+        "js": "single",
+        "cross": "single",
+        "lib": "single"
+      }
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "What does `ptr UncheckedArray[T]` allow in low-level Nim code?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Automatic bounds checking"
+        },
+        {
+          "id": "b",
+          "text": "JSON serialization"
+        },
+        {
+          "id": "c",
+          "text": "ARC reference counting"
+        },
+        {
+          "id": "d",
+          "text": "C-style pointer indexing `p[i]` without fixed compile-time array bounds (unsafe)"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "What is the purpose of `{.packed.}` or `{.align: 16.}` pragmas on a Nim `object`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Controls exact C struct memory layout, padding, and alignment for hardware/network/FFI structs"
+        },
+        {
+          "id": "b",
+          "text": "Compresses strings"
+        },
+        {
+          "id": "c",
+          "text": "Enables `async`"
+        },
+        {
+          "id": "d",
+          "text": "Prevents copying"
+        }
+      ]
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "What does `--threads:on` enable when compiling a Nim program?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Automatic parallelization of all `for` loops"
+        },
+        {
+          "id": "b",
+          "text": "Thread-safe runtime primitives, `std/threads`, and thread-safe ARC/ORC refcounting"
+        },
+        {
+          "id": "c",
+          "text": "Async/await syntax"
+        },
+        {
+          "id": "d",
+          "text": "C++ exceptions"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What does `std/locks` (`Lock` and `withLock`) provide for shared state across threads?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Lock-free queues"
+        },
+        {
+          "id": "b",
+          "text": "Compile-time immutability"
+        },
+        {
+          "id": "c",
+          "text": "Mutual-exclusion locks with `withLock` to guarantee unlock on scope exit"
+        },
+        {
+          "id": "d",
+          "text": "Async futures"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all true statements about Nim `concept` / type classes and generics. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Generics in Nim use JVM-style type erasure"
+        },
+        {
+          "id": "b",
+          "text": "Generic procs are monomorphized (specialized per concrete type) at compile time"
+        },
+        {
+          "id": "c",
+          "text": "Monomorphization avoids boxing/vtable overhead for numeric and value types"
+        },
+        {
+          "id": "d",
+          "text": "Type classes (`T: SomeNumber`) constrain generics with clear compile errors"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "What does `defined(asan)` / `--passC:-fsanitize=address --passL:-fsanitize=address` let you do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Minify JS output"
+        },
+        {
+          "id": "b",
+          "text": "Enable ORC"
+        },
+        {
+          "id": "c",
+          "text": "Cross-compile to WebAssembly"
+        },
+        {
+          "id": "d",
+          "text": "Run AddressSanitizer on the generated C code to catch C/FFI memory errors"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does `nim check file.nim` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Performs syntax and semantic type checking without running C compilation"
+        },
+        {
+          "id": "b",
+          "text": "Runs unit tests"
+        },
+        {
+          "id": "c",
+          "text": "Formats code"
+        },
+        {
+          "id": "d",
+          "text": "Uploads to Nimble"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What does `nimpretty` do in the Nim ecosystem?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Benchmarks procs"
+        },
+        {
+          "id": "b",
+          "text": "Formats Nim source files according to the official style guide"
+        },
+        {
+          "id": "c",
+          "text": "Generates C headers"
+        },
+        {
+          "id": "d",
+          "text": "Strips debug symbols"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "What is a common pitfall when using `ref object` cycles with `--mm:arc` (without ORC)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Compile error"
+        },
+        {
+          "id": "b",
+          "text": "Double free"
+        },
+        {
+          "id": "c",
+          "text": "Reference counts never reach zero, causing a memory leak until you break the cycle or switch to `--mm:orc`"
+        },
+        {
+          "id": "d",
+          "text": "Stack overflow"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "What does `{.cursor.}` on a local variable or field tell ARC/ORC?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Iterate over a SQL table"
+        },
+        {
+          "id": "b",
+          "text": "Allocate on the stack"
+        },
+        {
+          "id": "c",
+          "text": "Pin the object in RAM"
+        },
+        {
+          "id": "d",
+          "text": "Borrow the reference without incrementing/decrementing its reference count (non-owning view)"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "multi-select",
+      "prompt": "Select all ways to reduce binary size when shipping a Nim CLI tool. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use `--mm:arc` if no cycles exist"
+        },
+        {
+          "id": "b",
+          "text": "Compile with `--debugger:native`"
+        },
+        {
+          "id": "c",
+          "text": "Compile with `-d:release --opt:size`"
+        },
+        {
+          "id": "d",
+          "text": "Strip symbols (`--passL:-s` or `strip`)"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What does `quote do:` inside a `macro` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Constructs a `NimNode` AST from normal Nim syntax, splicing expressions with backticks `` `x` ``"
+        },
+        {
+          "id": "b",
+          "text": "Escapes SQL strings"
+        },
+        {
+          "id": "c",
+          "text": "Logs to stderr"
+        },
+        {
+          "id": "d",
+          "text": "Runs C preprocessor macros"
+        }
+      ],
+      "code": {
+        "language": "nim",
+        "source": "quote do:\n  if `cond`: echo `msg`"
+      }
+    },
+    {
+      "id": "q033",
+      "type": "single-choice",
+      "prompt": "Why is Nim's compile-time execution (CTFE) useful for lookup tables or regex/parser generation?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It runs in a separate Docker container"
+        },
+        {
+          "id": "b",
+          "text": "Tables and parsers are computed during compilation and embedded directly as static constants with zero startup cost"
+        },
+        {
+          "id": "c",
+          "text": "It skips type checking"
+        },
+        {
+          "id": "d",
+          "text": "It requires LLVM JIT at runtime"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What does `std/streams` (`StringStream`, `FileStream`) provide?",
+      "options": [
+        {
+          "id": "a",
+          "text": "TCP sockets only"
+        },
+        {
+          "id": "b",
+          "text": "Async HTTP/2"
+        },
+        {
+          "id": "c",
+          "text": "A polymorphic stream interface for reading/writing files, strings, or custom buffers uniformly"
+        },
+        {
+          "id": "d",
+          "text": "Thread channels"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "matrix",
+      "prompt": "Match each Nim tool to its function.",
+      "rows": [
+        {
+          "id": "nimsug",
+          "label": "`nimlangserver` / `nimsuggest`"
+        },
+        {
+          "id": "pretty",
+          "label": "`nimpretty`"
+        },
+        {
+          "id": "doc",
+          "label": "`nim doc`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "nimsug-d",
+          "label": "IDE autocomplete, go-to-definition, and diagnostics"
+        },
+        {
+          "id": "pretty-d",
+          "label": "Official source code formatter"
+        },
+        {
+          "id": "doc-d",
+          "label": "Generates HTML API documentation from `##` comments"
+        }
+      ],
+      "selectionByRow": {
+        "nimsug": "single",
+        "pretty": "single",
+        "doc": "single"
+      }
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "What does `import std/os; paramCount()` and `paramStr(1)` return?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Environment variables"
+        },
+        {
+          "id": "b",
+          "text": "CPU core count"
+        },
+        {
+          "id": "c",
+          "text": "Proc parameter count"
+        },
+        {
+          "id": "d",
+          "text": "Command-line argument count and the first CLI argument"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "single-choice",
+      "prompt": "When wrapping a C library with `c2nim` or manual `{.importc.}` bindings, what should wrap raw C resource handles (`FILE*`, `sqlite3*`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A Nim `object` with a `=destroy` hook (or `defer` wrapper) to guarantee deterministic cleanup"
+        },
+        {
+          "id": "b",
+          "text": "Global variables"
+        },
+        {
+          "id": "c",
+          "text": "Untyped `pointer` everywhere"
+        },
+        {
+          "id": "d",
+          "text": "`seq[byte]`"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "single-choice",
+      "prompt": "What does `{.noinit.}` on a `var buf: array[4096, byte] {.noinit.}` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Fails to compile"
+        },
+        {
+          "id": "b",
+          "text": "Skips Nim's default zero-initialization of `buf` when you are about to overwrite the entire buffer immediately"
+        },
+        {
+          "id": "c",
+          "text": "Allocates on the heap"
+        },
+        {
+          "id": "d",
+          "text": "Makes `buf` constant"
+        }
+      ],
+      "code": {
+        "language": "nim",
+        "source": "var buf {.noinit.}: array[4096, byte]"
+      }
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "What does `nimble test` typically execute in a Nim package?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Only `nim check`"
+        },
+        {
+          "id": "b",
+          "text": "C unit tests only"
+        },
+        {
+          "id": "c",
+          "text": "Test files configured in the `.nimble` `test` task or `tests/` directory"
+        },
+        {
+          "id": "d",
+          "text": "Linter only"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "In Nim, what happens if an unhandled `CatchableError` or `Defect` reaches `main`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Silent exit `0`"
+        },
+        {
+          "id": "b",
+          "text": "Returns `nil`"
+        },
+        {
+          "id": "c",
+          "text": "Restarts `main`"
+        },
+        {
+          "id": "d",
+          "text": "Prints a stack trace (in debug/lineTrace builds) and terminates with a non-zero exit code"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "multi-select",
+      "prompt": "Select all good practices for production Nim codebases. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Catch specific `CatchableError` subclasses instead of bare `except:`"
+        },
+        {
+          "id": "b",
+          "text": "Wrap C FFI pointers in RAII objects with `=destroy` and test with sanitizers"
+        },
+        {
+          "id": "c",
+          "text": "Compile all unverified code with `-d:danger` to hide bounds errors"
+        },
+        {
+          "id": "d",
+          "text": "Use `let`, `func` (`{.noSideEffect.}`), and `{.raises.}` annotations on core domain logic"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "What does `--lineDir:on --debuginfo` (or default debug build) help with when debugging a Nim binary with `gdb`/`lldb`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Maps generated C lines back to the original `.nim` file and line numbers"
+        },
+        {
+          "id": "b",
+          "text": "Removes all symbols"
+        },
+        {
+          "id": "c",
+          "text": "Enables ARC"
+        },
+        {
+          "id": "d",
+          "text": "Compiles to JS"
+        }
+      ]
+    }
+  ]
+}

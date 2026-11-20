@@ -532,6 +532,46 @@
         title: "PL/SQL Engineering Practice",
         description: "Evaluate context switching, bind variables, AUTHID/RESULT_CACHE, pipelined functions, EBR, and profiling."
       }
+    ],
+    kotlin: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Kotlin Foundations",
+        description: "Review val/var, type inference, nullability, safe calls, Elvis, when expressions, ranges, and data classes."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Kotlin Applied Practice",
+        description: "Apply smart casts, scope functions, extension functions, sealed hierarchies, collections, and suspend basics."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Kotlin Engineering Practice",
+        description: "Evaluate structured concurrency, Flow, inline/reified generics, value classes, Java interop, and immutability."
+      }
+    ],
+    nim: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Nim Foundations",
+        description: "Review var/let/const, indentation, UFCS, ranges, procs, result, arrays/seqs, objects, and std/strformat."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Nim Applied Practice",
+        description: "Apply distinct types, object variants, iterators, templates, generics, Option, exceptions, and std/unittest."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Nim Engineering Practice",
+        description: "Evaluate ARC/ORC, sink/lent move semantics, macros, effect pragmas, C FFI interop, async, and release modes."
+      }
     ]
   };
   const trackTitles = {
@@ -560,7 +600,9 @@
     csharp: "C#",
     java: "Java",
     scala: "Scala",
-    plsql: "PL/SQL"
+    plsql: "PL/SQL",
+    kotlin: "Kotlin",
+    nim: "Nim"
   };
 
   function titleCase(track) {
