@@ -1,0 +1,1043 @@
+{
+  "schemaVersion": 1,
+  "id": "java-fundamentals-C",
+  "revision": 1,
+  "name": "Java Engineering Practice: C",
+  "track": "java",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 58,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "What does the `volatile` keyword guarantee in the Java Memory Model (JMM), and what does it NOT guarantee?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Mutual exclusion"
+        },
+        {
+          "id": "b",
+          "text": "Makes arrays deeply volatile"
+        },
+        {
+          "id": "c",
+          "text": "Locks the object monitor"
+        },
+        {
+          "id": "d",
+          "text": "Guarantees cross-thread visibility and prevents instruction reordering around the field, but does NOT make compound actions like `count++` atomic"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "What are Virtual Threads (Project Loom, Java 21) designed for?",
+      "options": [
+        {
+          "id": "a",
+          "text": "High-throughput blocking I/O concurrency\u2014lightweight JVM-managed threads where blocking on I/O parks cheaply without tying up an OS carrier thread"
+        },
+        {
+          "id": "b",
+          "text": "CPU-bound number crunching"
+        },
+        {
+          "id": "c",
+          "text": "Replacing `ForkJoinPool` for parallel math"
+        },
+        {
+          "id": "d",
+          "text": "Shared-memory IPC"
+        }
+      ],
+      "code": {
+        "language": "java",
+        "source": "try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {\n    exec.submit(task);\n}"
+      }
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "What is 'carrier thread pinning' with Virtual Threads (in Java 21\u201323), and how is it avoided?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Using `CompletableFuture`"
+        },
+        {
+          "id": "b",
+          "text": "Performing blocking I/O inside a `synchronized` block or native JNI call pins the virtual thread to its OS carrier thread; use `ReentrantLock` instead of `synchronized` around I/O"
+        },
+        {
+          "id": "c",
+          "text": "Using `AtomicLong`"
+        },
+        {
+          "id": "d",
+          "text": "Throwing exceptions"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `ConcurrentHashMap` in Java. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Rejects `null` keys and `null` values (unlike `HashMap`) to avoid ambiguity in concurrent `get()`"
+        },
+        {
+          "id": "b",
+          "text": "`computeIfAbsent(key, fn)` executes atomically per key (avoid recursive updates to the same map inside `fn`!)"
+        },
+        {
+          "id": "c",
+          "text": "`Collections.synchronizedMap` has higher throughput under contention than `ConcurrentHashMap`"
+        },
+        {
+          "id": "d",
+          "text": "Allows concurrent reads without locking and fine-grained bucket-level synchronization on writes"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "type": "matrix",
+      "prompt": "Match each Java concurrency utility to its ideal role.",
+      "rows": [
+        {
+          "id": "ai",
+          "label": "`AtomicInteger` / `LongAdder`"
+        },
+        {
+          "id": "rl",
+          "label": "`ReentrantLock`"
+        },
+        {
+          "id": "cd",
+          "label": "`CountDownLatch` / `Semaphore`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "ai-d",
+          "label": "Lock-free CAS counters (`LongAdder` scales better under high write contention)"
+        },
+        {
+          "id": "rl-d",
+          "label": "Explicit lock with `tryLock(timeout)`, fairness, and Virtual-Thread-friendly parking"
+        },
+        {
+          "id": "cd-d",
+          "label": "Coordinating thread startup/completion barriers or bounding concurrent permits"
+        }
+      ],
+      "selectionByRow": {
+        "ai": "single",
+        "rl": "single",
+        "cd": "single"
+      }
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "In `CompletableFuture`, what is the difference between `thenApply` and `thenCompose`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Identical"
+        },
+        {
+          "id": "b",
+          "text": "`thenCompose` runs on UI thread"
+        },
+        {
+          "id": "c",
+          "text": "`thenApply` transforms a value synchronously (`T -> U`, like `map`); `thenCompose` chains another async `CompletableFuture` (`T -> CompletableFuture<U>`, like `flatMap`)"
+        },
+        {
+          "id": "d",
+          "text": "`thenApply` swallows exceptions"
+        }
+      ],
+      "code": {
+        "language": "java",
+        "source": "var res = fetchId().thenCompose(this::fetchUser);"
+      }
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "Why can `parallelStream()` hurt performance in a web server?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is single-threaded"
+        },
+        {
+          "id": "b",
+          "text": "It disables GC"
+        },
+        {
+          "id": "c",
+          "text": "It sorts randomly"
+        },
+        {
+          "id": "d",
+          "text": "It shares the global `ForkJoinPool.commonPool()`, so blocking I/O inside `parallelStream()` starves unrelated tasks across the entire JVM"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What happens when an uncaught exception is thrown inside a `ScheduledExecutorService.scheduleAtFixedRate` task?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The scheduled task silently stops executing all future runs unless wrapped in `try/catch`!"
+        },
+        {
+          "id": "b",
+          "text": "Logs and continues"
+        },
+        {
+          "id": "c",
+          "text": "Restarts the JVM"
+        },
+        {
+          "id": "d",
+          "text": "Throws to `main()`"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "Why must `ThreadLocal<T>` values ALWAYS be `.remove()`d when used with pooled platform threads?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They expire after 1ms"
+        },
+        {
+          "id": "b",
+          "text": "Thread-pool threads are reused across requests, so unremoved `ThreadLocal`s leak data between requests AND leak memory (ClassLoader leaks)"
+        },
+        {
+          "id": "c",
+          "text": "`ThreadLocal` is immutable"
+        },
+        {
+          "id": "d",
+          "text": "GC clears them on every return"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "What does `try { lock.lock(); ... } finally { lock.unlock(); }` guarantee?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Faster locking"
+        },
+        {
+          "id": "b",
+          "text": "Deadlock detection"
+        },
+        {
+          "id": "c",
+          "text": "That the `ReentrantLock` is ALWAYS released even if an exception is thrown inside the critical section"
+        },
+        {
+          "id": "d",
+          "text": "Lock-free execution"
+        }
+      ],
+      "code": {
+        "language": "java",
+        "source": "lock.lock();\ntry { update(); } finally { lock.unlock(); }"
+      }
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "What is a classic cause of `OutOfMemoryError: Java heap space` even with garbage collection?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Using `var`"
+        },
+        {
+          "id": "b",
+          "text": "Calling `System.gc()`"
+        },
+        {
+          "id": "c",
+          "text": "Too many local primitives"
+        },
+        {
+          "id": "d",
+          "text": "Retaining unbounded references (e.g., an un-evicted `static Map` cache, unclosed streams/listeners, or unbounded executor queues)"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "How do `G1GC` (default) and `ZGC` (`-XX:+UseZGC -XX:+ZGenerational`) differ?",
+      "options": [
+        {
+          "id": "a",
+          "text": "ZGC targets sub-millisecond pause times even on multi-gigabyte/terabyte heaps using colored pointers and load barriers, trading a bit of CPU/memory overhead"
+        },
+        {
+          "id": "b",
+          "text": "ZGC is stop-the-world for seconds"
+        },
+        {
+          "id": "c",
+          "text": "G1GC has no compaction"
+        },
+        {
+          "id": "d",
+          "text": "ZGC only runs on 32-bit"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "Why is setting `-Xms` equal to `-Xmx` (or using `-XX:MaxRAMPercentage` in containers) common in production Java services?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Disables GC"
+        },
+        {
+          "id": "b",
+          "text": "Avoids repeated heap resize pauses at startup/load, while `MaxRAMPercentage` respects Docker/Kubernetes cgroup memory limits"
+        },
+        {
+          "id": "c",
+          "text": "Doubles CPU cores"
+        },
+        {
+          "id": "d",
+          "text": "Enables JIT"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "multi-select",
+      "prompt": "Select all tools used to profile and diagnose JVM memory/CPU issues in production. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "JDK Flight Recorder (`jfr`) + JDK Mission Control (`jmc`) with <1% overhead"
+        },
+        {
+          "id": "b",
+          "text": "`jcmd` (heap histograms, thread dumps, GC info)"
+        },
+        {
+          "id": "c",
+          "text": "Async-profiler (CPU/allocation flamegraphs including native/JVM frames without safepoint bias)"
+        },
+        {
+          "id": "d",
+          "text": "Disabling all logging and guessing"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "What is 'safepoint bias' in older Java CPU profilers, and what avoids it?",
+      "options": [
+        {
+          "id": "a",
+          "text": "GC bias"
+        },
+        {
+          "id": "b",
+          "text": "Thread-pool bias"
+        },
+        {
+          "id": "c",
+          "text": "Sampling threads only at JVM safepoints skews profiles toward safepoint locations; `async-profiler` (`AsyncGetCallTrace`) avoids safepoint bias"
+        },
+        {
+          "id": "d",
+          "text": "ClassLoader leak"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What does `CompletableFuture.allOf(f1, f2).join()` do, and what is a common `join()` vs `get()` difference?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`join()` throws checked `ExecutionException`"
+        },
+        {
+          "id": "b",
+          "text": "`join()` cancels `f1`"
+        },
+        {
+          "id": "c",
+          "text": "`allOf` returns `List<T>`"
+        },
+        {
+          "id": "d",
+          "text": "`join()` wraps exceptions in unchecked `CompletionException`, making it cleaner in lambdas/streams than `get()`'s checked exceptions"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "What does `Executors.newFixedThreadPool(n)` use for its task queue by default, and why can it be risky under overload?",
+      "options": [
+        {
+          "id": "a",
+          "text": "An *unbounded* `LinkedBlockingQueue`, which can accumulate millions of queued tasks and cause `OutOfMemoryError` if producers outpace consumers"
+        },
+        {
+          "id": "b",
+          "text": "A bounded queue of 100"
+        },
+        {
+          "id": "c",
+          "text": "A `SynchronousQueue`"
+        },
+        {
+          "id": "d",
+          "text": "A priority queue"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What does `ShutdownHook` (`Runtime.getRuntime().addShutdownHook(...)`) or Spring/framework lifecycle close enable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Prevents `SIGKILL`"
+        },
+        {
+          "id": "b",
+          "text": "Graceful shutdown on `SIGTERM`: draining in-flight HTTP requests, flushing buffers, and closing DB pools/executors"
+        },
+        {
+          "id": "c",
+          "text": "Auto-restarts JVM"
+        },
+        {
+          "id": "d",
+          "text": "Clears `/tmp` only"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "Why is `java.io.Serializable` (Java's built-in binary serialization) widely discouraged in modern Java?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is too fast"
+        },
+        {
+          "id": "b",
+          "text": "It doesn't support `String`"
+        },
+        {
+          "id": "c",
+          "text": "It exposes critical deserialization gadget-chain RCE vulnerabilities, couples tightly to class internals, and bypasses constructors"
+        },
+        {
+          "id": "d",
+          "text": "It requires XML"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "matrix",
+      "prompt": "Match each Java performance/safety hazard to its mitigation.",
+      "rows": [
+        {
+          "id": "tl",
+          "label": "`ThreadLocal` in pooled threads"
+        },
+        {
+          "id": "ub",
+          "label": "Unbounded `ExecutorService` queue"
+        },
+        {
+          "id": "sr",
+          "label": "`Serializable` `ObjectInputStream`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "tl-m",
+          "label": "Call `.remove()` in `finally` or use `ScopedValue`"
+        },
+        {
+          "id": "ub-m",
+          "label": "Use bounded `ThreadPoolExecutor` + backpressure/shedding"
+        },
+        {
+          "id": "sr-m",
+          "label": "Use JSON/Protobuf or strict `ObjectInputFilter` allowlists"
+        }
+      ],
+      "selectionByRow": {
+        "tl": "single",
+        "ub": "single",
+        "sr": "single"
+      }
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "What does `Double-Checked Locking` for a lazy singleton require in Java?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing special"
+        },
+        {
+          "id": "b",
+          "text": "`transient`"
+        },
+        {
+          "id": "c",
+          "text": "A `HashMap`"
+        },
+        {
+          "id": "d",
+          "text": "The singleton field MUST be declared `volatile` so another thread cannot observe a partially constructed object due to instruction reordering"
+        }
+      ],
+      "code": {
+        "language": "java",
+        "source": "private static volatile Client instance;"
+      }
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "Why is the Initialization-on-Demand Holder idiom thread-safe without `synchronized`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The JVM guarantees class initialization (`<clinit>`) is synchronized and executed at most once when `Holder` is first referenced"
+        },
+        {
+          "id": "b",
+          "text": "Uses `volatile`"
+        },
+        {
+          "id": "c",
+          "text": "Uses `ThreadLocal`"
+        },
+        {
+          "id": "d",
+          "text": "Uses `Unsafe`"
+        }
+      ]
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "What does `JIT` (Just-In-Time) compilation's 'warmup' phase mean for Java microbenchmarks?",
+      "options": [
+        {
+          "id": "a",
+          "text": "JVM cools down CPU"
+        },
+        {
+          "id": "b",
+          "text": "Early iterations run interpreted/C1-compiled before C2 optimizes hot paths (inlining, escape analysis), so benchmarks MUST use JMH warmup iterations"
+        },
+        {
+          "id": "c",
+          "text": "GC runs only at startup"
+        },
+        {
+          "id": "d",
+          "text": "Classes load lazily at exit"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What is Escape Analysis in the HotSpot C2 JIT compiler?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Static security scan"
+        },
+        {
+          "id": "b",
+          "text": "GC root scanning"
+        },
+        {
+          "id": "c",
+          "text": "Proving an allocated object never escapes a method/thread, allowing scalar replacement (allocating fields in registers/stack) and lock elision"
+        },
+        {
+          "id": "d",
+          "text": "Regex optimization"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all true statements about Java `record`s and `BigDecimal` / `Optional` best practices. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Compare `BigDecimal` values with `==`"
+        },
+        {
+          "id": "b",
+          "text": "Use `BigDecimal.compareTo(other) == 0` for numerical equality (since `equals()` also checks scale: `1.0` != `1.00`!)"
+        },
+        {
+          "id": "c",
+          "text": "Use `try-with-resources` for all `AutoCloseable` I/O, JDBC `Connection`/`PreparedStatement`/`ResultSet`, and HTTP bodies"
+        },
+        {
+          "id": "d",
+          "text": "Validate `record` invariants inside a compact constructor"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "What does `PreparedStatement` with `?` bind parameters prevent in JDBC?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Connection timeouts"
+        },
+        {
+          "id": "b",
+          "text": "Deadlocks"
+        },
+        {
+          "id": "c",
+          "text": "Null pointers"
+        },
+        {
+          "id": "d",
+          "text": "SQL injection\u2014and enables database query-plan caching"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does `StructuredTaskScope` (Java 21+ preview/incubator structured concurrency) solve over raw `ExecutorService`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Ties subtasks' lifetimes to a lexical `try-with-resources` block\u2014cancelling sibling subtasks automatically on failure (`ShutdownOnFailure`) and preventing leaked orphan threads"
+        },
+        {
+          "id": "b",
+          "text": "Faster TCP"
+        },
+        {
+          "id": "c",
+          "text": "Replaces `HashMap`"
+        },
+        {
+          "id": "d",
+          "text": "Compiles to native"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What does `Foreign Function & Memory API` (`MemorySegment`, `Arena`, finalized in Java 22) replace?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`String`"
+        },
+        {
+          "id": "b",
+          "text": "Fragile JNI boilerplate and unsafe `sun.misc.Unsafe` for deterministic off-heap memory and native C library calls"
+        },
+        {
+          "id": "c",
+          "text": "`ArrayList`"
+        },
+        {
+          "id": "d",
+          "text": "`CompletableFuture`"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "What does `WeakHashMap<K, V>` do when a key object has no other strong references?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Keeps it forever"
+        },
+        {
+          "id": "b",
+          "text": "Throws `ConcurrentModificationException`"
+        },
+        {
+          "id": "c",
+          "text": "Allows the GC to reclaim the key and automatically removes the entry from the map (useful for metadata caches keyed by `Class`/`Object`)"
+        },
+        {
+          "id": "d",
+          "text": "Serializes it"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "What is a ClassLoader memory leak (`OutOfMemoryError: Metaspace`) in app servers/plugin systems?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Too many `int`s"
+        },
+        {
+          "id": "b",
+          "text": "Using `var`"
+        },
+        {
+          "id": "c",
+          "text": "Small heap"
+        },
+        {
+          "id": "d",
+          "text": "A static/global reference (like a `ThreadLocal`, JDBC driver, or shutdown hook) holding a class/instance from an unloaded plugin `ClassLoader`, preventing Metaspace reclamation"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "single-choice",
+      "prompt": "Why should `CompletableFuture.supplyAsync(fn)` take an explicit `Executor` in production services?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Without an explicit `Executor`, it defaults to `ForkJoinPool.commonPool()`, which is sized for CPU cores and easily starved by blocking I/O"
+        },
+        {
+          "id": "b",
+          "text": "It won't compile otherwise"
+        },
+        {
+          "id": "c",
+          "text": "It runs synchronously"
+        },
+        {
+          "id": "d",
+          "text": "It creates a new thread per call always"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What does `Objects.checkIndex(index, length)` (Java 9+) provide?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Sorts indices"
+        },
+        {
+          "id": "b",
+          "text": "A JVM-intrinsic bounds check throwing `IndexOutOfBoundsException` that JIT optimizes cleanly"
+        },
+        {
+          "id": "c",
+          "text": "Clamps `index`"
+        },
+        {
+          "id": "d",
+          "text": "Returns `boolean`"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "type": "matrix",
+      "prompt": "Match each Java diagnostic or runtime concept to its meaning.",
+      "rows": [
+        {
+          "id": "jfr",
+          "label": "JDK Flight Recorder (`JFR`)"
+        },
+        {
+          "id": "ea",
+          "label": "Escape Analysis"
+        },
+        {
+          "id": "mc",
+          "label": "Metaspace"
+        }
+      ],
+      "columns": [
+        {
+          "id": "jfr-d",
+          "label": "Continuous low-overhead production event/profiling recorder built into HotSpot"
+        },
+        {
+          "id": "ea-d",
+          "label": "JIT optimization eliminating non-escaping object allocations"
+        },
+        {
+          "id": "mc-d",
+          "label": "Native-memory region storing loaded class metadata"
+        }
+      ],
+      "selectionByRow": {
+        "jfr": "single",
+        "ea": "single",
+        "mc": "single"
+      }
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What does `ClassValue<T>` (`java.lang.ClassValue`) solve for frameworks/libraries?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Sorting classes"
+        },
+        {
+          "id": "b",
+          "text": "Serializing classes"
+        },
+        {
+          "id": "c",
+          "text": "Thread-safe, ClassLoader-leak-free lazy caching of computed metadata per `Class<?>`"
+        },
+        {
+          "id": "d",
+          "text": "Loading `.jar` files"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What happens if two threads call `map.computeIfAbsent(k, ...)` on a `HashMap` (non-concurrent) simultaneously?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Thread-safe"
+        },
+        {
+          "id": "b",
+          "text": "Throws `IllegalMonitorStateException`"
+        },
+        {
+          "id": "c",
+          "text": "Blocks safely"
+        },
+        {
+          "id": "d",
+          "text": "Undefined/corrupted internal structure, lost updates, or `ConcurrentModificationException`"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "What does `var` + `final` or immutable DTOs (`record`) improve for multi-threaded Java?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Immutable objects with `final` fields have safe-publication guarantees in the JMM and can be shared freely across threads without locks"
+        },
+        {
+          "id": "b",
+          "text": "Nothing"
+        },
+        {
+          "id": "c",
+          "text": "Disables GC"
+        },
+        {
+          "id": "d",
+          "text": "Forces `volatile`"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `Java` Modules (`module-info.java`, JPMS). (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Enables `jlink` to build minimal custom runtime images containing only needed JDK modules"
+        },
+        {
+          "id": "b",
+          "text": "Every Maven project fails to compile without `module-info.java`"
+        },
+        {
+          "id": "c",
+          "text": "Explicitly declares `requires` dependencies and `exports` public packages"
+        },
+        {
+          "id": "d",
+          "text": "Strong encapsulation hides non-exported internal packages even from reflection unless `opens` is declared"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "single-choice",
+      "prompt": "What does `jwebserver` (JDK 18+) or `mvn test` / `gradle test --continuous` support?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Production load balancing"
+        },
+        {
+          "id": "b",
+          "text": "Fast local static serving (`jwebserver`) and continuous test feedback loops during development"
+        },
+        {
+          "id": "c",
+          "text": "Database clustering"
+        },
+        {
+          "id": "d",
+          "text": "JIT profiling"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "Why is `Random` (`java.util.Random`) discouraged in hot multi-threaded code compared to `ThreadLocalRandom.current()`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`Random` isn't random"
+        },
+        {
+          "id": "b",
+          "text": "`ThreadLocalRandom` is crypto-safe"
+        },
+        {
+          "id": "c",
+          "text": "`java.util.Random` uses a shared `AtomicLong` seed causing CAS contention across threads; `ThreadLocalRandom` is contention-free (and use `SecureRandom` for crypto!)"
+        },
+        {
+          "id": "d",
+          "text": "`Random` is deprecated"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "What does `CompletableFuture.exceptionally(ex -> fallback)` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Rethrows `ex` always"
+        },
+        {
+          "id": "b",
+          "text": "Logs stacktrace only"
+        },
+        {
+          "id": "c",
+          "text": "Cancels all threads"
+        },
+        {
+          "id": "d",
+          "text": "Recovers from a failed upstream stage by returning a fallback value"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "multi-select",
+      "prompt": "Select all best practices for reliable Java production services. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Log structured context (e.g. MDC/SLF4J) without logging secrets or PII"
+        },
+        {
+          "id": "b",
+          "text": "Use immutable `record`s/value objects and `try-with-resources` consistently"
+        },
+        {
+          "id": "c",
+          "text": "Ignore `InterruptedException` (`catch (InterruptedException e) {}`) without restoring interrupt flag"
+        },
+        {
+          "id": "d",
+          "text": "Set explicit connect/read timeouts on `HttpClient` and JDBC pools (HikariCP)"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "When catching `InterruptedException` in a method that cannot declare `throws InterruptedException`, what MUST you do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Call `Thread.currentThread().interrupt();` to preserve the cancellation/interrupt signal for callers"
+        },
+        {
+          "id": "b",
+          "text": "Swallow it silently"
+        },
+        {
+          "id": "c",
+          "text": "Call `System.exit(1)`"
+        },
+        {
+          "id": "d",
+          "text": "Sleep 1 second"
+        }
+      ],
+      "code": {
+        "language": "java",
+        "source": "catch (InterruptedException e) {\n    Thread.currentThread().interrupt();\n}"
+      }
+    }
+  ]
+}

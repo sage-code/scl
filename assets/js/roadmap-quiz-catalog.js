@@ -472,6 +472,26 @@
         title: "C# Engineering Practice",
         description: "Evaluate async/await ValueTask, DI lifetimes, Span/ArrayPool, Channels, source generators, and .NET GC."
       }
+    ],
+    java: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Java Foundations",
+        description: "Review JVM bytecode, primitives vs wrappers, BigDecimal, String immutability, var, switch, and records."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Java Applied Practice",
+        description: "Apply try-with-resources, equals/hashCode, sealed interfaces, PECS generics, Optional, and Streams."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Java Engineering Practice",
+        description: "Evaluate JMM volatile, Virtual Threads, ConcurrentHashMap, CompletableFuture, ThreadLocal, and JVM GC."
+      }
     ]
   };
   const trackTitles = {
@@ -497,7 +517,8 @@
     bash: "Bash",
     swift: "Swift",
     julia: "Julia",
-    csharp: "C#"
+    csharp: "C#",
+    java: "Java"
   };
 
   function titleCase(track) {

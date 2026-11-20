@@ -105,6 +105,9 @@ const juliaQuizzes = quizFiles
 const csharpQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`csharp${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const javaQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`java${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -261,6 +264,10 @@ test("each Julia quiz has 42 questions, brief code examples, and varied response
 
 test("each C# quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(csharpQuizzes, "csharp", "fundamentals", "csharp", 1);
+});
+
+test("each Java quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(javaQuizzes, "java", "fundamentals", "java", 1);
 });
 
 for (const file of quizFiles) {
