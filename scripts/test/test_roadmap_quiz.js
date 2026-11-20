@@ -72,6 +72,9 @@ const wasmQuizzes = quizFiles
 const svelteQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`svelte${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const rubyQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`ruby${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -184,6 +187,10 @@ test("each WebAssembly quiz has 42 questions, brief code examples, and varied re
 
 test("each Svelte quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(svelteQuizzes, "svelte", "fundamentals", "javascript", 1);
+});
+
+test("each Ruby quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(rubyQuizzes, "ruby", "fundamentals", "ruby", 1);
 });
 
 for (const file of quizFiles) {

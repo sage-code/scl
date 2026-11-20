@@ -1,0 +1,1077 @@
+{
+  "schemaVersion": 1,
+  "id": "ruby-fundamentals-C",
+  "revision": 1,
+  "name": "Ruby Engineering Practice: C",
+  "track": "ruby",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 64,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "Why should you use `YAML.safe_load` (or `JSON.parse`) instead of `Marshal.load` or `YAML.load` on untrusted input?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`Marshal.load` is slower"
+        },
+        {
+          "id": "b",
+          "text": "`JSON.parse` executes Ruby blocks"
+        },
+        {
+          "id": "c",
+          "text": "`YAML.safe_load` supports comments only"
+        },
+        {
+          "id": "d",
+          "text": "`Marshal.load` and unsafe `YAML.load` can instantiate arbitrary Ruby objects and trigger remote code execution"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "Why does `# frozen_string_literal: true` at the top of Ruby files improve memory and GC performance?",
+      "options": [
+        {
+          "id": "a",
+          "text": "String literals are reused as single frozen objects instead of allocating a new `String` on every loop/method call"
+        },
+        {
+          "id": "b",
+          "text": "It disables garbage collection"
+        },
+        {
+          "id": "c",
+          "text": "It converts strings to Symbols"
+        },
+        {
+          "id": "d",
+          "text": "It compresses strings on disk"
+        }
+      ],
+      "code": {
+        "language": "ruby",
+        "source": "# frozen_string_literal: true\n3.times { puts \"ok\" }"
+      }
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "What is MRI (CRuby)'s Global VM Lock (GVL) limitation for `Thread.new`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Threads cannot share memory"
+        },
+        {
+          "id": "b",
+          "text": "Only one thread executes Ruby code at a time per process, though threads release the GVL while waiting on blocking I/O"
+        },
+        {
+          "id": "c",
+          "text": "Threads cannot make HTTP calls"
+        },
+        {
+          "id": "d",
+          "text": "GVL prevents `Fiber`s"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "type": "matrix",
+      "prompt": "Match each Ruby concurrency/parallelism tool to its best fit.",
+      "rows": [
+        {
+          "id": "thr",
+          "label": "`Thread`"
+        },
+        {
+          "id": "proc",
+          "label": "Multi-process workers (Puma / Sidekiq)"
+        },
+        {
+          "id": "fib",
+          "label": "`Fiber` / `Async`)"
+        }
+      ],
+      "columns": [
+        {
+          "id": "io",
+          "label": "Concurrent blocking I/O (HTTP/DB) when libraries release the GVL"
+        },
+        {
+          "id": "cpu",
+          "label": "True multi-core CPU parallelism and isolated memory"
+        },
+        {
+          "id": "coop",
+          "label": "Lightweight cooperative concurrency for high-connection I/O"
+        }
+      ],
+      "selectionByRow": {
+        "thr": "single",
+        "proc": "single",
+        "fib": "single"
+      }
+    },
+    {
+      "id": "q005",
+      "type": "single-choice",
+      "prompt": "What is an N+1 query bug in Rails/ActiveRecord, and how is it fixed?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A SQL syntax error"
+        },
+        {
+          "id": "b",
+          "text": "Using `LIMIT 1`"
+        },
+        {
+          "id": "c",
+          "text": "Loading N parent records and firing 1 extra SQL query per parent in a loop; fix with eager loading (`includes` / `preload`)"
+        },
+        {
+          "id": "d",
+          "text": "A missing primary key"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "type": "multi-select",
+      "prompt": "Select all practices that prevent SQL injection and mass-assignment bugs in Ruby web apps. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Permit only expected attributes with Strong Parameters (`params.expect(...)` / `permit(...)`)"
+        },
+        {
+          "id": "b",
+          "text": "Validate input types/formats with `\\A...\\z` anchors"
+        },
+        {
+          "id": "c",
+          "text": "Interpolate `params[:sort]` directly into `order(\"#{params[:sort]}\")` without an allowlist"
+        },
+        {
+          "id": "d",
+          "text": "Use parameterized queries (`User.where(\"email = ?\", email)` or hash conditions)"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "Why is `\"a\" + \"b\"` in a tight loop slower than `String#<<` (or `Array#join`) when building a large string?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`join` sorts strings"
+        },
+        {
+          "id": "b",
+          "text": "`+` is deprecated"
+        },
+        {
+          "id": "c",
+          "text": "`<<` runs on another thread"
+        },
+        {
+          "id": "d",
+          "text": "`+` allocates a brand-new string on every concatenation, whereas `<<` mutates a single buffer"
+        }
+      ],
+      "code": {
+        "language": "ruby",
+        "source": "buf = +\"\"\nchunks.each { |c| buf << c }"
+      }
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What does `respond_to_missing?(name, include_private = false)` need to accompany `method_missing`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "So `obj.respond_to?(:dynamic_method)` and `obj.method(:dynamic_method)` work consistently with `method_missing`"
+        },
+        {
+          "id": "b",
+          "text": "Nothing"
+        },
+        {
+          "id": "c",
+          "text": "To speed up `puts`"
+        },
+        {
+          "id": "d",
+          "text": "To disable `super`"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "Why are Refinements (`using MyRefinement`) safer than global monkey-patching (`class String; def ...; end`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Refinements are faster"
+        },
+        {
+          "id": "b",
+          "text": "Refinements scope method additions/overrides lexically to the current file/module instead of mutating classes globally"
+        },
+        {
+          "id": "c",
+          "text": "Monkey-patching is a syntax error"
+        },
+        {
+          "id": "d",
+          "text": "Refinements persist to `Gemfile.lock`"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "What does `SecureRandom.urlsafe_base64(32)` provide compared to `rand`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Faster sorting"
+        },
+        {
+          "id": "b",
+          "text": "Shorter strings"
+        },
+        {
+          "id": "c",
+          "text": "Cryptographically strong random tokens safe for session IDs, API keys, and CSRF tokens"
+        },
+        {
+          "id": "d",
+          "text": "Deterministic test seeds"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "multi-select",
+      "prompt": "Select all practices that keep Ruby test suites (RSpec / Minitest) fast and reliable. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Stub external HTTP APIs (e.g., WebMock / VCR) instead of hitting live networks in unit tests"
+        },
+        {
+          "id": "b",
+          "text": "Keep unit tests pure and reserve full DB/browser integration tests for critical flows"
+        },
+        {
+          "id": "c",
+          "text": "Use `freeze`/isolated test data rather than shared mutable globals"
+        },
+        {
+          "id": "d",
+          "text": "Sleep for 5 seconds in every test to wait for threads"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What is a common memory leak when storing request-specific data in a `Thread.current[:key]` or class variable `@@cache`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`Thread.current` is cleared on every method return"
+        },
+        {
+          "id": "b",
+          "text": "`@@cache` is local to one method"
+        },
+        {
+          "id": "c",
+          "text": "Ruby raises `MemoryError` immediately"
+        },
+        {
+          "id": "d",
+          "text": "In pooled servers (Puma/Sidekiq), threads and classes live across requests, retaining stale user data or unbounded caches"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "What does `Rack` provide in the Ruby web ecosystem?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A minimal, standardized HTTP interface (`call(env) -> [status, headers, body]`) connecting Ruby frameworks (Rails, Sinatra) to servers (Puma)"
+        },
+        {
+          "id": "b",
+          "text": "A CSS preprocessor"
+        },
+        {
+          "id": "c",
+          "text": "A database driver"
+        },
+        {
+          "id": "d",
+          "text": "A template engine"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "single-choice",
+      "prompt": "Why should production Ruby web servers (like Puma) enforce request/DB/HTTP timeouts?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Ruby has no exceptions"
+        },
+        {
+          "id": "b",
+          "text": "Without explicit timeouts on `Net::HTTP` or external APIs, slow upstreams tie up all worker threads/processes and cause cascading outages"
+        },
+        {
+          "id": "c",
+          "text": "Timeouts make responses cacheable"
+        },
+        {
+          "id": "d",
+          "text": "Puma disables timeouts by default on `puts`"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "matrix",
+      "prompt": "Match each Ruby performance or reliability tool to its role.",
+      "rows": [
+        {
+          "id": "yjit",
+          "label": "`ruby --yjit`"
+        },
+        {
+          "id": "rubo",
+          "label": "`bundle exec rubocop`"
+        },
+        {
+          "id": "brak",
+          "label": "`brakeman`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "jit",
+          "label": "In-process JIT compiler accelerating production Ruby throughput"
+        },
+        {
+          "id": "lint",
+          "label": "Static style, lint, and performance/security cop checker"
+        },
+        {
+          "id": "sec",
+          "label": "Static security vulnerability scanner for Rails apps"
+        }
+      ],
+      "selectionByRow": {
+        "yjit": "single",
+        "rubo": "single",
+        "brak": "single"
+      }
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What does `ObjectSpace.memsize_of` / memory profilers help diagnose in long-running Ruby workers?",
+      "options": [
+        {
+          "id": "a",
+          "text": "SQL syntax"
+        },
+        {
+          "id": "b",
+          "text": "HTML validity"
+        },
+        {
+          "id": "c",
+          "text": "Retained object allocations and memory bloat from large closures, unclosed streams, or unbounded caches"
+        },
+        {
+          "id": "d",
+          "text": "DNS latency"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "Why can capturing a huge local variable inside a returned `Proc` or `lambda` retain memory unexpectedly?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Procs delete local variables"
+        },
+        {
+          "id": "b",
+          "text": "Procs freeze `GC`"
+        },
+        {
+          "id": "c",
+          "text": "Procs run in another process"
+        },
+        {
+          "id": "d",
+          "text": "Closures capture their surrounding `Binding`, keeping referenced objects alive as long as the `Proc` is alive"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What does `Integer(input)` do differently from `input.to_i` when validating user input `\"12abc\"`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`Integer(\"12abc\")` raises `ArgumentError`, whereas `\"12abc\".to_i` silently returns `12`"
+        },
+        {
+          "id": "b",
+          "text": "Both return `12`"
+        },
+        {
+          "id": "c",
+          "text": "`Integer` returns `0`"
+        },
+        {
+          "id": "d",
+          "text": "`to_i` raises `ArgumentError`"
+        }
+      ],
+      "code": {
+        "language": "ruby",
+        "source": "Integer(\"12abc\") # raises ArgumentError"
+      }
+    },
+    {
+      "id": "q019",
+      "type": "multi-select",
+      "prompt": "Select all valid reasons to use `Enumerable#lazy` or `IO.foreach` when processing a 5 GB CSV/log file.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Automatically distributes work across 16 servers"
+        },
+        {
+          "id": "b",
+          "text": "Reads one line at a time with O(1) memory instead of `File.read` loading 5 GB into RAM"
+        },
+        {
+          "id": "c",
+          "text": "Allows early termination with `.first(10)` without scanning the rest of the file"
+        },
+        {
+          "id": "d",
+          "text": "Keeps GC heap footprint small"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "single-choice",
+      "prompt": "What is the risk of `const_get(user_input)` or `public_send(user_input)` on unsanitized user parameters?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is slower than `if/else`"
+        },
+        {
+          "id": "b",
+          "text": "Attackers can invoke unintended methods or access arbitrary constants unless `user_input` is checked against an explicit allowlist"
+        },
+        {
+          "id": "c",
+          "text": "It only works with Symbols"
+        },
+        {
+          "id": "d",
+          "text": "It clears `Gemfile.lock`"
+        }
+      ]
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "Why should `bundle audit` (or Dependabot) be part of Ruby CI?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To format `.rb` files"
+        },
+        {
+          "id": "b",
+          "text": "To enable YJIT"
+        },
+        {
+          "id": "c",
+          "text": "To detect gems in `Gemfile.lock` with known published security advisories (CVEs)"
+        },
+        {
+          "id": "d",
+          "text": "To generate RDoc"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "matrix",
+      "prompt": "Match each Ruby security pitfall to its safe mitigation.",
+      "rows": [
+        {
+          "id": "rx",
+          "label": "`/^\\w+$/` on user input"
+        },
+        {
+          "id": "snd",
+          "label": "`obj.send(params[:act])`"
+        },
+        {
+          "id": "yaml",
+          "label": "`YAML.load(untrusted)`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "anc",
+          "label": "Use `\\A` and `\\z` anchors"
+        },
+        {
+          "id": "alw",
+          "label": "Check `params[:act]` against an allowlist and use `public_send`"
+        },
+        {
+          "id": "safe",
+          "label": "Use `YAML.safe_load` or `JSON.parse`"
+        }
+      ],
+      "selectionByRow": {
+        "rx": "single",
+        "snd": "single",
+        "yaml": "single"
+      }
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "In Ruby, why is `BigDecimal` preferred over `Float` for currency and financial totals?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`Float` cannot be serialized to JSON"
+        },
+        {
+          "id": "b",
+          "text": "`Float` only stores integers"
+        },
+        {
+          "id": "c",
+          "text": "`BigDecimal` is faster in hardware"
+        },
+        {
+          "id": "d",
+          "text": "`Float` uses binary floating point (`0.1 + 0.2 != 0.3`), whereas `BigDecimal` performs exact base-10 arithmetic"
+        }
+      ],
+      "code": {
+        "language": "ruby",
+        "source": "require 'bigdecimal'\nBigDecimal('0.1') + BigDecimal('0.2') == BigDecimal('0.3')"
+      }
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What does `Signal.trap(\"TERM\")` allow a long-running Ruby worker or daemon to do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Initiate graceful shutdown (finish current job, close DB connections, flush logs) when orchestrated containers stop it"
+        },
+        {
+          "id": "b",
+          "text": "Ignore crashes forever"
+        },
+        {
+          "id": "c",
+          "text": "Restart YJIT"
+        },
+        {
+          "id": "d",
+          "text": "Bypass `rescue`"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all statements that are true about Ruby `Fiber`s and `Ractor`s. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Non-blocking Fiber schedulers can multiplex thousands of I/O operations on one thread"
+        },
+        {
+          "id": "b",
+          "text": "`Ractor`s share all mutable global hashes freely without copying"
+        },
+        {
+          "id": "c",
+          "text": "`Fiber`s provide lightweight cooperative concurrency with manual or scheduler-driven yielding"
+        },
+        {
+          "id": "d",
+          "text": "`Ractor`s (Ruby 3+) run in parallel without sharing the GVL by isolating mutable state via message passing"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "Why is `rescue => e` followed by `raise` (or structured logging + metrics) better than `rescue; nil; end`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`rescue nil` is a syntax error"
+        },
+        {
+          "id": "b",
+          "text": "Silent `rescue nil` swallows bugs, DB outages, and data corruption without any trace"
+        },
+        {
+          "id": "c",
+          "text": "Logging is required by `irb`"
+        },
+        {
+          "id": "d",
+          "text": "`raise` deletes logs"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does `Time.utc` / `Time.now.utc` (or `ActiveSupport::TimeZone`) prevent in distributed Ruby backends?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Slow CPU clocks"
+        },
+        {
+          "id": "b",
+          "text": "Integer overflow"
+        },
+        {
+          "id": "c",
+          "text": "Timezone drift and DST bugs across servers in different regions"
+        },
+        {
+          "id": "d",
+          "text": "JSON parse errors"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What does `Enumerator.new { |y| ... }` allow you to implement cleanly?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A database index"
+        },
+        {
+          "id": "b",
+          "text": "A CSS rule"
+        },
+        {
+          "id": "c",
+          "text": "A global constant"
+        },
+        {
+          "id": "d",
+          "text": "A custom lazy stream/generator producing values on demand via `y << item`"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "Why should `Gemfile` specify pessimistic version constraints (`~> 2.1`) or lock with `Gemfile.lock`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To allow compatible patch/minor updates while protecting against breaking major version jumps"
+        },
+        {
+          "id": "b",
+          "text": "To block all updates forever"
+        },
+        {
+          "id": "c",
+          "text": "To speed up `puts`"
+        },
+        {
+          "id": "d",
+          "text": "Because RubyGems ignores exact versions"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "What is the purpose of `RBS` / `Sorbet` in large Ruby codebases?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Replacing `Gemfile`"
+        },
+        {
+          "id": "b",
+          "text": "Adding static type signatures and type checking to catch interface mismatches before runtime"
+        },
+        {
+          "id": "c",
+          "text": "Compiling Ruby to WebAssembly"
+        },
+        {
+          "id": "d",
+          "text": "Managing background jobs"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "matrix",
+      "prompt": "Match each Ruby backend reliability practice to what it prevents.",
+      "rows": [
+        {
+          "id": "idemp",
+          "label": "Idempotency keys on Sidekiq/webhook jobs"
+        },
+        {
+          "id": "tout",
+          "label": "Explicit `Net::HTTP` timeouts"
+        },
+        {
+          "id": "conn",
+          "label": "Connection pooling (`connection_pool`)"
+        }
+      ],
+      "columns": [
+        {
+          "id": "dup",
+          "label": "Duplicate charges/emails when a job retries after transient failure"
+        },
+        {
+          "id": "hang",
+          "label": "Worker threads hanging indefinitely on unresponsive upstreams"
+        },
+        {
+          "id": "exh",
+          "label": "Exhausting DB/Redis connections under concurrent load"
+        }
+      ],
+      "selectionByRow": {
+        "idemp": "single",
+        "tout": "single",
+        "conn": "single"
+      }
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "Why is `Dir.mktmpdir` (with a block) preferred over hardcoding `\"/tmp/work\"` in Ruby scripts?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Ruby forbids `/tmp`"
+        },
+        {
+          "id": "b",
+          "text": "`Dir.mktmpdir` is faster to type"
+        },
+        {
+          "id": "c",
+          "text": "Hardcoded `/tmp` paths fail on Windows, collide across concurrent runs, and risk symlink attacks"
+        },
+        {
+          "id": "d",
+          "text": "`Dir.mktmpdir` persists files forever"
+        }
+      ],
+      "code": {
+        "language": "ruby",
+        "source": "require 'tmpdir'\nDir.mktmpdir { |dir| puts dir }"
+      }
+    },
+    {
+      "id": "q033",
+      "type": "multi-select",
+      "prompt": "Select all valid ways to avoid mutating caller arguments unexpectedly in Ruby methods. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Call `.dup` before mutating a local copy if needed"
+        },
+        {
+          "id": "b",
+          "text": "Accept immutable `Data` value objects"
+        },
+        {
+          "id": "c",
+          "text": "Always mutate the caller's passed-in `Hash` without documenting it"
+        },
+        {
+          "id": "d",
+          "text": "Use non-bang methods (`map`, `select`, `merge`) that return new objects"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What does `GC.stat` expose in Ruby?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Git commit history"
+        },
+        {
+          "id": "b",
+          "text": "Gem licenses"
+        },
+        {
+          "id": "c",
+          "text": "Database query plans"
+        },
+        {
+          "id": "d",
+          "text": "Runtime garbage-collector metrics (heap slots, major/minor GC counts, allocated objects) for observability"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "Why should `File.join(dir, filename)` (or `Pathname#join`) be used instead of `\"#{dir}/#{filename}\"`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It normalizes separators portably across POSIX and Windows without double slashes"
+        },
+        {
+          "id": "b",
+          "text": "`File.join` encrypts filenames"
+        },
+        {
+          "id": "c",
+          "text": "String interpolation doesn't work for paths"
+        },
+        {
+          "id": "d",
+          "text": "`File.join` validates file contents"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "How do you prevent path traversal when serving a user-requested file `name` inside `base_dir` in Ruby?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`File.join(base_dir, name)` directly"
+        },
+        {
+          "id": "b",
+          "text": "Expand both paths (`File.realpath` / `File.expand_path`) and verify the target starts with `base_dir + File::SEPARATOR`"
+        },
+        {
+          "id": "c",
+          "text": "Remove `.txt`"
+        },
+        {
+          "id": "d",
+          "text": "Use `URI.encode`"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "single-choice",
+      "prompt": "What does `Object#freeze` on a nested config `CONFIG = { hosts: [\"a\"] }.freeze` NOT protect?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Reassigning `CONFIG[:hosts]`"
+        },
+        {
+          "id": "b",
+          "text": "Checking `CONFIG.frozen?`"
+        },
+        {
+          "id": "c",
+          "text": "Mutating the inner array `CONFIG[:hosts] << \"b\"` unless the inner array and strings are also frozen"
+        },
+        {
+          "id": "d",
+          "text": "Reading `CONFIG[:hosts]`"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "multi-select",
+      "prompt": "Select all practices that belong in a production Ruby CI pipeline. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`bundle exec rubocop` for lint and style checks"
+        },
+        {
+          "id": "b",
+          "text": "`bundle exec rspec` / `rake test` for automated tests"
+        },
+        {
+          "id": "c",
+          "text": "`bundle exec bundler-audit check --update` for gem CVEs"
+        },
+        {
+          "id": "d",
+          "text": "Running `rails db:drop` on production"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "Why is structured JSON logging (e.g., Semantic Logger) preferred over raw `puts` in production Ruby services?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`puts` cannot print strings"
+        },
+        {
+          "id": "b",
+          "text": "JSON logging disables `GC`"
+        },
+        {
+          "id": "c",
+          "text": "`puts` crashes in Puma"
+        },
+        {
+          "id": "d",
+          "text": "Structured logs include request IDs, severity levels, timestamps, and machine-parseable fields for log aggregation"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "What does `at_exit { ... }` register in a Ruby process?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A hook executed when the Ruby process is exiting normally"
+        },
+        {
+          "id": "b",
+          "text": "A loop"
+        },
+        {
+          "id": "c",
+          "text": "A syntax error handler"
+        },
+        {
+          "id": "d",
+          "text": "A background thread"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "single-choice",
+      "prompt": "When should you prefer `Hash#fetch(:key)` over `hash[:key]`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "When missing keys should silently be `nil`"
+        },
+        {
+          "id": "b",
+          "text": "When a missing required key is a bug or configuration error that should fail fast with `KeyError`"
+        },
+        {
+          "id": "c",
+          "text": "When keys are strings"
+        },
+        {
+          "id": "d",
+          "text": "Never"
+        }
+      ],
+      "code": {
+        "language": "ruby",
+        "source": "db_url = ENV.fetch(\"DATABASE_URL\")"
+      }
+    },
+    {
+      "id": "q042",
+      "type": "matrix",
+      "prompt": "Match each Ruby production diagnostic to its cause.",
+      "rows": [
+        {
+          "id": "n1",
+          "label": "Dozens of identical `SELECT` queries per request"
+        },
+        {
+          "id": "enc",
+          "label": "`Encoding::UndefinedConversionError`"
+        },
+        {
+          "id": "fzl",
+          "label": "`FrozenError: can't modify frozen String`)"
+        }
+      ],
+      "columns": [
+        {
+          "id": "eag",
+          "label": "Missing eager loading (`includes`) on association"
+        },
+        {
+          "id": "utf",
+          "label": "Mixing incompatible/ASCII-8BIT binary encodings without `.force_encoding`/`encode`"
+        },
+        {
+          "id": "lit",
+          "label": "In-place `<<` on a literal under `frozen_string_literal: true`"
+        }
+      ],
+      "selectionByRow": {
+        "n1": "single",
+        "enc": "single",
+        "fzl": "single"
+      }
+    }
+  ]
+}

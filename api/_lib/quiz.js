@@ -36,7 +36,10 @@ const publicQuizzes = {
   "wasm-fundamentals-C": require("../../roadmap/wasm/quiz/fundamentals-C.json"),
   "svelte-fundamentals-A": require("../../roadmap/svelte/quiz/fundamentals-A.json"),
   "svelte-fundamentals-B": require("../../roadmap/svelte/quiz/fundamentals-B.json"),
-  "svelte-fundamentals-C": require("../../roadmap/svelte/quiz/fundamentals-C.json")
+  "svelte-fundamentals-C": require("../../roadmap/svelte/quiz/fundamentals-C.json"),
+  "ruby-fundamentals-A": require("../../roadmap/ruby/quiz/fundamentals-A.json"),
+  "ruby-fundamentals-B": require("../../roadmap/ruby/quiz/fundamentals-B.json"),
+  "ruby-fundamentals-C": require("../../roadmap/ruby/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

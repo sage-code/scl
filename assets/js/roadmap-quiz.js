@@ -383,20 +383,56 @@
     outcome.className = `badge ${passed ? "text-bg-success" : "text-bg-danger"}`;
     review.replaceChildren();
 
+    const wrapper = element(documentRef, "div", undefined, "table-responsive");
+    const table = element(documentRef, "table", undefined, "table table-bordered table-striped table-dark align-middle quiz-results-table mb-0");
+    table.append(element(documentRef, "caption", "Question-by-question quiz results", "visually-hidden"));
+
+    const thead = element(documentRef, "thead");
+    const headerRow = element(documentRef, "tr");
+    ["#", "Question", "Your answer", "Correct answer", "Explanation", "Score"].forEach((label) => {
+      const th = element(documentRef, "th", label);
+      th.scope = "col";
+      headerRow.append(th);
+    });
+    thead.append(headerRow);
+
+    const tbody = element(documentRef, "tbody");
     quiz.questions.forEach((question, index) => {
       const result = scored.questions[index];
-      const article = element(documentRef, "article", undefined, "quiz-review-item py-3");
-      const heading = element(documentRef, "h3", `Question ${index + 1}: ${result.pointsEarned} / ${result.pointsPossible} points`, "h4");
-      const yourAnswer = element(documentRef, "p", undefined, "mb-1");
-      yourAnswer.append(element(documentRef, "strong", "Your answer: "));
-      yourAnswer.append(documentRef.createTextNode(selectedAnswerLabels(question, result.selectedAnswer).join("; ") || "No answer"));
-      const correctAnswer = element(documentRef, "p", undefined, "mb-1");
-      correctAnswer.append(element(documentRef, "strong", "Correct answer: "));
-      correctAnswer.append(documentRef.createTextNode(correctAnswerLabels(question).join("; ")));
-      const explanation = element(documentRef, "p", question.explanation, "text-secondary mb-0");
-      article.append(heading, yourAnswer, correctAnswer, explanation);
-      review.append(article);
+      const row = element(documentRef, "tr");
+
+      const numCell = element(documentRef, "th", String(index + 1), "text-nowrap");
+      numCell.scope = "row";
+
+      const promptCell = element(documentRef, "td", question.prompt, "quiz-results-prompt");
+      const yourCell = element(documentRef, "td", selectedAnswerLabels(question, result.selectedAnswer).join("; ") || "No answer");
+      const correctCell = element(documentRef, "td", correctAnswerLabels(question).join("; "));
+      const explanationCell = element(documentRef, "td", question.explanation, "text-secondary small");
+
+      const scoreCell = element(documentRef, "td", undefined, "text-nowrap text-center");
+      const scoreClass = result.pointsEarned === result.pointsPossible
+        ? "text-bg-success"
+        : result.pointsEarned > 0
+          ? "text-bg-warning"
+          : "text-bg-danger";
+      scoreCell.append(element(documentRef, "span", `${result.pointsEarned} / ${result.pointsPossible}`, `badge ${scoreClass}`));
+
+      row.append(numCell, promptCell, yourCell, correctCell, explanationCell, scoreCell);
+      tbody.append(row);
     });
+
+    const tfoot = element(documentRef, "tfoot");
+    const totalRow = element(documentRef, "tr", undefined, "fw-semibold");
+    const totalLabel = element(documentRef, "th", "Total");
+    totalLabel.scope = "row";
+    totalLabel.colSpan = 5;
+    const totalScore = element(documentRef, "td", `${scored.pointsEarned} / ${scored.pointsPossible} (${scored.scorePercent}%)`, "text-nowrap text-center");
+    totalRow.append(totalLabel, totalScore);
+    tfoot.append(totalRow);
+
+    table.append(thead, tbody, tfoot);
+    wrapper.append(table);
+    review.append(wrapper);
 
     resultSection.hidden = false;
     documentRef.getElementById("quiz-content").hidden = true;

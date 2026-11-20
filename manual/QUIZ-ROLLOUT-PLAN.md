@@ -26,8 +26,9 @@
 - Flutter (`fundamentals`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - WebAssembly (`fundamentals`, track `wasm`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Svelte (`fundamentals`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Ruby (`fundamentals`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: Ruby (Phase 2 Back-end), after review of pending sets.
+- Next roadmap: PHP (Phase 2 Back-end), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -80,7 +81,7 @@ Apply these requirements to each roadmap before moving to the next:
 10. Python — **Review pending** (`fundamentals`, A/B/C prepared & activated)
 11. Go — Existing A/B/C sets; review pending (`syntax`, activated)
 12. Dart — **Review pending** (`fundamentals`, A/B/C prepared & activated)
-13. Ruby — Pending
+13. Ruby — **Review pending** (`fundamentals`, A/B/C prepared & activated)
 14. PHP — Pending
 15. Node.js — Pending
 

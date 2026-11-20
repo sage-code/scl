@@ -252,6 +252,26 @@
         title: "Svelte Engineering Practice",
         description: "Evaluate SSR isolation, hydration, $state.raw, security boundaries, compiler a11y checks, and CI testing."
       }
+    ],
+    ruby: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Ruby Foundations",
+        description: "Review truthiness, symbols, collections, ranges, methods, classes, attr accessors, and Bundler basics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Ruby Applied Practice",
+        description: "Apply blocks, yield, Proc vs lambda, Enumerable, mixins, exception clauses, and regex anchors."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Ruby Engineering Practice",
+        description: "Evaluate GVL concurrency, frozen string literals, N+1 queries, safe deserialization, YJIT, and CI security."
+      }
     ]
   };
   const trackTitles = {
@@ -266,7 +286,8 @@
     vue: "Vue",
     flutter: "Flutter",
     wasm: "WebAssembly",
-    svelte: "Svelte"
+    svelte: "Svelte",
+    ruby: "Ruby"
   };
 
   function titleCase(track) {
