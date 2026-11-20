@@ -471,10 +471,53 @@
     });
 
     if (avatarUploadBtn && avatarInput && api.profile) {
+      var cropper = window.sclAvatarCropper
+        ? window.sclAvatarCropper.init({
+            onError: function (msg) {
+              setStatus(status, msg, "error");
+            },
+            onConfirm: async function (optimized) {
+              avatarUploadBtn.disabled = true;
+              var res = await api.profile.uploadAvatar(optimized.file);
+              avatarUploadBtn.disabled = false;
+              if (res.error) {
+                setStatus(status, res.error.message, "error");
+                return;
+              }
+              var user = currentUser();
+              if (user) {
+                applyUser({ ...user, avatar_url: res.data.avatar_url });
+              }
+              if (avatarImg && res.data.avatar_url) {
+                avatarImg.src = res.data.avatar_url;
+              }
+              avatarInput.value = "";
+              var kb = Math.max(1, Math.round(optimized.bytes / 1024));
+              var fmt = optimized.ext.toUpperCase();
+              setStatus(
+                status,
+                res.data.warning || ("Profile picture updated (" + fmt + ", " + kb + " KB)."),
+                res.data.warning ? "warning" : "success"
+              );
+            }
+          })
+        : null;
+
+      avatarInput.addEventListener("change", function () {
+        var file = avatarInput.files && avatarInput.files[0];
+        if (file && cropper) {
+          cropper.openFile(file);
+        }
+      });
+
       avatarUploadBtn.addEventListener("click", async function () {
         var file = avatarInput.files && avatarInput.files[0];
         if (!file) {
-          setStatus(status, "Choose a JPEG, PNG, or WebP image file first.", "warning");
+          avatarInput.click();
+          return;
+        }
+        if (cropper) {
+          cropper.openFile(file);
           return;
         }
         if (file.size > 2 * 1024 * 1024) {
