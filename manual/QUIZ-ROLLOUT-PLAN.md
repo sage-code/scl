@@ -43,8 +43,9 @@
 - Kotlin (`fundamentals`, track `kotlin`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Nim (`fundamentals`, track `nim`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Zig (`fundamentals`, track `zig`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Fortran (`fundamentals`, track `fortran`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: Fortran (Phase 5 Disruptive-language), after review of pending sets.
+- Next roadmap: Ada (Phase 5 Disruptive-language), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -123,7 +124,7 @@ Apply these requirements to each roadmap before moving to the next:
 
 28. Nim — Review pending (`fundamentals` A/B/C in `roadmap/nim/quiz/`)
 29. Zig — Review pending (`fundamentals` A/B/C in `roadmap/zig/quiz/`)
-30. Fortran — Pending
+30. Fortran — Review pending (`fundamentals` A/B/C in `roadmap/fortran/quiz/`)
 31. Ada — Pending
 32. Elixir — Pending
 33. Odin — Pending

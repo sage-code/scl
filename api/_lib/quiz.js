@@ -87,7 +87,10 @@ const publicQuizzes = {
   "nim-fundamentals-C": require("../../roadmap/nim/quiz/fundamentals-C.json"),
   "zig-fundamentals-A": require("../../roadmap/zig/quiz/fundamentals-A.json"),
   "zig-fundamentals-B": require("../../roadmap/zig/quiz/fundamentals-B.json"),
-  "zig-fundamentals-C": require("../../roadmap/zig/quiz/fundamentals-C.json")
+  "zig-fundamentals-C": require("../../roadmap/zig/quiz/fundamentals-C.json"),
+  "fortran-fundamentals-A": require("../../roadmap/fortran/quiz/fundamentals-A.json"),
+  "fortran-fundamentals-B": require("../../roadmap/fortran/quiz/fundamentals-B.json"),
+  "fortran-fundamentals-C": require("../../roadmap/fortran/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

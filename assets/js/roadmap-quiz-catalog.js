@@ -592,6 +592,26 @@
         title: "Zig Engineering Practice",
         description: "Evaluate explicit allocators, arenas, OOM testing, build.zig, C interop, packed/extern structs, and build modes."
       }
+    ],
+    fortran: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Fortran Foundations",
+        description: "Review implicit none, iso_fortran_env kinds, 1-based arrays, do loops, select case, and module basics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Fortran Applied Practice",
+        description: "Apply column-major layout, intent contracts, pure/elemental procs, allocatables, stream I/O, and derived types."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Fortran Engineering Practice",
+        description: "Evaluate submodules, OOP, iso_c_binding, f2py, OpenMP, coarrays, MPI, GPU offload, and SIMD performance."
+      }
     ]
   };
   const trackTitles = {
@@ -623,7 +643,8 @@
     plsql: "PL/SQL",
     kotlin: "Kotlin",
     nim: "Nim",
-    zig: "Zig"
+    zig: "Zig",
+    fortran: "Fortran"
   };
 
   function titleCase(track) {
