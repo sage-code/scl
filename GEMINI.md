@@ -1,103 +1,61 @@
-# Gemini CLI / Agent Instructions for Sage-Code SCL
+# Antigravity / Gemini Workspace Rules — Sage-Code SCL
 
-## Core Philosophy & Objective
-This repository builds the static-first vanilla website for Sage-Code. Gemini agents must prioritize **high token efficiency (TPM reduction)**, **git-diff-driven context retrieval**, and strict adherence to the project's static generator and curriculum standards.
-
----
-## 1. Automation & Performance Rule: Cross-Platform Python & POSIX Shell
-
-* **POSIX-Compatible Environment**: All shell instructions must assume a POSIX-compliant shell (Bash via Git Bash on Windows, or native shell on Linux/macOS). Never generate or use PowerShell syntax (`pwsh`).
-* **Temporary Files (Spool)**: Write all temporary/intermediate files to `.temp/` at the repo root (run `mkdir -p .temp` first if missing). Never use `/tmp` or another global temp path — unreliable on Windows/Git Bash. `.temp/` is git-ignored.
-* **Command Execution & Timeouts**: Use a POSIX shell (Bash via Git Bash on Windows), never PowerShell (`pwsh`) or `cmd`. For long-running commands, run them in the background and redirect output to `.temp/` — e.g. `npm run build > .temp/build.log 2>&1` — then read or `tail` the log. Avoid interactive pagers and prompts (use `git --no-pager` and `--non-interactive` flags; page large output with `grep`/`head`/`tail`).
-* **Prefer Python Scripts for Bulk Tasks**: For find-and-replace, refactoring, text transformation, or normalization, generate and execute a Python script using standard `python3` invocations.
-* **Diff Generation & Validation**: Python automation scripts must output clear diffs or dry-run validation summaries before writing modifications to disk.
-* **Reserve AI for Complex Logic**: Use AI exclusively for deep architectural reasoning, semantic understanding, or code design. Execute all mechanical, multi-file updates via Python.
----
-
-## 2. Token Efficiency & TPM Management (Free Quota Optimization)
-
-To operate smoothly within free-tier quota limits (strict TPM/RPM constraints):
-
-1. **Use `git diff` for Context:**
-   - Always run `git diff` or `git status` to inspect incremental changes rather than reading whole files.
-   - Use targeted range reads (`start_line` / `end_line`) when full file dumps are unnecessary.
-2. **Minimize Context Loading:**
-   - Avoid reading whole directories or large generated assets in `public/`.
-   - Rely on specific regex codebase searches (`search_codebase`) targeting exact function names, IDs, or classes.
-3. **Concise Communication:**
-   - Keep planning and explanation outputs direct, factual, and minimal. Omit conversational chatter or boilerplate recaps.
-4. **Batch Operations:**
-   - Execute independent tool calls concurrently where available to minimize round-trip overhead.
+Always-on core rules for **Sage-Code SCL** (static-first vanilla HTML5/CSS3/ES6+ + Bootstrap website generator, deployed to Vercel from `public/`, with `api/` Turso/libSQL + Resend functions). Detailed runbooks live in `.agents/skills/` and load on demand via progressive disclosure.
 
 ---
 
-## 3. Fast Onboarding Checklist
+## 1. Model Workflow (Neon Plans, Hydrogen Executes)
 
-When initiating work:
-- Check `git status` and `git diff` to understand current modifications.
-- Reference core architecture files if needed:
-  - `build.js`
-  - `manual/ARCHITECTURE.md`
-  - `vercel.json`
-- Essential validation commands:
-  - `npm run build`
-  - `npm run test`
+- **Planner / Architect:** **Gemini 4 Neon** (`gemini-4-neon-medium` / `gemini-4-neon-high`) — audits, designs roadmaps, decomposes work into atomic `SCOPE / ACTION / ACCEPT` micro-specs in `.temp/plan-<id>.md`, dispatches workers, and verifies outcomes. See `agents/antigravity/planner.md`.
+- **Executor / Worker:** **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium` / `gemini-4-hydrogen-low`) — executes one micro-spec at a time (or in parallel via Antigravity `swarm` with `workspace: "share"`), runs the validation gate, writes `.temp/task-<id>.md`, and emits a one-line `DONE` receipt. See `agents/antigravity/executor.md`.
+- **Fail-fast escalation (Hydrogen → Neon):** Emit `REJECT: AMBIGUOUS_SPEC` on unclear specs; emit `ESCALATE: VALIDATION_FAILED` after 2 consecutive validation failures.
 
 ---
 
-## 4. Architecture & Static Generation Rules
+## 2. Progressive-Disclosure Skills (`.agents/skills/`)
 
-- **Vanilla Stack:** Pure HTML5, CSS3, ES6+ JavaScript, and Bootstrap where established. No modern JS framework runtimes (e.g., React/Vue).
-- **Static-First Assembly:** Treat this project as a static site generator. All shared navigation headers, footers, and layouts are injected at build time, **never** via runtime client-side fetching.
-- **Directory Layout:**
-  - `roadmap/`: Learning track content and metadata.
-  - `projects/`: Standalone project sites.
-  - `layouts/`: Reusable HTML template page wrappers.
-  - `assets/css/` & `assets/js/`: Global styling and logic. (Legacy `/common` path is deprecated).
-  - `public/`: Generated runtime build output only. Do not manually edit files here.
-- **Script Extraction:** All inline executable JS in source HTML must be extracted to `public/assets/js/inline` during build.
+Activate the relevant skill before specialized work instead of guessing:
+- `scl-architecture` — repo layout, build pipeline, templates, Prism/SVG/URL policies.
+- `scl-author-topic` — curriculum authoring standard, pedagogy, 3-level sidebar JSON, dark-theme SVG rules, `demo_examples.html`.
+- `scl-build-validate` — ordered validation gate, `trace.sh` logging, post-build checks.
+- `scl-plan-execute` — Neon → Hydrogen planning, `.temp/plan-<id>.md`, Antigravity `swarm` dispatch.
 
 ---
 
-## 5. Navigation & Sidebar Shape
+## 3. Shell, Temp Spool & Bulk Automation
 
-Before creating or editing roadmap topic pages and their corresponding JSON metadata:
-- **Topic Page Structure:** Each topic page must have exactly one `h1`, multiple `h2`, and multiple `h3` sub-sections under every `h2`.
-- **JSON Metadata Hierarchy:** Matching `roadmap/<track>/<topic>.json` files must be strictly hierarchical: each `h2` entry must contain a `children` array of `h3` anchors. (Do not publish flat JSON lists; flat lists break tree navigation in `assets/js/topic-loader.js`).
-
----
-
-## 6. Publishing & URL Routing Behavior
-
-- **Canonical URLs:**
-  - For roadmap index links, use absolute canonical static paths: `/roadmap/<track>/<topic>.html`.
-  - For roadmap track canonical URLs, use trailing-slash track roots: `/roadmap/<track>/`.
-  - Never use relative links (e.g., `./topic`) or root track links (e.g., `/cse/topic.html`).
-- **External Links Security:** Always attach `target="_blank"` and `rel="noopener noreferrer nofollow"` to external links.
+- **POSIX & Cross-Platform:** Keep all shell instructions and scripts POSIX Bash (`Git Bash` on Windows, native Bash on Linux/macOS) or cross-platform Python. Never generate PowerShell (`pwsh`) scripts or syntax.
+- **Temp Spool (`.temp/`):** Write all intermediate files, logs, plans (`.temp/plan-<id>.md`), and task reports (`.temp/task-<id>.md`) to `.temp/` at the repo root (git-ignored). Never use `/tmp`.
+- **Command Tracing:** In POSIX Bash, run commands through `scripts/tools/trace.sh` (logs to `.temp/trace.log`); spool long command output to `.temp/*.log` and inspect with `tail`/`grep`. Avoid interactive pagers (`git --no-pager`).
+- **Bulk Changes (`>2` files):** Write deterministic Python scripts under `scripts/tools/` (never clutter repo root) with dry-run diff output before writing.
 
 ---
 
-## 7. AI Curriculum Authoring Standard
+## 4. Context & File-Editing Discipline
 
-When writing or updating roadmap content:
-- **Technical Tone:** Clear, step-by-step engineering instruction from fundamentals to production. Avoid promotional adjectives (e.g., *Ultimate*, *Complete*, *Professional*, *Easy*, *Simple*).
-- **Concise Headings:** Keep `h1`, `h2`, `h3`, and sidebar labels compact and factual.
-- **Standard Topic Structure:**
-  1. Concept overview and real-world engineering significance.
-  2. Syntax and construct mechanics.
-  3. Progressive executable code examples (basic -> intermediate -> production).
-  4. Common pitfalls, edge cases, and mitigations.
-  5. Performance and maintainability trade-offs.
-  6. Practical mini-lab / practice sequence.
+- **Diff-first context:** Start with `git status --short` and `git --no-pager diff`. Use targeted line-range reads and regex searches; never read whole `public/` trees or generated assets. Batch independent tool calls in parallel.
+- **Strict diff edits:** Modify existing files with targeted `edit_file` patches (or `bee-ed` for large files / `bee-ed balance` for HTML/MD). Reserve `write_file` for newly created files only. Never use shell heredocs to write source files or emit placeholder comments.
+- **`public/` is build output:** Never hand-edit files in `public/`.
 
 ---
 
-## 8. Bulk Changes & Validation Workflow
+## 5. Architecture & Curriculum Non-Negotiables
 
-- Use deterministic Python scripts for bulk refactors.
-- Always execute `npm run build` after changes and verify:
-  - `public/index.html` has embedded navigation header and footer markup.
-  - Extracted inline scripts exist in `public/assets/js/inline/`.
-  - Navigation tree JSONs are valid and hierarchical.
+- **Static-first vanilla stack:** Pure HTML5/CSS3/ES6+ and Bootstrap. Shared headers, footers, and sidebars are injected at build time (`node build.js`), never fetched at runtime. Inline JS is extracted to `public/assets/js/inline/`.
+- **Template-defined roadmaps (5+ phases):** Follow `assets/roadmap_template.html`, `assets/topic_template.html`, and `assets/topic_sidebar_template.json` (see `manual/ARCHITECTURE.md`).
+- **3-level sidebar JSON (`roadmap/<track>/data/<topic>.json`):** Single root `h1` folder → `h2` chapters → `h3` anchors (no `role` key; leaf `h2` omits `children`). Never publish flat sidebar lists.
+- **Canonical URLs & security:** Topic links `/roadmap/<track>/<topic>.html`; track roots `/roadmap/<track>/`. Never use relative links. External links require `target="_blank" rel="noopener noreferrer nofollow"`.
+- **Content quality overrides token economy:** Token discipline applies to context and process ONLY — **never** trim learner-facing explanations, examples, or didactic comments. Author as a mentor, professor, and engineer; avoid promotional adjectives (*Ultimate*, *Complete*, *Professional*, *Easy*, *Simple*); keep references only on track `index.html` and `references.html`.
+
+---
+
+## 6. Validation Gate (Exact Order)
+
+After any source edit, run in exact order:
+1. `npm run test` — validates source syntax and sidebar hierarchy.
+2. `npm run build` — assembles `public/` (`npm run build:full` for clean rebuild).
+3. `npm run check` — audits compiled `public/` output and inline script extraction.
+
+After roadmap content edits, also run `python tracking/generate_roadmaps_status.py` and `python scripts/tools/verify_sidebars.py <track>`.
 
   

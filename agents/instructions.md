@@ -3,6 +3,7 @@
 This directory contains configuration and instructions for different AI agents used in this project.
 Each agent has its own subfolder containing specific instructions.
 
+- `/antigravity`: Antigravity configuration optimized for **Gemini 4 Neon** (Planner: `planner.md`) and **Gemini 4 Hydrogen** (Executor: `executor.md`), paired with native `.agents/skills/` progressive disclosure.
 - `/gemini`: Instructions and configuration for Gemini.
 - `/claudio`: Instructions and configuration for Claudio.
 - `/copilot`: Instructions and configuration for GitHub Copilot.
@@ -11,6 +12,11 @@ Each agent has its own subfolder containing specific instructions.
 - `fireworks.md`: Shared Fireworks configuration (endpoint, model IDs, pricing, Static Context Prefix / prompt caching, escalation, validation, shared shell & temp rules) used by the DeepSeek Planner and Executor.
 - `static-context-prefix.md`: Frozen system prefix — loaded first, byte-identical, in every request (cache alignment).
 - Context signature: `scripts/tools/context_signature.py` (`npm run signature`) hashes the static-context manifest into an immutable `SCL_CONTEXT_SIGNATURE=sha256:<digest>` feed block (artifact `.temp/context-signature.json`); paste it at task start so the model signs its context — see `agents/fireworks.md` §4.1.
+
+## Antigravity integration
+- Always-on workspace rule: `GEMINI.md` (lean core rules + Neon/Hydrogen model routing).
+- Progressive-disclosure skills: `.agents/skills/` — `scl-architecture`, `scl-author-topic`, `scl-build-validate`, `scl-plan-execute` (loaded on demand to minimize token overhead).
+- Agent profiles: `agents/antigravity/README.md`, `planner.md` (Gemini 4 Neon), `executor.md` (Gemini 4 Hydrogen).
 
 ## Cline integration
 - Project rules: `.clinerules/` — `01-core.md` (core + tracing), `02-architecture.md` (static site architecture), `03-execution-protocol.md` (acting protocol).
