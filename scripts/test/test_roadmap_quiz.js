@@ -138,6 +138,12 @@ const odinQuizzes = quizFiles
 const cseQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`cse${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const dsaQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`dsa${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const pgpQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`pgp${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -338,6 +344,14 @@ test("each Odin quiz has 42 questions, brief code examples, and varied response 
 
 test("each CSE quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(cseQuizzes, "cse", "fundamentals", "python", 1);
+});
+
+test("each DSA quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(dsaQuizzes, "dsa", "fundamentals", "go", 1);
+});
+
+test("each PGP quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(pgpQuizzes, "pgp", "fundamentals", "python", 1);
 });
 
 for (const file of quizFiles) {

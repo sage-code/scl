@@ -692,6 +692,46 @@
         title: "CSE Engineering Practice",
         description: "Evaluate SLOs/p99 latency, scaling, load balancing, caching, CAP/PACELC, queues/circuit breakers, architectures, and LLM evals."
       }
+    ],
+    dsa: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "DSA Foundations",
+        description: "Review loop invariants, Big-O/amortized analysis, recursion, Go slice internals, two pointers, linked lists, stacks, and queues."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "DSA Applied Practice",
+        description: "Apply hash tables, BSTs, binary heaps, binary search, sorting stability, BFS/DFS, topological sort, Union-Find, and shortest paths."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "DSA Engineering Practice",
+        description: "Evaluate greedy proofs, dynamic programming, backtracking, tries/segment/Fenwick trees, KMP, Bloom filters, LRU caches, and sharded maps."
+      }
+    ],
+    pgp: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "PGP Foundations",
+        description: "Review linear, structured, OOP, and functional paradigms: Böhm-Jacopini, encapsulation, Smalltalk/Self/Eiffel, purity, closures, and ADTs."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "PGP Applied Practice",
+        description: "Apply logic/ASP (Prolog, Datalog, Clingo), AOP, Web Components/OSGi, Actor/CSP concurrency, RxJS/Elm reactive, and array programming."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "PGP Engineering Practice",
+        description: "Evaluate multi-paradigm hybrid design (Julia, Rust, C#, Scala, Kotlin, Swift, F#), Functional Core/Imperative Shell, and type trade-offs."
+      }
     ]
   };
   const trackTitles = {
@@ -728,7 +768,9 @@
     ada: "Ada",
     elixir: "Elixir",
     odin: "Odin",
-    cse: "CSE"
+    cse: "CSE",
+    dsa: "DSA",
+    pgp: "PGP"
   };
 
   function titleCase(track) {

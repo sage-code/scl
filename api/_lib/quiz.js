@@ -102,7 +102,13 @@ const publicQuizzes = {
   "odin-fundamentals-C": require("../../roadmap/odin/quiz/fundamentals-C.json"),
   "cse-fundamentals-A": require("../../roadmap/cse/quiz/fundamentals-A.json"),
   "cse-fundamentals-B": require("../../roadmap/cse/quiz/fundamentals-B.json"),
-  "cse-fundamentals-C": require("../../roadmap/cse/quiz/fundamentals-C.json")
+  "cse-fundamentals-C": require("../../roadmap/cse/quiz/fundamentals-C.json"),
+  "dsa-fundamentals-A": require("../../roadmap/dsa/quiz/fundamentals-A.json"),
+  "dsa-fundamentals-B": require("../../roadmap/dsa/quiz/fundamentals-B.json"),
+  "dsa-fundamentals-C": require("../../roadmap/dsa/quiz/fundamentals-C.json"),
+  "pgp-fundamentals-A": require("../../roadmap/pgp/quiz/fundamentals-A.json"),
+  "pgp-fundamentals-B": require("../../roadmap/pgp/quiz/fundamentals-B.json"),
+  "pgp-fundamentals-C": require("../../roadmap/pgp/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");
