@@ -84,7 +84,10 @@ const publicQuizzes = {
   "kotlin-fundamentals-C": require("../../roadmap/kotlin/quiz/fundamentals-C.json"),
   "nim-fundamentals-A": require("../../roadmap/nim/quiz/fundamentals-A.json"),
   "nim-fundamentals-B": require("../../roadmap/nim/quiz/fundamentals-B.json"),
-  "nim-fundamentals-C": require("../../roadmap/nim/quiz/fundamentals-C.json")
+  "nim-fundamentals-C": require("../../roadmap/nim/quiz/fundamentals-C.json"),
+  "zig-fundamentals-A": require("../../roadmap/zig/quiz/fundamentals-A.json"),
+  "zig-fundamentals-B": require("../../roadmap/zig/quiz/fundamentals-B.json"),
+  "zig-fundamentals-C": require("../../roadmap/zig/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

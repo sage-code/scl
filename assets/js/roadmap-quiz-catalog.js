@@ -572,6 +572,26 @@
         title: "Nim Engineering Practice",
         description: "Evaluate ARC/ORC, sink/lent move semantics, macros, effect pragmas, C FFI interop, async, and release modes."
       }
+    ],
+    zig: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Zig Foundations",
+        description: "Review const/var, explicit integer widths, slices, optionals, defer, switch exhaustiveness, and structs."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Zig Applied Practice",
+        description: "Apply error unions, try/catch/errdefer, pointers, tagged unions, comptime generics, and std.testing."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Zig Engineering Practice",
+        description: "Evaluate explicit allocators, arenas, OOM testing, build.zig, C interop, packed/extern structs, and build modes."
+      }
     ]
   };
   const trackTitles = {
@@ -602,7 +622,8 @@
     scala: "Scala",
     plsql: "PL/SQL",
     kotlin: "Kotlin",
-    nim: "Nim"
+    nim: "Nim",
+    zig: "Zig"
   };
 
   function titleCase(track) {
