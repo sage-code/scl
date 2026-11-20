@@ -63,7 +63,13 @@ const publicQuizzes = {
   "bash-fundamentals-C": require("../../roadmap/bash/quiz/fundamentals-C.json"),
   "swift-fundamentals-A": require("../../roadmap/swift/quiz/fundamentals-A.json"),
   "swift-fundamentals-B": require("../../roadmap/swift/quiz/fundamentals-B.json"),
-  "swift-fundamentals-C": require("../../roadmap/swift/quiz/fundamentals-C.json")
+  "swift-fundamentals-C": require("../../roadmap/swift/quiz/fundamentals-C.json"),
+  "julia-fundamentals-A": require("../../roadmap/julia/quiz/fundamentals-A.json"),
+  "julia-fundamentals-B": require("../../roadmap/julia/quiz/fundamentals-B.json"),
+  "julia-fundamentals-C": require("../../roadmap/julia/quiz/fundamentals-C.json"),
+  "csharp-fundamentals-A": require("../../roadmap/csharp/quiz/fundamentals-A.json"),
+  "csharp-fundamentals-B": require("../../roadmap/csharp/quiz/fundamentals-B.json"),
+  "csharp-fundamentals-C": require("../../roadmap/csharp/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

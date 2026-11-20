@@ -432,6 +432,46 @@
         title: "Swift Engineering Practice",
         description: "Evaluate ARC weak/unowned, actors and Sendable, some vs any, async/await cancellation, macros, and ~Copyable."
       }
+    ],
+    julia: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Julia Foundations",
+        description: "Review 1-based indexing, column-major arrays, nothing vs missing, strings, structs, tuples, and Pkg."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Julia Applied Practice",
+        description: "Apply multiple dispatch, parametric types, dot broadcasting, do-blocks, generators, Test, and Threads.@threads."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Julia Engineering Practice",
+        description: "Evaluate type stability (@code_warntype), @views and .= fusion, macros, Threads.@spawn, ccall, and TTFX."
+      }
+    ],
+    csharp: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "C# Foundations",
+        description: "Review CLR/IL, value vs reference types, decimal, nullable references, TryParse, collections, and switch expressions."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "C# Applied Practice",
+        description: "Apply records and init/required, pattern matching, IDisposable/using, LINQ vs IQueryable, delegates, and yield."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "C# Engineering Practice",
+        description: "Evaluate async/await ValueTask, DI lifetimes, Span/ArrayPool, Channels, source generators, and .NET GC."
+      }
     ]
   };
   const trackTitles = {
@@ -455,7 +495,9 @@
     rust: "Rust",
     assembly: "Assembly",
     bash: "Bash",
-    swift: "Swift"
+    swift: "Swift",
+    julia: "Julia",
+    csharp: "C#"
   };
 
   function titleCase(track) {

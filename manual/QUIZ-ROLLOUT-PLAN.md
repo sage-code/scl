@@ -35,8 +35,10 @@
 - Assembly (`fundamentals`, track `assembly`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Bash (`fundamentals`, track `bash`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Swift (`fundamentals`, track `swift`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Julia (`fundamentals`, track `julia`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- C# (`fundamentals`, track `csharp`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: Julia (Phase 4 Enterprise-language), after review of pending sets.
+- Next roadmap: Java (Phase 4 Enterprise-language), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -104,8 +106,8 @@ Apply these requirements to each roadmap before moving to the next:
 
 ### Phase 4 — Enterprise-language roadmaps
 
-22. Julia — Pending
-23. C# — Pending
+22. Julia — Review pending (`fundamentals` A/B/C in `roadmap/julia/quiz/`)
+23. C# — Review pending (`fundamentals` A/B/C in `roadmap/csharp/quiz/`)
 24. Java — Pending
 25. Scala — Pending
 26. PL/SQL — Pending

@@ -1,0 +1,1043 @@
+{
+  "schemaVersion": 1,
+  "id": "julia-fundamentals-C",
+  "revision": 1,
+  "name": "Julia Engineering Practice: C",
+  "track": "julia",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 58,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "What does type stability mean in Julia, and how do you inspect it?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Code has no `try/catch`"
+        },
+        {
+          "id": "b",
+          "text": "Code uses `Any` everywhere"
+        },
+        {
+          "id": "c",
+          "text": "All variables are `const`"
+        },
+        {
+          "id": "d",
+          "text": "A function's return type (and local variable types) depend only on the *types* of its inputs, not their runtime *values*\u2014inspected via `@code_warntype`"
+        }
+      ],
+      "code": {
+        "language": "julia",
+        "source": "@code_warntype compute(xs)"
+      }
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "Why are untyped non-`const` global variables a major performance killer in Julia?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Their type can change at any time, forcing every function reading them to use dynamic dispatch and boxing"
+        },
+        {
+          "id": "b",
+          "text": "Globals are stored on disk"
+        },
+        {
+          "id": "c",
+          "text": "Globals cannot hold numbers"
+        },
+        {
+          "id": "d",
+          "text": "Globals disable `@threads`"
+        }
+      ]
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "Which loop order is fastest for iterating a 2D `Matrix{Float64}` `A` in Julia?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Row-major (`for i in 1:m, j in 1:n; A[i,j]`) "
+        },
+        {
+          "id": "b",
+          "text": "Column-major (`for j in 1:n, i in 1:m; A[i,j]`\u2014inner loop varies the first index `i`)"
+        },
+        {
+          "id": "c",
+          "text": "Random index order"
+        },
+        {
+          "id": "d",
+          "text": "Both are identical"
+        }
+      ],
+      "code": {
+        "language": "julia",
+        "source": "for j in axes(A, 2), i in axes(A, 1)\n    s += A[i, j]\nend"
+      }
+    },
+    {
+      "id": "q004",
+      "type": "multi-select",
+      "prompt": "Select all techniques that eliminate unnecessary heap allocations in hot Julia loops. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Preallocate output arrays and write in-place with `.=` (`out .= a .* x .+ b`)"
+        },
+        {
+          "id": "b",
+          "text": "Parameterize struct fields with concrete type parameters (`struct S{T} x::T end`) instead of abstract `Any`/`Real`"
+        },
+        {
+          "id": "c",
+          "text": "Use non-`const` untyped global accumulators inside inner loops"
+        },
+        {
+          "id": "d",
+          "text": "Use `@views` or `view(A, :, j)` instead of allocating slice copies `A[:, j]`"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "type": "matrix",
+      "prompt": "Match each Julia code-inspection macro to its output.",
+      "rows": [
+        {
+          "id": "cw",
+          "label": "`@code_warntype f(x)`"
+        },
+        {
+          "id": "cl",
+          "label": "`@code_llvm f(x)`"
+        },
+        {
+          "id": "cn",
+          "label": "`@code_native f(x)`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "cw-d",
+          "label": "Lowered typed IR highlighting type instabilities (`Any`/`Union`)"
+        },
+        {
+          "id": "cl-d",
+          "label": "Generated LLVM intermediate representation"
+        },
+        {
+          "id": "cn-d",
+          "label": "Final CPU assembly instructions"
+        }
+      ],
+      "selectionByRow": {
+        "cw": "single",
+        "cl": "single",
+        "cn": "single"
+      }
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "In `BenchmarkTools.@btime sum(\\$xs)`, why is `$` placed before `xs`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To convert `xs` to string"
+        },
+        {
+          "id": "b",
+          "text": "To copy `xs`"
+        },
+        {
+          "id": "c",
+          "text": "To interpolate the local/global variable `xs` into the benchmark expression so global lookup overhead isn't measured"
+        },
+        {
+          "id": "d",
+          "text": "To run on GPU"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "What is type piracy in Julia, and why is it discouraged?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Using `Any`"
+        },
+        {
+          "id": "b",
+          "text": "Subtyping `AbstractArray`"
+        },
+        {
+          "id": "c",
+          "text": "Using `@generated`"
+        },
+        {
+          "id": "d",
+          "text": "Defining a method for a foreign function (e.g., `Base.+`) on foreign types (e.g., `String, String`) that your package doesn't own\u2014risking silent breakage across unrelated packages"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What is the Holy Trait pattern in Julia?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A zero-cost compile-time dispatch pattern using singleton trait types (like `IndexStyle(A)`) to dispatch on properties independent of the single-inheritance type tree"
+        },
+        {
+          "id": "b",
+          "text": "A macro for testing"
+        },
+        {
+          "id": "c",
+          "text": "A GC algorithm"
+        },
+        {
+          "id": "d",
+          "text": "A `Dict` subclass"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "What does `esc(expr)` do inside a Julia `macro`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Escapes strings"
+        },
+        {
+          "id": "b",
+          "text": "Prevents macro hygiene from renaming symbols in `expr` so it evaluates in the caller's scope"
+        },
+        {
+          "id": "c",
+          "text": "Throws an error"
+        },
+        {
+          "id": "d",
+          "text": "Runs `expr` at compile time"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "When does a Julia `macro` execute compared to a normal `function`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "At runtime on every call"
+        },
+        {
+          "id": "b",
+          "text": "In a separate OS process"
+        },
+        {
+          "id": "c",
+          "text": "At parse/compile time, transforming AST (`Expr`) into new AST before type inference and LLVM codegen"
+        },
+        {
+          "id": "d",
+          "text": "Only in the REPL"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "What is the key constraint on `@generated function` bodies in Julia?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They cannot return `Expr`"
+        },
+        {
+          "id": "b",
+          "text": "They cannot be inlined"
+        },
+        {
+          "id": "c",
+          "text": "They run at runtime"
+        },
+        {
+          "id": "d",
+          "text": "The generator body only sees the *types* of arguments (not values), must be pure (no side effects/global state mutation), and returns a quoted `Expr`"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What does `Threads.@spawn expr` do compared to `Threads.@threads`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Schedules an asynchronous `Task` on any available thread in Julia's work-stealing scheduler, returning a `Task` you can `fetch()`"
+        },
+        {
+          "id": "b",
+          "text": "Runs on 1 thread only"
+        },
+        {
+          "id": "c",
+          "text": "Creates an OS process"
+        },
+        {
+          "id": "d",
+          "text": "Locks a mutex"
+        }
+      ],
+      "code": {
+        "language": "julia",
+        "source": "t = Threads.@spawn heavy_work(x)\nres = fetch(t)"
+      }
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "Why is `Threads.threadid()` unsafe as an array index (`buf[Threads.threadid()]`) in modern Julia?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It returns `0`"
+        },
+        {
+          "id": "b",
+          "text": "Tasks can migrate between OS threads across yields/allocations (or exceed `nthreads()` with `:interactive` pool); use `Channel`, `ReentrantLock`, or task-local chunking instead"
+        },
+        {
+          "id": "c",
+          "text": "It is slow"
+        },
+        {
+          "id": "d",
+          "text": "It requires `unsafe`"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "multi-select",
+      "prompt": "Select all valid synchronization primitives for multi-threaded Julia. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`ReentrantLock` with `lock(lk) do ... end` (or `@lock lk ...`)"
+        },
+        {
+          "id": "b",
+          "text": "`Threads.Atomic{Int}` or `@atomic` struct fields (Julia 1.7+)"
+        },
+        {
+          "id": "c",
+          "text": "`Channel{T}` for producer-consumer message passing"
+        },
+        {
+          "id": "d",
+          "text": "Reading/writing a shared `Dict` concurrently from multiple threads without locking"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "What does `ccall((:strlen, \"libc\"), Csize_t, (Cstring,), s)` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Compiles C code at runtime"
+        },
+        {
+          "id": "b",
+          "text": "Spawns a subprocess"
+        },
+        {
+          "id": "c",
+          "text": "Calls a C shared-library function directly with zero wrapper overhead using Julia's native FFI"
+        },
+        {
+          "id": "d",
+          "text": "Parses C headers"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What is `GC.@preserve obj begin ... end` used for when passing pointers (`pointer(arr)`) to `ccall`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Frees `obj` immediately"
+        },
+        {
+          "id": "b",
+          "text": "Disables GC globally"
+        },
+        {
+          "id": "c",
+          "text": "Copies `obj` to C"
+        },
+        {
+          "id": "d",
+          "text": "Guarantees the garbage collector will not move or collect `obj` while raw pointers to its memory are in use"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "What does `@inbounds` inside a performance-critical loop do, and what is its precondition?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Elides array bounds checks for speed\u2014ONLY safe when indices are mathematically proven in-bounds (violating it causes memory corruption/UB!)"
+        },
+        {
+          "id": "b",
+          "text": "Checks bounds twice"
+        },
+        {
+          "id": "c",
+          "text": "Allocates bounds"
+        },
+        {
+          "id": "d",
+          "text": "Enables `@threads`"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What does `@simd for i in eachindex(a, b)` permit the compiler to do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Run across machines"
+        },
+        {
+          "id": "b",
+          "text": "Reassociate floating-point reductions and emit SIMD vector instructions when iterations are independent"
+        },
+        {
+          "id": "c",
+          "text": "Skip bounds checks only"
+        },
+        {
+          "id": "d",
+          "text": "Allocate on stack"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "Why does Julia distinguish `isbits(T)` types (like `Float64`, `SVector{3, Float64}`, `Tuple{Int, Int}`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They are immutable only"
+        },
+        {
+          "id": "b",
+          "text": "They cannot be in `Dict`"
+        },
+        {
+          "id": "c",
+          "text": "They contain no heap references, so arrays `Vector{T}` store them packed inline contiguously with zero per-element GC tracking"
+        },
+        {
+          "id": "d",
+          "text": "They are `mutable`"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "matrix",
+      "prompt": "Match each Julia performance/ecosystem package or tool to its role.",
+      "rows": [
+        {
+          "id": "bt",
+          "label": "`BenchmarkTools.jl`"
+        },
+        {
+          "id": "sa",
+          "label": "`StaticArrays.jl`"
+        },
+        {
+          "id": "pt",
+          "label": "`PrecompileTools.jl`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "bt-d",
+          "label": "Accurate microbenchmarking (`@btime`) accounting for JIT warmup and GC"
+        },
+        {
+          "id": "sa-d",
+          "label": "Stack-allocated fixed-size arrays (`SVector{3, Float64}`) with unrolled ops"
+        },
+        {
+          "id": "pt-d",
+          "label": "Records precompilation workloads to slash Time-To-First-Execution (TTFX)"
+        }
+      ],
+      "selectionByRow": {
+        "bt": "single",
+        "sa": "single",
+        "pt": "single"
+      }
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "What is 'world age' in Julia?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Package version number"
+        },
+        {
+          "id": "b",
+          "text": "Thread ID"
+        },
+        {
+          "id": "c",
+          "text": "GC generation"
+        },
+        {
+          "id": "d",
+          "text": "A monotonic counter tracking method table updates so compiled code sees a consistent method set and `eval`ed methods aren't called directly in the same world without `Base.invokelatest`"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "What does `Base.@propagate_inbounds` on a helper function `getval(A, i)` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Allows a caller's `@inbounds` context to propagate into `getval` while still checking bounds when called normally"
+        },
+        {
+          "id": "b",
+          "text": "Always disables bounds checks"
+        },
+        {
+          "id": "c",
+          "text": "Forces heap allocation"
+        },
+        {
+          "id": "d",
+          "text": "Exports `getval`"
+        }
+      ]
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "What is a 'method invalidation' in Julia package loading?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A syntax error"
+        },
+        {
+          "id": "b",
+          "text": "When defining a new method (especially overly broad ones on `Any`) forces Julia to recompile previously compiled callers that depended on an earlier dispatch assumption"
+        },
+        {
+          "id": "c",
+          "text": "A `BoundsError`"
+        },
+        {
+          "id": "d",
+          "text": "A missing `Project.toml`"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What does `StaticArrays.SVector{3, Float64}` improve over `Vector{Float64}` of length 3 in physics/geometry?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Supports `push!`"
+        },
+        {
+          "id": "b",
+          "text": "Works with `missing` only"
+        },
+        {
+          "id": "c",
+          "text": "Fixed size known in the type (`3`), so it lives in registers/stack with zero heap allocations and fully unrolled math"
+        },
+        {
+          "id": "d",
+          "text": "Uses less precision"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all ways to reduce Time-To-First-Execution (TTFX) / startup latency in Julia applications. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Run `using` inside every inner loop"
+        },
+        {
+          "id": "b",
+          "text": "Precompile representative workloads using `PrecompileTools.@compile_workload`"
+        },
+        {
+          "id": "c",
+          "text": "Avoid type-unstable code and method invalidations in your package"
+        },
+        {
+          "id": "d",
+          "text": "Build a custom sysimage with `PackageCompiler.jl` for CLI/server deployments"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "What does `FunctionWrappers.jl` or `::Function` field pitfall teach about storing callbacks in a `struct`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`struct`s cannot store functions"
+        },
+        {
+          "id": "b",
+          "text": "Callbacks must be macros"
+        },
+        {
+          "id": "c",
+          "text": "Functions are mutable"
+        },
+        {
+          "id": "d",
+          "text": "In Julia, every function has its own singleton type (`typeof(sin) !== typeof(cos)`), so typing a field `f::Function` is abstract; parameterize `struct S{F} f::F end`!"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does `Base.inferencebarrier(x)` or `Ref{Any}(x)[]` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Intentionally hides `x`'s concrete type from the compiler (useful when benchmarking or preventing excessive specialization)"
+        },
+        {
+          "id": "b",
+          "text": "Speeds up `x`"
+        },
+        {
+          "id": "c",
+          "text": "Enables SIMD"
+        },
+        {
+          "id": "d",
+          "text": "Locks `x`"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "Why does `AbstractArray{T, N}` allow writing one algorithm that works on `Array`, `SubArray`, `CuArray` (GPU), and `SparseMatrixCSC`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They all share memory"
+        },
+        {
+          "id": "b",
+          "text": "Generic code written against `AbstractArray` interfaces (`size`, `axes`, `eachindex`, broadcasting) specializes per concrete array type via multiple dispatch"
+        },
+        {
+          "id": "c",
+          "text": "Julia converts them all to `Array`"
+        },
+        {
+          "id": "d",
+          "text": "It uses Python C-API"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "What does `Channel{T}(N)` provide for concurrent pipelines in Julia?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Shared memory without sync"
+        },
+        {
+          "id": "b",
+          "text": "A `Dict` wrapper"
+        },
+        {
+          "id": "c",
+          "text": "A thread-safe bounded (or unbuffered `0`) FIFO queue for passing `T` items between `Task`s"
+        },
+        {
+          "id": "d",
+          "text": "A C pointer"
+        }
+      ],
+      "code": {
+        "language": "julia",
+        "source": "ch = Channel{Int}(32)\nput!(ch, 42)"
+      }
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "What is the purpose of `Compat.jl` in Julia open-source packages?",
+      "options": [
+        {
+          "id": "a",
+          "text": "GPU kernels"
+        },
+        {
+          "id": "b",
+          "text": "Plotting"
+        },
+        {
+          "id": "c",
+          "text": "C++ binding"
+        },
+        {
+          "id": "d",
+          "text": "Providing forward-compatibility macros/shims so packages support multiple Julia LTS and current minor versions"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "single-choice",
+      "prompt": "What does `JET.jl` (`@report_opt`, `@report_call`) check statically?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Type errors, undefined methods, and runtime-dispatch/type-instability hotspots without needing to execute every branch"
+        },
+        {
+          "id": "b",
+          "text": "Code formatting"
+        },
+        {
+          "id": "c",
+          "text": "Memory leaks in C"
+        },
+        {
+          "id": "d",
+          "text": "License headers"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What does `@nospecialize(x)` on a rarely-called error/logging helper parameter prevent?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Type checking"
+        },
+        {
+          "id": "b",
+          "text": "Generating redundant compiled specializations for dozens of concrete argument types, reducing compile time and memory"
+        },
+        {
+          "id": "c",
+          "text": "GC collection"
+        },
+        {
+          "id": "d",
+          "text": "Method dispatch"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "type": "matrix",
+      "prompt": "Match each Julia concurrency/memory concept to its rule.",
+      "rows": [
+        {
+          "id": "lock",
+          "label": "`@lock lk expr`"
+        },
+        {
+          "id": "ref",
+          "label": "`Ref(x)`"
+        },
+        {
+          "id": "mems",
+          "label": "`GC.gc()`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "lock-d",
+          "label": "Acquires `lk` and guarantees release even if `expr` throws"
+        },
+        {
+          "id": "ref-d",
+          "label": "Zero-dimensional mutable box (protects scalar from broadcasting or holds C out-param)"
+        },
+        {
+          "id": "mems-d",
+          "label": "Explicitly triggers garbage collection (rarely needed in normal code)"
+        }
+      ],
+      "selectionByRow": {
+        "lock": "single",
+        "ref": "single",
+        "mems": "single"
+      }
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "Why can `push!(v, item)` in a loop be slightly slower than preallocating `v = Vector{T}(undef, n)` when `n` is known?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`push!` copies elements one-by-one"
+        },
+        {
+          "id": "b",
+          "text": "`push!` is single-threaded only"
+        },
+        {
+          "id": "c",
+          "text": "Preallocating `Vector{T}(undef, n)` (or `sizehint!(v, n)`) avoids geometric capacity doublings and reallocations"
+        },
+        {
+          "id": "d",
+          "text": "`undef` zeroes memory"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What does `Vector{Float64}(undef, n)` do when creating a new array?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Fills with `0.0`"
+        },
+        {
+          "id": "b",
+          "text": "Creates an empty vector"
+        },
+        {
+          "id": "c",
+          "text": "Throws `UndefRefError`"
+        },
+        {
+          "id": "d",
+          "text": "Allocates space for `n` `Float64`s without spending time zero-initializing them (you must write every slot before reading!)"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "What does `Base.issingletontype(T)` / singleton types (structs with 0 fields like `struct CPU end`) cost at runtime?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Zero bytes (`sizeof(CPU()) == 0`); Julia passes them purely in the type system for zero-cost dispatch"
+        },
+        {
+          "id": "b",
+          "text": "8 bytes per instance"
+        },
+        {
+          "id": "c",
+          "text": "16 bytes"
+        },
+        {
+          "id": "d",
+          "text": "Requires heap allocation"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "multi-select",
+      "prompt": "Select all best practices for writing fast, idiomatic Julia packages. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Preallocate buffers (`similar`, `mul!`, `.=`) in iterative solvers"
+        },
+        {
+          "id": "b",
+          "text": "Store all state in untyped global variables"
+        },
+        {
+          "id": "c",
+          "text": "Keep functions small, type-stable, and pure where possible"
+        },
+        {
+          "id": "d",
+          "text": "Write unit tests with `Test` and verify type stability with `@code_warntype` / `@inferred`"
+        }
+      ],
+      "code": {
+        "language": "julia",
+        "source": "@test @inferred compute(xs) \u2248 expected"
+      }
+    },
+    {
+      "id": "q038",
+      "type": "single-choice",
+      "prompt": "What does `Test.@inferred f(x)` verify in a test suite?",
+      "options": [
+        {
+          "id": "a",
+          "text": "That `f(x)` runs in <1ms"
+        },
+        {
+          "id": "b",
+          "text": "That the return type inferred by Julia's compiler matches the actual runtime return type of `f(x)`"
+        },
+        {
+          "id": "c",
+          "text": "That `f(x)` allocates 0 bytes"
+        },
+        {
+          "id": "d",
+          "text": "That `f` is a macro"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "What does `mul!(C, A, B)` from `LinearAlgebra` do compared to `C = A * B`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Computes element-wise product"
+        },
+        {
+          "id": "b",
+          "text": "Sorts `A` and `B`"
+        },
+        {
+          "id": "c",
+          "text": "Performs matrix multiplication writing directly into preallocated `C` with zero output allocation"
+        },
+        {
+          "id": "d",
+          "text": "Runs on disk"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "What is `Base.Meta.@lower` or `Meta.parse` used for?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Network I/O"
+        },
+        {
+          "id": "b",
+          "text": "Profiling CPU"
+        },
+        {
+          "id": "c",
+          "text": "Benchmarking"
+        },
+        {
+          "id": "d",
+          "text": "Inspecting parsed/lowered Julia AST expressions for metaprogramming"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "multi-select",
+      "prompt": "Select all true statements about profiling Julia code. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`--track-allocation=user` (or `Profile.Allocs`) identifies lines causing unexpected heap allocations"
+        },
+        {
+          "id": "b",
+          "text": "Fixing type instabilities and allocations usually yields bigger gains than micro-tweaking syntax"
+        },
+        {
+          "id": "c",
+          "text": "You must compile with `-O0` to profile Julia"
+        },
+        {
+          "id": "d",
+          "text": "`Profile.@profile` uses statistical sampling to find CPU hotspots without instrumenting every call"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "Why does `Profile.@profile` sometimes show high time in `jl_apply_generic`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Dynamic dispatch caused by a type instability (compiler couldn't statically resolve the callee method)"
+        },
+        {
+          "id": "b",
+          "text": "Disk I/O"
+        },
+        {
+          "id": "c",
+          "text": "Thread deadlock"
+        },
+        {
+          "id": "d",
+          "text": "Network latency"
+        }
+      ]
+    }
+  ]
+}
