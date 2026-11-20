@@ -90,6 +90,9 @@ const cppQuizzes = quizFiles
 const rustQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`rust${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const assemblyQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`assembly${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -226,6 +229,10 @@ test("each C++ quiz has 42 questions, brief code examples, and varied response f
 
 test("each Rust quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(rustQuizzes, "rust", "fundamentals", "rust", 1);
+});
+
+test("each Assembly quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(assemblyQuizzes, "assembly", "fundamentals", "nasm", 1);
 });
 
 for (const file of quizFiles) {

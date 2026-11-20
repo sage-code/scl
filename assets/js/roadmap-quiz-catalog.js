@@ -372,6 +372,26 @@
         title: "Rust Engineering Practice",
         description: "Evaluate Rc/Arc/RefCell, Send/Sync, async Pin and cancellation, unsafe FFI invariants, Cow, and Miri."
       }
+    ],
+    assembly: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Assembly Foundations",
+        description: "Review x86-64 registers, Intel vs AT&T syntax, ELF sections, two's complement, mov vs lea, cmp, and branches."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Assembly Applied Practice",
+        description: "Apply SIB addressing, little-endian memory, stack frames, System V ABI, bitwise shifts, syscalls, and GDB."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Assembly Engineering Practice",
+        description: "Evaluate 16-byte stack alignment, Red Zone, PIC/RIP-relative, cmov, SSE/AVX, lock atomics, and binary mitigations."
+      }
     ]
   };
   const trackTitles = {
@@ -392,7 +412,8 @@
     node: "Node.js",
     c: "C",
     cpp: "C++",
-    rust: "Rust"
+    rust: "Rust",
+    assembly: "Assembly"
   };
 
   function titleCase(track) {

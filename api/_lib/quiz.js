@@ -54,7 +54,10 @@ const publicQuizzes = {
   "cpp-fundamentals-C": require("../../roadmap/cpp/quiz/fundamentals-C.json"),
   "rust-fundamentals-A": require("../../roadmap/rust/quiz/fundamentals-A.json"),
   "rust-fundamentals-B": require("../../roadmap/rust/quiz/fundamentals-B.json"),
-  "rust-fundamentals-C": require("../../roadmap/rust/quiz/fundamentals-C.json")
+  "rust-fundamentals-C": require("../../roadmap/rust/quiz/fundamentals-C.json"),
+  "assembly-fundamentals-A": require("../../roadmap/assembly/quiz/fundamentals-A.json"),
+  "assembly-fundamentals-B": require("../../roadmap/assembly/quiz/fundamentals-B.json"),
+  "assembly-fundamentals-C": require("../../roadmap/assembly/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

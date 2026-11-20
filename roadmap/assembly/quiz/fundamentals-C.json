@@ -1,0 +1,1047 @@
+{
+  "schemaVersion": 1,
+  "id": "assembly-fundamentals-C",
+  "revision": 1,
+  "name": "Assembly Engineering Practice: C",
+  "track": "assembly",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 58,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "In the System V AMD64 ABI, what stack alignment MUST `RSP` satisfy immediately *before* executing `call func`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "4-byte aligned"
+        },
+        {
+          "id": "b",
+          "text": "No alignment requirement"
+        },
+        {
+          "id": "c",
+          "text": "32-byte aligned"
+        },
+        {
+          "id": "d",
+          "text": "16-byte aligned (`RSP % 16 == 0`, so `RSP % 16 == 8` upon entering `func` after `call` pushes 8 bytes)"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "What is the 128-byte Red Zone in the System V AMD64 ABI?",
+      "options": [
+        {
+          "id": "a",
+          "text": "128 bytes below `RSP` that leaf functions may use for locals without adjusting `RSP` (safe from signal handlers, NOT used in kernels)"
+        },
+        {
+          "id": "b",
+          "text": "Protected kernel memory"
+        },
+        {
+          "id": "c",
+          "text": "Stack overflow guard page"
+        },
+        {
+          "id": "d",
+          "text": "Shadow space for `RCX`"
+        }
+      ]
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "How does the Windows x64 ABI differ from System V AMD64 for integer arguments and caller shadow space?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Windows uses `RDI, RSI`"
+        },
+        {
+          "id": "b",
+          "text": "Windows passes the first 4 args in `RCX, RDX, R8, R9` AND requires the caller to reserve 32 bytes of shadow space on the stack"
+        },
+        {
+          "id": "c",
+          "text": "Windows has no callee-saved regs"
+        },
+        {
+          "id": "d",
+          "text": "They are identical"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "type": "multi-select",
+      "prompt": "Select all true statements about Position-Independent Code (PIC) on x86-64. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Required for shared libraries (`.so`/`.dll`) and ASLR-enabled PIE executables"
+        },
+        {
+          "id": "b",
+          "text": "External shared-library calls go through the PLT/GOT indirection"
+        },
+        {
+          "id": "c",
+          "text": "`mov rdi, msg` absolute 32-bit relocations always work in `-pie` shared libraries"
+        },
+        {
+          "id": "d",
+          "text": "Uses `RIP`-relative addressing (`lea rdi, [rel msg]`) instead of hardcoded absolute 64-bit addresses"
+        }
+      ],
+      "code": {
+        "language": "nasm",
+        "source": "default rel\nlea rdi, [msg]"
+      }
+    },
+    {
+      "id": "q005",
+      "type": "matrix",
+      "prompt": "Match each SIMD/SSE instruction or concept to its behavior.",
+      "rows": [
+        {
+          "id": "aps",
+          "label": "`movaps xmm0, [rax]`"
+        },
+        {
+          "id": "ups",
+          "label": "`movups xmm0, [rax]`"
+        },
+        {
+          "id": "addps",
+          "label": "`addps xmm0, xmm1`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "aps-d",
+          "label": "Loads 128-bit aligned floats (faults `#GP` if address not 16-byte aligned)"
+        },
+        {
+          "id": "ups-d",
+          "label": "Loads 128-bit unaligned floats safely without 16-byte alignment"
+        },
+        {
+          "id": "addps-d",
+          "label": "Adds 4 packed 32-bit floats in parallel in one instruction"
+        }
+      ],
+      "selectionByRow": {
+        "aps": "single",
+        "ups": "single",
+        "addps": "single"
+      }
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "Why can `cmovcc` (conditional move, e.g., `cmovg rax, rbx`) outperform a conditional branch (`jg`) on unpredictable data?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It skips `cmp`"
+        },
+        {
+          "id": "b",
+          "text": "It uses less power always"
+        },
+        {
+          "id": "c",
+          "text": "It avoids branch misprediction pipeline flushes by turning control flow into a data dependency"
+        },
+        {
+          "id": "d",
+          "text": "It works on memory destinations directly"
+        }
+      ],
+      "code": {
+        "language": "nasm",
+        "source": "cmp rbx, rax\ncmovg rax, rbx"
+      }
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "What does the `lock` prefix (e.g., `lock xadd [rdi], eax`) guarantee on multi-core x86 CPUs?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Disables interrupts forever"
+        },
+        {
+          "id": "b",
+          "text": "Locks a pthread mutex"
+        },
+        {
+          "id": "c",
+          "text": "Flushes the TLB"
+        },
+        {
+          "id": "d",
+          "text": "Makes the read-modify-write memory operation atomic across all CPU cores via cache-coherency locking"
+        }
+      ],
+      "code": {
+        "language": "nasm",
+        "source": "lock xadd [rdi], eax ; atomic fetch_add"
+      }
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What does `lock cmpxchg [rdi], rdx` implement?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Atomic Compare-And-Swap (CAS): if `[rdi] == RAX`, writes `rdx` to `[rdi]` and sets `ZF=1`; else loads `[rdi]` into `RAX` and sets `ZF=0`"
+        },
+        {
+          "id": "b",
+          "text": "Unconditional swap"
+        },
+        {
+          "id": "c",
+          "text": "Memory fence only"
+        },
+        {
+          "id": "d",
+          "text": "SIMD compare"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "Under x86-64's Total Store Order (TSO) memory model, which reordering can hardware still perform without `mfence` or `lock`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Load-Load reordering"
+        },
+        {
+          "id": "b",
+          "text": "Store-Load reordering (a buffered store to `A` followed by a load from `B` can be observed out of order by another core)"
+        },
+        {
+          "id": "c",
+          "text": "Store-Store reordering"
+        },
+        {
+          "id": "d",
+          "text": "Control-flow reordering"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "What is Tail-Call Optimization (TCO) in assembly?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Inlining every function"
+        },
+        {
+          "id": "b",
+          "text": "Unrolling loops"
+        },
+        {
+          "id": "c",
+          "text": "Replacing `call target; ret` at the end of a function with `jmp target` (after restoring frame), reusing the current stack frame"
+        },
+        {
+          "id": "d",
+          "text": "Saving all `XMM` registers"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "What does `cld` (Clear Direction Flag) ensure before `rep movsb`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Zeros `RCX`"
+        },
+        {
+          "id": "b",
+          "text": "Flushes cache"
+        },
+        {
+          "id": "c",
+          "text": "Clears `CF`"
+        },
+        {
+          "id": "d",
+          "text": "Sets `DF = 0` so `RSI` and `RDI` increment forward through memory (ABI requires `DF = 0` on function calls/returns)"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "In GCC/Clang extended inline assembly (`asm volatile (\"...\" : outputs : inputs : clobbers)`), why is the clobber list critical?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It informs the compiler which registers, flags (`\"cc\"`), or `\"memory\"` the assembly modifies so the optimizer doesn't assume they are unchanged"
+        },
+        {
+          "id": "b",
+          "text": "For pretty printing"
+        },
+        {
+          "id": "c",
+          "text": "To enable AVX"
+        },
+        {
+          "id": "d",
+          "text": "To bypass the linker"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "What does `rdtsc` return on x86-64?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Wall-clock UTC time"
+        },
+        {
+          "id": "b",
+          "text": "The 64-bit Time Stamp Counter in `EDX:EAX` (cycle-level counter; pair with `lfence` or `rdtscp` to serialize execution for microbenchmarks)"
+        },
+        {
+          "id": "c",
+          "text": "CPU temperature"
+        },
+        {
+          "id": "d",
+          "text": "Process PID"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "type": "multi-select",
+      "prompt": "Select all modern binary/hardware security mitigations visible at the assembly/ELF level. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "NX / DEP (non-executable stack/heap pages, preventing shellcode execution on the stack)"
+        },
+        {
+          "id": "b",
+          "text": "Stack Canaries (`fs:0x28` guard value checked before `ret` to catch stack buffer overflows)"
+        },
+        {
+          "id": "c",
+          "text": "ASLR / PIE (randomizing code/stack/heap base addresses)"
+        },
+        {
+          "id": "d",
+          "text": "Disabling `ret` instructions altogether"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "What is Return-Oriented Programming (ROP) at the machine level?",
+      "options": [
+        {
+          "id": "a",
+          "text": "OOP in assembly"
+        },
+        {
+          "id": "b",
+          "text": "A compiler pass"
+        },
+        {
+          "id": "c",
+          "text": "Chaining short existing code snippets ending in `ret` ('gadgets') via forged return addresses on the stack to bypass NX"
+        },
+        {
+          "id": "d",
+          "text": "A SIMD instruction"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What does `vzeroupper` prevent when mixing 256-bit AVX (`YMM`) code with legacy 128-bit SSE (`XMM`) code?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Stack overflow"
+        },
+        {
+          "id": "b",
+          "text": "Page faults"
+        },
+        {
+          "id": "c",
+          "text": "Integer overflow"
+        },
+        {
+          "id": "d",
+          "text": "AVX-SSE transition penalties caused by dirty upper 128 bits of `YMM` registers"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "Why do high-performance `memcpy` routines on modern x86 CPUs often use `rep movsb` (ERMSB / FSRM) or AVX2/AVX-512?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Modern CPUs implement Enhanced `rep movsb` in microcode at cache-line/vector speeds without manual unrolling overhead"
+        },
+        {
+          "id": "b",
+          "text": "`rep movsb` is 8-bit slow"
+        },
+        {
+          "id": "c",
+          "text": "`movsb` bypasses RAM"
+        },
+        {
+          "id": "d",
+          "text": "It disables `RFLAGS`"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What does `prefetcht0 [rsi + 64]` hint to the CPU?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Locks cache line"
+        },
+        {
+          "id": "b",
+          "text": "Requests fetching the cache line at `rsi + 64` into L1/all cache levels ahead of use to hide DRAM latency"
+        },
+        {
+          "id": "c",
+          "text": "Flushes cache line to RAM"
+        },
+        {
+          "id": "d",
+          "text": "Zeroes the cache line"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "What is a PLT (Procedure Linkage Table) + GOT (Global Offset Table) used for in ELF dynamic linking?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Stack allocation"
+        },
+        {
+          "id": "b",
+          "text": "Thread scheduling"
+        },
+        {
+          "id": "c",
+          "text": "Resolving calls to shared-library functions (`libc.so`) lazily or via RELRO at runtime without modifying read-only `.text`"
+        },
+        {
+          "id": "d",
+          "text": "Debug symbols"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "matrix",
+      "prompt": "Match each x86-64 system/low-level instruction to its purpose.",
+      "rows": [
+        {
+          "id": "cpuid",
+          "label": "`cpuid`"
+        },
+        {
+          "id": "pause",
+          "label": "`pause`"
+        },
+        {
+          "id": "ud2",
+          "label": "`ud2`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "cpuid-d",
+          "label": "Queries processor vendor, features (SSE/AVX/BMI), and cache topology"
+        },
+        {
+          "id": "pause-d",
+          "label": "Hints a spin-wait loop to save power and avoid memory-order pipeline clears"
+        },
+        {
+          "id": "ud2-d",
+          "label": "Guaranteed undefined opcode triggering `#UD` (used for unreachable/abort traps)"
+        }
+      ],
+      "selectionByRow": {
+        "cpuid": "single",
+        "pause": "single",
+        "ud2": "single"
+      }
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "Why should a spinlock loop in assembly include `pause`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To sleep for 1 second"
+        },
+        {
+          "id": "b",
+          "text": "To flush `RIP`"
+        },
+        {
+          "id": "c",
+          "text": "To unlock the bus"
+        },
+        {
+          "id": "d",
+          "text": "To reduce power/SMT resource contention and avoid speculative memory-order replay penalties on lock release"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "What is the `endbr64` instruction emitted at the start of functions by modern compilers (`-fcf-protection`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "An Intel CET Indirect Branch Tracking (IBT) landing pad marking valid targets for indirect `call`/`jmp`"
+        },
+        {
+          "id": "b",
+          "text": "A 64-bit breakpoint"
+        },
+        {
+          "id": "c",
+          "text": "A NOP for 16-byte alignment"
+        },
+        {
+          "id": "d",
+          "text": "A stack canary check"
+        }
+      ]
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "What does `syscall` return on Linux x86-64 when an error occurs (unlike C `libc` wrappers that set `errno`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`-1` and sets `errno`"
+        },
+        {
+          "id": "b",
+          "text": "A negative errno value in `RAX` between `-4095` and `-1` (e.g., `-ENOENT`)"
+        },
+        {
+          "id": "c",
+          "text": "Throws a signal"
+        },
+        {
+          "id": "d",
+          "text": "Sets `CF=1` only"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "In ARM64 (AArch64) vs x86-64, how do subroutine calls store the return address?",
+      "options": [
+        {
+          "id": "a",
+          "text": "ARM64 pushes `RIP` to stack"
+        },
+        {
+          "id": "b",
+          "text": "ARM64 has no stack"
+        },
+        {
+          "id": "c",
+          "text": "ARM64 `BL` stores the return address in `LR` (`X30`) register rather than pushing to memory"
+        },
+        {
+          "id": "d",
+          "text": "ARM64 uses `RAX`"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `XMM0`\u2013`XMM15` in the System V AMD64 ABI. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`XMM8`\u2013`XMM15` are callee-saved in System V AMD64 (they are ALL volatile/caller-saved in SysV, unlike Windows x64 `XMM6`\u2013`XMM15`)"
+        },
+        {
+          "id": "b",
+          "text": "`XMM0`\u2013`XMM7` pass the first 8 floating-point arguments"
+        },
+        {
+          "id": "c",
+          "text": "`XMM0` (and `XMM1`) return floating-point values"
+        },
+        {
+          "id": "d",
+          "text": "`AL` holds the count of vector registers used when calling variadic functions like `printf`"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "When calling `printf` (a variadic function) from x86-64 Linux assembly with no floating-point arguments, what MUST you set before `call printf`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`mov rbx, 1`"
+        },
+        {
+          "id": "b",
+          "text": "`cld` only"
+        },
+        {
+          "id": "c",
+          "text": "`mov rcx, 0`"
+        },
+        {
+          "id": "d",
+          "text": "`xor eax, eax` (`AL = 0` indicating 0 `XMM` vector arguments)"
+        }
+      ],
+      "code": {
+        "language": "nasm",
+        "source": "xor eax, eax ; 0 XMM args\ncall printf"
+      }
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does `popcnt rax, rdi` compute (BMI/SSE4.2)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Counts the number of `1` bits (Hamming weight) in `rdi` in a single instruction"
+        },
+        {
+          "id": "b",
+          "text": "Stack pop count"
+        },
+        {
+          "id": "c",
+          "text": "Multiplies `rdi`"
+        },
+        {
+          "id": "d",
+          "text": "Reverses bits"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What is a false dependency in x86 out-of-order execution (e.g., partial register writes like `mov al, 1` or `bsf`/`popcnt` on older CPUs)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A syntax error"
+        },
+        {
+          "id": "b",
+          "text": "Writing only part of a register forces the CPU to wait on the previous value of the upper bits even when logically unrelated"
+        },
+        {
+          "id": "c",
+          "text": "A cache miss"
+        },
+        {
+          "id": "d",
+          "text": "A stack overflow"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "What does `readelf -S app` inspect in an ELF binary?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Source lines"
+        },
+        {
+          "id": "b",
+          "text": "Live CPU registers"
+        },
+        {
+          "id": "c",
+          "text": "The ELF section headers (`.text`, `.rodata`, `.data`, `.bss`, `.symtab`, flags, and offsets)"
+        },
+        {
+          "id": "d",
+          "text": "Heap allocations"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "What is the purpose of `RELRO` (Relocation Read-Only, `-Wl,-z,relro,-z,now`) in ELF binaries?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Compresses `.text`"
+        },
+        {
+          "id": "b",
+          "text": "Strips symbols"
+        },
+        {
+          "id": "c",
+          "text": "Disables ASLR"
+        },
+        {
+          "id": "d",
+          "text": "Resolves GOT entries at startup and marks the GOT read-only so attackers cannot overwrite function pointers"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "single-choice",
+      "prompt": "What does `movnti [rdi], eax` (non-temporal store) do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Writes to memory bypassing CPU caches (streaming store), avoiding cache pollution for huge write-only buffers"
+        },
+        {
+          "id": "b",
+          "text": "Stores into `XMM0`"
+        },
+        {
+          "id": "c",
+          "text": "Locks the cache line"
+        },
+        {
+          "id": "d",
+          "text": "Triggers an interrupt"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What is macro-op fusion in modern x86-64 CPUs?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Combining two files"
+        },
+        {
+          "id": "b",
+          "text": "The decoder fuses `cmp`/`test` + conditional jump (`je`/`jne`) into a single internal micro-op"
+        },
+        {
+          "id": "c",
+          "text": "NASM `%macro` expansion"
+        },
+        {
+          "id": "d",
+          "text": "Linking `.o` files"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "type": "matrix",
+      "prompt": "Match each binary inspection tool to its primary output.",
+      "rows": [
+        {
+          "id": "obj",
+          "label": "`objdump -d`"
+        },
+        {
+          "id": "nm",
+          "label": "`nm -C`"
+        },
+        {
+          "id": "str",
+          "label": "`strings`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "obj-d",
+          "label": "Disassembles executable sections into assembly instructions"
+        },
+        {
+          "id": "nm-d",
+          "label": "Lists defined and undefined symbols (demangled with `-C`)"
+        },
+        {
+          "id": "str-d",
+          "label": "Extracts printable ASCII/UTF strings embedded in the binary"
+        }
+      ],
+      "selectionByRow": {
+        "obj": "single",
+        "nm": "single",
+        "str": "single"
+      }
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "Why must interrupt/signal handlers NOT clobber general-purpose or `XMM` registers without saving them?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The OS kills the process"
+        },
+        {
+          "id": "b",
+          "text": "Registers are read-only"
+        },
+        {
+          "id": "c",
+          "text": "The interrupted code expects all its architectural register state to remain intact when control resumes"
+        },
+        {
+          "id": "d",
+          "text": "Signals only use `RAX`"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What does `x86` `iretq` pop from the stack when returning from a 64-bit interrupt?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Only `RIP`"
+        },
+        {
+          "id": "b",
+          "text": "`RAX` and `RDX`"
+        },
+        {
+          "id": "c",
+          "text": "Only `RBP`"
+        },
+        {
+          "id": "d",
+          "text": "`RIP`, `CS`, `RFLAGS`, `RSP`, and `SS` (restoring privilege level, stack, and flags atomically)"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "What is a branchless `abs(x)` trick for 32-bit signed `eax` in assembly?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`cdq; xor eax, edx; sub eax, edx` (uses `edx` sign mask `-1` or `0`)"
+        },
+        {
+          "id": "b",
+          "text": "`neg eax` always"
+        },
+        {
+          "id": "c",
+          "text": "`and eax, 0x7FFFFFFF`"
+        },
+        {
+          "id": "d",
+          "text": "`shr eax, 1`"
+        }
+      ],
+      "code": {
+        "language": "nasm",
+        "source": "cdq\nxor eax, edx\nsub eax, edx"
+      }
+    },
+    {
+      "id": "q037",
+      "type": "multi-select",
+      "prompt": "Select all practices that improve performance in hand-written assembly kernels. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Minimize memory traffic by keeping accumulator values in registers"
+        },
+        {
+          "id": "b",
+          "text": "Use `loop` and `xchg [mem], reg` inside tight inner loops"
+        },
+        {
+          "id": "c",
+          "text": "Align hot loops and data buffers to 16/32/64-byte boundaries"
+        },
+        {
+          "id": "d",
+          "text": "Avoid partial-register writes that introduce false dependencies"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "single-choice",
+      "prompt": "What does `default rel` at the top of a NASM 64-bit file enable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "AT&T syntax"
+        },
+        {
+          "id": "b",
+          "text": "Makes `[symbol]` memory operands default to `RIP`-relative addressing instead of 32-bit absolute"
+        },
+        {
+          "id": "c",
+          "text": "16-bit real mode"
+        },
+        {
+          "id": "d",
+          "text": "Auto-alignment"
+        }
+      ],
+      "code": {
+        "language": "nasm",
+        "source": "default rel\nlea rsi, [msg]"
+      }
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "What is the purpose of `fs` / `gs` segment registers in 64-bit mode (where `cs`/`ds`/`es`/`ss` bases are flat 0)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "64KB segmentation"
+        },
+        {
+          "id": "b",
+          "text": "Floating point math"
+        },
+        {
+          "id": "c",
+          "text": "Thread-Local Storage (TLS) and OS per-CPU/TEB pointers (e.g., `fs:0x28` stack canary on Linux, `gs` on Windows/kernel)"
+        },
+        {
+          "id": "d",
+          "text": "Disk I/O"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "What happens if you execute a privileged instruction like `hlt` or `lgdt` in user-space (Ring 3)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Halts the CPU"
+        },
+        {
+          "id": "b",
+          "text": "Acts as `nop`"
+        },
+        {
+          "id": "c",
+          "text": "Returns `-1` in `RAX`"
+        },
+        {
+          "id": "d",
+          "text": "Raises a General Protection Fault (`#GP`), causing the OS to terminate the process with `SIGSEGV`"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `C` ABI struct return values in System V AMD64. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Larger structs (> 16 bytes) are returned via a hidden caller-allocated pointer passed in `RDI`"
+        },
+        {
+          "id": "b",
+          "text": "Returning a struct in registers avoids heap allocation"
+        },
+        {
+          "id": "c",
+          "text": "All structs regardless of size are returned in `XMM0`"
+        },
+        {
+          "id": "d",
+          "text": "Small structs (up to 16 bytes, e.g., two `int64_t` fields) can be returned in `RAX` and `RDX`"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "Why is writing entire large applications in assembly rarely advisable over C/C++/Rust?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Modern optimizing compilers perform global register allocation, instruction scheduling, and vectorization across huge codebases with far fewer maintenance and portability bugs"
+        },
+        {
+          "id": "b",
+          "text": "Assembly cannot do networking"
+        },
+        {
+          "id": "c",
+          "text": "Assembly is interpreted"
+        },
+        {
+          "id": "d",
+          "text": "CPUs only run C"
+        }
+      ]
+    }
+  ]
+}
