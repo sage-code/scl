@@ -33,8 +33,10 @@
 - C++ (`fundamentals`, track `cpp`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Rust (`fundamentals`, track `rust`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Assembly (`fundamentals`, track `assembly`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Bash (`fundamentals`, track `bash`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- Swift (`fundamentals`, track `swift`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: Bash (Phase 3 Systems-language), after review of pending sets.
+- Next roadmap: Julia (Phase 4 Enterprise-language), after review of pending sets.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -97,8 +99,8 @@ Apply these requirements to each roadmap before moving to the next:
 17. C++ — Review pending (`fundamentals` A/B/C in `roadmap/cpp/quiz/`)
 18. Rust — Review pending (`fundamentals` A/B/C in `roadmap/rust/quiz/`)
 19. Assembly — Review pending (`fundamentals` A/B/C in `roadmap/assembly/quiz/`)
-20. Bash — Pending
-21. Swift — Pending
+20. Bash — Review pending (`fundamentals` A/B/C in `roadmap/bash/quiz/`)
+21. Swift — Review pending (`fundamentals` A/B/C in `roadmap/swift/quiz/`)
 
 ### Phase 4 — Enterprise-language roadmaps
 

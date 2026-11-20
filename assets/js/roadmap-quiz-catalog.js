@@ -392,6 +392,46 @@
         title: "Assembly Engineering Practice",
         description: "Evaluate 16-byte stack alignment, Red Zone, PIC/RIP-relative, cmov, SSE/AVX, lock atomics, and binary mitigations."
       }
+    ],
+    bash: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Bash Foundations",
+        description: "Review shebangs, quoting, exit codes, $() substitution, conditionals, loops, functions, and PATH."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Bash Applied Practice",
+        description: "Apply parameter expansion, indexed/associative arrays, redirections, process substitution, find/xargs, and getopts."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Bash Engineering Practice",
+        description: "Evaluate strict mode (set -euo pipefail), trap cleanup, mktemp, flock, safe command arrays, and shellcheck."
+      }
+    ],
+    swift: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "Swift Foundations",
+        description: "Review let vs var, Optionals, guard/if let, collections, ranges, switch exhaustiveness, and struct vs class."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "Swift Applied Practice",
+        description: "Apply Copy-on-Write, mutating methods, closures, Codable, protocol extensions, generics, and throws/defer."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "Swift Engineering Practice",
+        description: "Evaluate ARC weak/unowned, actors and Sendable, some vs any, async/await cancellation, macros, and ~Copyable."
+      }
     ]
   };
   const trackTitles = {
@@ -413,7 +453,9 @@
     c: "C",
     cpp: "C++",
     rust: "Rust",
-    assembly: "Assembly"
+    assembly: "Assembly",
+    bash: "Bash",
+    swift: "Swift"
   };
 
   function titleCase(track) {

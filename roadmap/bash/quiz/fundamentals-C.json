@@ -1,0 +1,1047 @@
+{
+  "schemaVersion": 1,
+  "id": "bash-fundamentals-C",
+  "revision": 1,
+  "name": "Bash Engineering Practice: C",
+  "track": "bash",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 58,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "What does `set -euo pipefail` enable at the top of a Bash script?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Verbose tracing only"
+        },
+        {
+          "id": "b",
+          "text": "Run as background daemon"
+        },
+        {
+          "id": "c",
+          "text": "Disable globbing"
+        },
+        {
+          "id": "d",
+          "text": "Exit on non-zero command (`-e`), error on unset variables (`-u`), and fail a pipeline if any stage fails (`-o pipefail`)"
+        }
+      ],
+      "code": {
+        "language": "bash",
+        "source": "set -euo pipefail"
+      }
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "Under `set -e`, when does a failing command NOT cause the script to exit?",
+      "options": [
+        {
+          "id": "a",
+          "text": "When part of an `if`/`while` condition, left side of `&&`/`||`, negated with `!`, or in `cmd || true`"
+        },
+        {
+          "id": "b",
+          "text": "Never; it always exits"
+        },
+        {
+          "id": "c",
+          "text": "When it prints to `stderr`"
+        },
+        {
+          "id": "d",
+          "text": "When inside a function"
+        }
+      ]
+    },
+    {
+      "id": "q003",
+      "type": "single-choice",
+      "prompt": "What subtle `set -e` trap happens with `(( count++ ))` when `count` is `0`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`count` becomes `2`"
+        },
+        {
+          "id": "b",
+          "text": "Post-increment `(( count++ ))` evaluates to `0`, which makes `(( ... ))` return exit status `1` and abort under `set -e` (use `(( ++count ))` or `count=$((count + 1))`)"
+        },
+        {
+          "id": "c",
+          "text": "Syntax error"
+        },
+        {
+          "id": "d",
+          "text": "Infinite loop"
+        }
+      ],
+      "code": {
+        "language": "bash",
+        "source": "count=0\n(( ++count )) # safe under set -e"
+      }
+    },
+    {
+      "id": "q004",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `trap` in Bash. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`trap` can clean up temporary files created with `mktemp` reliably"
+        },
+        {
+          "id": "b",
+          "text": "Multiple signals can be trapped at once (`trap cleanup INT TERM EXIT`)"
+        },
+        {
+          "id": "c",
+          "text": "`trap` runs in a separate OS thread while the script continues"
+        },
+        {
+          "id": "d",
+          "text": "`trap cleanup EXIT` runs `cleanup` whether the script exits normally, fails under `set -e`, or exits via `exit N`"
+        }
+      ],
+      "code": {
+        "language": "bash",
+        "source": "tmp=\"$(mktemp -d)\"\ntrap 'rm -rf \"$tmp\"' EXIT"
+      }
+    },
+    {
+      "id": "q005",
+      "type": "matrix",
+      "prompt": "Match each Bash `set` / `shopt` option to its effect.",
+      "rows": [
+        {
+          "id": "ng",
+          "label": "`shopt -s nullglob`"
+        },
+        {
+          "id": "pf",
+          "label": "`set -o pipefail`"
+        },
+        {
+          "id": "nc",
+          "label": "`set -o noclobber`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "ng-d",
+          "label": "Unmatched globs like `*.xyz` expand to nothing instead of literal `'*.xyz'`"
+        },
+        {
+          "id": "pf-d",
+          "label": "Pipeline exit status is the rightmost non-zero command (not just the last command)"
+        },
+        {
+          "id": "nc-d",
+          "label": "Prevents `>` from accidentally overwriting an existing file (use `>|` to force)"
+        }
+      ],
+      "selectionByRow": {
+        "ng": "single",
+        "pf": "single",
+        "nc": "single"
+      }
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "Why is `mktemp -d` preferred over hardcoded `/tmp/myscript_tmp`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Hardcoded `/tmp` paths fail on Linux"
+        },
+        {
+          "id": "b",
+          "text": "`mktemp` auto-deletes on reboot only"
+        },
+        {
+          "id": "c",
+          "text": "`mktemp` creates a unique, unpredictable path with `0700`/`0600` permissions, preventing symlink/TOCTOU race attacks and concurrent run collisions"
+        },
+        {
+          "id": "d",
+          "text": "It is faster"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "What does `\"${PIPESTATUS[@]}\"` contain immediately after `cmd1 | cmd2 | cmd3`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Only `cmd3`'s PID"
+        },
+        {
+          "id": "b",
+          "text": "The command names"
+        },
+        {
+          "id": "c",
+          "text": "Total bytes piped"
+        },
+        {
+          "id": "d",
+          "text": "An array of the individual exit codes of `cmd1`, `cmd2`, and `cmd3`"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What is the difference between `( cmd1; cmd2 )` and `{ cmd1; cmd2; }`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`(...)` runs in a child subshell (variable/dir changes stay isolated); `{ ...; }` runs in the current shell"
+        },
+        {
+          "id": "b",
+          "text": "No difference"
+        },
+        {
+          "id": "c",
+          "text": "`{ ...; }` runs in parallel"
+        },
+        {
+          "id": "d",
+          "text": "`(...)` cannot redirect output"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "Why is storing a command in a string `cmd=\"curl -H 'Auth: x'\"` and running `$cmd` broken, and how do you fix it?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`curl` ignores `$cmd`"
+        },
+        {
+          "id": "b",
+          "text": "Quotes inside `$cmd` become literal characters, not syntax; store args in an array `cmd=(curl -H 'Auth: x')` and run `\"${cmd[@]}\"`"
+        },
+        {
+          "id": "c",
+          "text": "Strings cannot hold hyphens"
+        },
+        {
+          "id": "d",
+          "text": "Use `eval` instead"
+        }
+      ],
+      "code": {
+        "language": "bash",
+        "source": "cmd=(curl -fsSL -H \"Auth: $tok\" \"$url\")\n\"${cmd[@]}\""
+      }
+    },
+    {
+      "id": "q010",
+      "type": "single-choice",
+      "prompt": "What does `set -x` (xtrace) do, and how can you customize it for debugging?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Exits immediately"
+        },
+        {
+          "id": "b",
+          "text": "Checks syntax without running"
+        },
+        {
+          "id": "c",
+          "text": "Prints each expanded command to `stderr` before executing it (customize prefix with `PS4='+ ${BASH_SOURCE}:${LINENO}: '`, beware leaking secrets!)"
+        },
+        {
+          "id": "d",
+          "text": "Enables strict mode"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "What does `bash -n script.sh` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Runs as root"
+        },
+        {
+          "id": "b",
+          "text": "Formats the script"
+        },
+        {
+          "id": "c",
+          "text": "Disables `set -e`"
+        },
+        {
+          "id": "d",
+          "text": "Parses `script.sh` and checks for syntax errors without executing any commands"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What does `shellcheck` catch that `bash -n` does not?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Unquoted expansions (`$var`), `SC2046` word splitting, useless `cat`, `local x=$(cmd)` masking exit codes, and POSIX mismatches"
+        },
+        {
+          "id": "b",
+          "text": "Nothing extra"
+        },
+        {
+          "id": "c",
+          "text": "Network timeouts"
+        },
+        {
+          "id": "d",
+          "text": "Disk full errors"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "single-choice",
+      "prompt": "Why does `local out=$(failing_cmd)` mask `failing_cmd`'s non-zero exit code even under `set -e`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`local` ignores `$()`"
+        },
+        {
+          "id": "b",
+          "text": "The `local` builtin itself returns exit status `0`, overriding `failing_cmd`'s exit status! Declare `local out` on one line and `out=$(failing_cmd)` on the next"
+        },
+        {
+          "id": "c",
+          "text": "`$()` always returns 0"
+        },
+        {
+          "id": "d",
+          "text": "`set -e` skips `local`"
+        }
+      ],
+      "code": {
+        "language": "bash",
+        "source": "local out\nout=\"$(failing_cmd)\""
+      }
+    },
+    {
+      "id": "q014",
+      "type": "multi-select",
+      "prompt": "Select all best practices for handling user/external input safely in Bash. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Always double-quote expansions (`\"$var\"`, `\"$@\"`)"
+        },
+        {
+          "id": "b",
+          "text": "Pass `--` before variable filenames (`mv -- \"$src\" \"$dst\"`)"
+        },
+        {
+          "id": "c",
+          "text": "Never pass untrusted strings to `eval`, `sh -c`, or `awk`/`sed` code arguments"
+        },
+        {
+          "id": "d",
+          "text": "Pass `$user_input` unquoted to `[[ ... ]]` and `[ ... ]`"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "What does `flock -n 9 || exit 1` inside `( flock -n 9 || exit 1; ... ) 9>/var/lock/job.lock` accomplish?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Deletes `/var/lock/job.lock`"
+        },
+        {
+          "id": "b",
+          "text": "Kills other processes"
+        },
+        {
+          "id": "c",
+          "text": "Acquires a non-blocking exclusive advisory file lock on fd 9 so overlapping cron runs exit immediately instead of racing"
+        },
+        {
+          "id": "d",
+          "text": "Flushes disk cache"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "type": "single-choice",
+      "prompt": "What does `exec 3>\"$logfile\"` do in a Bash script?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Runs `$logfile`"
+        },
+        {
+          "id": "b",
+          "text": "Spawns 3 processes"
+        },
+        {
+          "id": "c",
+          "text": "Deletes fd 3"
+        },
+        {
+          "id": "d",
+          "text": "Opens `$logfile` on custom file descriptor 3 for the rest of the shell's lifetime (write via `>&3`, close via `exec 3>&-`)"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "What does `wait \"$pid\"` do when running background jobs (`cmd & pid=$!`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Waits for background job `$pid` to finish and returns its exit status (propagating failures)"
+        },
+        {
+          "id": "b",
+          "text": "Kills `$pid`"
+        },
+        {
+          "id": "c",
+          "text": "Prints `$pid`'s output"
+        },
+        {
+          "id": "d",
+          "text": "Sleeps 1 second"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What does `wait -n` (Bash 4.3+) do when multiple background jobs are running?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Waits for all jobs"
+        },
+        {
+          "id": "b",
+          "text": "Waits for the *next* single background job to complete and returns its exit status (great for worker pools / fail-fast)"
+        },
+        {
+          "id": "c",
+          "text": "Cancels all jobs"
+        },
+        {
+          "id": "d",
+          "text": "Waits N seconds"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "Why can `IFS=$'\\n\\t'` be problematic if left modified globally in a script?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It breaks `echo`"
+        },
+        {
+          "id": "b",
+          "text": "It disables pipes"
+        },
+        {
+          "id": "c",
+          "text": "Functions or sourced libraries expecting default space-splitting may behave unexpectedly; prefer scoping `IFS=` locally (e.g., `IFS= read -r`)"
+        },
+        {
+          "id": "d",
+          "text": "It deletes tabs in files"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "matrix",
+      "prompt": "Match each Bash strict-mode or safety pitfall to its fix.",
+      "rows": [
+        {
+          "id": "sc2155",
+          "label": "`local x=$(cmd)` hides failure"
+        },
+        {
+          "id": "pipe",
+          "label": "`cmd | while read` loses vars"
+        },
+        {
+          "id": "arr",
+          "label": "`cmd=\"a b\"; $cmd` breaks quotes"
+        }
+      ],
+      "columns": [
+        {
+          "id": "sc2155-f",
+          "label": "Separate `local x` and `x=$(cmd)`"
+        },
+        {
+          "id": "pipe-f",
+          "label": "Use `while read ...; do ...; done < <(cmd)`"
+        },
+        {
+          "id": "arr-f",
+          "label": "Use an array `cmd=(...)` and `\"${cmd[@]}\"`"
+        }
+      ],
+      "selectionByRow": {
+        "sc2155": "single",
+        "pipe": "single",
+        "arr": "single"
+      }
+    },
+    {
+      "id": "q021",
+      "type": "single-choice",
+      "prompt": "What does `shopt -s globstar` enable in Bash 4+?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Case-insensitive globs"
+        },
+        {
+          "id": "b",
+          "text": "Hidden file deletion"
+        },
+        {
+          "id": "c",
+          "text": "Regex globs"
+        },
+        {
+          "id": "d",
+          "text": "Recursive `**` globbing matching zero or more directories (`**/*.ts`)"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "What happens when `[[ \"$a\" == \"$b\" ]]` vs `[[ \"$a\" == $b ]]` is evaluated?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Quoted `\"$b\"` checks literal string equality; unquoted `$b` treats `*`, `?`, `[...]` inside `$b` as a glob pattern!"
+        },
+        {
+          "id": "b",
+          "text": "Identical"
+        },
+        {
+          "id": "c",
+          "text": "Unquoted `$b` is faster"
+        },
+        {
+          "id": "d",
+          "text": "Quoted `\"$b\"` runs regex"
+        }
+      ]
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "What is the risk of `rm -rf \"$DIR/\"*` if `$DIR` is accidentally empty?",
+      "options": [
+        {
+          "id": "a",
+          "text": "No risk"
+        },
+        {
+          "id": "b",
+          "text": "If `$DIR` is empty, it expands to `rm -rf /*`! Always guard with `\"${DIR:?}\"` or `[[ -n \"$DIR\" ]]`"
+        },
+        {
+          "id": "c",
+          "text": "It deletes `.` only"
+        },
+        {
+          "id": "d",
+          "text": "It fails with syntax error"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What does `coproc` in Bash 4+ create?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A cron job"
+        },
+        {
+          "id": "b",
+          "text": "A symlink"
+        },
+        {
+          "id": "c",
+          "text": "A co-process running asynchronously with two-way pipes connected via `${COPROC[0]}` and `${COPROC[1]}`"
+        },
+        {
+          "id": "d",
+          "text": "A systemd unit"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "multi-select",
+      "prompt": "Select all true statements about signals and process termination in Bash. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`SIGKILL` runs the script's `trap ... EXIT` handler cleanly"
+        },
+        {
+          "id": "b",
+          "text": "`SIGTERM` (15) asks a process to terminate gracefully and can be caught by `trap`"
+        },
+        {
+          "id": "c",
+          "text": "`SIGKILL` (9) forces immediate kernel termination and CANNOT be caught or ignored"
+        },
+        {
+          "id": "d",
+          "text": "`kill -0 \"$pid\"` checks if process `$pid` exists and can receive signals without killing it"
+        }
+      ]
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "What does `exec \"$@\"` at the end of a Docker `entrypoint.sh` script accomplish?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Runs `$@` in a subshell"
+        },
+        {
+          "id": "b",
+          "text": "Logs `$@` and exits"
+        },
+        {
+          "id": "c",
+          "text": "Exports `$@`"
+        },
+        {
+          "id": "d",
+          "text": "Replaces the shell process (PID 1) with the target command so signals (`SIGTERM`) go directly to the application"
+        }
+      ],
+      "code": {
+        "language": "bash",
+        "source": "exec \"$@\""
+      }
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does `set -o errexit` do inside a command substitution `x=$(false; echo hi)` by default?",
+      "options": [
+        {
+          "id": "a",
+          "text": "In Bash (unless `shopt -s inherit_errexit` is set in 4.4+), subshells in `$()` may NOT inherit `errexit` if part of a larger expression or older behavior"
+        },
+        {
+          "id": "b",
+          "text": "Always aborts the parent script"
+        },
+        {
+          "id": "c",
+          "text": "Turns `false` into `true`"
+        },
+        {
+          "id": "d",
+          "text": "Throws a syntax error"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What does `readarray -d '' files < <(find . -type f -print0)` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Splits on spaces"
+        },
+        {
+          "id": "b",
+          "text": "Reads NUL-delimited filenames from `find -print0` safely into the `files` array (Bash 4.4+)"
+        },
+        {
+          "id": "c",
+          "text": "Deletes files"
+        },
+        {
+          "id": "d",
+          "text": "Sorts files"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "What is a classic pitfall of `cat file | grep foo > file`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`grep` is slow"
+        },
+        {
+          "id": "b",
+          "text": "`cat` locks `file`"
+        },
+        {
+          "id": "c",
+          "text": "The shell truncates `file` to 0 bytes via `> file` *before* `cat` even starts reading it, destroying the file!"
+        },
+        {
+          "id": "d",
+          "text": "Syntax error"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "single-choice",
+      "prompt": "How can you atomically update a config file `cfg.json` from a Bash script?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`jq ... cfg.json > cfg.json`"
+        },
+        {
+          "id": "b",
+          "text": "Use `echo` twice"
+        },
+        {
+          "id": "c",
+          "text": "Use `>> cfg.json`"
+        },
+        {
+          "id": "d",
+          "text": "Write to a temp file in the *same directory/filesystem* (`tmp=$(mktemp \"${cfg}.XXXXXX\")`) and `mv -- \"$tmp\" \"$cfg\"`"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "single-choice",
+      "prompt": "What does `\"${@:2}\"` expand to?",
+      "options": [
+        {
+          "id": "a",
+          "text": "All positional arguments starting from `$2` onward, each properly quoted"
+        },
+        {
+          "id": "b",
+          "text": "`$2` only"
+        },
+        {
+          "id": "c",
+          "text": "The last 2 arguments"
+        },
+        {
+          "id": "d",
+          "text": "Length of `$2`"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What does `declare -p my_var` print?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Only the value"
+        },
+        {
+          "id": "b",
+          "text": "The exact `declare` statement showing attributes (`-a`, `-A`, `-r`, `-x`) and value\u2014invaluable for debugging Bash types"
+        },
+        {
+          "id": "c",
+          "text": "Process ID"
+        },
+        {
+          "id": "d",
+          "text": "Permissions"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "type": "matrix",
+      "prompt": "Match each Bash diagnostic/safety tool or pattern to its role.",
+      "rows": [
+        {
+          "id": "sc",
+          "label": "`shellcheck`"
+        },
+        {
+          "id": "shf",
+          "label": "`shfmt`"
+        },
+        {
+          "id": "dry",
+          "label": "`--dry-run` / `DRY_RUN=1`"
+        }
+      ],
+      "columns": [
+        {
+          "id": "sc-d",
+          "label": "Static analysis linting for quoting, subshell, and POSIX bugs"
+        },
+        {
+          "id": "shf-d",
+          "label": "Consistent automated shell script formatting"
+        },
+        {
+          "id": "dry-d",
+          "label": "Prints destructive operations without executing them"
+        }
+      ],
+      "selectionByRow": {
+        "sc": "single",
+        "shf": "single",
+        "dry": "single"
+      }
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What does `umask 077` set for newly created files/directories in a script?",
+      "options": [
+        {
+          "id": "a",
+          "text": "World-writable permissions"
+        },
+        {
+          "id": "b",
+          "text": "Read-only for owner"
+        },
+        {
+          "id": "c",
+          "text": "Restricts new files/dirs to owner-only access (`700` dirs / `600` files), protecting sensitive artifacts"
+        },
+        {
+          "id": "d",
+          "text": "Executable by everyone"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What happens when `trap` catches `ERR` without `set -o errtrace` (`set -E`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Functions inherit `ERR` trap"
+        },
+        {
+          "id": "b",
+          "text": "`ERR` becomes `EXIT`"
+        },
+        {
+          "id": "c",
+          "text": "The script hangs"
+        },
+        {
+          "id": "d",
+          "text": "Functions and subshells do NOT inherit the `ERR` trap unless `set -E` is enabled"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "What does `printf -v formatted '%04d' \"$num\"` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Assigns the formatted zero-padded string directly into variable `formatted` without spawning a `$()` subshell"
+        },
+        {
+          "id": "b",
+          "text": "Prints to `stderr`"
+        },
+        {
+          "id": "c",
+          "text": "Validates `$num` as hex"
+        },
+        {
+          "id": "d",
+          "text": "Exports `formatted`"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "multi-select",
+      "prompt": "Select all scenarios where you should switch from Bash to Python, Go, or Rust instead of stretching a shell script. (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "High-throughput parsing or concurrent network/API orchestration"
+        },
+        {
+          "id": "b",
+          "text": "Simple 10-line wrapper invoking 2\u20133 system binaries in a Makefile"
+        },
+        {
+          "id": "c",
+          "text": "Complex nested data structures, JSON/YAML transformations, or stateful retries"
+        },
+        {
+          "id": "d",
+          "text": "Cross-platform Windows/Linux/macOS CLI distribution without POSIX tool differences"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "single-choice",
+      "prompt": "Why is `[[ $x -eq 1 ]]` vs `(( x == 1 ))` dangerous if `$x` comes from untrusted input?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`-eq` is slower"
+        },
+        {
+          "id": "b",
+          "text": "Both `-eq` and `(( ... ))` evaluate `$x` as an arithmetic expression\u2014meaning `x='a[$(id>&2)]'` can execute arbitrary commands!"
+        },
+        {
+          "id": "c",
+          "text": "It only fails on floats"
+        },
+        {
+          "id": "d",
+          "text": "It converts to hex"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "What does `set -o noglob` (`set -f`) prevent?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Variable expansion"
+        },
+        {
+          "id": "b",
+          "text": "Command substitution"
+        },
+        {
+          "id": "c",
+          "text": "Pathname globbing (`*`, `?`, `[...]`) across unquoted tokens"
+        },
+        {
+          "id": "d",
+          "text": "Pipes"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "What does `compgen -G '*.json'` or `shopt -s nullglob` avoid when checking if any `.json` files exist?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Subshells"
+        },
+        {
+          "id": "b",
+          "text": "Symlinks"
+        },
+        {
+          "id": "c",
+          "text": "Permission errors"
+        },
+        {
+          "id": "d",
+          "text": "Treating the literal string `'*.json'` as a filename when zero `.json` files match"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "multi-select",
+      "prompt": "Select all true statements about `BATS` (Bash Automated Testing System). (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Provides `run cmd` to capture `$status` and `$output` without aborting on non-zero exit"
+        },
+        {
+          "id": "b",
+          "text": "Integrates with CI to prevent regressions in shell scripts"
+        },
+        {
+          "id": "c",
+          "text": "Requires compiling Bash scripts to C"
+        },
+        {
+          "id": "d",
+          "text": "Lets you write unit and integration tests for Bash scripts using `@test \"description\" { ... }`"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "What does `exec 19>\"$TRACE_LOG\"; BASH_XTRACEFD=19; set -x` accomplish in Bash 4.1+?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Routes `set -x` trace output to fd 19 (`$TRACE_LOG`) instead of polluting `stderr` of the script's output"
+        },
+        {
+          "id": "b",
+          "text": "Disables `set -x`"
+        },
+        {
+          "id": "c",
+          "text": "Runs 19 threads"
+        },
+        {
+          "id": "d",
+          "text": "Closes `stderr`"
+        }
+      ]
+    }
+  ]
+}

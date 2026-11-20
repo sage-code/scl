@@ -57,7 +57,13 @@ const publicQuizzes = {
   "rust-fundamentals-C": require("../../roadmap/rust/quiz/fundamentals-C.json"),
   "assembly-fundamentals-A": require("../../roadmap/assembly/quiz/fundamentals-A.json"),
   "assembly-fundamentals-B": require("../../roadmap/assembly/quiz/fundamentals-B.json"),
-  "assembly-fundamentals-C": require("../../roadmap/assembly/quiz/fundamentals-C.json")
+  "assembly-fundamentals-C": require("../../roadmap/assembly/quiz/fundamentals-C.json"),
+  "bash-fundamentals-A": require("../../roadmap/bash/quiz/fundamentals-A.json"),
+  "bash-fundamentals-B": require("../../roadmap/bash/quiz/fundamentals-B.json"),
+  "bash-fundamentals-C": require("../../roadmap/bash/quiz/fundamentals-C.json"),
+  "swift-fundamentals-A": require("../../roadmap/swift/quiz/fundamentals-A.json"),
+  "swift-fundamentals-B": require("../../roadmap/swift/quiz/fundamentals-B.json"),
+  "swift-fundamentals-C": require("../../roadmap/swift/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");
