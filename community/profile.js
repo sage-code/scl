@@ -1,6 +1,7 @@
 (function () {
   var MAX_PROJECTS = 5;
   var MAX_PARAGRAPHS = 5;
+  var AVATAR_PLACEHOLDER = "/assets/images/avatar-placeholder.svg";
 
   var status = document.getElementById("profile-status");
   var details = document.getElementById("profile-details");
@@ -13,7 +14,7 @@
 
   function showStatus(message, kind) {
     status.hidden = !message;
-    status.className = "alert alert-" + kind + " mt-4";
+    status.className = "alert alert-" + kind + " mt-3";
     status.textContent = message;
   }
 
@@ -65,18 +66,31 @@
     }
   }
 
-  function renderParagraphs(bioText, paragraphs) {
+  function renderHighlights(profile) {
+    var qualText = profile.certification_label
+      ? profile.certification_label
+      : trackName(profile.qualified_track) + " roadmap qualification";
+    document.getElementById("profile-qualification").textContent = qualText;
+
     var bio = document.getElementById("profile-bio");
     var bioEmpty = document.getElementById("profile-bio-empty");
+    bio.textContent = profile.bio || "";
+    bio.hidden = !profile.bio;
+    bioEmpty.hidden = Boolean(profile.bio);
+  }
+
+  function renderEducation(educationText, paragraphs) {
+    var eduEl = document.getElementById("profile-education");
+    var eduEmpty = document.getElementById("profile-education-empty");
     var container = document.getElementById("profile-paragraphs");
 
-    bio.textContent = bioText || "";
-    bio.hidden = !bioText;
+    eduEl.textContent = educationText || "";
+    eduEl.hidden = !educationText;
 
     container.replaceChildren();
     var list = Array.isArray(paragraphs) ? paragraphs : [];
     list.forEach(function (item) {
-      if (!item || !item.body) return;
+      if (!item || !item.body || item.heading === "Education") return;
       var block = document.createElement("div");
       block.className = "mb-3";
       if (item.heading) {
@@ -92,13 +106,13 @@
       container.append(block);
     });
     container.hidden = container.childElementCount === 0;
-    bioEmpty.hidden = Boolean(bioText) || container.childElementCount > 0;
+    eduEmpty.hidden = Boolean(educationText) || container.childElementCount > 0;
   }
 
   function renderContact(contact) {
-    var section = document.getElementById("profile-contact-section");
     var linksEl = document.getElementById("profile-contact-links");
     var extraEl = document.getElementById("profile-contact-extra");
+    var emptyEl = document.getElementById("profile-contact-empty");
     linksEl.replaceChildren();
     extraEl.replaceChildren();
 
@@ -143,37 +157,46 @@
     }
 
     var hasContent = linksEl.childElementCount > 0 || extraEl.childElementCount > 0;
-    section.hidden = !hasContent;
+    emptyEl.hidden = hasContent;
   }
 
   function renderProjects(projects) {
-    var list = document.getElementById("profile-projects");
+    var table = document.getElementById("profile-projects-table");
+    var tbody = document.getElementById("profile-projects-body");
     var empty = document.getElementById("profile-projects-empty");
-    list.replaceChildren();
+    tbody.replaceChildren();
+
+    var index = 0;
     (projects || []).forEach(function (project) {
       var href = safeHttpsUrl(project && project.url);
       if (!href || !project.name) {
         return;
       }
+      index += 1;
+      var tr = document.createElement("tr");
 
-      var item = document.createElement("li");
-      item.className = "mb-1";
+      var tdNum = document.createElement("td");
+      tdNum.textContent = String(index);
+
+      var tdName = document.createElement("td");
       var link = document.createElement("a");
       link.href = href;
       link.textContent = project.name;
       link.target = "_blank";
       link.rel = "noopener noreferrer nofollow";
-      item.append(link);
-      if (project.description) {
-        var desc = document.createElement("span");
-        desc.className = "text-secondary ms-2";
-        desc.textContent = "— " + project.description;
-        item.append(desc);
-      }
-      list.append(item);
+      tdName.append(link);
+
+      var tdDesc = document.createElement("td");
+      tdDesc.className = project.description ? "" : "text-secondary";
+      tdDesc.textContent = project.description || "—";
+
+      tr.append(tdNum, tdName, tdDesc);
+      tbody.append(tr);
     });
-    empty.hidden = list.childElementCount > 0;
-    list.hidden = list.childElementCount === 0;
+
+    var hasProjects = tbody.childElementCount > 0;
+    table.hidden = !hasProjects;
+    empty.hidden = hasProjects;
   }
 
   function renderCertificates(profile) {
@@ -220,43 +243,52 @@
     empty.hidden = hasCerts;
   }
 
+  function renderVcpStatus(profile) {
+    var badge = document.getElementById("profile-vcp-status");
+    var certs = Array.isArray(profile.certificates) ? profile.certificates : [];
+    var verified = Boolean(profile.vcp_verified || profile.is_legacy_verified || certs.length > 0 || profile.certificate_url);
+    badge.replaceChildren();
+    if (verified) {
+      badge.className = "badge bg-success-subtle text-success-emphasis border border-success-subtle";
+      var icon = document.createElement("i");
+      icon.className = "bi bi-patch-check-fill me-1";
+      icon.setAttribute("aria-hidden", "true");
+      badge.append(icon, document.createTextNode("VCP Verified"));
+    } else {
+      badge.className = "badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle";
+      badge.textContent = "VCP Unverified";
+    }
+  }
+
   function renderProfile(profile) {
     currentProfile = profile;
     title.textContent = profile.display_name;
     document.title = profile.display_name + " | Sage-Code Community";
-    var qualText = profile.certification_label
-      ? (profile.role ? profile.role + " — " : "") + profile.certification_label
-      : trackName(profile.qualified_track) + " roadmap qualification";
-    document.getElementById("profile-qualification").textContent = qualText;
 
-    var country = document.getElementById("profile-country");
-    country.textContent = profile.country_code
-      ? countryFlag(profile.country_code) + " " + profile.country_code
-      : "";
-    country.hidden = !profile.country_code;
+    document.getElementById("profile-position").textContent = profile.role || "VCP Graduate";
+    renderVcpStatus(profile);
 
+    var metaParts = [];
+    if (profile.country_code) {
+      metaParts.push(countryFlag(profile.country_code) + " " + profile.country_code);
+    }
     var claimed = profile.claimed_at ? new Date(profile.claimed_at) : null;
-    document.getElementById("profile-claimed").textContent = profile.member_since
-      ? "Member since " + profile.member_since
-      : (claimed && !Number.isNaN(claimed.getTime())
-        ? "Claimed " + claimed.toLocaleDateString(undefined, { year: "numeric", month: "long" })
-        : "");
+    if (profile.member_since) {
+      metaParts.push("Member since " + profile.member_since);
+    } else if (claimed && !Number.isNaN(claimed.getTime())) {
+      metaParts.push("Member since " + claimed.toLocaleDateString(undefined, { year: "numeric", month: "long" }));
+    }
+    var metaEl = document.getElementById("profile-meta");
+    metaEl.textContent = metaParts.join(" · ");
+    metaEl.hidden = metaParts.length === 0;
 
     var avatar = document.getElementById("profile-avatar");
-    if (profile.avatar_url) {
-      var safeAvatar = safeHttpsUrl(profile.avatar_url);
-      if (safeAvatar) {
-        avatar.src = safeAvatar;
-        avatar.alt = "Avatar of " + profile.display_name;
-        avatar.hidden = false;
-      } else {
-        avatar.hidden = true;
-      }
-    } else {
-      avatar.hidden = true;
-    }
+    var safeAvatar = safeHttpsUrl(profile.avatar_url);
+    avatar.src = safeAvatar || AVATAR_PLACEHOLDER;
+    avatar.alt = "Avatar of " + profile.display_name;
 
-    renderParagraphs(profile.bio, profile.paragraphs);
+    renderHighlights(profile);
+    renderEducation(profile.education, profile.paragraphs);
     renderContact(profile.contact);
     renderProjects(profile.projects);
     renderCertificates(profile);
@@ -361,7 +393,7 @@
     descInput.type = "text";
     descInput.className = "form-control form-control-sm";
     descInput.maxLength = 200;
-    descInput.placeholder = "Short description (optional)";
+    descInput.placeholder = "Project description";
     descInput.value = project && project.description ? project.description : "";
     descInput.setAttribute("data-project-desc", "");
 
@@ -373,8 +405,10 @@
   function populateEditor(profile) {
     if (!isOwner || !profile) return;
     document.getElementById("edit-display-name").value = profile.display_name || "";
+    document.getElementById("edit-role").value = profile.role || "";
     document.getElementById("edit-country-code").value = profile.country_code || "";
     document.getElementById("edit-bio").value = profile.bio || "";
+    document.getElementById("edit-education").value = profile.education || "";
     document.getElementById("edit-publish").checked = true;
 
     var contact = profile.contact && typeof profile.contact === "object" ? profile.contact : {};
@@ -481,8 +515,10 @@
       var result = await window.sclApi.community.saveProfile({
         qualified_track: currentProfile.qualified_track,
         display_name: document.getElementById("edit-display-name").value,
+        role: document.getElementById("edit-role").value,
         country_code: document.getElementById("edit-country-code").value,
         bio: document.getElementById("edit-bio").value,
+        education: document.getElementById("edit-education").value,
         projects: projects,
         paragraphs: paragraphs,
         contact: contact,

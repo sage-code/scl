@@ -147,13 +147,37 @@ function validateProfile(body) {
     throw new HttpError(400, "Choose whether to publish your community profile.");
   }
 
+  let role;
+  if (body.role !== undefined) {
+    role = typeof body.role === "string" ? body.role.trim() : "";
+    if (role.length > 80) {
+      throw new HttpError(400, "Position / role must be 80 characters or fewer.");
+    }
+    role = role || "VCP Graduate";
+  }
+
+  let education;
+  if (body.education !== undefined) {
+    education = typeof body.education === "string" ? body.education.trim() : "";
+    if (education.length > MAX_PARAGRAPH_BODY) {
+      throw new HttpError(400, `Education paragraph must be ${MAX_PARAGRAPH_BODY} characters or fewer.`);
+    }
+  }
+
+  let paragraphs = validateParagraphs(body.paragraphs);
+  if (education !== undefined) {
+    const others = (paragraphs || []).filter((p) => p.heading !== "Education");
+    paragraphs = education ? [{ heading: "Education", body: education }, ...others] : others;
+  }
+
   return {
     displayName,
+    role,
     bio,
     countryCode,
     projects,
     contact: validateContact(body.contact),
-    paragraphs: validateParagraphs(body.paragraphs),
+    paragraphs,
     publish: body.publish
   };
 }
@@ -238,18 +262,33 @@ function buildCertificates(row, qualifiedTracks) {
   return certificates;
 }
 
+function extractEducationAndParagraphs(rawParagraphs) {
+  const list = parseJsonArray(rawParagraphs, "community paragraphs");
+  let education = "";
+  const paragraphs = [];
+  for (const item of list) {
+    if (item && item.heading === "Education" && !education) {
+      education = item.body || "";
+    } else if (item && item.body) {
+      paragraphs.push(item);
+    }
+  }
+  return { education, paragraphs };
+}
+
 function memberFromRow(row) {
   if (!row) {
     return null;
   }
   const projects = parseJsonArray(row.projects_json, "community projects");
   const contact = parseJsonObject(row.contact_json, "community contact");
-  const paragraphs = parseJsonArray(row.paragraphs_json, "community paragraphs");
+  const { education, paragraphs } = extractEducationAndParagraphs(row.paragraphs_json);
   return {
     public_id: row.public_id,
     display_name: row.display_name,
     avatar_url: row.avatar_url,
     bio: row.bio,
+    education,
     country_code: row.country_code,
     projects,
     contact,
@@ -273,11 +312,13 @@ function publicMemberFromRow(row, qualifiedTracks) {
   if (!member) {
     return null;
   }
+  const certificates = buildCertificates(row, qualifiedTracks);
   return {
     public_id: member.public_id,
     display_name: member.display_name,
     avatar_url: member.avatar_url,
     bio: member.bio,
+    education: member.education,
     country_code: member.country_code,
     projects: member.projects,
     contact: member.contact,
@@ -287,7 +328,8 @@ function publicMemberFromRow(row, qualifiedTracks) {
     role: member.role,
     certification_label: member.certification_label,
     certificate_url: member.certificate_url,
-    certificates: buildCertificates(row, qualifiedTracks),
+    certificates,
+    vcp_verified: member.is_legacy_verified || certificates.length > 0,
     member_since: member.member_since,
     is_legacy_verified: member.is_legacy_verified,
     claimed_at: member.claimed_at
@@ -378,12 +420,13 @@ async function saveMember(userId, profile, qualifiedTrack) {
   const publicId = crypto.randomBytes(18).toString("base64url");
   const contactArg = profile.contact !== undefined ? JSON.stringify(profile.contact) : null;
   const paragraphsArg = profile.paragraphs !== undefined ? JSON.stringify(profile.paragraphs) : null;
+  const roleArg = profile.role !== undefined ? profile.role : null;
   await getDb().execute({
     sql: `insert into community_members
             (user_id, public_id, display_name, bio, country_code, projects_json,
-             contact_json, paragraphs_json,
+             contact_json, paragraphs_json, role,
              qualified_track, qualified_topic, is_published, claimed_at, created_at, updated_at)
-          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           on conflict (user_id) do update set
             display_name = excluded.display_name,
             bio = excluded.bio,
@@ -391,6 +434,7 @@ async function saveMember(userId, profile, qualifiedTrack) {
             projects_json = excluded.projects_json,
             contact_json = coalesce(?, community_members.contact_json),
             paragraphs_json = coalesce(?, community_members.paragraphs_json),
+            role = coalesce(?, community_members.role),
             qualified_track = excluded.qualified_track,
             qualified_topic = excluded.qualified_topic,
             is_published = excluded.is_published,
@@ -408,6 +452,7 @@ async function saveMember(userId, profile, qualifiedTrack) {
       JSON.stringify(profile.projects),
       contactArg !== null ? contactArg : "{}",
       paragraphsArg !== null ? paragraphsArg : "[]",
+      roleArg !== null ? roleArg : "VCP Graduate",
       qualifiedTrack.track,
       qualifiedTrack.topic,
       profile.publish ? 1 : 0,
@@ -415,7 +460,8 @@ async function saveMember(userId, profile, qualifiedTrack) {
       now,
       now,
       contactArg,
-      paragraphsArg
+      paragraphsArg,
+      roleArg
     ]
   });
   return getMember(userId);
