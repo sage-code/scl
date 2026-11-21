@@ -60,6 +60,8 @@ function publicUser(row) {
     display_name: row.handle || null,
     email: row.email || null,
     avatar_url: row.avatar_url || null,
+    role: row.community_role || row.role || "Student",
+    community_public_id: row.community_public_id || null,
     is_anonymous: Number(row.is_anonymous) === 1,
     is_admin: Number(row.is_admin) === 1,
     email_verified: !!row.email_verified_at,
@@ -88,11 +90,27 @@ async function readSession(req) {
   }
 
   const tokenHash = hashToken(token);
-  const result = await getDb().execute({
-    sql: `select u.* from sessions s join users u on u.id = s.user_id
-          where s.token_hash = ? and s.expires_at > ?`,
-    args: [tokenHash, nowIso()]
-  });
+  const now = nowIso();
+  let result;
+  try {
+    result = await getDb().execute({
+      sql: `select u.*,
+                   c.role as community_role,
+                   c.public_id as community_public_id,
+                   coalesce(u.avatar_url, c.avatar_url) as avatar_url
+            from sessions s
+            join users u on u.id = s.user_id
+            left join community_members c on c.user_id = u.id
+            where s.token_hash = ? and s.expires_at > ?`,
+      args: [tokenHash, now]
+    });
+  } catch (_error) {
+    result = await getDb().execute({
+      sql: `select u.* from sessions s join users u on u.id = s.user_id
+            where s.token_hash = ? and s.expires_at > ?`,
+      args: [tokenHash, now]
+    });
+  }
 
   const row = result.rows[0];
   if (!row) {

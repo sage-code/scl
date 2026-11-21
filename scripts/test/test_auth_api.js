@@ -258,7 +258,7 @@ test("anonymous users get an invented handle and can change username without ema
   );
   assert.equal(capRes.statusCode, 201);
   const createdUser = JSON.parse(capRes.body).user;
-  assert.match(createdUser.handle, /^Learner-\d{4,5}$/);
+  assert.match(createdUser.handle, /^\d{5}$/);
   assert.equal(createdUser.avatar_url, null);
 
   // Anonymous user can update their username without an email

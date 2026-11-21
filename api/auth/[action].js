@@ -142,13 +142,12 @@ async function handleTaken(handleValue, exceptUserId) {
 
 async function generateUniqueHandle() {
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const suffix = crypto.randomInt(1000, 100000);
-    const candidate = `Learner-${suffix}`;
+    const candidate = String(crypto.randomInt(10000, 100000));
     if (!(await handleTaken(candidate, ""))) {
       return candidate;
     }
   }
-  return `Learner-${crypto.randomBytes(3).toString("hex")}`;
+  return crypto.randomBytes(3).toString("hex");
 }
 
 // Creates a one-time token and emails it. At most 3 of each kind per user per hour.
@@ -463,10 +462,53 @@ const actions = {
       throw error;
     }
 
+    const now = nowIso();
     await getDb().execute({
       sql: "update users set email_verified_at = coalesce(email_verified_at, ?), updated_at = ? where id = ?",
-      args: [nowIso(), nowIso(), userId]
+      args: [now, now, userId]
     });
+
+    try {
+      const db = getDb();
+      const userRes = await db.execute({
+        sql: "select id, handle, avatar_url, avatar_path from users where id = ?",
+        args: [userId]
+      });
+      const verifiedUser = userRes.rows[0];
+      if (verifiedUser) {
+        const existingMember = await db.execute({
+          sql: "select user_id from community_members where user_id = ?",
+          args: [userId]
+        });
+        if (existingMember.rows.length === 0) {
+          const basePublicId = (verifiedUser.handle || "").replace(/^Learner-/i, "").trim() || crypto.randomBytes(6).toString("hex");
+          const clash = await db.execute({
+            sql: "select user_id from community_members where public_id = ?",
+            args: [basePublicId]
+          });
+          const publicId = clash.rows.length === 0 ? basePublicId : `${basePublicId}-${crypto.randomBytes(3).toString("hex")}`;
+          const displayName = (verifiedUser.handle || "").replace(/^Learner-/i, "").trim() || publicId;
+          await db.execute({
+            sql: `insert into community_members
+                    (user_id, public_id, display_name, avatar_url, avatar_path, bio, projects_json,
+                     contact_json, paragraphs_json, role, qualified_track, qualified_topic,
+                     is_published, is_legacy_verified, created_at, updated_at)
+                  values (?, ?, ?, ?, ?, '', '[]', '{}', '[]', 'Student', '', '', 0, 0, ?, ?)`,
+            args: [
+              userId,
+              publicId,
+              displayName,
+              verifiedUser.avatar_url || null,
+              verifiedUser.avatar_path || null,
+              now,
+              now
+            ]
+          });
+        }
+      }
+    } catch (_error) {
+      // Minimal test schemas may omit community_members.
+    }
 
     const session = await S.readSession(req);
     redirect(res, session && session.user.id === userId ? "/roadmap/?verified=1" : "/roadmap/login.html?verified=1");

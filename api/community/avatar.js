@@ -55,7 +55,7 @@ module.exports = handle(async (req, res) => {
   });
   const existingRow = memberCheck.rows[0];
   const isLegacyOrAdmin = Number(session.user.is_admin) === 1 || (existingRow && Number(existingRow.is_legacy_verified) === 1);
-  if (!isLegacyOrAdmin && (await getQualifiedTracks(session.user)).length === 0) {
+  if (!existingRow && !isLegacyOrAdmin && (await getQualifiedTracks(session.user)).length === 0) {
     throw new HttpError(403, "Pass quiz sets A, B, and C for a roadmap before claiming VCP authentication.");
   }
 

@@ -2,6 +2,7 @@
 
 const { getDb } = require("../_lib/db");
 const { HttpError, sendJson, handle } = require("../_lib/http");
+const { requireRegistered } = require("../_lib/session");
 
 const MAX_LEADERS = 50;
 
@@ -9,6 +10,8 @@ module.exports = handle(async (req, res) => {
   if (req.method !== "GET") {
     throw new HttpError(405, "Method not allowed.");
   }
+
+  await requireRegistered(req);
 
   // Best attempt per (user_id, quiz_id) so retakes keep the learner's highest score.
   const db = getDb();

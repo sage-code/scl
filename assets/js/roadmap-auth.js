@@ -44,19 +44,92 @@
     });
   }
 
+  var AUTH_PAGE_PATHS = [
+    "/roadmap/login.html",
+    "/roadmap/register.html",
+    "/roadmap/reset-password.html",
+    "/roadmap/profile.html",
+    "/roadmap/unregister.html"
+  ];
+
+  function isAuthPagePath(pathname) {
+    return AUTH_PAGE_PATHS.some(function (p) {
+      return pathname === p || pathname === "/public" + p;
+    });
+  }
+
+  function sanitizeReturnPath(raw) {
+    var value = String(raw || "").trim();
+    if (!value || value.charAt(0) !== "/" || value.indexOf("//") === 0) {
+      return "";
+    }
+    try {
+      var parsed = new URL(value, window.location.origin);
+      if (parsed.origin !== window.location.origin) {
+        return "";
+      }
+      if (isAuthPagePath(parsed.pathname)) {
+        return "";
+      }
+      return parsed.pathname + parsed.search + parsed.hash;
+    } catch (_error) {
+      return "";
+    }
+  }
+
   function getRoadmapIndexUrl() {
     var path = window.location.pathname || "/";
     return path.startsWith("/public/") ? "/public/roadmap/" : "/roadmap/";
   }
 
-  function getPostLoginRedirectUrl() {
-    var next = String(new URLSearchParams(window.location.search || "").get("next") || "").trim();
-    if (!next.startsWith("/")) {
-      return getRoadmapIndexUrl();
+  function getReturnUrl() {
+    var params = new URLSearchParams(window.location.search || "");
+    var fromParam = sanitizeReturnPath(params.get("return") || params.get("next"));
+    if (fromParam) {
+      return fromParam;
     }
+    if (document.referrer) {
+      try {
+        var ref = new URL(document.referrer);
+        if (ref.origin === window.location.origin && !isAuthPagePath(ref.pathname)) {
+          return ref.pathname + ref.search + ref.hash;
+        }
+      } catch (_error) {
+        // Ignore invalid referrer
+      }
+    }
+    return getRoadmapIndexUrl();
+  }
 
-    var isRoadmapPath = next.indexOf("/roadmap/") === 0 || next.indexOf("/public/roadmap/") === 0;
-    return isRoadmapPath ? next : getRoadmapIndexUrl();
+  function getPostLoginRedirectUrl() {
+    return getReturnUrl();
+  }
+
+  function wireReturnNavigation() {
+    var returnUrl = getReturnUrl();
+    document.querySelectorAll("[data-auth-cancel]").forEach(function (el) {
+      if (el.tagName === "A") {
+        el.setAttribute("href", returnUrl);
+      } else {
+        el.addEventListener("click", function () {
+          window.location.href = returnUrl;
+        });
+      }
+    });
+
+    if (returnUrl && returnUrl !== getRoadmapIndexUrl()) {
+      document.querySelectorAll("[data-auth-return-link]").forEach(function (link) {
+        try {
+          var url = new URL(link.getAttribute("href"), window.location.origin);
+          if (!url.searchParams.get("return")) {
+            url.searchParams.set("return", returnUrl);
+            link.setAttribute("href", url.pathname + url.search + url.hash);
+          }
+        } catch (_error) {
+          // Keep original href
+        }
+      });
+    }
   }
 
   function passwordProblem(password, confirmPassword) {
@@ -151,11 +224,15 @@
     if (forgotLink) {
       forgotLink.addEventListener("click", function () {
         var email = getValue(form, "email");
+        var url = new URL("/roadmap/reset-password.html", window.location.origin);
         if (email) {
-          forgotLink.href = "/roadmap/reset-password.html?email=" + encodeURIComponent(email);
-        } else {
-          forgotLink.href = "/roadmap/reset-password.html";
+          url.searchParams.set("email", email);
         }
+        var ret = getReturnUrl();
+        if (ret && ret !== getRoadmapIndexUrl()) {
+          url.searchParams.set("return", ret);
+        }
+        forgotLink.href = url.pathname + url.search;
       });
     }
 
@@ -628,9 +705,9 @@
       });
     }
 
-    if (closeButton) {
+    if (closeButton && !closeButton.hasAttribute("data-auth-cancel")) {
       closeButton.addEventListener("click", function () {
-        window.location.href = getRoadmapIndexUrl();
+        window.location.href = getReturnUrl();
       });
     }
 
@@ -694,6 +771,7 @@
 
     wirePasswordVisibility();
     wireEmailLockHelp();
+    wireReturnNavigation();
 
     if (!api) {
       setStatus(status, "The roadmap API client did not load. Reload the page.", "warning");

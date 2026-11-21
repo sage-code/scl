@@ -43,5 +43,22 @@ module.exports = handle(async (req, res) => {
     ]
   });
 
+  if (Number(session.user.is_anonymous) !== 1 && session.user.email_verified_at) {
+    try {
+      await getDb().execute({
+        sql: `update community_members
+              set is_published = 1,
+                  claimed_at = coalesce(claimed_at, ?),
+                  qualified_track = case when qualified_track = '' then ? else qualified_track end,
+                  qualified_topic = case when qualified_topic = '' then ? else qualified_topic end,
+                  updated_at = ?
+              where user_id = ? and is_published = 0`,
+        args: [completedAt, quiz.track, quiz.topic, completedAt, session.user.id]
+      });
+    } catch (_error) {
+      // Minimal test schemas may omit community_members.
+    }
+  }
+
   sendJson(res, 201, { quiz, scored, completedAt });
 });

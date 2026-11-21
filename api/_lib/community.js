@@ -561,7 +561,7 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
                  c.role, c.certification_label, c.certificate_url, c.member_since, c.is_legacy_verified
           from community_members c
           join users u on u.id = c.user_id
-          where c.public_id = ? and c.is_published = 1
+          where c.public_id = ?
             and u.is_anonymous = 0
             and (c.is_legacy_verified = 1 or u.email_verified_at is not null)`,
     args: [publicId]
@@ -576,13 +576,18 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
   const canEdit = canEditProfile(viewerInfo, isOwner, targetRole);
   const allowedRoles = getAllowedRolesForEdit(viewerInfo, isOwner, targetRole);
   const canAddTestimonial = await isMentorUser(viewerUserId);
+  const isPublished = Number(row.is_published) === 1;
+  const isPreQuizOwnerDraft = !isPublished && !row.claimed_at && isOwner;
+  if (!isPublished && !isPreQuizOwnerDraft) {
+    return null;
+  }
   const qualifiedTracks = await getQualifiedTracks({
     id: row.user_id,
     is_anonymous: row.is_anonymous,
     email_verified_at: row.email_verified_at
   });
   const testimonials = await listTestimonials(row.user_id, viewerUserId);
-  if (Number(row.is_legacy_verified) === 1) {
+  if (Number(row.is_legacy_verified) === 1 || isOwner || canEdit) {
     return {
       profile: publicMemberFromRow(row, qualifiedTracks, testimonials),
       is_owner: isOwner,
@@ -592,8 +597,12 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
     };
   }
 
-  const qualified = qualifiedTracks.some((track) => track.track === row.qualified_track && track.topic === row.qualified_topic);
-  return qualified
+  const attemptsRes = await getDb().execute({
+    sql: "select 1 as ok from quiz_attempts where user_id = ? limit 1",
+    args: [row.user_id]
+  });
+  const hasQuiz = attemptsRes.rows.length > 0;
+  return isPublished && hasQuiz
     ? {
         profile: publicMemberFromRow(row, qualifiedTracks, testimonials),
         is_owner: isOwner,
@@ -635,8 +644,7 @@ async function listPublishedMembers() {
   }
 
   return [...grouped.values()]
-    .filter(({ row, attempts }) => Number(row.is_legacy_verified) === 1
-      || qualifiedRoadmaps(attempts).some((track) => track.track === row.qualified_track && track.topic === row.qualified_topic))
+    .filter(({ row, attempts }) => Number(row.is_legacy_verified) === 1 || attempts.length > 0)
     .map(({ row }) => ({
       public_id: row.public_id,
       display_name: row.display_name,
@@ -644,7 +652,7 @@ async function listPublishedMembers() {
       country_code: row.country_code,
       qualified_track: row.qualified_track,
       qualified_topic: row.qualified_topic,
-      role: row.role || "VCP Graduate",
+      role: row.role || "Student",
       certification_label: row.certification_label || null,
       member_since: row.member_since != null ? Number(row.member_since) : null,
       is_legacy_verified: Number(row.is_legacy_verified) === 1,

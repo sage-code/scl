@@ -3,7 +3,7 @@
 const { put, del } = require("@vercel/blob");
 const { getDb, nowIso } = require("../_lib/db");
 const { HttpError, sendJson, clientIp, assertSameOrigin, handle } = require("../_lib/http");
-const { requireSession } = require("../_lib/session");
+const { requireRegistered } = require("../_lib/session");
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const HOUR_MS = 60 * 60 * 1000;
@@ -61,7 +61,10 @@ async function readAvatar(req) {
 
 module.exports = handle(async (req, res) => {
   assertSameOrigin(req, ["POST", "DELETE"]);
-  const session = await requireSession(req);
+  const session = await requireRegistered(req);
+  if (!session.user.email_verified_at) {
+    throw new HttpError(403, "Confirm your email before updating your profile picture.");
+  }
   const db = getDb();
   const mediaToken = String(process.env.MEDIA_READ_WRITE_TOKEN || "").trim();
 

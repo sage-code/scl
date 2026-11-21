@@ -85,10 +85,10 @@ module.exports = handle(async (req, res) => {
     const tracks = await getQualifiedTracks(session.user);
     qualifiedTrack = tracks.find((track) => track.track === body.qualified_track);
     if (!qualifiedTrack) {
-      if (existingMember && existingMember.is_legacy_verified) {
+      if (existingMember) {
         qualifiedTrack = {
-          track: existingMember.qualified_track || "cse",
-          topic: existingMember.qualified_topic || "fundamentals"
+          track: existingMember.qualified_track || "",
+          topic: existingMember.qualified_topic || ""
         };
       } else {
         throw new HttpError(403, "Pass quiz sets A, B, and C for a roadmap before claiming VCP authentication.");

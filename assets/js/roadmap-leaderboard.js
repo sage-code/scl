@@ -84,6 +84,28 @@
     }
     var res = await window.sclApi.roadmap.leaderboard();
     if (res.error) {
+      if (res.error.status === 401 || res.error.status === 403) {
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.className = "alert alert-warning mb-3";
+          statusEl.replaceChildren(
+            document.createTextNode("Sign in with a registered account to view the Top Score leaderboard. "),
+            Object.assign(document.createElement("a"), {
+              href: "/roadmap/login.html?return=%2Froadmap%2Ftop-score.html",
+              className: "alert-link",
+              textContent: "Sign In"
+            }),
+            document.createTextNode(" or "),
+            Object.assign(document.createElement("a"), {
+              href: "/roadmap/register.html?return=%2Froadmap%2Ftop-score.html",
+              className: "alert-link",
+              textContent: "Sign Up / Register"
+            }),
+            document.createTextNode(".")
+          );
+        }
+        return;
+      }
       setStatus(res.error.message || "Could not load leaderboard.", "danger");
       return;
     }

@@ -76,7 +76,7 @@
 
   function formatIdentity() {
     if (!state.user) {
-      return "Learner";
+      return "Anonymous";
     }
 
     var handle = state.user.handle || state.user.display_name;
@@ -84,28 +84,71 @@
       handle = state.user.email.split("@")[0];
     }
 
-    return handle || "Learner";
+    return handle || "Anonymous";
+  }
+
+  function currentReturnParam() {
+    var path = window.location.pathname || "/roadmap/";
+    if (path.indexOf("/community/") === 0 || path.indexOf("/roadmap/") === 0) {
+      return "?return=" + encodeURIComponent(path);
+    }
+    return "";
   }
 
   function renderRoadmapTitle() {
-    setText(document.getElementById("roadmap-user-title"), "User: " + formatIdentity());
+    var role = (state.user && state.user.role) ? state.user.role : "Student";
+    var idText = formatIdentity().replace(/^Learner-/i, "");
+    setText(document.getElementById("roadmap-user-title"), role + ":" + idText);
+
+    var inlineSignout = document.getElementById("roadmap-inline-signout");
+    if (inlineSignout) {
+      inlineSignout.hidden = !isRegistered();
+    }
   }
 
   function renderRoadmapActions() {
     var registered = isRegistered();
+    var returnSuffix = currentReturnParam();
     var loginAction = document.getElementById("roadmap-login-action");
     var profileAction = document.getElementById("roadmap-profile-action");
     var registerAction = document.getElementById("roadmap-register-action");
+    var primaryAction = document.getElementById("roadmap-primary-action");
+    var learnersAction = document.getElementById("roadmap-learners-action");
+    var topScoreAction = document.getElementById("roadmap-top-score-action");
+
+    if (primaryAction) {
+      if (registered) {
+        setButtonLabel(primaryAction, "Your Profile");
+        setButtonIcon(primaryAction, "bi bi-person-circle");
+        setHref(primaryAction, "/roadmap/profile.html" + returnSuffix);
+        primaryAction.setAttribute("aria-label", "Open your profile");
+      } else {
+        setButtonLabel(primaryAction, "Sign In");
+        setButtonIcon(primaryAction, "bi bi-box-arrow-in-right");
+        setHref(primaryAction, "/roadmap/login.html" + returnSuffix);
+        primaryAction.setAttribute("aria-label", "Sign in to roadmap account");
+      }
+    }
+
+    if (learnersAction) {
+      setDisabledLink(learnersAction, !registered);
+      learnersAction.setAttribute("title", registered ? "See who is actively learning" : "Sign in to see who is learning");
+    }
+
+    if (topScoreAction) {
+      setDisabledLink(topScoreAction, !registered);
+      topScoreAction.setAttribute("title", registered ? "View quiz leaderboard" : "Sign in to view top scores");
+    }
 
     if (loginAction) {
       setButtonLabel(loginAction, registered ? "SIGN OUT" : "SIGN IN");
-      setHref(loginAction, registered ? "#roadmap-logout" : "/roadmap/login.html");
+      setHref(loginAction, registered ? "#roadmap-logout" : ("/roadmap/login.html" + returnSuffix));
       loginAction.setAttribute("aria-label", registered ? "Sign out of roadmap account" : "Sign in to roadmap account");
     }
 
     if (profileAction) {
       setDisabledLink(profileAction, false);
-      setHref(profileAction, "/roadmap/profile.html");
+      setHref(profileAction, "/roadmap/profile.html" + returnSuffix);
       profileAction.setAttribute("aria-label", "Open your learner profile");
       profileAction.setAttribute("title", "Update your username or profile picture (" + formatIdentity() + ")");
     }
@@ -114,13 +157,13 @@
       if (registered) {
         setButtonLabel(registerAction, "REMOVE");
         setButtonIcon(registerAction, "bi bi-person-dash");
-        setHref(registerAction, "/roadmap/unregister.html");
+        setHref(registerAction, "/roadmap/unregister.html" + returnSuffix);
         registerAction.setAttribute("aria-label", "Remove the current roadmap account");
         registerAction.setAttribute("title", "Open the unregister form to delete this account");
       } else {
         setButtonLabel(registerAction, "REGISTER");
         setButtonIcon(registerAction, "bi bi-person-plus");
-        setHref(registerAction, "/roadmap/register.html");
+        setHref(registerAction, "/roadmap/register.html" + returnSuffix);
         registerAction.setAttribute("aria-label", "Register a roadmap account");
         registerAction.setAttribute("title", "Create a new roadmap account");
       }
@@ -180,22 +223,42 @@
   function populateProfileInputs() {
     var profileForm = document.getElementById("roadmap-profile-form");
     var avatarImg = document.getElementById("profile-avatar-img");
+    var avatarControls = document.getElementById("profile-avatar-controls");
+    var avatarGuestNote = document.getElementById("profile-avatar-guest-note");
     var removeAvatarBtn = document.getElementById("profile-avatar-remove");
     var registeredSection = document.getElementById("profile-registered-section");
     var guestNote = document.getElementById("profile-guest-register-note");
+    var communityLinkWrap = document.getElementById("profile-community-link-wrap");
+    var communityLink = document.getElementById("profile-community-link");
     var registered = isRegistered();
+    var confirmedMember = registered && !!(state.user && state.user.email_verified);
 
     if (avatarImg) {
       avatarImg.src = (state.user && state.user.avatar_url) ? state.user.avatar_url : "/assets/images/avatar-placeholder.svg";
     }
+    if (avatarControls) {
+      avatarControls.hidden = !confirmedMember;
+    }
+    if (avatarGuestNote) {
+      avatarGuestNote.hidden = confirmedMember;
+    }
     if (removeAvatarBtn) {
-      removeAvatarBtn.hidden = !(state.user && state.user.avatar_url);
+      removeAvatarBtn.hidden = !(confirmedMember && state.user && state.user.avatar_url);
     }
     if (registeredSection) {
       registeredSection.hidden = !registered;
     }
     if (guestNote) {
       guestNote.hidden = registered;
+    }
+    if (communityLinkWrap && communityLink) {
+      var publicId = state.user && (state.user.community_public_id || state.user.handle);
+      if (confirmedMember && publicId) {
+        communityLink.href = "/community/profile.html?user_id=" + encodeURIComponent(publicId);
+        communityLinkWrap.hidden = false;
+      } else {
+        communityLinkWrap.hidden = true;
+      }
     }
 
     if (!profileForm) {
@@ -299,18 +362,37 @@
 
   function wireLogoutAction() {
     var loginAction = document.getElementById("roadmap-login-action");
-    if (!loginAction || loginAction.dataset.roadmapWired === "true") {
-      return;
+    if (loginAction && loginAction.dataset.roadmapWired !== "true") {
+      loginAction.dataset.roadmapWired = "true";
+      loginAction.addEventListener("click", function (event) {
+        if (!isRegistered()) {
+          return;
+        }
+
+        event.preventDefault();
+        signOut();
+      });
     }
 
-    loginAction.dataset.roadmapWired = "true";
-    loginAction.addEventListener("click", function (event) {
-      if (!isRegistered()) {
+    var inlineSignout = document.getElementById("roadmap-inline-signout");
+    if (inlineSignout && inlineSignout.dataset.roadmapWired !== "true") {
+      inlineSignout.dataset.roadmapWired = "true";
+      inlineSignout.addEventListener("click", function () {
+        signOut();
+      });
+    }
+
+    ["roadmap-learners-action", "roadmap-top-score-action"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el || el.dataset.roadmapGateWired === "true") {
         return;
       }
-
-      event.preventDefault();
-      signOut();
+      el.dataset.roadmapGateWired = "true";
+      el.addEventListener("click", function (event) {
+        if (!isRegistered()) {
+          event.preventDefault();
+        }
+      });
     });
   }
 
