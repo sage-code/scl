@@ -328,7 +328,6 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
 
   const updated = await request(communityProfile, "POST", {
     ...profileInput,
-    role: "Software Engineer",
     education: "B.S. in Computer Science",
     projects: [{ name: "Example", url: "https://example.com/project", description: "Demo project" }],
     contact: {
@@ -352,7 +351,7 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
   );
   assert.equal(ownerView.status, 200);
   assert.equal(ownerView.body.is_owner, true);
-  assert.equal(ownerView.body.profile.role, "Software Engineer");
+  assert.equal(ownerView.body.profile.role, "Student");
   assert.equal(ownerView.body.profile.education, "B.S. in Computer Science");
   assert.equal(ownerView.body.profile.vcp_verified, true);
   assert.equal(ownerView.body.profile.contact.github, "https://github.com/testuser");
@@ -423,10 +422,11 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
   });
   assert.equal(badContact.status, 400);
 
-  // Education rows, certification_label, and Mentor testimonials.
+  // Education rows, certification_label, and Instructor/Mentor role rules.
+  await db.execute({ sql: "update users set is_admin = 1 where id = ?", args: [userId] });
   const withEdu = await request(communityProfile, "POST", {
     ...profileInput,
-    role: "Mentor",
+    role: "Instructor",
     certification_label: "Web Developer",
     education_rows: [
       { institution: "MIT / US", year_started: "2018", year_ended: "2022" }
@@ -434,6 +434,7 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
     publish: true
   });
   assert.equal(withEdu.status, 200);
+  assert.equal(withEdu.body.profile.role, "Instructor");
   assert.equal(withEdu.body.profile.certification_label, "Web Developer");
   assert.equal(withEdu.body.profile.education_rows.length, 1);
   assert.equal(withEdu.body.profile.education_rows[0].institution, "MIT / US");
@@ -465,7 +466,7 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
     content: "Excellent engineering skills."
   });
   assert.equal(mentorTestimonial.status, 201);
-  assert.equal(mentorTestimonial.body.testimonial.author_role, "Mentor");
+  assert.equal(mentorTestimonial.body.testimonial.author_role, "Instructor");
 
   const withTestimonials = await request(
     communityMember,
@@ -477,4 +478,125 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
   assert.equal(withTestimonials.body.can_add_testimonial, true);
   assert.equal(withTestimonials.body.profile.testimonials.length, 1);
   assert.equal(withTestimonials.body.profile.testimonials[0].content, "Excellent engineering skills.");
+});
+
+test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Student -> Developer; Instructor edits any role", async () => {
+  const now = new Date().toISOString();
+  const studentId = "rbac-student";
+  const studentToken = "rbac-student-token";
+  const mentorId = "rbac-mentor";
+  const mentorToken = "rbac-mentor-token";
+
+  for (const [uid, tok, pubId, role] of [
+    [studentId, studentToken, "rbac-student-pub", "Student"],
+    [mentorId, mentorToken, "rbac-mentor-pub", "Mentor"]
+  ]) {
+    await db.execute({
+      sql: "insert into users (id, is_anonymous, is_admin, email_verified_at, last_seen_at) values (?, 0, 0, ?, ?)",
+      args: [uid, now, now]
+    });
+    await db.execute({
+      sql: "insert into sessions (token_hash, user_id, created_at, expires_at) values (?, ?, ?, ?)",
+      args: [hashToken(tok), uid, now, new Date(Date.now() + 60_000).toISOString()]
+    });
+    const quiz = getQuiz("go-syntax-A");
+    for (const qid of ["go-syntax-A", "go-syntax-B", "go-syntax-C"]) {
+      const q = qid === "go-syntax-A" ? quiz : getQuiz(qid);
+      await db.execute({
+        sql: `insert into quiz_attempts (id, user_id, quiz_id, track, topic, level, revision, points_earned, points_possible, score_percent, status, completed_at)
+              values (?, ?, ?, 'go', 'syntax', ?, ?, 10, 10, 100, 'pass', ?)`,
+        args: [`${uid}-${qid}`, uid, qid, q.level, q.revision, now]
+      });
+    }
+    await db.execute({
+      sql: `insert into community_members
+              (user_id, public_id, display_name, bio, projects_json, contact_json, paragraphs_json,
+               qualified_track, qualified_topic, role, is_published, created_at, updated_at)
+            values (?, ?, ?, '', '[]', '{}', '[]', 'go', 'syntax', ?, 1, ?, ?)`,
+      args: [uid, pubId, role + " User", role, now, now]
+    });
+  }
+
+  async function reqAs(token, handler, method, body, url) {
+    const res = {
+      headers: {},
+      statusCode: 200,
+      setHeader(n, v) { this.headers[n] = v; },
+      getHeader(n) { return this.headers[n]; },
+      end(v) { this.body = v; }
+    };
+    await handler({
+      method,
+      url: url || "/api/test",
+      headers: { cookie: `scl_sid=${token}`, host: "localhost", origin: "http://localhost", "content-type": "application/json" },
+      body
+    }, res);
+    return { status: res.statusCode, body: JSON.parse(res.body || "{}") };
+  }
+
+  // Student cannot change own role.
+  const studentSelfPromote = await reqAs(studentToken, communityProfile, "POST", {
+    ...profileInput,
+    display_name: "Student User",
+    role: "Mentor"
+  });
+  assert.equal(studentSelfPromote.status, 403);
+
+  // Mentor cannot make himself Instructor.
+  const mentorSelfPromote = await reqAs(mentorToken, communityProfile, "POST", {
+    ...profileInput,
+    display_name: "Mentor User",
+    role: "Instructor"
+  });
+  assert.equal(mentorSelfPromote.status, 403);
+
+  // Mentor viewing Student sees can_edit: true and allowed_roles: ["Student", "Developer"].
+  const mentorViewsStudent = await reqAs(
+    mentorToken,
+    communityMember,
+    "GET",
+    undefined,
+    "/api/community/member?user_id=rbac-student-pub"
+  );
+  assert.equal(mentorViewsStudent.status, 200);
+  assert.equal(mentorViewsStudent.body.can_edit, true);
+  assert.deepEqual(mentorViewsStudent.body.allowed_roles, ["Student", "Developer"]);
+
+  // Mentor cannot promote Student to Mentor or Instructor.
+  const mentorOverPromote = await reqAs(mentorToken, communityProfile, "POST", {
+    ...profileInput,
+    target_public_id: "rbac-student-pub",
+    display_name: "Student User",
+    role: "Instructor"
+  });
+  assert.equal(mentorOverPromote.status, 403);
+
+  // Mentor CAN edit Student's profile and promote Student -> Developer.
+  const mentorPromotesStudent = await reqAs(mentorToken, communityProfile, "POST", {
+    ...profileInput,
+    target_public_id: "rbac-student-pub",
+    display_name: "Promoted Dev",
+    role: "Developer"
+  });
+  assert.equal(mentorPromotesStudent.status, 200);
+  assert.equal(mentorPromotesStudent.body.profile.role, "Developer");
+
+  // Mentor can no longer edit once target is Developer.
+  const mentorEditDev = await reqAs(mentorToken, communityProfile, "POST", {
+    ...profileInput,
+    target_public_id: "rbac-student-pub",
+    display_name: "Blocked"
+  });
+  assert.equal(mentorEditDev.status, 403);
+
+  // Instructor CAN edit Developer and promote to Mentor or Instructor.
+  await db.execute({ sql: "update users set is_admin = 1 where id = ?", args: [userId] });
+  const instructorPromotes = await request(communityProfile, "POST", {
+    ...profileInput,
+    target_public_id: "rbac-student-pub",
+    display_name: "New Instructor",
+    role: "Instructor"
+  });
+  assert.equal(instructorPromotes.status, 200);
+  assert.equal(instructorPromotes.body.profile.role, "Instructor");
 });

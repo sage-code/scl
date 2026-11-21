@@ -22,6 +22,8 @@ module.exports = handle(async (req, res) => {
   sendJson(res, 200, {
     profile: result.profile,
     is_owner: result.is_owner,
+    can_edit: result.can_edit,
+    allowed_roles: result.allowed_roles,
     can_add_testimonial: result.can_add_testimonial
   });
 });

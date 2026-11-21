@@ -9,6 +9,8 @@
 
   var currentProfile = null;
   var isOwner = false;
+  var canEdit = false;
+  var allowedRoles = [];
   var canAddTestimonial = false;
   var projectsEditMode = false;
   var editingProjectIndex = -1;
@@ -27,7 +29,7 @@
     var el = document.getElementById(id);
     if (!el) return;
     el.hidden = !message;
-    el.className = "alert alert-" + kind + " mt-2 mb-0 py-1 px-2 small";
+    el.className = "alert alert-" + kind + " mt-2 mb-2 py-1 px-2 small";
     el.textContent = message;
   }
 
@@ -71,6 +73,26 @@
     }
   }
 
+  function repoMeta(repoUrl) {
+    var href = safeHttpsUrl(repoUrl);
+    if (!href) return null;
+    try {
+      var host = new URL(href).hostname.toLowerCase();
+      if (host.indexOf("github.com") !== -1) {
+        return { href: href, icon: "bi-github", label: "GitHub repository" };
+      }
+      if (host.indexOf("gitlab.com") !== -1) {
+        return { href: href, icon: "bi-gitlab", label: "GitLab repository" };
+      }
+      if (host.indexOf("bitbucket.org") !== -1) {
+        return { href: href, icon: "bi-git", label: "Bitbucket repository" };
+      }
+      return { href: href, icon: "bi-git", label: "Source repository" };
+    } catch (_error) {
+      return null;
+    }
+  }
+
   function buildSavePayload(overrides) {
     var payload = {
       qualified_track: currentProfile.qualified_track,
@@ -84,6 +106,9 @@
       contact: currentProfile.contact || {},
       publish: true
     };
+    if (!isOwner && currentProfile.public_id) {
+      payload.target_public_id = currentProfile.public_id;
+    }
     Object.keys(overrides || {}).forEach(function (key) {
       payload[key] = overrides[key];
     });
@@ -150,11 +175,13 @@
     if (!rowEl || index < 0 || index >= draftProjects.length) return;
     var nameInput = rowEl.querySelector("[data-inline-project-name]");
     var urlInput = rowEl.querySelector("[data-inline-project-url]");
+    var repoInput = rowEl.querySelector("[data-inline-project-repo]");
     var descInput = rowEl.querySelector("[data-inline-project-desc]");
-    if (!nameInput || !urlInput || !descInput) return;
+    if (!nameInput || !urlInput || !repoInput || !descInput) return;
     draftProjects[index] = {
       name: nameInput.value.trim(),
       url: urlInput.value.trim(),
+      repo_url: repoInput.value.trim(),
       description: descInput.value.trim()
     };
   }
@@ -175,15 +202,17 @@
       tdNum.textContent = String(idx + 1);
 
       if (projectsEditMode && idx === editingProjectIndex) {
-        var tdProject = document.createElement("td");
+        var tdName = document.createElement("td");
         var nameInput = document.createElement("input");
         nameInput.type = "text";
-        nameInput.className = "form-control form-control-sm mb-1";
+        nameInput.className = "form-control form-control-sm";
         nameInput.maxLength = 80;
         nameInput.placeholder = "Project name";
         nameInput.value = project.name || "";
         nameInput.setAttribute("data-inline-project-name", "");
+        tdName.append(nameInput);
 
+        var tdHome = document.createElement("td");
         var urlInput = document.createElement("input");
         urlInput.type = "url";
         urlInput.className = "form-control form-control-sm";
@@ -191,11 +220,21 @@
         urlInput.placeholder = "https://example.com";
         urlInput.value = project.url || "";
         urlInput.setAttribute("data-inline-project-url", "");
-        tdProject.append(nameInput, urlInput);
+        tdHome.append(urlInput);
+
+        var tdRepo = document.createElement("td");
+        var repoInput = document.createElement("input");
+        repoInput.type = "url";
+        repoInput.className = "form-control form-control-sm";
+        repoInput.maxLength = 500;
+        repoInput.placeholder = "https://github.com/user/repo";
+        repoInput.value = project.repo_url || "";
+        repoInput.setAttribute("data-inline-project-repo", "");
+        tdRepo.append(repoInput);
 
         var tdDesc = document.createElement("td");
         var descWrap = document.createElement("div");
-        descWrap.className = "d-flex gap-2 align-items-start";
+        descWrap.className = "d-flex gap-2 align-items-center";
         var descInput = document.createElement("input");
         descInput.type = "text";
         descInput.className = "form-control form-control-sm";
@@ -218,34 +257,59 @@
 
         descWrap.append(descInput, delBtn);
         tdDesc.append(descWrap);
-        tr.append(tdNum, tdProject, tdDesc);
+        tr.append(tdNum, tdName, tdHome, tdRepo, tdDesc);
         tbody.append(tr);
         setTimeout(function () { nameInput.focus(); }, 0);
         return;
       }
 
+      var tdNameView = document.createElement("td");
+      tdNameView.textContent = (project && project.name) || "(Untitled)";
+
       var href = safeHttpsUrl(project && project.url);
-      var tdName = document.createElement("td");
-      if (href && project.name) {
-        var link = document.createElement("a");
-        link.href = href;
-        link.textContent = project.name;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer nofollow";
-        tdName.append(link);
+      var tdHomeView = document.createElement("td");
+      if (href) {
+        var homeLink = document.createElement("a");
+        homeLink.href = href;
+        homeLink.textContent = href.replace(/^https?:\/\//, "").replace(/\/$/, "");
+        homeLink.target = "_blank";
+        homeLink.rel = "noopener noreferrer nofollow";
+        tdHomeView.append(homeLink);
       } else {
-        tdName.textContent = (project && project.name) || "(Untitled)";
+        tdHomeView.className = "text-secondary";
+        tdHomeView.textContent = "—";
       }
 
-      var tdDesc = document.createElement("td");
-      tdDesc.className = project && project.description ? "" : "text-secondary";
-      tdDesc.textContent = (project && project.description) || "—";
+      var tdRepoView = document.createElement("td");
+      tdRepoView.className = "text-center";
+      var repo = repoMeta(project && project.repo_url);
+      if (repo) {
+        var repoLink = document.createElement("a");
+        repoLink.href = repo.href;
+        repoLink.target = "_blank";
+        repoLink.rel = "noopener noreferrer nofollow";
+        repoLink.className = "btn btn-outline-secondary btn-sm";
+        repoLink.title = repo.label;
+        repoLink.setAttribute("aria-label", repo.label);
+        var repoIcon = document.createElement("i");
+        repoIcon.className = "bi " + repo.icon;
+        repoIcon.setAttribute("aria-hidden", "true");
+        repoLink.append(repoIcon);
+        tdRepoView.append(repoLink);
+      } else {
+        tdRepoView.className = "text-center text-secondary";
+        tdRepoView.textContent = "—";
+      }
+
+      var tdDescView = document.createElement("td");
+      tdDescView.className = project && project.description ? "" : "text-secondary";
+      tdDescView.textContent = (project && project.description) || "—";
 
       if (projectsEditMode) {
         tr.className = "profile-row-selectable";
         tr.title = "Click to edit row";
         tr.addEventListener("click", function (e) {
-          if (e.target.tagName === "A") {
+          if (e.target.closest("a")) {
             e.preventDefault();
           }
           var activeRow = tbody.querySelector("[data-inline-project-name]");
@@ -257,16 +321,16 @@
         });
       }
 
-      tr.append(tdNum, tdName, tdDesc);
+      tr.append(tdNum, tdNameView, tdHomeView, tdRepoView, tdDescView);
       tbody.append(tr);
     });
 
     var hasRows = list.length > 0;
     table.hidden = !hasRows;
-    empty.hidden = hasRows || !isOwner;
+    empty.hidden = hasRows || !canEdit;
     saveBtn.hidden = !projectsEditMode;
     hintEl.hidden = !projectsEditMode;
-    section.hidden = !isOwner && !hasRows;
+    section.hidden = !canEdit && !hasRows;
   }
 
   function syncEducationFromInputs(rowEl, index) {
@@ -351,12 +415,12 @@
         return;
       }
 
-      var tdInst = document.createElement("td");
-      tdInst.textContent = row.institution || "—";
-      var tdStart = document.createElement("td");
-      tdStart.textContent = row.year_started || "—";
-      var tdEnd = document.createElement("td");
-      tdEnd.textContent = row.year_ended || "—";
+      var tdInstView = document.createElement("td");
+      tdInstView.textContent = row.institution || "—";
+      var tdStartView = document.createElement("td");
+      tdStartView.textContent = row.year_started || "—";
+      var tdEndView = document.createElement("td");
+      tdEndView.textContent = row.year_ended || "—";
 
       if (educationEditMode) {
         tr.className = "profile-row-selectable";
@@ -371,7 +435,7 @@
         });
       }
 
-      tr.append(tdInst, tdStart, tdEnd);
+      tr.append(tdInstView, tdStartView, tdEndView);
       tbody.append(tr);
     });
 
@@ -554,8 +618,24 @@
     showStatus("", "info");
   }
 
+  function wireDialogCloseButtons() {
+    document.querySelectorAll("[data-dialog-close]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var dlg = document.getElementById(btn.getAttribute("data-dialog-close"));
+        if (dlg && dlg.open) dlg.close("cancel");
+      });
+    });
+    var cropCancelBtn = document.getElementById("avatar-crop-cancel-btn");
+    var cropDlg = document.getElementById("avatar-crop-dialog");
+    if (cropCancelBtn && cropDlg) {
+      cropCancelBtn.addEventListener("click", function () {
+        if (cropDlg.open) cropDlg.close("cancel");
+      });
+    }
+  }
+
   function wireOwnerControls() {
-    document.getElementById("edit-avatar-btn").hidden = false;
+    document.getElementById("edit-avatar-btn").hidden = !isOwner;
     document.getElementById("edit-identity-btn").hidden = false;
     document.getElementById("edit-highlights-btn").hidden = false;
     document.getElementById("projects-owner-controls").hidden = false;
@@ -596,56 +676,63 @@
       }
     });
 
-    // Identity panel form (Name + Role + Country)
-    var formIdentity = document.getElementById("form-identity");
+    // Identity modal
+    var dialogIdentity = document.getElementById("dialog-identity");
     document.getElementById("edit-identity-btn").addEventListener("click", function () {
-      if (!formIdentity.hidden) {
-        formIdentity.hidden = true;
-        return;
-      }
       document.getElementById("input-display-name").value = currentProfile.display_name || "";
+      var roleGroup = document.getElementById("input-role-group");
       var roleSelect = document.getElementById("input-role");
       var currentRole = currentProfile.role || "Student";
-      roleSelect.value = ["Student", "Developer", "Mentor"].indexOf(currentRole) !== -1 ? currentRole : "Student";
+      roleSelect.replaceChildren();
+      if (allowedRoles.length > 0) {
+        allowedRoles.forEach(function (r) {
+          var opt = document.createElement("option");
+          opt.value = r;
+          opt.textContent = r;
+          roleSelect.append(opt);
+        });
+        roleSelect.value = allowedRoles.indexOf(currentRole) !== -1 ? currentRole : allowedRoles[0];
+        roleGroup.hidden = false;
+      } else {
+        var opt = document.createElement("option");
+        opt.value = currentRole;
+        opt.textContent = currentRole;
+        roleSelect.append(opt);
+        roleSelect.value = currentRole;
+        roleGroup.hidden = true;
+      }
       document.getElementById("input-country-code").value = currentProfile.country_code || "";
       showInlineStatus("status-identity", "", "info");
-      formIdentity.hidden = false;
+      dialogIdentity.showModal();
     });
-    document.getElementById("cancel-identity-btn").addEventListener("click", function () {
-      formIdentity.hidden = true;
-    });
-    formIdentity.addEventListener("submit", async function (e) {
+    document.getElementById("form-identity").addEventListener("submit", async function (e) {
       e.preventDefault();
-      var res = await window.sclApi.community.saveProfile(buildSavePayload({
+      var payloadOverrides = {
         display_name: document.getElementById("input-display-name").value,
-        role: document.getElementById("input-role").value,
         country_code: document.getElementById("input-country-code").value
-      }));
+      };
+      if (allowedRoles.length > 0) {
+        payloadOverrides.role = document.getElementById("input-role").value;
+      }
+      var res = await window.sclApi.community.saveProfile(buildSavePayload(payloadOverrides));
       if (res.error) {
         showInlineStatus("status-identity", res.error.message, "danger");
         return;
       }
       currentProfile = res.data.profile;
       renderIdentity(currentProfile);
-      formIdentity.hidden = true;
+      dialogIdentity.close("save");
     });
 
-    // Qualification / Description panel form
-    var formHighlights = document.getElementById("form-highlights");
+    // Position / Description modal
+    var dialogHighlights = document.getElementById("dialog-highlights");
     document.getElementById("edit-highlights-btn").addEventListener("click", function () {
-      if (!formHighlights.hidden) {
-        formHighlights.hidden = true;
-        return;
-      }
       document.getElementById("input-qualification").value = currentProfile.certification_label || "";
       document.getElementById("input-bio").value = currentProfile.bio || "";
       showInlineStatus("status-highlights", "", "info");
-      formHighlights.hidden = false;
+      dialogHighlights.showModal();
     });
-    document.getElementById("cancel-highlights-btn").addEventListener("click", function () {
-      formHighlights.hidden = true;
-    });
-    formHighlights.addEventListener("submit", async function (e) {
+    document.getElementById("form-highlights").addEventListener("submit", async function (e) {
       e.preventDefault();
       var res = await window.sclApi.community.saveProfile(buildSavePayload({
         certification_label: document.getElementById("input-qualification").value,
@@ -657,7 +744,7 @@
       }
       currentProfile = res.data.profile;
       renderQualificationPanel(currentProfile);
-      formHighlights.hidden = true;
+      dialogHighlights.close("save");
     });
 
     // Projects in-place table editing
@@ -670,7 +757,7 @@
         return;
       }
       draftProjects = (currentProfile.projects || []).map(function (p) {
-        return { name: p.name || "", url: p.url || "", description: p.description || "" };
+        return { name: p.name || "", url: p.url || "", repo_url: p.repo_url || "", description: p.description || "" };
       });
       projectsEditMode = true;
       editingProjectIndex = draftProjects.length ? 0 : -1;
@@ -681,7 +768,7 @@
     document.getElementById("projects-add-btn").addEventListener("click", function () {
       if (!projectsEditMode) {
         draftProjects = (currentProfile.projects || []).map(function (p) {
-          return { name: p.name || "", url: p.url || "", description: p.description || "" };
+          return { name: p.name || "", url: p.url || "", repo_url: p.repo_url || "", description: p.description || "" };
         });
         projectsEditMode = true;
       } else {
@@ -692,7 +779,7 @@
         showInlineStatus("status-projects", "You can list up to " + MAX_PROJECTS + " projects.", "warning");
         return;
       }
-      draftProjects.push({ name: "", url: "", description: "" });
+      draftProjects.push({ name: "", url: "", repo_url: "", description: "" });
       editingProjectIndex = draftProjects.length - 1;
       showInlineStatus("status-projects", "", "info");
       renderProjectsTable();
@@ -703,7 +790,7 @@
       if (active) syncProjectsFromInputs(active.closest("tr"), editingProjectIndex);
 
       var cleaned = draftProjects.filter(function (p) {
-        return p.name || p.url || p.description;
+        return p.name || p.url || p.repo_url || p.description;
       });
       var res = await window.sclApi.community.saveProfile(buildSavePayload({ projects: cleaned }));
       if (res.error) {
@@ -774,13 +861,9 @@
       renderEducationTable();
     });
 
-    // Contacts panel form
-    var formContacts = document.getElementById("form-contacts");
+    // Contacts modal
+    var dialogContacts = document.getElementById("dialog-contacts");
     document.getElementById("edit-contacts-btn").addEventListener("click", function () {
-      if (!formContacts.hidden) {
-        formContacts.hidden = true;
-        return;
-      }
       var c = currentProfile.contact || {};
       document.getElementById("input-contact-website").value = c.website || "";
       document.getElementById("input-contact-github").value = c.github || "";
@@ -790,12 +873,9 @@
       document.getElementById("input-contact-discord").value = c.discord || "";
       document.getElementById("input-contact-email").value = c.email || "";
       showInlineStatus("status-contacts", "", "info");
-      formContacts.hidden = false;
+      dialogContacts.showModal();
     });
-    document.getElementById("cancel-contacts-btn").addEventListener("click", function () {
-      formContacts.hidden = true;
-    });
-    formContacts.addEventListener("submit", async function (e) {
+    document.getElementById("form-contacts").addEventListener("submit", async function (e) {
       e.preventDefault();
       var contact = {
         website: document.getElementById("input-contact-website").value.trim(),
@@ -813,23 +893,18 @@
       }
       currentProfile = res.data.profile;
       renderContact(currentProfile.contact);
-      formContacts.hidden = true;
+      dialogContacts.close("save");
     });
   }
 
   function wireMentorTestimonialControls() {
-    var form = document.getElementById("form-testimonial");
+    var dialogTestimonial = document.getElementById("dialog-testimonial");
     document.getElementById("testimonial-add-btn").addEventListener("click", function () {
-      form.hidden = !form.hidden;
+      document.getElementById("input-testimonial-content").value = "";
       showInlineStatus("status-testimonial", "", "info");
-      if (!form.hidden) {
-        document.getElementById("input-testimonial-content").focus();
-      }
+      dialogTestimonial.showModal();
     });
-    document.getElementById("cancel-testimonial-btn").addEventListener("click", function () {
-      form.hidden = true;
-    });
-    form.addEventListener("submit", async function (e) {
+    document.getElementById("form-testimonial").addEventListener("submit", async function (e) {
       e.preventDefault();
       var content = document.getElementById("input-testimonial-content").value.trim();
       var res = await window.sclApi.community.addTestimonial(currentProfile.public_id, content);
@@ -837,14 +912,14 @@
         showInlineStatus("status-testimonial", res.error.message, "danger");
         return;
       }
-      document.getElementById("input-testimonial-content").value = "";
-      form.hidden = true;
+      dialogTestimonial.close("save");
       currentProfile.testimonials = [res.data.testimonial].concat(currentProfile.testimonials || []);
       renderTestimonials(currentProfile);
     });
   }
 
   async function loadProfile() {
+    wireDialogCloseButtons();
     var publicId = resolveProfileId();
     if (!publicId) {
       showStatus("Community profile not found.", "warning");
@@ -858,9 +933,11 @@
       return;
     }
     isOwner = Boolean(result.data && result.data.is_owner === true);
+    canEdit = Boolean(result.data && (result.data.can_edit === true || isOwner));
+    allowedRoles = Array.isArray(result.data && result.data.allowed_roles) ? result.data.allowed_roles : [];
     canAddTestimonial = Boolean(result.data && result.data.can_add_testimonial === true);
     renderProfile(result.data.profile);
-    if (isOwner) {
+    if (canEdit) {
       wireOwnerControls();
     }
     if (canAddTestimonial) {

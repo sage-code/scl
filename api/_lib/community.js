@@ -11,6 +11,7 @@ const MAX_PROJECT_DESC = 200;
 const MAX_PARAGRAPHS = 5;
 const MAX_PARAGRAPH_HEADING = 80;
 const MAX_PARAGRAPH_BODY = 1000;
+const VALID_ROLES = ["Student", "Developer", "Mentor", "Instructor"];
 
 const TRACK_LABELS = {
   ada: "Ada", assembly: "Assembly", bash: "Bash", c: "C", cpp: "C++",
@@ -132,6 +133,7 @@ function validateProfile(body) {
   const projects = body.projects.map((project) => {
     const name = typeof project.name === "string" ? project.name.trim() : "";
     const href = typeof project.url === "string" ? project.url.trim() : "";
+    const repoHref = typeof project.repo_url === "string" ? project.repo_url.trim() : "";
     const description = typeof project.description === "string" ? project.description.trim() : "";
     if (!name || name.length > 80 || href.length > 500) {
       throw new HttpError(400, "Each project needs a name of at most 80 characters and a valid HTTPS URL.");
@@ -139,8 +141,15 @@ function validateProfile(body) {
     if (description.length > MAX_PROJECT_DESC) {
       throw new HttpError(400, `Project description must be ${MAX_PROJECT_DESC} characters or fewer.`);
     }
-    const url = validateHttpsUrl(href, "Project link");
-    return description ? { name, url, description } : { name, url };
+    const url = validateHttpsUrl(href, "Project homepage link");
+    const out = { name, url };
+    if (repoHref) {
+      out.repo_url = validateHttpsUrl(repoHref, "Project repository link");
+    }
+    if (description) {
+      out.description = description;
+    }
+    return out;
   });
 
   if (typeof body.publish !== "boolean") {
@@ -150,10 +159,10 @@ function validateProfile(body) {
   let role;
   if (body.role !== undefined) {
     role = typeof body.role === "string" ? body.role.trim() : "";
-    if (role.length > 80) {
-      throw new HttpError(400, "Role must be 80 characters or fewer.");
+    if (role && VALID_ROLES.indexOf(role) === -1) {
+      throw new HttpError(400, "Role must be Student, Developer, Mentor, or Instructor.");
     }
-    role = role || "Student";
+    role = role || undefined;
   }
 
   let certificationLabel;
@@ -414,26 +423,68 @@ async function listTestimonials(targetUserId, viewerUserId) {
   }
 }
 
-async function isMentorUser(userId) {
-  if (!userId) return false;
+async function getViewerRoleInfo(userId) {
+  if (!userId) {
+    return { isAdmin: false, role: null, isLegacyVerified: false };
+  }
+  let isAdmin = false;
   try {
     const userRes = await getDb().execute({
       sql: "select is_admin from users where id = ? limit 1",
       args: [userId]
     });
-    if (userRes.rows[0] && Number(userRes.rows[0].is_admin) === 1) {
-      return true;
-    }
+    isAdmin = Boolean(userRes.rows[0] && Number(userRes.rows[0].is_admin) === 1);
   } catch (_error) {
     // Older test schemas may omit users.is_admin.
   }
-  const result = await getDb().execute({
+  const memberRes = await getDb().execute({
     sql: "select role, is_legacy_verified from community_members where user_id = ? limit 1",
     args: [userId]
   });
+  const row = memberRes.rows[0];
+  return {
+    isAdmin,
+    role: row ? (row.role || "Student") : null,
+    isLegacyVerified: Boolean(row && Number(row.is_legacy_verified) === 1)
+  };
+}
+
+function getAllowedRolesForEdit(viewerInfo, isOwner, targetRole) {
+  if (viewerInfo.isAdmin || viewerInfo.role === "Instructor") {
+    return VALID_ROLES.slice();
+  }
+  if (!isOwner && viewerInfo.role === "Mentor" && targetRole === "Student") {
+    return ["Student", "Developer"];
+  }
+  return [];
+}
+
+function canEditProfile(viewerInfo, isOwner, targetRole) {
+  if (isOwner) return true;
+  if (viewerInfo.isAdmin || viewerInfo.role === "Instructor") return true;
+  if (viewerInfo.role === "Mentor" && targetRole === "Student") return true;
+  return false;
+}
+
+async function isMentorUser(userId) {
+  const info = await getViewerRoleInfo(userId);
+  if (info.isAdmin || info.isLegacyVerified) return true;
+  const r = String(info.role || "").trim().toLowerCase();
+  return r === "mentor" || r === "instructor";
+}
+
+async function getMemberByPublicId(publicId) {
+  const result = await getDb().execute({
+    sql: `select user_id, public_id, display_name, avatar_url, bio, country_code, projects_json,
+                 contact_json, paragraphs_json, qualified_track, qualified_topic, is_published,
+                 claimed_at, created_at, updated_at, role, certification_label, certificate_url,
+                 member_since, is_legacy_verified
+          from community_members where public_id = ? limit 1`,
+    args: [publicId]
+  });
   const row = result.rows[0];
-  if (!row) return false;
-  return String(row.role || "").trim().toLowerCase() === "mentor" || Number(row.is_legacy_verified) === 1;
+  if (!row) return null;
+  return { user_id: row.user_id, member: memberFromRow(row) };
 }
 
 async function addTestimonial(authorUserId, targetPublicId, rawContent) {
@@ -514,6 +565,10 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
     return null;
   }
   const isOwner = Boolean(viewerUserId && row.user_id === viewerUserId);
+  const viewerInfo = await getViewerRoleInfo(viewerUserId);
+  const targetRole = row.role || "Student";
+  const canEdit = canEditProfile(viewerInfo, isOwner, targetRole);
+  const allowedRoles = getAllowedRolesForEdit(viewerInfo, isOwner, targetRole);
   const canAddTestimonial = await isMentorUser(viewerUserId);
   const qualifiedTracks = await getQualifiedTracks({
     id: row.user_id,
@@ -525,6 +580,8 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
     return {
       profile: publicMemberFromRow(row, qualifiedTracks, testimonials),
       is_owner: isOwner,
+      can_edit: canEdit,
+      allowed_roles: allowedRoles,
       can_add_testimonial: canAddTestimonial
     };
   }
@@ -534,6 +591,8 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
     ? {
         profile: publicMemberFromRow(row, qualifiedTracks, testimonials),
         is_owner: isOwner,
+        can_edit: canEdit,
+        allowed_roles: allowedRoles,
         can_add_testimonial: canAddTestimonial
       }
     : null;
@@ -647,9 +706,14 @@ module.exports = {
   MAX_BIO_LENGTH,
   MAX_PROJECTS,
   MAX_PARAGRAPHS,
+  VALID_ROLES,
   validateProfile,
   getQualifiedTracks,
   getMember,
+  getMemberByPublicId,
+  getViewerRoleInfo,
+  getAllowedRolesForEdit,
+  canEditProfile,
   getPublicMember,
   getPublicMemberWithOwnership,
   listPublishedMembers,

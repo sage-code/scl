@@ -88,6 +88,11 @@
     var cancelBtn = document.getElementById("avatar-crop-cancel");
     var metaEl = document.getElementById("avatar-crop-meta");
 
+    var zoomOutBtn = document.getElementById("avatar-crop-zoom-out");
+    var zoomInBtn = document.getElementById("avatar-crop-zoom-in");
+    var MIN_ZOOM = 0.25;
+    var MAX_ZOOM = 4;
+
     if (!dialog || !canvas || !zoomInput || !saveBtn) {
       return null;
     }
@@ -111,8 +116,8 @@
     function clampPan() {
       var drawW = state.baseW * state.zoom;
       var drawH = state.baseH * state.zoom;
-      var maxPanX = Math.max(0, (drawW - PREVIEW_SIZE) / 2);
-      var maxPanY = Math.max(0, (drawH - PREVIEW_SIZE) / 2);
+      var maxPanX = Math.max(40, Math.abs(drawW - PREVIEW_SIZE) / 2);
+      var maxPanY = Math.max(40, Math.abs(drawH - PREVIEW_SIZE) / 2);
       state.panX = Math.max(-maxPanX, Math.min(maxPanX, state.panX));
       state.panY = Math.max(-maxPanY, Math.min(maxPanY, state.panY));
     }
@@ -165,18 +170,35 @@
       draw();
     }
 
-    zoomInput.addEventListener("input", function () {
-      state.zoom = Math.max(1, Math.min(4, Number(zoomInput.value) || 1));
+    function setZoom(nextZoom) {
+      state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number(nextZoom.toFixed(2))));
+      zoomInput.value = String(state.zoom);
       draw();
+    }
+
+    zoomInput.addEventListener("input", function () {
+      setZoom(Number(zoomInput.value) || 1);
     });
+
+    if (zoomOutBtn) {
+      zoomOutBtn.addEventListener("click", function () {
+        if (!currentImg) return;
+        setZoom(state.zoom - 0.15);
+      });
+    }
+
+    if (zoomInBtn) {
+      zoomInBtn.addEventListener("click", function () {
+        if (!currentImg) return;
+        setZoom(state.zoom + 0.15);
+      });
+    }
 
     canvas.addEventListener("wheel", function (event) {
       if (!currentImg) return;
       event.preventDefault();
       var delta = event.deltaY < 0 ? 0.12 : -0.12;
-      state.zoom = Math.max(1, Math.min(4, Number((state.zoom + delta).toFixed(2))));
-      zoomInput.value = String(state.zoom);
-      draw();
+      setZoom(state.zoom + delta);
     }, { passive: false });
 
     canvas.addEventListener("pointerdown", function (event) {
