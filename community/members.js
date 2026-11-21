@@ -86,8 +86,8 @@
     return {
       public_id: member.public_id,
       name: member.display_name,
-      role: member.role || 'VCP Graduate',
-      certification: member.certification_label || (trackName(member.qualified_track) + ' roadmap'),
+      role: member.role || 'Student',
+      certification: member.certification_label || (member.qualified_track ? (trackName(member.qualified_track) + ' roadmap') : '—'),
       since: sinceValue,
       avatar_url: member.avatar_url
     };
@@ -120,9 +120,9 @@
 
     var result = await window.sclApi.community.directory();
     if (result.error) {
-      errors.push('VCP graduate directory could not be loaded: ' + result.error.message);
+      errors.push('Community directory could not be loaded: ' + result.error.message);
     } else if (!result.data || !Array.isArray(result.data.members)) {
-      errors.push('VCP directory returned an invalid response.');
+      errors.push('Community directory returned an invalid response.');
     } else {
       graduateMembers = result.data.members
         .filter(function (member) {
@@ -140,9 +140,9 @@
     if (errors.length) {
       setStatus(errors.join(' '), 'warning');
     } else if (graduateMembers.length === 0) {
-      setStatus('No exam-qualified VCP profiles are listed yet.', 'info');
+      setStatus('No community profiles are listed yet.', 'info');
     } else {
-      setStatus(graduateMembers.length + ' exam-qualified VCP profile(s) listed.', 'success');
+      setStatus(graduateMembers.length + ' community member(s) listed.', 'success');
     }
   }
 

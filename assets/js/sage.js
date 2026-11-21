@@ -264,12 +264,9 @@ function generateBreadcrumbs() {
         // 1. Permanent Home Link
         let html = `<a href="${MAIN_HUB}"><i class="bi bi-house-door"></i> HOME</a>`;
         
-        // 2. Inject Virtual Path for VIP pages
+        // 2. Inject Virtual Path for community profile pages
         if (isVIP) {
-            // Community link points to .pro
             html += ` <span class="sep">/</span> <a href="${MAIN_HUB}/community/">COMMUNITY</a>`;
-            // Verified contributor hub link points to the root of .vip (since /vip folder doesn't exist on .pro)
-            html += ` <span class="sep">/</span> <a href="${VIP_HUB}">VERIFIED CONTRIBUTOR</a>`;
         }
 
         // 3. Process current site's segments

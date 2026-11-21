@@ -91,7 +91,7 @@ module.exports = handle(async (req, res) => {
           topic: existingMember.qualified_topic || ""
         };
       } else {
-        throw new HttpError(403, "Pass quiz sets A, B, and C for a roadmap before claiming VCP authentication.");
+        throw new HttpError(403, "Pass quiz sets A, B, and C for a roadmap to publish a community profile.");
       }
     }
   }

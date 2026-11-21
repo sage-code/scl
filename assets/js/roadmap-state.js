@@ -274,6 +274,10 @@
       elements.email.value = registered ? (state.user.email || "") : "";
     }
 
+    if (elements.country_code) {
+      elements.country_code.value = registered ? (state.user.country_code || "") : "";
+    }
+
     if (elements.password) {
       elements.password.value = "";
     }

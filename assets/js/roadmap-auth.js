@@ -507,14 +507,21 @@
       return user && user.handle ? user.handle : "";
     }
 
+    function initialCountryCode() {
+      var user = currentUser();
+      return user && user.country_code ? String(user.country_code).toUpperCase() : "";
+    }
+
     function refreshActionButtons() {
       var user = currentUser();
       var currentHandle = getValue(form, "handle");
+      var currentCountry = getValue(form, "country_code").toUpperCase();
       var password = getRaw(form, "password");
       var confirmPassword = getRaw(form, "confirm_password");
       var handleChanged = !!currentHandle && currentHandle !== initialHandle();
+      var countryChanged = isRegistered() && currentCountry !== initialCountryCode();
       var passwordReady = isRegistered() && !passwordProblem(password, confirmPassword);
-      var enabled = !!user && (handleChanged || passwordReady);
+      var enabled = !!user && (handleChanged || countryChanged || passwordReady);
 
       if (updateButton) {
         updateButton.disabled = !enabled;
@@ -554,7 +561,7 @@
       });
     }
 
-    ["handle", "password", "confirm_password"].forEach(function (name) {
+    ["handle", "country_code", "password", "confirm_password"].forEach(function (name) {
       if (form.elements[name]) {
         form.elements[name].addEventListener("input", refreshActionButtons);
       }
@@ -665,6 +672,7 @@
         }
 
         var handle = getValue(form, "handle");
+        var countryCode = getValue(form, "country_code").toUpperCase();
         var password = getRaw(form, "password");
         var confirmPassword = getRaw(form, "confirm_password");
         var changes = {};
@@ -676,6 +684,13 @@
         if (handle !== initialHandle()) {
           changes.handle = handle;
         }
+        if (isRegistered() && countryCode !== initialCountryCode()) {
+          if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) {
+            setStatus(status, "Country of origin must be a 2-letter ISO code (e.g. US, GB, RO).", "warning");
+            return;
+          }
+          changes.country_code = countryCode;
+        }
         if (isRegistered() && (password || confirmPassword)) {
           var problem = passwordProblem(password, confirmPassword);
           if (problem) {
@@ -684,7 +699,7 @@
           }
           changes.password = password;
         }
-        if (!changes.handle && !changes.password) {
+        if (!changes.handle && changes.country_code === undefined && !changes.password) {
           setStatus(status, "No changes to save.", "warning");
           return;
         }
@@ -700,7 +715,7 @@
         applyUser(result.data.user);
         setStatus(status, changes.password
           ? "Profile updated. Other devices were signed out because the password changed."
-          : "Username updated.", "success");
+          : "Profile updated.", "success");
         refreshActionButtons();
       });
     }

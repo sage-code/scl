@@ -590,6 +590,20 @@ const actions = {
       );
     }
 
+    if (body.country_code !== undefined) {
+      if (Number(user.is_anonymous) === 1) {
+        throw new HttpError(403, "Sign in with a registered account before setting your country of origin.");
+      }
+      const rawCountry = String(body.country_code || "").trim().toUpperCase();
+      if (rawCountry && !/^[A-Z]{2}$/.test(rawCountry)) {
+        throw new HttpError(400, "Country of origin must be a 2-letter ISO code (e.g. US, GB, RO).");
+      }
+      statements.push({
+        sql: "update community_members set country_code = ?, updated_at = ? where user_id = ?",
+        args: [rawCountry || null, now, user.id]
+      });
+    }
+
     if (statements.length === 0) {
       throw new HttpError(400, "No changes to save.");
     }
@@ -603,7 +617,22 @@ const actions = {
       throw error;
     }
 
-    const updated = (await db.execute({ sql: "select * from users where id = ?", args: [user.id] })).rows[0];
+    let updated;
+    try {
+      updated = (await db.execute({
+        sql: `select u.*,
+                     c.role as community_role,
+                     c.public_id as community_public_id,
+                     c.country_code as community_country_code,
+                     coalesce(u.avatar_url, c.avatar_url) as avatar_url
+              from users u
+              left join community_members c on c.user_id = u.id
+              where u.id = ?`,
+        args: [user.id]
+      })).rows[0];
+    } catch (_error) {
+      updated = (await db.execute({ sql: "select * from users where id = ?", args: [user.id] })).rows[0];
+    }
     sendJson(res, 200, { user: S.publicUser(updated) });
   },
 

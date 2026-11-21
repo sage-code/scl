@@ -62,6 +62,7 @@ function publicUser(row) {
     avatar_url: row.avatar_url || null,
     role: row.community_role || row.role || "Student",
     community_public_id: row.community_public_id || null,
+    country_code: row.community_country_code || row.country_code || "",
     is_anonymous: Number(row.is_anonymous) === 1,
     is_admin: Number(row.is_admin) === 1,
     email_verified: !!row.email_verified_at,
@@ -97,6 +98,7 @@ async function readSession(req) {
       sql: `select u.*,
                    c.role as community_role,
                    c.public_id as community_public_id,
+                   c.country_code as community_country_code,
                    coalesce(u.avatar_url, c.avatar_url) as avatar_url
             from sessions s
             join users u on u.id = s.user_id

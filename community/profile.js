@@ -115,23 +115,6 @@
     return payload;
   }
 
-  function renderVcpStatus(profile) {
-    var badge = document.getElementById("profile-vcp-status");
-    var certs = Array.isArray(profile.certificates) ? profile.certificates : [];
-    var verified = Boolean(profile.vcp_verified || profile.is_legacy_verified || certs.length > 0 || profile.certificate_url);
-    badge.replaceChildren();
-    if (verified) {
-      badge.className = "badge bg-success-subtle text-success-emphasis border border-success-subtle";
-      var icon = document.createElement("i");
-      icon.className = "bi bi-patch-check-fill me-1";
-      icon.setAttribute("aria-hidden", "true");
-      badge.append(icon, document.createTextNode("VCP Verified"));
-    } else {
-      badge.className = "badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle";
-      badge.textContent = "VCP Unverified";
-    }
-  }
-
   function countryName(countryCode) {
     if (typeof countryCode !== "string" || !/^[A-Z]{2}$/.test(countryCode)) {
       return "";
@@ -151,11 +134,10 @@
     titleEl.textContent = profile.display_name;
     document.title = profile.display_name + " | Sage-Code Community";
     document.getElementById("profile-role").textContent = profile.role || "Student";
-    renderVcpStatus(profile);
 
     var originEl = document.getElementById("profile-origin");
     if (profile.country_code) {
-      originEl.textContent = "From: " + countryFlag(profile.country_code) + " " + countryName(profile.country_code);
+      originEl.textContent = countryFlag(profile.country_code) + " " + countryName(profile.country_code);
       originEl.hidden = false;
     } else {
       originEl.textContent = "";

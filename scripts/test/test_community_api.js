@@ -353,7 +353,6 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
   assert.equal(ownerView.body.is_owner, true);
   assert.equal(ownerView.body.profile.role, "Student");
   assert.equal(ownerView.body.profile.education, "B.S. in Computer Science");
-  assert.equal(ownerView.body.profile.vcp_verified, true);
   assert.equal(ownerView.body.profile.contact.github, "https://github.com/testuser");
   assert.equal(ownerView.body.profile.paragraphs[0].heading, "Experience");
   assert.equal(ownerView.body.profile.projects[0].description, "Demo project");

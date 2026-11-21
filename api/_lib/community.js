@@ -400,7 +400,6 @@ function publicMemberFromRow(row, qualifiedTracks, testimonials) {
     certificate_url: member.certificate_url,
     certificates,
     testimonials: testimonials || [],
-    vcp_verified: member.is_legacy_verified || certificates.length > 0,
     member_since: member.member_since,
     is_legacy_verified: member.is_legacy_verified,
     claimed_at: member.claimed_at
