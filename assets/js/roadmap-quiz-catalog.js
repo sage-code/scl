@@ -732,6 +732,126 @@
         title: "PGP Engineering Practice",
         description: "Evaluate multi-paradigm hybrid design (Julia, Rust, C#, Scala, Kotlin, Swift, F#), Functional Core/Imperative Shell, and type trade-offs."
       }
+    ],
+    tek: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "TechOps Foundations",
+        description: "Review SLIs/SLOs/SLAs, Linux permissions, systemd, Bash safety, TCP/IP, DNS, HTTP/TLS, and networking diagnostics."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "TechOps Applied Practice",
+        description: "Apply CI/CD gates, blue-green/canary rollouts, containers vs VMs, multi-stage builds, IaC state locking, IAM, and cloud cost controls."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "TechOps Engineering Practice",
+        description: "Evaluate metrics/logs/traces, Golden Signals, blameless postmortems, error budgets, circuit breakers, secret rotation, and hardening."
+      }
+    ],
+    dba: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "DBA Foundations",
+        description: "Review SQL statement families, normalization, keys and constraints, B-tree indexes, ACID properties, least-privilege roles, and RPO/RTO."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "DBA Applied Practice",
+        description: "Apply joins, CTEs, window functions, upserts, composite/partial/expression indexes, EXPLAIN buffers, isolation levels, RLS, and PITR."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "DBA Engineering Practice",
+        description: "Evaluate plan regressions, lock contention, expand-and-contract migrations, partitioning, replication lag, pooling, and capacity planning."
+      }
+    ],
+    sml: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "SML Foundations",
+        description: "Review data lifecycles, distributions, encoding, train/test splits, overfitting, precision/recall, and data governance."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "SML Applied Practice",
+        description: "Apply leak-free pipelines, stratification, tree ensembles, A/B testing, regularization, PR-AUC, and cross-validation."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "SML Engineering Practice",
+        description: "Evaluate feature stores, point-in-time joins, drift monitoring, shadow/canary rollouts, fairness slices, and LLM guardrails."
+      }
+    ],
+    hpc: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "HPC Foundations",
+        description: "Review CPU caches, GPUs/VRAM, PCIe vs SATA, NVMe vs HDD, ECC memory, PSUs/UPS, RAID vs backups, and L2/L3 networking."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "HPC Applied Practice",
+        description: "Apply NUMA awareness, RAID trade-offs, thermal/power diagnostics, SMART/ethtool checks, jumbo frames, and hardware burn-in."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "HPC Engineering Practice",
+        description: "Evaluate 2N power redundancy, EDAC/AER fault triage, P2P GPU topology, ZFS scrubs, immutability, Redfish isolation, and TCO."
+      }
+    ],
+    osd: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "OSD Foundations",
+        description: "Review OSI licenses, community health files, fork/PR workflow, SemVer, changelogs, CI test layers, and private security reporting."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "OSD Applied Practice",
+        description: "Apply git bisect, constructive reviews, scoped stale triage, pinned CI actions, cherry-pick backports, and Diátaxis docs."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "OSD Engineering Practice",
+        description: "Evaluate coordinated CVE disclosure, supply-chain SBOMs, bus-factor governance, RFCs, reproducible builds, and maintainer handovers."
+      }
+    ],
+    dsl: [
+      {
+        level: "A",
+        topic: "fundamentals",
+        title: "DSL Foundations",
+        description: "Review external vs internal DSLs, lexers/parsers, EBNF, ASTs vs CSTs, scoping, semantic analysis, IR/SSA, and declarative DSLs."
+      },
+      {
+        level: "B",
+        topic: "fundamentals",
+        title: "DSL Applied Practice",
+        description: "Apply associativity, Pratt/LR parsing, stack vs register VMs, safe optimizations, Verilog/Triton/Julia/Clingo models, and TCO."
+      },
+      {
+        level: "C",
+        topic: "fundamentals",
+        title: "DSL Engineering Practice",
+        description: "Evaluate span-based recovery, LSP/query compilers, multi-level IR, sandboxed metering, AOT vs JIT, and differential/fuzz testing."
+      }
     ]
   };
   const trackTitles = {
@@ -770,7 +890,13 @@
     odin: "Odin",
     cse: "CSE",
     dsa: "DSA",
-    pgp: "PGP"
+    pgp: "PGP",
+    tek: "TechOps",
+    dba: "DBA",
+    sml: "SML",
+    hpc: "HPC",
+    osd: "OSD",
+    dsl: "DSL"
   };
 
   function titleCase(track) {

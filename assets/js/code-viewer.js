@@ -210,6 +210,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // grammar only adds JSX-aware tagging, and demo sources here are plain .ts.
     langMap['ts'] = 'typescript';
     langMap['tsx'] = 'typescript';
+    // DSL roadmap (roadmap/dsl/demo/) extensions mapped to bundled Prism grammars
+    langMap['ml'] = 'ocaml';
+    langMap['mli'] = 'ocaml';
+    langMap['clj'] = 'clojure';
+    langMap['cljs'] = 'clojure';
+    langMap['r'] = 'r';
+    langMap['ll'] = 'llvm';
+    langMap['rkt'] = 'lisp';
+    langMap['lp'] = 'prolog';
+    langMap['dl'] = 'prolog';
+    langMap['g4'] = 'clike';
+    langMap['v'] = 'clike';
+    langMap['mzn'] = 'clike';
     // EVE — custom grammar loaded via prism-loader.js (component file)
     langMap['eve'] = 'eve';
 

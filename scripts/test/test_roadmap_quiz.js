@@ -144,6 +144,24 @@ const dsaQuizzes = quizFiles
 const pgpQuizzes = quizFiles
   .filter((file) => path.relative(roadmapRoot, file).startsWith(`pgp${path.sep}quiz${path.sep}`))
   .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const tekQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`tek${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const dbaQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`dba${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const smlQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`sml${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const hpcQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`hpc${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const osdQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`osd${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
+const dslQuizzes = quizFiles
+  .filter((file) => path.relative(roadmapRoot, file).startsWith(`dsl${path.sep}quiz${path.sep}`))
+  .map((file) => withAnswerKey(JSON.parse(fs.readFileSync(file, "utf8"))));
 
 function withAnswerKey(publicData) {
   const privateSet = answerKeys[publicData.id];
@@ -352,6 +370,30 @@ test("each DSA quiz has 42 questions, brief code examples, and varied response f
 
 test("each PGP quiz has 42 questions, brief code examples, and varied response formats", () => {
   assertCompleteQuizSeries(pgpQuizzes, "pgp", "fundamentals", "python", 1);
+});
+
+test("each TEK quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(tekQuizzes, "tek", "fundamentals", "bash", 1);
+});
+
+test("each DBA quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(dbaQuizzes, "dba", "fundamentals", "sql", 1);
+});
+
+test("each SML quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(smlQuizzes, "sml", "fundamentals", "python", 1);
+});
+
+test("each HPC quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(hpcQuizzes, "hpc", "fundamentals", "bash", 1);
+});
+
+test("each OSD quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(osdQuizzes, "osd", "fundamentals", "bash", 1);
+});
+
+test("each DSL quiz has 42 questions, brief code examples, and varied response formats", () => {
+  assertCompleteQuizSeries(dslQuizzes, "dsl", "fundamentals", "ocaml", 1);
 });
 
 for (const file of quizFiles) {

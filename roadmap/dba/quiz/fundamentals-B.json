@@ -1,0 +1,1051 @@
+{
+  "schemaVersion": 1,
+  "id": "dba-fundamentals-B",
+  "revision": 1,
+  "name": "DBA Applied Practice: B",
+  "track": "dba",
+  "topic": "fundamentals",
+  "level": "B",
+  "pointsPossible": 60,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "In this query, why is `WHERE` placed **before** `GROUP BY`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It filters individual rows before grouping, reducing the work `GROUP BY` and `COUNT` must do"
+        },
+        {
+          "id": "b",
+          "text": "`WHERE` can only filter aggregate results like `COUNT(*)`"
+        },
+        {
+          "id": "c",
+          "text": "SQL executes `GROUP BY` before `FROM`"
+        },
+        {
+          "id": "d",
+          "text": "It sorts the final output"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "SELECT status, COUNT(*) FROM orders\nWHERE created_at >= '2026-01-01'\nGROUP BY status;"
+      }
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "What does `ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC)` compute?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The global average salary"
+        },
+        {
+          "id": "b",
+          "text": "A sequential 1, 2, 3... rank within each department ordered from highest to lowest salary"
+        },
+        {
+          "id": "c",
+          "text": "Only the top 1 department"
+        },
+        {
+          "id": "d",
+          "text": "A `GROUP BY` summary collapsing rows"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "SELECT name, dept,\n  ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) AS rn\nFROM employees;"
+      }
+    },
+    {
+      "id": "q003",
+      "type": "matrix",
+      "prompt": "Match each PostgreSQL index type to its best use case.",
+      "rows": [
+        {
+          "id": "partial",
+          "label": "Partial Index (`WHERE ...`)"
+        },
+        {
+          "id": "expr",
+          "label": "Expression Index (`ON tbl (lower(email))`)"
+        },
+        {
+          "id": "gin",
+          "label": "GIN Index"
+        }
+      ],
+      "columns": [
+        {
+          "id": "subset",
+          "label": "Indexing only a small active subset of rows (e.g., `WHERE status = 'pending'`)"
+        },
+        {
+          "id": "func",
+          "label": "Accelerating case-insensitive or computed predicates matching the exact expression"
+        },
+        {
+          "id": "jsonb",
+          "label": "Indexing keys/elements inside `JSONB`, arrays, or full-text `tsvector` columns"
+        }
+      ],
+      "selectionByRow": {
+        "partial": "single",
+        "expr": "single",
+        "gin": "single"
+      }
+    },
+    {
+      "id": "q004",
+      "type": "single-choice",
+      "prompt": "Why does a composite index on `(status, created_at)` NOT efficiently serve a query filtering **only** on `created_at`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Composite indexes only work on strings"
+        },
+        {
+          "id": "b",
+          "text": "PostgreSQL forbids `created_at` in indexes"
+        },
+        {
+          "id": "c",
+          "text": "B-tree keys are ordered by the leading column (`status`) first, so `created_at` values are scattered across every `status`"
+        },
+        {
+          "id": "d",
+          "text": "Composite indexes cannot be used with `ORDER BY`"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "type": "multi-select",
+      "prompt": "Which changes make a slow `WHERE lower(email) = lower($1)` query able to use an index? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Create an expression index `ON users (lower(email))`"
+        },
+        {
+          "id": "b",
+          "text": "Use PostgreSQL `citext` or case-insensitive collation with a standard index"
+        },
+        {
+          "id": "c",
+          "text": "Store normalized lowercase emails and query `WHERE email = $1`"
+        },
+        {
+          "id": "d",
+          "text": "Add `LIMIT 100000`"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "What does `INSERT INTO cfg (k, v) VALUES ('ttl', '60') ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v;` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Fails if `'ttl'` already exists"
+        },
+        {
+          "id": "b",
+          "text": "Deletes the entire `cfg` table"
+        },
+        {
+          "id": "c",
+          "text": "Inserts a duplicate row"
+        },
+        {
+          "id": "d",
+          "text": "Inserts `'ttl'` if absent, or atomically updates `v` using the proposed `EXCLUDED` value if `'ttl'` exists"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "INSERT INTO cfg (k, v) VALUES ('ttl', '60')\nON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v;"
+      }
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "Under `READ COMMITTED` (PostgreSQL's default isolation level), what happens if two concurrent transactions update the same row?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The second transaction waits for the first to commit or roll back, then re-evaluates its `WHERE` clause on the updated row"
+        },
+        {
+          "id": "b",
+          "text": "Both overwrite each other silently without locking"
+        },
+        {
+          "id": "c",
+          "text": "PostgreSQL crashes"
+        },
+        {
+          "id": "d",
+          "text": "The database switches to `SERIALIZABLE` automatically"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "What is a **non-repeatable read**?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Reading a table that does not exist"
+        },
+        {
+          "id": "b",
+          "text": "Reading the same row twice inside one transaction and seeing different committed values because another transaction committed an update in between"
+        },
+        {
+          "id": "c",
+          "text": "A syntax error in `SELECT`"
+        },
+        {
+          "id": "d",
+          "text": "A failed backup"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "In `EXPLAIN (ANALYZE, BUFFERS)`, what does a huge gap between `actual rows` and `estimated rows` usually indicate?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Disk failure"
+        },
+        {
+          "id": "b",
+          "text": "Missing `COMMIT`"
+        },
+        {
+          "id": "c",
+          "text": "Stale table statistics or correlated columns where `ANALYZE` / extended statistics are needed"
+        },
+        {
+          "id": "d",
+          "text": "Too many comments in the SQL"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "type": "multi-select",
+      "prompt": "Which `JOIN` strategies can PostgreSQL's planner choose between? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nested Loop Join"
+        },
+        {
+          "id": "b",
+          "text": "Hash Join"
+        },
+        {
+          "id": "c",
+          "text": "Merge Join"
+        },
+        {
+          "id": "d",
+          "text": "Bubble Sort Join"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "Why is **keyset (cursor) pagination** (`WHERE id > $last_id ORDER BY id LIMIT 20`) faster than large `OFFSET` pagination?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It disables sorting"
+        },
+        {
+          "id": "b",
+          "text": "`OFFSET 100000` still scans and discards 100,000 rows, whereas keyset pagination jumps directly via the index"
+        },
+        {
+          "id": "c",
+          "text": "It returns random rows"
+        },
+        {
+          "id": "d",
+          "text": "It avoids using indexes"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "SELECT id, title FROM articles\nWHERE id > $1\nORDER BY id LIMIT 20;"
+      }
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What does **Row-Level Security (RLS)** in PostgreSQL enforce?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Column encryption with AES-256"
+        },
+        {
+          "id": "b",
+          "text": "Automatic table partitioning"
+        },
+        {
+          "id": "c",
+          "text": "Per-row visibility and modification policies evaluated by the database engine for non-bypass roles"
+        },
+        {
+          "id": "d",
+          "text": "Faster `TRUNCATE`"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "matrix",
+      "prompt": "Match each PostgreSQL `VACUUM` concept to its purpose.",
+      "rows": [
+        {
+          "id": "dead",
+          "label": "Dead tuples"
+        },
+        {
+          "id": "autovac",
+          "label": "Autovacuum"
+        },
+        {
+          "id": "freeze",
+          "label": "Transaction ID wraparound freeze"
+        }
+      ],
+      "columns": [
+        {
+          "id": "mvcc",
+          "label": "Obsolete row versions left behind by `UPDATE`/`DELETE` under MVCC"
+        },
+        {
+          "id": "reclaim",
+          "label": "Background worker that reclaims dead-tuple space and updates visibility maps"
+        },
+        {
+          "id": "xid",
+          "label": "Marks old tuples as permanently visible so 32-bit XIDs do not wrap around"
+        }
+      ],
+      "selectionByRow": {
+        "dead": "single",
+        "autovac": "single",
+        "freeze": "single"
+      }
+    },
+    {
+      "id": "q014",
+      "type": "single-choice",
+      "prompt": "Why does `WHERE created_at::date = '2026-11-21'` often prevent using a B-tree index on `created_at`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Dates cannot be compared in SQL"
+        },
+        {
+          "id": "b",
+          "text": "Casting the column wraps it in a function/expression that doesn't match the raw `created_at` index"
+        },
+        {
+          "id": "c",
+          "text": "Only `VARCHAR` columns can be indexed"
+        },
+        {
+          "id": "d",
+          "text": "It triggers a deadlock"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "SELECT * FROM events\nWHERE created_at >= '2026-11-21'\n  AND created_at <  '2026-11-22';"
+      }
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "What does `CREATE INDEX CONCURRENTLY` do differently from standard `CREATE INDEX` in PostgreSQL?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It builds the index without holding a lock that blocks concurrent `INSERT`/`UPDATE`/`DELETE` writes"
+        },
+        {
+          "id": "b",
+          "text": "It builds the index twice as fast using 0 memory"
+        },
+        {
+          "id": "c",
+          "text": "It skips checking unique constraints"
+        },
+        {
+          "id": "d",
+          "text": "It can run inside a `BEGIN ... COMMIT` block"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "type": "multi-select",
+      "prompt": "Which causes can lead to **table or index bloat** in PostgreSQL? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Long-running idle-in-transaction sessions holding back the MVCC horizon"
+        },
+        {
+          "id": "b",
+          "text": "Frequent `UPDATE`/`DELETE` churn with autovacuum disabled or throttled too aggressively"
+        },
+        {
+          "id": "c",
+          "text": "Frequent `SELECT` queries on a read-only table"
+        },
+        {
+          "id": "d",
+          "text": "Bulk deletes without subsequent `VACUUM` or `pg_repack`"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "In PostgreSQL **Point-in-Time Recovery (PITR)**, what two artifacts are required to restore a cluster to an exact timestamp?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Only `postgresql.conf`"
+        },
+        {
+          "id": "b",
+          "text": "A base physical backup (`pg_basebackup`) plus archived WAL segments covering up to the target time"
+        },
+        {
+          "id": "c",
+          "text": "Only `pg_stat_activity` output"
+        },
+        {
+          "id": "d",
+          "text": "A CSV export of one table"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What is the effect of `SELECT ... FOR UPDATE` inside a transaction?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It bypasses all locks"
+        },
+        {
+          "id": "b",
+          "text": "It drops the selected rows"
+        },
+        {
+          "id": "c",
+          "text": "It acquires exclusive row locks on the selected rows until the transaction commits or rolls back"
+        },
+        {
+          "id": "d",
+          "text": "It converts the query into a `VIEW`"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "BEGIN;\nSELECT balance FROM accounts WHERE id = 7 FOR UPDATE;\nCOMMIT;"
+      }
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "When should you prefer `FOR UPDATE SKIP LOCKED`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "For financial balance transfers"
+        },
+        {
+          "id": "b",
+          "text": "Never"
+        },
+        {
+          "id": "c",
+          "text": "For `CREATE TABLE`"
+        },
+        {
+          "id": "d",
+          "text": "For job-queue workers claiming available rows without blocking on rows locked by other workers"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "single-choice",
+      "prompt": "What does `EXPLAIN` output `Buffers: shared hit=120 read=4500` tell you?",
+      "options": [
+        {
+          "id": "a",
+          "text": "120 pages came from PostgreSQL shared buffers, while 4,500 pages required OS/disk reads"
+        },
+        {
+          "id": "b",
+          "text": "4,500 rows were deleted"
+        },
+        {
+          "id": "c",
+          "text": "The query failed"
+        },
+        {
+          "id": "d",
+          "text": "120 connections are open"
+        }
+      ]
+    },
+    {
+      "id": "q021",
+      "type": "multi-select",
+      "prompt": "Which SQL patterns are typically **non-sargable** (cannot use a plain B-tree index seek)? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`WHERE status = 'open'`"
+        },
+        {
+          "id": "b",
+          "text": "`WHERE name LIKE '%smith'` (leading wildcard)"
+        },
+        {
+          "id": "c",
+          "text": "`WHERE amount + 10 > 100`"
+        },
+        {
+          "id": "d",
+          "text": "`WHERE EXTRACT(YEAR FROM created_at) = 2026`"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "In a `UNION` vs. `UNION ALL` query, why is `UNION ALL` faster when duplicates are impossible or acceptable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`UNION ALL` skips the sort/hash deduplication pass required by `UNION`"
+        },
+        {
+          "id": "b",
+          "text": "`UNION ALL` drops `NULL`s"
+        },
+        {
+          "id": "c",
+          "text": "`UNION` cannot combine two `SELECT`s"
+        },
+        {
+          "id": "d",
+          "text": "`UNION ALL` creates a permanent table"
+        }
+      ]
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "What is **synchronous replication** vs. **asynchronous replication** in PostgreSQL?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Both wait for 5 replicas"
+        },
+        {
+          "id": "b",
+          "text": "Synchronous replication waits for at least one standby to confirm WAL flush before acknowledging `COMMIT` to the client"
+        },
+        {
+          "id": "c",
+          "text": "Asynchronous replication blocks all reads"
+        },
+        {
+          "id": "d",
+          "text": "Synchronous replication requires no network"
+        }
+      ]
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "What risk does **replication lag** introduce when an application reads from a replica immediately after writing to the primary?",
+      "options": [
+        {
+          "id": "a",
+          "text": "SQL syntax errors"
+        },
+        {
+          "id": "b",
+          "text": "Index corruption"
+        },
+        {
+          "id": "c",
+          "text": "Stale reads (the user does not see their own just-committed write)"
+        },
+        {
+          "id": "d",
+          "text": "Automatic table truncation"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "matrix",
+      "prompt": "Match each PostgreSQL transaction isolation level to what it prevents.",
+      "rows": [
+        {
+          "id": "rc",
+          "label": "Read Committed"
+        },
+        {
+          "id": "rr",
+          "label": "Repeatable Read"
+        },
+        {
+          "id": "ser",
+          "label": "Serializable"
+        }
+      ],
+      "columns": [
+        {
+          "id": "dirty",
+          "label": "Prevents dirty reads; each statement sees data committed before it began"
+        },
+        {
+          "id": "nonrep",
+          "label": "Prevents dirty, non-repeatable, and phantom reads via a consistent snapshot"
+        },
+        {
+          "id": "skew",
+          "label": "Prevents all anomalies including write skew via SSI (Serializable Snapshot Isolation)"
+        }
+      ],
+      "selectionByRow": {
+        "rc": "single",
+        "rr": "single",
+        "ser": "single"
+      }
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "Why is `UPDATE orders SET status = 'archived' WHERE id = 10 AND status = 'closed';` safer than omitting `AND status = 'closed'`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It disables WAL"
+        },
+        {
+          "id": "b",
+          "text": "It deletes the row if it is open"
+        },
+        {
+          "id": "c",
+          "text": "It locks the entire table"
+        },
+        {
+          "id": "d",
+          "text": "It acts as an optimistic guard so a concurrent state transition is not silently overwritten"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "UPDATE orders SET status = 'archived'\nWHERE id = 10 AND status = 'closed';"
+      }
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does `pg_stat_statements` track?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Normalized SQL query fingerprints with execution counts, total/mean time, rows, and buffer I/O"
+        },
+        {
+          "id": "b",
+          "text": "Only failed logins"
+        },
+        {
+          "id": "c",
+          "text": "Only DDL statements"
+        },
+        {
+          "id": "d",
+          "text": "OS kernel panics"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What is a **covering index** (`INCLUDE (col)`) in PostgreSQL?",
+      "options": [
+        {
+          "id": "a",
+          "text": "An index that encrypts `col`"
+        },
+        {
+          "id": "b",
+          "text": "An index that stores extra non-key payload columns in leaf pages so queries can use Index Only Scans"
+        },
+        {
+          "id": "c",
+          "text": "An index on all tables in a schema"
+        },
+        {
+          "id": "d",
+          "text": "A temporary index"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "Why can **over-indexing** a write-heavy table hurt performance?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Indexes slow down `SELECT`s"
+        },
+        {
+          "id": "b",
+          "text": "PostgreSQL only allows 1 index per table"
+        },
+        {
+          "id": "c",
+          "text": "Every `INSERT`, `UPDATE`, and `DELETE` must maintain all affected indexes and write extra WAL"
+        },
+        {
+          "id": "d",
+          "text": "Indexes disable foreign keys"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "multi-select",
+      "prompt": "Which actions help diagnose a sudden **slow query** in production? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Check `pg_stat_activity` for lock waits (`wait_event_type = 'Lock'`)"
+        },
+        {
+          "id": "b",
+          "text": "Run `EXPLAIN (ANALYZE, BUFFERS)` on a safe/staging reproduction or `EXPLAIN` on prod"
+        },
+        {
+          "id": "c",
+          "text": "Check whether table statistics are stale or bloat spiked"
+        },
+        {
+          "id": "d",
+          "text": "Immediately reboot the primary without checking anything"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "single-choice",
+      "prompt": "What does `statement_timeout = '5s'` protect against?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Disk full errors"
+        },
+        {
+          "id": "b",
+          "text": "Network DNS failures"
+        },
+        {
+          "id": "c",
+          "text": "Weak passwords"
+        },
+        {
+          "id": "d",
+          "text": "Runaway queries tying up connections and CPU indefinitely"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What does `lock_timeout = '2s'` prevent during a production DDL migration?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A DDL command waiting indefinitely for an `ACCESS EXCLUSIVE` lock and queuing all normal traffic behind it"
+        },
+        {
+          "id": "b",
+          "text": "Syntax errors in `CREATE TABLE`"
+        },
+        {
+          "id": "c",
+          "text": "Disk compression"
+        },
+        {
+          "id": "d",
+          "text": "WAL archiving"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "type": "single-choice",
+      "prompt": "In SQL, what is the difference between `DELETE` with a `JOIN` / subquery and `ON DELETE CASCADE`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "There is no difference"
+        },
+        {
+          "id": "b",
+          "text": "`ON DELETE CASCADE` automatically deletes child rows whenever a parent row is deleted, which can cause unexpectedly huge deletes"
+        },
+        {
+          "id": "c",
+          "text": "`ON DELETE CASCADE` prevents all deletes"
+        },
+        {
+          "id": "d",
+          "text": "`DELETE` cannot use subqueries"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "Why should **database secrets** never be committed to Git or passed on command-line flags?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Git cannot store text"
+        },
+        {
+          "id": "b",
+          "text": "Passwords cannot contain letters"
+        },
+        {
+          "id": "c",
+          "text": "Command-line arguments appear in `ps` process listings and Git history persists forever"
+        },
+        {
+          "id": "d",
+          "text": "PostgreSQL rejects environment variables"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "What is **connection-pool transaction pooling** mode's main constraint?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It does not support `SELECT`"
+        },
+        {
+          "id": "b",
+          "text": "It disables ACID"
+        },
+        {
+          "id": "c",
+          "text": "It only works with SQLite"
+        },
+        {
+          "id": "d",
+          "text": "Session-level state (`SET`, temp tables, `LISTEN`) does not persist safely across transactions for a client"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "What does `EXPLAIN` node `Sort Method: external merge Disk: 45120kB` indicate?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The sort exceeded `work_mem` and spilled temporary files to disk"
+        },
+        {
+          "id": "b",
+          "text": "The table was truncated"
+        },
+        {
+          "id": "c",
+          "text": "An index was used"
+        },
+        {
+          "id": "d",
+          "text": "The query finished in 0ms"
+        }
+      ]
+    },
+    {
+      "id": "q037",
+      "type": "multi-select",
+      "prompt": "Which techniques reduce **lock contention** during schema changes? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Use `CREATE INDEX CONCURRENTLY` instead of blocking `CREATE INDEX`"
+        },
+        {
+          "id": "b",
+          "text": "Add `NOT VALID` constraints first, then `VALIDATE CONSTRAINT` in a separate step"
+        },
+        {
+          "id": "c",
+          "text": "Set a short `lock_timeout` and retry safely"
+        },
+        {
+          "id": "d",
+          "text": "Run `ALTER TABLE` during peak traffic with no timeout"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "single-choice",
+      "prompt": "What is a **materialized view** compared to a standard SQL `VIEW`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A `VIEW` stores data on disk; a materialized view does not"
+        },
+        {
+          "id": "b",
+          "text": "A materialized view persists the query's result set on disk and must be refreshed (`REFRESH MATERIALIZED VIEW`)"
+        },
+        {
+          "id": "c",
+          "text": "A materialized view cannot be indexed"
+        },
+        {
+          "id": "d",
+          "text": "They are identical"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "Why is **UUIDv4** (fully random) harder on B-tree index locality than sequential IDs or **UUIDv7**?",
+      "options": [
+        {
+          "id": "a",
+          "text": "UUIDv4 is not valid in SQL"
+        },
+        {
+          "id": "b",
+          "text": "UUIDv4 cannot be unique"
+        },
+        {
+          "id": "c",
+          "text": "Random inserts scatter across all B-tree leaf pages, causing more page splits and cache misses"
+        },
+        {
+          "id": "d",
+          "text": "UUIDv4 disables `WHERE` clauses"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "What does `pg_stat_user_tables.n_dead_tup` help an operator spot?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Number of active users"
+        },
+        {
+          "id": "b",
+          "text": "Total disk size in bytes"
+        },
+        {
+          "id": "c",
+          "text": "Failed login attempts"
+        },
+        {
+          "id": "d",
+          "text": "Accumulated dead tuples that autovacuum has not yet cleaned up"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "single-choice",
+      "prompt": "What is the purpose of a **checksum** (`data_checksums`) on database data pages?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Detecting silent storage/disk corruption when pages are read from disk"
+        },
+        {
+          "id": "b",
+          "text": "Compressing SQL strings"
+        },
+        {
+          "id": "c",
+          "text": "Speeding up `ORDER BY`"
+        },
+        {
+          "id": "d",
+          "text": "Replacing backups"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "Before promoting a standby replica during a failover, what should an operator check first?",
+      "options": [
+        {
+          "id": "a",
+          "text": "CSS version"
+        },
+        {
+          "id": "b",
+          "text": "Replication lag / WAL replay position and fencing of the old primary to prevent split-brain"
+        },
+        {
+          "id": "c",
+          "text": "Number of views in the schema"
+        },
+        {
+          "id": "d",
+          "text": "Browser user-agent"
+        }
+      ]
+    }
+  ]
+}

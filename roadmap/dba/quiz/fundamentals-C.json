@@ -1,0 +1,1043 @@
+{
+  "schemaVersion": 1,
+  "id": "dba-fundamentals-C",
+  "revision": 1,
+  "name": "DBA Engineering Practice: C",
+  "track": "dba",
+  "topic": "fundamentals",
+  "level": "C",
+  "pointsPossible": 60,
+  "questions": [
+    {
+      "id": "q001",
+      "type": "single-choice",
+      "prompt": "A query filtering `WHERE tenant_id = 42 AND status = 'open' ORDER BY created_at DESC LIMIT 20` is slow. Which index design gives the fastest **Index Scan** with no extra sort?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`(created_at DESC)`"
+        },
+        {
+          "id": "b",
+          "text": "`(tenant_id, status, created_at DESC)`"
+        },
+        {
+          "id": "c",
+          "text": "`(status)` only"
+        },
+        {
+          "id": "d",
+          "text": "`(created_at, tenant_id)`"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "CREATE INDEX idx_orders_tenant_status_created\n  ON orders (tenant_id, status, created_at DESC);"
+      }
+    },
+    {
+      "id": "q002",
+      "type": "single-choice",
+      "prompt": "In `EXPLAIN (ANALYZE, BUFFERS)`, you see `Nested Loop` with `actual rows=1` on the outer side and `actual rows=50000` on the inner `Seq Scan` executed 1,200 times. What is the root cause?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Too many indexes"
+        },
+        {
+          "id": "b",
+          "text": "Disk encryption"
+        },
+        {
+          "id": "c",
+          "text": "The inner join column lacks an index (or a bad row-count estimate chose Nested Loop over Hash Join)"
+        },
+        {
+          "id": "d",
+          "text": "Too much RAM"
+        }
+      ]
+    },
+    {
+      "id": "q003",
+      "type": "matrix",
+      "prompt": "Match each production failure mode to its primary mitigation.",
+      "rows": [
+        {
+          "id": "pool",
+          "label": "Connection pool exhaustion"
+        },
+        {
+          "id": "split",
+          "label": "Split-brain after failover"
+        },
+        {
+          "id": "xid",
+          "label": "XID wraparound emergency"
+        }
+      ],
+      "columns": [
+        {
+          "id": "pgb",
+          "label": "Transaction-mode connection pooling + `statement_timeout`"
+        },
+        {
+          "id": "fence",
+          "label": "STONITH / fencing old primary before promoting standby"
+        },
+        {
+          "id": "vac",
+          "label": "Monitoring `age(datfrozenxid)` and unblocking autovacuum"
+        }
+      ],
+      "selectionByRow": {
+        "pool": "single",
+        "split": "single",
+        "xid": "single"
+      }
+    },
+    {
+      "id": "q004",
+      "type": "single-choice",
+      "prompt": "Why is **multi-step expand-and-contract** preferred over directly renaming a column in a live production database?",
+      "options": [
+        {
+          "id": "a",
+          "text": "SQL cannot rename columns"
+        },
+        {
+          "id": "b",
+          "text": "During rolling deploys, old and new app instances run simultaneously; expand-and-contract keeps both versions compatible"
+        },
+        {
+          "id": "c",
+          "text": "Renaming a column deletes the table"
+        },
+        {
+          "id": "d",
+          "text": "It avoids creating indexes"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "type": "multi-select",
+      "prompt": "Which practices are essential for **zero-downtime** schema migrations? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Set `lock_timeout` so blocked DDL aborts rather than stalling traffic"
+        },
+        {
+          "id": "b",
+          "text": "Backfill large tables in small batched transactions with pauses"
+        },
+        {
+          "id": "c",
+          "text": "Use `CREATE INDEX CONCURRENTLY`"
+        },
+        {
+          "id": "d",
+          "text": "Rewrite a 500 GB table with `ALTER TABLE ... TYPE` inside a single peak-hour lock"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "type": "single-choice",
+      "prompt": "What is **write skew** under Snapshot Isolation (`REPEATABLE READ`), and how do you prevent it?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Two transactions read overlapping data and update disjoint rows, violating a cross-row invariant; prevent with `SERIALIZABLE` or explicit locking"
+        },
+        {
+          "id": "b",
+          "text": "A syntax error in `INSERT`"
+        },
+        {
+          "id": "c",
+          "text": "A slow `SELECT COUNT(*)`"
+        },
+        {
+          "id": "d",
+          "text": "A full WAL disk"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "type": "single-choice",
+      "prompt": "A `500 GB` table has 10 years of logs, and queries only touch the last 30 days. Which structural feature improves both query pruning and retention cleanup?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Adding 15 hash indexes"
+        },
+        {
+          "id": "b",
+          "text": "Converting all columns to `TEXT`"
+        },
+        {
+          "id": "c",
+          "text": "Declarative **range partitioning** by date so old partitions can be `DROP`ped instead of `DELETE`d"
+        },
+        {
+          "id": "d",
+          "text": "Disabling `AUTOVACUUM`"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "CREATE TABLE logs (\n  logged_at TIMESTAMPTZ NOT NULL,\n  msg TEXT\n) PARTITION BY RANGE (logged_at);"
+      }
+    },
+    {
+      "id": "q008",
+      "type": "single-choice",
+      "prompt": "Why can `DELETE FROM events WHERE created_at < now() - interval '90 days';` in one giant statement cause an outage?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`DELETE` ignores `WHERE`"
+        },
+        {
+          "id": "b",
+          "text": "It generates massive WAL spikes, holds locks, bloats the table, and stalls replication"
+        },
+        {
+          "id": "c",
+          "text": "PostgreSQL forbids `interval`"
+        },
+        {
+          "id": "d",
+          "text": "It drops the primary key"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "type": "single-choice",
+      "prompt": "In PostgreSQL, why does an `idle in transaction` session left open by an application bug degrade the entire cluster?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It increases network bandwidth"
+        },
+        {
+          "id": "b",
+          "text": "It deletes WAL files"
+        },
+        {
+          "id": "c",
+          "text": "It holds locks and pins the MVCC `xmin` horizon, preventing `VACUUM` from reclaiming dead tuples across the database"
+        },
+        {
+          "id": "d",
+          "text": "It disables `SELECT`"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "type": "multi-select",
+      "prompt": "Which knobs help bound **tail latency and resource exhaustion** in PostgreSQL? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`statement_timeout`"
+        },
+        {
+          "id": "b",
+          "text": "`lock_timeout`"
+        },
+        {
+          "id": "c",
+          "text": "`idle_in_transaction_session_timeout`"
+        },
+        {
+          "id": "d",
+          "text": "`max_connections = 10000` without a pooler"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "type": "single-choice",
+      "prompt": "When **scaling reads** with replicas fails to solve a bottleneck, what is the usual reason?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Replicas cannot run `SELECT`"
+        },
+        {
+          "id": "b",
+          "text": "The bottleneck is write throughput, WAL generation, or lock contention on the single primary"
+        },
+        {
+          "id": "c",
+          "text": "Replicas have no indexes"
+        },
+        {
+          "id": "d",
+          "text": "SQL does not work on replicas"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "type": "single-choice",
+      "prompt": "What is the trade-off of increasing `work_mem` to a very large global value (e.g., `1 GB`) in `postgresql.conf`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Each complex query can allocate `work_mem` *multiple times* per sort/hash node across concurrent sessions, risking OOM"
+        },
+        {
+          "id": "b",
+          "text": "It slows down `INDEX` scans"
+        },
+        {
+          "id": "c",
+          "text": "It disables WAL"
+        },
+        {
+          "id": "d",
+          "text": "It shrinks `shared_buffers` to 0"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "type": "matrix",
+      "prompt": "Match each high-availability / disaster-recovery metric or mechanism to its role.",
+      "rows": [
+        {
+          "id": "failover",
+          "label": "Automated Failover"
+        },
+        {
+          "id": "pitr",
+          "label": "PITR (Point-in-Time Recovery)"
+        },
+        {
+          "id": "geo",
+          "label": "Cross-region async replica"
+        }
+      ],
+      "columns": [
+        {
+          "id": "ha",
+          "label": "Promotes a healthy standby in seconds when the primary node fails"
+        },
+        {
+          "id": "human",
+          "label": "Recovers from accidental `DROP`/`DELETE` by replaying WAL up to just before the mistake"
+        },
+        {
+          "id": "dr",
+          "label": "Protects against full-region outage with nonzero RPO"
+        }
+      ],
+      "selectionByRow": {
+        "failover": "single",
+        "pitr": "single",
+        "geo": "single"
+      }
+    },
+    {
+      "id": "q014",
+      "type": "single-choice",
+      "prompt": "Why doesn't **streaming replication** protect you from an accidental `DELETE FROM users;` (without `WHERE`)?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Streaming replication ignores `DELETE`"
+        },
+        {
+          "id": "b",
+          "text": "Replicas immediately replay the `DELETE` from WAL, wiping the data there too; you need backups/PITR or delayed standby"
+        },
+        {
+          "id": "c",
+          "text": "Replicas are always read-only so `DELETE` is blocked on the primary"
+        },
+        {
+          "id": "d",
+          "text": "WAL only records `INSERT`s"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "type": "single-choice",
+      "prompt": "What does `SELECT pg_size_pretty(pg_total_relation_size('orders'));` include?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Only the table heap"
+        },
+        {
+          "id": "b",
+          "text": "Only the primary key"
+        },
+        {
+          "id": "c",
+          "text": "The table heap, TOAST data, and all indexes on `orders`"
+        },
+        {
+          "id": "d",
+          "text": "All databases on the server"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "SELECT pg_size_pretty(pg_total_relation_size('orders'));"
+      }
+    },
+    {
+      "id": "q016",
+      "type": "multi-select",
+      "prompt": "Which causes can trigger **plan flipping** (a fast query suddenly turning slow)? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Table growth crossing a planner cost threshold"
+        },
+        {
+          "id": "b",
+          "text": "Stale statistics after a bulk load without `ANALYZE`"
+        },
+        {
+          "id": "c",
+          "text": "Parameter skew on a prepared statement (e.g., `status = 'rare'` vs `status = 'common'`)"
+        },
+        {
+          "id": "d",
+          "text": "Changing the terminal color theme"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "type": "single-choice",
+      "prompt": "In PostgreSQL **prepared statements**, why can a generic plan be slower than a custom plan on skewed columns?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Generic plans skip indexes"
+        },
+        {
+          "id": "b",
+          "text": "Generic plans average over all values instead of optimizing for the specific rare/common bind value"
+        },
+        {
+          "id": "c",
+          "text": "Custom plans ignore `WHERE`"
+        },
+        {
+          "id": "d",
+          "text": "Prepared statements cannot use joins"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "type": "single-choice",
+      "prompt": "What is the main risk of **dual-write** between a database and an external cache/search index without an outbox pattern?",
+      "options": [
+        {
+          "id": "a",
+          "text": "SQL syntax errors"
+        },
+        {
+          "id": "b",
+          "text": "Too many primary keys"
+        },
+        {
+          "id": "c",
+          "text": "Partial failure (DB commits while cache/bus write fails, or vice versa), leaving systems permanently inconsistent"
+        },
+        {
+          "id": "d",
+          "text": "Faster queries"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "type": "single-choice",
+      "prompt": "Why should **database backups** be encrypted and access-controlled separately from the primary database?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Unencrypted backups cannot be restored"
+        },
+        {
+          "id": "b",
+          "text": "To make backups larger"
+        },
+        {
+          "id": "c",
+          "text": "PostgreSQL requires it to start"
+        },
+        {
+          "id": "d",
+          "text": "Backups contain the entire dataset; compromised backup storage leaks all data even if the DB host is locked down"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "type": "single-choice",
+      "prompt": "When reviewing a database **SLO** (e.g., 99.95% query latency < 50ms), why is p99 latency more informative than average latency?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Averages hide slow tail queries affecting a small but critical fraction of users or lock-waiting requests"
+        },
+        {
+          "id": "b",
+          "text": "p99 is always smaller than average"
+        },
+        {
+          "id": "c",
+          "text": "Average latency cannot be computed"
+        },
+        {
+          "id": "d",
+          "text": "p99 ignores errors"
+        }
+      ]
+    },
+    {
+      "id": "q021",
+      "type": "multi-select",
+      "prompt": "Which checks belong in a **database capacity planning** review? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Developer keyboard layout"
+        },
+        {
+          "id": "b",
+          "text": "Data + WAL + backup storage growth rate vs. disk headroom"
+        },
+        {
+          "id": "c",
+          "text": "IOPS and checkpoint write throughput under peak load"
+        },
+        {
+          "id": "d",
+          "text": "Memory working-set fit (`shared_buffers` + OS page cache) vs. hot index size"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "type": "single-choice",
+      "prompt": "What is **checkpoint spike** I/O in PostgreSQL, and how is it smoothed?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A crash on startup"
+        },
+        {
+          "id": "b",
+          "text": "Flushing many dirty buffers at once; smooth it by tuning `checkpoint_completion_target` (e.g. `0.9`) and `max_wal_size`"
+        },
+        {
+          "id": "c",
+          "text": "Running `SELECT 1`"
+        },
+        {
+          "id": "d",
+          "text": "Disabling indexes"
+        }
+      ]
+    },
+    {
+      "id": "q023",
+      "type": "single-choice",
+      "prompt": "Why is **Row-Level Security (RLS)** combined with a `SET LOCAL app.current_tenant_id = ...` inside a transaction safer under connection pooling?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It disables RLS"
+        },
+        {
+          "id": "b",
+          "text": "`SET LOCAL` automatically resets at transaction end, preventing tenant context from leaking to the next pooled request"
+        },
+        {
+          "id": "c",
+          "text": "It bypasses all indexes"
+        },
+        {
+          "id": "d",
+          "text": "It creates a new database per request"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "BEGIN;\nSET LOCAL app.current_tenant_id = '42';\nSELECT * FROM app.orders;\nCOMMIT;"
+      }
+    },
+    {
+      "id": "q024",
+      "type": "single-choice",
+      "prompt": "If a `SET LOCAL` tenant GUC is missing or empty, how should a defensive RLS policy behave?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Return all tenants' rows"
+        },
+        {
+          "id": "b",
+          "text": "Drop the table"
+        },
+        {
+          "id": "c",
+          "text": "Fail closed (return zero rows because `current_setting(..., true)` is `NULL` and does not match any `tenant_id`)"
+        },
+        {
+          "id": "d",
+          "text": "Grant superuser"
+        }
+      ]
+    },
+    {
+      "id": "q025",
+      "type": "matrix",
+      "prompt": "Match each scaling strategy to its primary trade-off.",
+      "rows": [
+        {
+          "id": "vert",
+          "label": "Vertical Scaling (bigger instance)"
+        },
+        {
+          "id": "part",
+          "label": "Table Partitioning"
+        },
+        {
+          "id": "shard",
+          "label": "Horizontal Sharding"
+        }
+      ],
+      "columns": [
+        {
+          "id": "vtrade",
+          "label": "Zero app changes, but hits hardware ceiling and requires brief failover/restart"
+        },
+        {
+          "id": "ptrade",
+          "label": "Improves pruning and retention on one node without cross-node distributed transactions"
+        },
+        {
+          "id": "strade",
+          "label": "Scales writes across nodes, but complicates cross-shard joins and global transactions"
+        }
+      ],
+      "selectionByRow": {
+        "vert": "single",
+        "part": "single",
+        "shard": "single"
+      }
+    },
+    {
+      "id": "q026",
+      "type": "single-choice",
+      "prompt": "Why is **foreign key indexing** on the child table's referencing column often recommended?",
+      "options": [
+        {
+          "id": "a",
+          "text": "PostgreSQL automatically indexes every foreign key"
+        },
+        {
+          "id": "b",
+          "text": "Without an index on the child FK column, deleting or updating a parent row forces a sequential scan of the child table"
+        },
+        {
+          "id": "c",
+          "text": "It prevents `INSERT`s"
+        },
+        {
+          "id": "d",
+          "text": "It encrypts the child table"
+        }
+      ]
+    },
+    {
+      "id": "q027",
+      "type": "single-choice",
+      "prompt": "What does **CDC (Change Data Capture)** via logical replication slots enable?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Disabling primary keys"
+        },
+        {
+          "id": "b",
+          "text": "Streaming committed row changes from WAL to downstream analytics, search, or event consumers without polling tables"
+        },
+        {
+          "id": "c",
+          "text": "Deleting WAL immediately"
+        },
+        {
+          "id": "d",
+          "text": "Skipping `CHECK` constraints"
+        }
+      ]
+    },
+    {
+      "id": "q028",
+      "type": "single-choice",
+      "prompt": "What danger does an **abandoned logical replication slot** pose to a PostgreSQL primary?",
+      "options": [
+        {
+          "id": "a",
+          "text": "None \u2014 slots use zero disk"
+        },
+        {
+          "id": "b",
+          "text": "It speeds up `VACUUM`"
+        },
+        {
+          "id": "c",
+          "text": "The primary retains all WAL segments needed by that slot until disk fills up and the database halts"
+        },
+        {
+          "id": "d",
+          "text": "It drops all views"
+        }
+      ]
+    },
+    {
+      "id": "q029",
+      "type": "single-choice",
+      "prompt": "When should you use `DROP INDEX CONCURRENTLY` instead of `DROP INDEX` in production?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Never"
+        },
+        {
+          "id": "b",
+          "text": "Only on empty tables"
+        },
+        {
+          "id": "c",
+          "text": "To rebuild a table"
+        },
+        {
+          "id": "d",
+          "text": "When dropping an unused index on a busy table without acquiring an `ACCESS EXCLUSIVE` lock that blocks reads and writes"
+        }
+      ]
+    },
+    {
+      "id": "q030",
+      "type": "multi-select",
+      "prompt": "Which practices make **post-incident database reviews** effective? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Documenting the timeline, root cause, and contributing factors blamelessly"
+        },
+        {
+          "id": "b",
+          "text": "Blaming the on-call engineer and skipping follow-up actions"
+        },
+        {
+          "id": "c",
+          "text": "Adding concrete guardrails (timeouts, alerts, migration lints) with owners"
+        },
+        {
+          "id": "d",
+          "text": "Verifying backup/failover runbooks worked as expected"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "type": "single-choice",
+      "prompt": "In a **read-heavy** workload with repeated identical lookups, what is the risk of adding an application cache (e.g., Redis) without a stampede mitigation?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Cache keys expire simultaneously and thousands of requests hit the database at once (thundering herd)"
+        },
+        {
+          "id": "b",
+          "text": "The cache makes SQL syntax invalid"
+        },
+        {
+          "id": "c",
+          "text": "The database deletes all indexes"
+        },
+        {
+          "id": "d",
+          "text": "TLS stops working"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "type": "single-choice",
+      "prompt": "What is **TOAST** in PostgreSQL?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A backup tool"
+        },
+        {
+          "id": "b",
+          "text": "Automatic out-of-line compression and storage for oversized column values (e.g., large `TEXT`/`JSONB`)"
+        },
+        {
+          "id": "c",
+          "text": "A connection pooler"
+        },
+        {
+          "id": "d",
+          "text": "A SQL join algorithm"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "type": "single-choice",
+      "prompt": "Why can `COUNT(*)` on a 100-million-row PostgreSQL table be slow compared to `pg_class.reltuples`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "PostgreSQL cannot count rows"
+        },
+        {
+          "id": "b",
+          "text": "`COUNT(*)` ignores `WHERE`"
+        },
+        {
+          "id": "c",
+          "text": "MVCC requires checking tuple visibility for every matching row (unless an Index Only Scan with all-visible pages applies)"
+        },
+        {
+          "id": "d",
+          "text": "`COUNT(*)` locks the database"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "type": "single-choice",
+      "prompt": "What is the safest way to **verify** a database backup?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Check that the backup file is non-empty"
+        },
+        {
+          "id": "b",
+          "text": "Read the backup script once"
+        },
+        {
+          "id": "c",
+          "text": "Assume cron succeeded"
+        },
+        {
+          "id": "d",
+          "text": "Automate periodic restore drills into an isolated environment and run integrity/row-count checks"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "type": "single-choice",
+      "prompt": "Why should **SQL migrations** be separated from application request-handling startup?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Running DDL from multiple starting pods concurrently causes lock contention, race conditions, and slow rollouts"
+        },
+        {
+          "id": "b",
+          "text": "Apps cannot run SQL"
+        },
+        {
+          "id": "c",
+          "text": "Migrations delete indexes"
+        },
+        {
+          "id": "d",
+          "text": "It disables connection pooling"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "type": "single-choice",
+      "prompt": "In `SELECT a, b FROM t WHERE a = 1 ORDER BY b LIMIT 10;`, which index allows an **Index Only Scan**?",
+      "options": [
+        {
+          "id": "a",
+          "text": "`(b)`"
+        },
+        {
+          "id": "b",
+          "text": "`(a, b)`"
+        },
+        {
+          "id": "c",
+          "text": "`(b, a)`"
+        },
+        {
+          "id": "d",
+          "text": "No index can"
+        }
+      ],
+      "code": {
+        "language": "sql",
+        "source": "CREATE INDEX idx_t_a_b ON t (a, b);"
+      }
+    },
+    {
+      "id": "q037",
+      "type": "multi-select",
+      "prompt": "Which signals indicate **index bloat or unused indexes** worth cleaning up? (Select all that apply.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "`pg_stat_user_indexes.idx_scan = 0` over a full business cycle (excluding unique/PK constraints)"
+        },
+        {
+          "id": "b",
+          "text": "Index size far exceeding the underlying table size with heavy update churn"
+        },
+        {
+          "id": "c",
+          "text": "Duplicate indexes covering the exact same leading columns"
+        },
+        {
+          "id": "d",
+          "text": "An index used by every primary-key lookup"
+        }
+      ]
+    },
+    {
+      "id": "q038",
+      "type": "single-choice",
+      "prompt": "What does `wal_level = logical` enable beyond `replica`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Faster `TRUNCATE`"
+        },
+        {
+          "id": "b",
+          "text": "Zero-CPU compression"
+        },
+        {
+          "id": "c",
+          "text": "Logical decoding for CDC pipelines and selective table-level logical replication across major versions"
+        },
+        {
+          "id": "d",
+          "text": "Disabling `fsync`"
+        }
+      ]
+    },
+    {
+      "id": "q039",
+      "type": "single-choice",
+      "prompt": "Why must `fsync = on` NEVER be disabled in production PostgreSQL?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It disables `SELECT`"
+        },
+        {
+          "id": "b",
+          "text": "It slows down `ORDER BY`"
+        },
+        {
+          "id": "c",
+          "text": "It breaks `JOIN`s"
+        },
+        {
+          "id": "d",
+          "text": "Without `fsync`, an OS crash or power loss can leave committed WAL/data un-flushed and corrupt the cluster"
+        }
+      ]
+    },
+    {
+      "id": "q040",
+      "type": "single-choice",
+      "prompt": "When designing **audit logging** for sensitive tables, what makes the audit trail trustworthy?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Append-only storage with restricted `DELETE`/`UPDATE` privileges, actor identity, timestamp, and before/after context"
+        },
+        {
+          "id": "b",
+          "text": "Letting the app role `TRUNCATE` the audit table"
+        },
+        {
+          "id": "c",
+          "text": "Logging only to `stdout` with no retention"
+        },
+        {
+          "id": "d",
+          "text": "Storing plaintext passwords in the log"
+        }
+      ]
+    },
+    {
+      "id": "q041",
+      "type": "single-choice",
+      "prompt": "What is the primary goal of **database chaos / failover testing** in staging?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Deleting staging permanently"
+        },
+        {
+          "id": "b",
+          "text": "Measuring actual failover time, verifying client reconnect/retry behavior, and validating runbooks before an outage"
+        },
+        {
+          "id": "c",
+          "text": "Disabling TLS"
+        },
+        {
+          "id": "d",
+          "text": "Increasing `statement_timeout` to infinity"
+        }
+      ]
+    },
+    {
+      "id": "q042",
+      "type": "single-choice",
+      "prompt": "What distinguishes a **production-ready DBA** approach from ad-hoc firefighting?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Running unreviewed DDL directly on primary"
+        },
+        {
+          "id": "b",
+          "text": "Ignoring slow query logs"
+        },
+        {
+          "id": "c",
+          "text": "Combining sound schema/index design, `EXPLAIN`-driven tuning, least-privilege security, automated backups, and tested runbooks"
+        },
+        {
+          "id": "d",
+          "text": "Disabling monitoring alerts"
+        }
+      ]
+    }
+  ]
+}

@@ -9,10 +9,10 @@ The 33 `"kind": "language"` tracks are out of scope here — `tracking/roadmaps-
 
 | Track | Status | Topics | Unwired | Placeholders | Practice Layer | Priority Tier & Action |
 | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **`dba`** | `converted` | 11 | 0 | 0 | None | ✅ **Complete**: 9 lessons authored 2026-11-14; optional next: `demo/` with runnable SQL scripts. |
-| **`tek`** | `converted` | 12 | 0 | 0 | None | ✅ **Complete**: 8 lessons authored 2026-11-14; optional next: shell-automation `demo/`. |
-| **`dsl`** | `converted` | 40 | 0 | 0 | Ref | **Tier 3 (Polish)**: Add `demo/` language snippets & `samples.html` study projects. |
-| **`pgp`** | `converted` | 66 | 0 | 0 | Demo | **Tier 3 (Polish)**: Add `references.html` and `samples.html`. |
+| **`dba`** | `converted` | 13 | 0 | 0 | Demo + Ref | ✅ **Complete**: 11 topics + `demo/` (6 SQL scripts), `demo_examples.html`, `references.html`. |
+| **`tek`** | `converted` | 14 | 0 | 0 | Demo + Ref | ✅ **Complete**: 12 topics + `demo/` (6 ops scripts), `demo_examples.html`, `references.html`. |
+| **`dsl`** | `converted` | 42 | 0 | 0 | Full | ✅ **Complete**: 40 lessons, `demo/` (12 snippets), `demo_examples.html`, `samples.html`, `references.html`. |
+| **`pgp`** | `converted` | 68 | 0 | 0 | Full | ✅ **Complete**: 65 topics, `demo/` (13 snippets), `demo_examples.html`, `samples.html`, `references.html`. |
 | **`osd`** | `converted` | 8 | 0 | 0 | None | ✅ **Complete**: all 8 lessons authored and wired; `release-management` + `maintainership` written 2026-11-14. |
 | **`hpc`** | `converted` | 8 | 0 | 0 | None | ✅ **Complete (Wiring & Cleanup)**: All 8 topic pages wired, 2 orphan files deleted, typos fixed, Puppeteer verified. |
 | **`sml`** | `converted` | 10 | 0 | 0 | None | ✅ **Complete (Wiring)**: All 10 topic pages wired with dynamic sidebars and regression tested. |

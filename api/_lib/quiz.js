@@ -108,7 +108,10 @@ const publicQuizzes = {
   "dsa-fundamentals-C": require("../../roadmap/dsa/quiz/fundamentals-C.json"),
   "pgp-fundamentals-A": require("../../roadmap/pgp/quiz/fundamentals-A.json"),
   "pgp-fundamentals-B": require("../../roadmap/pgp/quiz/fundamentals-B.json"),
-  "pgp-fundamentals-C": require("../../roadmap/pgp/quiz/fundamentals-C.json")
+  "pgp-fundamentals-C": require("../../roadmap/pgp/quiz/fundamentals-C.json"),
+  "tek-fundamentals-A": require("../../roadmap/tek/quiz/fundamentals-A.json"),
+  "tek-fundamentals-B": require("../../roadmap/tek/quiz/fundamentals-B.json"),
+  "tek-fundamentals-C": require("../../roadmap/tek/quiz/fundamentals-C.json")
 };
 const answerKeys = require("./quiz-answer-keys.json");
 const { validateQuiz, scoreQuiz, quizStatus } = require("../../assets/js/roadmap-quiz");

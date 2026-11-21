@@ -50,8 +50,14 @@
 - CSE (`fundamentals`, track `cse`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - DSA (`fundamentals`, track `dsa`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - PGP (`fundamentals`, track `pgp`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- TEK (`fundamentals`, track `tek`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- DBA (`fundamentals`, track `dba`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- SML (`fundamentals`, track `sml`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- HPC (`fundamentals`, track `hpc`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- OSD (`fundamentals`, track `osd`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
+- DSL (`fundamentals`, track `dsl`): **Review pending**; A/B/C prepared, validated, and activated in the catalog for review.
 - Go (`syntax`): existing A/B/C sets; **Review pending** (activated in the catalog).
-- Next roadmap: TEK (Phase 7 Data and applied technology), after review of pending sets.
+- All 42 roadmaps now have A/B/C quiz sets prepared and validated; review pending before final activation.
 - Keep newly prepared sets unavailable until review unless the user asks to
   activate them for review. Do not advance until the review pause is complete.
 
@@ -143,15 +149,15 @@ Apply these requirements to each roadmap before moving to the next:
 
 ### Phase 7 — Data and applied technology
 
-37. TEK — Pending
-38. DBA — Pending
-39. SML — Pending
+37. TEK — Review pending (`fundamentals` A/B/C in `roadmap/tek/quiz/`)
+38. DBA — Review pending (`fundamentals` A/B/C in `roadmap/dba/quiz/`)
+39. SML — Review pending (`fundamentals` A/B/C in `roadmap/sml/quiz/`)
 
 ### Phase 8 — Infrastructure and systems engineering
 
-40. HPC — Pending
-41. OSD — Pending
-42. DSL — Pending
+40. HPC — Review pending (`fundamentals` A/B/C in `roadmap/hpc/quiz/`)
+41. OSD — Review pending (`fundamentals` A/B/C in `roadmap/osd/quiz/`)
+42. DSL — Review pending (`fundamentals` A/B/C in `roadmap/dsl/quiz/`)
 
 ## Review pauses
 
