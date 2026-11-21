@@ -13,6 +13,7 @@
   var consent = document.getElementById("vcp-public-consent");
   var previewUrl = null;
   var hasSavedAvatar = false;
+  var pendingAvatarFile = null;
   var maxAvatarBytes = 2 * 1024 * 1024;
   var allowedAvatarTypes = ["image/jpeg", "image/png", "image/webp"];
 
@@ -177,17 +178,37 @@
     }
   });
 
+  var cropper = window.sclAvatarCropper
+    ? window.sclAvatarCropper.init({
+        onConfirm: function (optimized) {
+          pendingAvatarFile = optimized.file;
+          formStatus.hidden = true;
+          setPreview(URL.createObjectURL(optimized.file));
+        },
+        onError: function (msg) {
+          showMessage(formStatus, msg, "danger");
+        }
+      })
+    : null;
+
   avatarInput.addEventListener("change", function () {
     var file = avatarInput.files && avatarInput.files[0];
     if (!file) {
       return;
     }
+    if (cropper) {
+      avatarInput.value = "";
+      cropper.openFile(file);
+      return;
+    }
     if (allowedAvatarTypes.indexOf(file.type) === -1 || file.size > maxAvatarBytes) {
       avatarInput.value = "";
+      pendingAvatarFile = null;
       setPreview("");
       showMessage(formStatus, "Choose a JPEG, PNG, or WebP image up to 2 MB.", "danger");
       return;
     }
+    pendingAvatarFile = file;
     formStatus.hidden = true;
     setPreview(URL.createObjectURL(file));
   });
@@ -202,6 +223,7 @@
       return;
     }
     avatarInput.value = "";
+    pendingAvatarFile = null;
     setPreview("", false);
     showMessage(
       formStatus,
@@ -241,11 +263,12 @@
 
     updatePublicProfileLink(result.data && result.data.profile);
 
-    var file = avatarInput.files && avatarInput.files[0];
+    var file = pendingAvatarFile || (avatarInput.files && avatarInput.files[0]);
     if (file) {
       try {
         var upload = await uploadAvatar(file);
         setPreview(upload.avatar_url, true);
+        pendingAvatarFile = null;
         avatarInput.value = "";
         if (upload.warning) {
           showMessage(formStatus, upload.warning, "warning");

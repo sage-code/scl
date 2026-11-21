@@ -688,13 +688,6 @@
         if (dlg && dlg.open) dlg.close("cancel");
       });
     });
-    var cropCancelBtn = document.getElementById("avatar-crop-cancel-btn");
-    var cropDlg = document.getElementById("avatar-crop-dialog");
-    if (cropCancelBtn && cropDlg) {
-      cropCancelBtn.addEventListener("click", function () {
-        if (cropDlg.open) cropDlg.close("cancel");
-      });
-    }
   }
 
   function wireOwnerControls() {

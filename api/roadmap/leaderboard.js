@@ -11,30 +11,61 @@ module.exports = handle(async (req, res) => {
   }
 
   // Best attempt per (user_id, quiz_id) so retakes keep the learner's highest score.
-  const result = await getDb().execute({
-    sql: `with best as (
-            select user_id, quiz_id, track,
-                   max(points_earned) as best_points,
-                   max(points_possible) as points_possible,
-                   max(score_percent) as best_percent,
-                   max(case when status = 'pass' then 1 else 0 end) as passed
-            from quiz_attempts
-            group by user_id, quiz_id, track
-          )
-          select u.handle, u.avatar_url,
-                 sum(best.passed) as passed_quizzes,
-                 count(distinct case when best.passed = 1 then best.track end) as passed_tracks,
-                 sum(best.best_points) as total_points,
-                 round(avg(best.best_percent), 2) as avg_percent
-          from best
-          join users u on u.id = best.user_id
-          where u.handle is not null
-          group by u.id
-          having total_points > 0 or passed_quizzes > 0
-          order by passed_quizzes desc, total_points desc, avg_percent desc
-          limit ?`,
-    args: [MAX_LEADERS]
-  });
+  const db = getDb();
+  let result;
+  try {
+    result = await db.execute({
+      sql: `with best as (
+              select user_id, quiz_id, track,
+                     max(points_earned) as best_points,
+                     max(points_possible) as points_possible,
+                     max(score_percent) as best_percent,
+                     max(case when status = 'pass' then 1 else 0 end) as passed
+              from quiz_attempts
+              group by user_id, quiz_id, track
+            )
+            select u.handle,
+                   coalesce(u.avatar_url, max(c.avatar_url)) as avatar_url,
+                   sum(best.passed) as passed_quizzes,
+                   count(distinct case when best.passed = 1 then best.track end) as passed_tracks,
+                   sum(best.best_points) as total_points,
+                   round(avg(best.best_percent), 2) as avg_percent
+            from best
+            join users u on u.id = best.user_id
+            left join community_members c on c.user_id = u.id
+            where u.handle is not null
+            group by u.id
+            having total_points > 0 or passed_quizzes > 0
+            order by passed_quizzes desc, total_points desc, avg_percent desc
+            limit ?`,
+      args: [MAX_LEADERS]
+    });
+  } catch (_error) {
+    result = await db.execute({
+      sql: `with best as (
+              select user_id, quiz_id, track,
+                     max(points_earned) as best_points,
+                     max(points_possible) as points_possible,
+                     max(score_percent) as best_percent,
+                     max(case when status = 'pass' then 1 else 0 end) as passed
+              from quiz_attempts
+              group by user_id, quiz_id, track
+            )
+            select u.handle, u.avatar_url,
+                   sum(best.passed) as passed_quizzes,
+                   count(distinct case when best.passed = 1 then best.track end) as passed_tracks,
+                   sum(best.best_points) as total_points,
+                   round(avg(best.best_percent), 2) as avg_percent
+            from best
+            join users u on u.id = best.user_id
+            where u.handle is not null
+            group by u.id
+            having total_points > 0 or passed_quizzes > 0
+            order by passed_quizzes desc, total_points desc, avg_percent desc
+            limit ?`,
+      args: [MAX_LEADERS]
+    });
+  }
 
   const leaders = result.rows.map((row, index) => ({
     rank: index + 1,

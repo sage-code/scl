@@ -86,7 +86,9 @@
     var resetBtn = document.getElementById("avatar-crop-reset");
     var saveBtn = document.getElementById("avatar-crop-save");
     var cancelBtn = document.getElementById("avatar-crop-cancel");
+    var cancelFooterBtn = document.getElementById("avatar-crop-cancel-btn");
     var metaEl = document.getElementById("avatar-crop-meta");
+    var defaultSaveLabel = saveBtn ? (saveBtn.textContent.trim() || "Crop & Upload") : "Crop & Upload";
 
     var zoomOutBtn = document.getElementById("avatar-crop-zoom-out");
     var zoomInBtn = document.getElementById("avatar-crop-zoom-in");
@@ -207,6 +209,7 @@
       state.pointerId = event.pointerId;
       state.lastX = event.clientX;
       state.lastY = event.clientY;
+      canvas.classList.add("is-dragging");
       canvas.setPointerCapture(event.pointerId);
     });
 
@@ -223,6 +226,7 @@
       if (state.dragging && event.pointerId === state.pointerId) {
         state.dragging = false;
         state.pointerId = null;
+        canvas.classList.remove("is-dragging");
       }
     }
     canvas.addEventListener("pointerup", endDrag);
@@ -250,9 +254,18 @@
       });
     }
 
+    if (cancelFooterBtn) {
+      cancelFooterBtn.addEventListener("click", function () {
+        dialog.close("cancel");
+      });
+    }
+
     dialog.addEventListener("close", function () {
       var val = dialog.returnValue;
       dialog.returnValue = "";
+      state.dragging = false;
+      state.pointerId = null;
+      canvas.classList.remove("is-dragging");
       if (val !== "confirm") {
         currentImg = null;
       }
@@ -275,7 +288,7 @@
         }
       } finally {
         saveBtn.disabled = false;
-        saveBtn.textContent = "Crop & Upload";
+        saveBtn.textContent = defaultSaveLabel;
       }
     });
 

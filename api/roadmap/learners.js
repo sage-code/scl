@@ -12,22 +12,46 @@ module.exports = handle(async (req, res) => {
   }
 
   const cutoff = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const result = await getDb().execute({
-    sql: `select u.handle, u.avatar_url, u.last_seen_at,
-                 count(p.topic_key) as total_topics,
-                 sum(case when p.status = 'done' or p.progress_percent >= 100 then 1 else 0 end) as completed_topics,
-                 group_concat(distinct p.roadmap_code) as tracks_csv,
-                 max(p.updated_at) as last_progress_at
-          from users u
-          left join roadmap_progress p on p.user_id = u.id
-          where u.handle is not null
-            and (p.updated_at >= ? or u.last_seen_at >= ?)
-          group by u.id
-          having total_topics > 0 or u.avatar_url is not null or u.is_anonymous = 0
-          order by coalesce(max(p.updated_at), u.last_seen_at) desc
-          limit ?`,
-    args: [cutoff, cutoff, MAX_LEARNERS]
-  });
+  const db = getDb();
+  let result;
+  try {
+    result = await db.execute({
+      sql: `select u.handle,
+                   coalesce(u.avatar_url, max(c.avatar_url)) as avatar_url,
+                   u.last_seen_at,
+                   count(p.topic_key) as total_topics,
+                   sum(case when p.status = 'done' or p.progress_percent >= 100 then 1 else 0 end) as completed_topics,
+                   group_concat(distinct p.roadmap_code) as tracks_csv,
+                   max(p.updated_at) as last_progress_at
+            from users u
+            left join community_members c on c.user_id = u.id
+            left join roadmap_progress p on p.user_id = u.id
+            where u.handle is not null
+              and (p.updated_at >= ? or u.last_seen_at >= ?)
+            group by u.id
+            having total_topics > 0 or coalesce(u.avatar_url, max(c.avatar_url)) is not null or u.is_anonymous = 0
+            order by coalesce(max(p.updated_at), u.last_seen_at) desc
+            limit ?`,
+      args: [cutoff, cutoff, MAX_LEARNERS]
+    });
+  } catch (_error) {
+    result = await db.execute({
+      sql: `select u.handle, u.avatar_url, u.last_seen_at,
+                   count(p.topic_key) as total_topics,
+                   sum(case when p.status = 'done' or p.progress_percent >= 100 then 1 else 0 end) as completed_topics,
+                   group_concat(distinct p.roadmap_code) as tracks_csv,
+                   max(p.updated_at) as last_progress_at
+            from users u
+            left join roadmap_progress p on p.user_id = u.id
+            where u.handle is not null
+              and (p.updated_at >= ? or u.last_seen_at >= ?)
+            group by u.id
+            having total_topics > 0 or u.avatar_url is not null or u.is_anonymous = 0
+            order by coalesce(max(p.updated_at), u.last_seen_at) desc
+            limit ?`,
+      args: [cutoff, cutoff, MAX_LEARNERS]
+    });
+  }
 
   const learners = result.rows.map((row) => ({
     handle: row.handle,

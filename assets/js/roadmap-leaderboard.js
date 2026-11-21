@@ -11,9 +11,18 @@
   }
 
   function safeAvatar(url) {
+    if (typeof url !== "string" || !url.trim()) {
+      return PLACEHOLDER;
+    }
     try {
-      var parsed = new URL(url);
-      return parsed.protocol === "https:" ? parsed.href : PLACEHOLDER;
+      var parsed = new URL(url.trim(), window.location.origin);
+      if (parsed.protocol === "https:") {
+        return parsed.href;
+      }
+      if (parsed.origin === window.location.origin && parsed.pathname.indexOf("/") === 0) {
+        return parsed.pathname + parsed.search;
+      }
+      return PLACEHOLDER;
     } catch (_error) {
       return PLACEHOLDER;
     }
@@ -35,8 +44,13 @@
       img.alt = "";
       img.width = 32;
       img.height = 32;
-      img.className = "rounded-circle object-fit-cover border border-secondary";
+      img.className = "rounded-circle object-fit-cover border border-secondary flex-shrink-0";
       img.loading = "lazy";
+      img.addEventListener("error", function () {
+        if (img.getAttribute("src") !== PLACEHOLDER) {
+          img.src = PLACEHOLDER;
+        }
+      });
       var nameSpan = document.createElement("span");
       nameSpan.textContent = entry.handle;
       wrap.append(img, nameSpan);
