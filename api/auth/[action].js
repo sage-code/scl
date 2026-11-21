@@ -180,15 +180,14 @@ async function sendTokenEmail(req, user, purpose) {
   return result;
 }
 
-// Consumes a valid unused token; returns the user id or throws.
-async function consumeToken(token, purpose) {
+// Validates an unused token without marking it used yet (for atomic batch consumption).
+async function peekToken(token, purpose) {
   if (!token || typeof token !== "string") {
     throw new HttpError(400, "This link is invalid or has expired.");
   }
 
   const tokenHash = S.hashToken(token);
-  const db = getDb();
-  const result = await db.execute({
+  const result = await getDb().execute({
     sql: "select user_id from email_tokens where token_hash = ? and purpose = ? and used_at is null and expires_at > ?",
     args: [tokenHash, purpose, nowIso()]
   });
@@ -196,9 +195,14 @@ async function consumeToken(token, purpose) {
   if (!row) {
     throw new HttpError(400, "This link is invalid or has expired.");
   }
+  return { userId: row.user_id, tokenHash };
+}
 
-  await db.execute({ sql: "update email_tokens set used_at = ? where token_hash = ?", args: [nowIso(), tokenHash] });
-  return row.user_id;
+// Consumes a valid unused token; returns the user id or throws.
+async function consumeToken(token, purpose) {
+  const { userId, tokenHash } = await peekToken(token, purpose);
+  await getDb().execute({ sql: "update email_tokens set used_at = ? where token_hash = ?", args: [nowIso(), tokenHash] });
+  return userId;
 }
 
 // Removes expired rows and long-idle anonymous users. Runs on a small fraction
@@ -492,16 +496,18 @@ const actions = {
     assertSameOriginJson(req);
     const body = await readJson(req);
     validatePassword(body.password);
-    const userId = await consumeToken(body.token, "reset");
+    const { userId, tokenHash } = await peekToken(body.token, "reset");
     const passwordHash = await S.hashPassword(body.password);
     const now = nowIso();
 
     // The reset link proves email ownership, so it also confirms the email.
+    // Mark the token used atomically in the same batch as updating the password.
     await getDb().batch([
       {
         sql: "update users set password_hash = ?, email_verified_at = coalesce(email_verified_at, ?), updated_at = ? where id = ?",
         args: [passwordHash, now, now, userId]
       },
+      { sql: "update email_tokens set used_at = ? where token_hash = ?", args: [now, tokenHash] },
       { sql: "delete from sessions where user_id = ?", args: [userId] }
     ], "write");
     S.clearSessionCookie(req, res);

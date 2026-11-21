@@ -147,6 +147,18 @@
       setStatus(status, "That confirmation link is invalid or expired. Sign in to get a new one.", "warning");
     }
 
+    var forgotLink = form.querySelector('a[href*="reset-password"]');
+    if (forgotLink) {
+      forgotLink.addEventListener("click", function () {
+        var email = getValue(form, "email");
+        if (email) {
+          forgotLink.href = "/roadmap/reset-password.html?email=" + encodeURIComponent(email);
+        } else {
+          forgotLink.href = "/roadmap/reset-password.html";
+        }
+      });
+    }
+
     form.addEventListener("submit", withBusy(form, async function () {
       var email = getValue(form, "email");
       var password = getRaw(form, "password");
@@ -382,7 +394,9 @@
       return;
     }
 
-    var token = new URLSearchParams(window.location.search || "").get("token") || "";
+    var params = new URLSearchParams(window.location.search || "");
+    var token = params.get("token") || "";
+    var prefillEmail = params.get("email") || "";
     if (requestSection) {
       requestSection.hidden = !!token;
     }
@@ -391,6 +405,9 @@
     }
 
     if (requestForm) {
+      if (prefillEmail && requestForm.elements.email && !requestForm.elements.email.value) {
+        requestForm.elements.email.value = prefillEmail;
+      }
       handleResetRequest(requestForm, api);
     }
     if (recoveryForm && token) {

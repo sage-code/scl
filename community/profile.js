@@ -533,7 +533,11 @@
     empty.hidden = hasCerts;
   }
 
-  function renderContact(contact) {
+  function renderContact(contact, displayName) {
+    var headingEl = document.getElementById("profile-contact-heading");
+    if (headingEl) {
+      headingEl.textContent = "Contact " + (displayName || "member") + " on social platforms:";
+    }
     var linksEl = document.getElementById("profile-contact-links");
     var extraEl = document.getElementById("profile-contact-extra");
     var emptyEl = document.getElementById("profile-contact-empty");
@@ -654,7 +658,7 @@
     renderProjectsTable();
     renderEducationTable();
     renderCertificates(profile);
-    renderContact(profile.contact);
+    renderContact(profile.contact, profile.display_name);
     renderTestimonials(profile);
 
     detailsEl.hidden = false;
@@ -949,7 +953,7 @@
         return;
       }
       currentProfile = res.data.profile;
-      renderContact(currentProfile.contact);
+      renderContact(currentProfile.contact, currentProfile.display_name);
       dialogContacts.close("save");
     });
   }
