@@ -103,6 +103,8 @@ before(async () => {
       bio text not null,
       country_code text,
       projects_json text not null,
+      contact_json text not null default '{}',
+      paragraphs_json text not null default '[]',
       qualified_track text not null,
       qualified_topic text not null,
       role text not null default 'VCP Graduate',
@@ -287,4 +289,120 @@ test("community profile validation and avatar security checks", async () => {
 
   const afterDel = await request(communityProfile, "GET");
   assert.equal(afterDel.body.profile.avatar_url, null);
+});
+
+test("user_id lookup, owner-only editing, contact/paragraphs, and automatic certificates", async () => {
+  const otherUserId = "community-api-other-user";
+  const otherToken = "community-api-other-session";
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: "insert into users (id, is_anonymous, email_verified_at, last_seen_at) values (?, 0, ?, ?)",
+    args: [otherUserId, now, now]
+  });
+  await db.execute({
+    sql: "insert into sessions (token_hash, user_id, created_at, expires_at) values (?, ?, ?, ?)",
+    args: [hashToken(otherToken), otherUserId, now, new Date(Date.now() + 60_000).toISOString()]
+  });
+
+  // Pass a second track (css) to verify automatic multi-certificate listing.
+  for (const quizId of ["css-foundations-A", "css-foundations-B", "css-foundations-C"]) {
+    const quiz = getQuiz(quizId);
+    const attempt = await request(submitQuiz, "POST", {
+      quiz_id: quizId,
+      answers: correctAnswers(quiz)
+    });
+    assert.equal(attempt.status, 201);
+  }
+
+  const updated = await request(communityProfile, "POST", {
+    ...profileInput,
+    projects: [{ name: "Example", url: "https://example.com/project", description: "Demo project" }],
+    contact: {
+      website: "https://example.com",
+      github: "https://github.com/testuser",
+      discord: "@testuser",
+      email: "test@example.com"
+    },
+    paragraphs: [{ heading: "Experience", body: "Built open-source tools." }],
+    publish: true
+  });
+  assert.equal(updated.status, 200);
+  const publicId = updated.body.profile.public_id;
+
+  // Owner lookup via user_id query parameter returns is_owner: true and automatic certificates.
+  const ownerView = await request(
+    communityMember,
+    "GET",
+    undefined,
+    "/api/community/member?user_id=" + encodeURIComponent(publicId)
+  );
+  assert.equal(ownerView.status, 200);
+  assert.equal(ownerView.body.is_owner, true);
+  assert.equal(ownerView.body.profile.contact.github, "https://github.com/testuser");
+  assert.equal(ownerView.body.profile.paragraphs[0].heading, "Experience");
+  assert.equal(ownerView.body.profile.projects[0].description, "Demo project");
+  assert.deepEqual(
+    ownerView.body.profile.certificates.map((c) => c.track),
+    ["css", "go"]
+  );
+
+  // Anonymous visitor gets is_owner: false.
+  const anonRes = {
+    headers: {},
+    statusCode: 200,
+    setHeader(name, value) { this.headers[name] = value; },
+    getHeader(name) { return this.headers[name]; },
+    end(value) { this.body = value; }
+  };
+  await communityMember({
+    method: "GET",
+    url: "/api/community/member?user_id=" + encodeURIComponent(publicId),
+    headers: { host: "localhost", origin: "http://localhost" }
+  }, anonRes);
+  assert.equal(anonRes.statusCode, 200);
+  assert.equal(JSON.parse(anonRes.body).is_owner, false);
+
+  // Another signed-in user gets is_owner: false and cannot edit the owner's profile.
+  const otherRes = {
+    headers: {},
+    statusCode: 200,
+    setHeader(name, value) { this.headers[name] = value; },
+    getHeader(name) { return this.headers[name]; },
+    end(value) { this.body = value; }
+  };
+  await communityMember({
+    method: "GET",
+    url: "/api/community/member?user_id=" + encodeURIComponent(publicId),
+    headers: { cookie: `scl_sid=${otherToken}`, host: "localhost", origin: "http://localhost" }
+  }, otherRes);
+  assert.equal(otherRes.statusCode, 200);
+  assert.equal(JSON.parse(otherRes.body).is_owner, false);
+
+  // Another user posting to /api/community/profile cannot overwrite owner's profile.
+  const hijacked = {
+    headers: {},
+    statusCode: 200,
+    setHeader(name, value) { this.headers[name] = value; },
+    getHeader(name) { return this.headers[name]; },
+    end(value) { this.body = value; }
+  };
+  await communityProfile({
+    method: "POST",
+    url: "/api/community/profile",
+    headers: {
+      cookie: `scl_sid=${otherToken}`,
+      host: "localhost",
+      origin: "http://localhost",
+      "content-type": "application/json"
+    },
+    body: { ...profileInput, display_name: "Hijacker" }
+  }, hijacked);
+  assert.equal(hijacked.statusCode, 403);
+
+  // Invalid contact URL is rejected.
+  const badContact = await request(communityProfile, "POST", {
+    ...profileInput,
+    contact: { website: "http://insecure.example.com" }
+  });
+  assert.equal(badContact.status, 400);
 });

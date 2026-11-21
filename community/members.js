@@ -31,7 +31,7 @@
     for (var i = start; i < end; i += 1) {
       var m = members[i];
       var profileUrl = m.public_id
-        ? '/community/profile/' + encodeURIComponent(m.public_id) + '/'
+        ? '/community/profile.html?user_id=' + encodeURIComponent(m.public_id)
         : '/community/vcp/' + encodeURIComponent(m.slug) + '.html';
       var avatarUrl = safeAvatarUrl(m.avatar_url);
       html += '<tr>';

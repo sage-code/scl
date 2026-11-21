@@ -35,9 +35,17 @@ module.exports = handle(async (req, res) => {
   const body = await readJson(req);
   const profile = validateProfile(body);
   const tracks = await getQualifiedTracks(session.user);
-  const qualifiedTrack = tracks.find((track) => track.track === body.qualified_track);
+  let qualifiedTrack = tracks.find((track) => track.track === body.qualified_track);
   if (!qualifiedTrack) {
-    throw new HttpError(403, "Pass quiz sets A, B, and C for a roadmap before claiming VCP authentication.");
+    const existingMember = await getMember(session.user.id);
+    if (existingMember && existingMember.is_legacy_verified) {
+      qualifiedTrack = {
+        track: existingMember.qualified_track || "cse",
+        topic: existingMember.qualified_topic || "fundamentals"
+      };
+    } else {
+      throw new HttpError(403, "Pass quiz sets A, B, and C for a roadmap before claiming VCP authentication.");
+    }
   }
 
   const savedProfile = await saveMember(session.user.id, profile, qualifiedTrack);

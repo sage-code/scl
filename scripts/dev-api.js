@@ -23,7 +23,15 @@ for (const line of (fs.existsSync(path.join(ROOT, "env.local")) ? fs.readFileSyn
 const routes = [
   { pattern: /^\/api\/auth\/([a-z]+)\/?$/, handler: () => require("../api/auth/[action].js"), param: "action" },
   { pattern: /^\/api\/progress\/?$/, handler: () => require("../api/progress.js") },
-  { pattern: /^\/api\/favorites\/?$/, handler: () => require("../api/favorites.js") }
+  { pattern: /^\/api\/favorites\/?$/, handler: () => require("../api/favorites.js") },
+  { pattern: /^\/api\/profile\/avatar\/?$/, handler: () => require("../api/profile/avatar.js") },
+  { pattern: /^\/api\/quizzes\/submit\/?$/, handler: () => require("../api/quizzes/submit.js") },
+  { pattern: /^\/api\/roadmap\/learners\/?$/, handler: () => require("../api/roadmap/learners.js") },
+  { pattern: /^\/api\/roadmap\/leaderboard\/?$/, handler: () => require("../api/roadmap/leaderboard.js") },
+  { pattern: /^\/api\/community\/avatar\/?$/, handler: () => require("../api/community/avatar.js") },
+  { pattern: /^\/api\/community\/directory\/?$/, handler: () => require("../api/community/directory.js") },
+  { pattern: /^\/api\/community\/member\/?$/, handler: () => require("../api/community/member.js") },
+  { pattern: /^\/api\/community\/profile\/?$/, handler: () => require("../api/community/profile.js") }
 ];
 
 const TYPES = {

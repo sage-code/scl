@@ -30,7 +30,7 @@
 
   function updatePublicProfileLink(profile) {
     if (profile && profile.published && profile.public_id) {
-      publicProfileLink.href = "/community/profile/" + encodeURIComponent(profile.public_id) + "/";
+      publicProfileLink.href = "/community/profile.html?user_id=" + encodeURIComponent(profile.public_id);
       publicProfileLink.hidden = false;
     } else {
       publicProfileLink.removeAttribute("href");

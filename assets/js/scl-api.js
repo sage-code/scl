@@ -120,7 +120,7 @@
       saveProfile: function (profile) { return post("/api/community/profile/", profile); },
       removeAvatar: function () { return request("DELETE", "/api/community/avatar/"); },
       directory: function () { return request("GET", "/api/community/directory/"); },
-      member: function (publicId) { return request("GET", "/api/community/member/" + query({ public_id: publicId })); },
+      member: function (userId) { return request("GET", "/api/community/member/" + query({ user_id: userId })); },
       trackLabel: function (track) {
         var labels = {
           ada: "Ada", assembly: "Assembly", bash: "Bash", c: "C", cpp: "C++",
