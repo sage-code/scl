@@ -72,6 +72,7 @@ before(async () => {
     create table users (
       id text primary key,
       is_anonymous integer not null,
+      is_admin integer not null default 0,
       email_verified_at text,
       last_seen_at text
     );

@@ -416,6 +416,17 @@ async function listTestimonials(targetUserId, viewerUserId) {
 
 async function isMentorUser(userId) {
   if (!userId) return false;
+  try {
+    const userRes = await getDb().execute({
+      sql: "select is_admin from users where id = ? limit 1",
+      args: [userId]
+    });
+    if (userRes.rows[0] && Number(userRes.rows[0].is_admin) === 1) {
+      return true;
+    }
+  } catch (_error) {
+    // Older test schemas may omit users.is_admin.
+  }
   const result = await getDb().execute({
     sql: "select role, is_legacy_verified from community_members where user_id = ? limit 1",
     args: [userId]
