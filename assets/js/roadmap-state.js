@@ -170,11 +170,36 @@
     }
   }
 
+  function resolveCountryDisplay(code) {
+    var normalized = String(code || "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(normalized)) {
+      return "";
+    }
+    var flag = String.fromCodePoint.apply(null, normalized.split("").map(function (letter) {
+      return 0x1f1e6 + letter.charCodeAt(0) - 65;
+    }));
+    var name = "";
+    try {
+      if (typeof Intl !== "undefined" && Intl.DisplayNames) {
+        var names = new Intl.DisplayNames(["en"], { type: "region" });
+        var resolved = names.of(normalized);
+        if (resolved && resolved.toUpperCase() !== normalized && resolved !== "Unknown Region") {
+          name = resolved;
+        }
+      }
+    } catch (_error) {
+      // Ignore unsupported Intl.DisplayNames
+    }
+    return name ? (flag + " " + name) : "";
+  }
+
   function formatProfile(user) {
+    var countryDisplay = resolveCountryDisplay(user.country_code);
     return [
       "Display Name: " + (user.display_name || "(not set)"),
       "Handle: " + (user.handle || "(not set)"),
       "Email: " + (user.email || "(not set)") + (user.email && !user.email_verified ? " (not confirmed yet)" : ""),
+      "Country: " + (countryDisplay || "(not set)"),
       "Created: " + (user.created_at || "(unknown)")
     ].join("\n");
   }
@@ -276,6 +301,10 @@
 
     if (elements.country_code) {
       elements.country_code.value = registered ? (state.user.country_code || "") : "";
+      var countryPreview = document.getElementById("profile-country-preview");
+      if (countryPreview) {
+        countryPreview.textContent = registered ? resolveCountryDisplay(elements.country_code.value) : "";
+      }
     }
 
     if (elements.password) {

@@ -116,18 +116,22 @@
   }
 
   function countryName(countryCode) {
-    if (typeof countryCode !== "string" || !/^[A-Z]{2}$/.test(countryCode)) {
+    var normalized = String(countryCode || "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(normalized)) {
       return "";
     }
     try {
       if (typeof Intl !== "undefined" && Intl.DisplayNames) {
         var names = new Intl.DisplayNames(["en"], { type: "region" });
-        return names.of(countryCode) || countryCode;
+        var resolved = names.of(normalized);
+        if (resolved && resolved.toUpperCase() !== normalized && resolved !== "Unknown Region") {
+          return resolved;
+        }
       }
     } catch (_error) {
-      // Fallback to code
+      // Ignore unsupported Intl.DisplayNames
     }
-    return countryCode;
+    return "";
   }
 
   function renderIdentity(profile) {
@@ -136,8 +140,10 @@
     document.getElementById("profile-role").textContent = profile.role || "Student";
 
     var originEl = document.getElementById("profile-origin");
-    if (profile.country_code) {
-      originEl.textContent = countryFlag(profile.country_code) + " " + countryName(profile.country_code);
+    var normalizedCountry = String(profile.country_code || "").trim().toUpperCase();
+    var resolvedName = countryName(normalizedCountry);
+    if (normalizedCountry && resolvedName) {
+      originEl.textContent = countryFlag(normalizedCountry) + " " + resolvedName;
       originEl.hidden = false;
     } else {
       originEl.textContent = "";
@@ -739,9 +745,33 @@
         roleSelect.value = currentRole;
         roleGroup.hidden = true;
       }
-      document.getElementById("input-country-code").value = currentProfile.country_code || "";
+      var countryInput = document.getElementById("input-country-code");
+      var countryPreview = document.getElementById("input-country-preview");
+      countryInput.value = currentProfile.country_code || "";
+      if (countryPreview) {
+        var initCode = String(countryInput.value || "").trim().toUpperCase();
+        var initName = countryName(initCode);
+        countryPreview.textContent = initName ? (countryFlag(initCode) + " " + initName) : "";
+        countryPreview.className = "small text-light fw-medium";
+      }
       showInlineStatus("status-identity", "", "info");
       dialogIdentity.showModal();
+    });
+    document.getElementById("input-country-code").addEventListener("input", function (e) {
+      var countryPreview = document.getElementById("input-country-preview");
+      if (!countryPreview) return;
+      var code = String(e.target.value || "").trim().toUpperCase();
+      var name = countryName(code);
+      if (name) {
+        countryPreview.textContent = countryFlag(code) + " " + name;
+        countryPreview.className = "small text-light fw-medium";
+      } else if (code.length === 2) {
+        countryPreview.textContent = "Unknown country code";
+        countryPreview.className = "small text-warning";
+      } else {
+        countryPreview.textContent = "";
+        countryPreview.className = "small text-light fw-medium";
+      }
     });
     document.getElementById("form-identity").addEventListener("submit", async function (e) {
       e.preventDefault();

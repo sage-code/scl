@@ -561,13 +561,61 @@
       });
     }
 
+    function resolveCountryDisplay(code) {
+      var normalized = String(code || "").trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(normalized)) {
+        return "";
+      }
+      var flag = String.fromCodePoint.apply(null, normalized.split("").map(function (letter) {
+        return 0x1f1e6 + letter.charCodeAt(0) - 65;
+      }));
+      var name = "";
+      try {
+        if (typeof Intl !== "undefined" && Intl.DisplayNames) {
+          var names = new Intl.DisplayNames(["en"], { type: "region" });
+          var resolved = names.of(normalized);
+          if (resolved && resolved.toUpperCase() !== normalized && resolved !== "Unknown Region") {
+            name = resolved;
+          }
+        }
+      } catch (_error) {
+        // Ignore unsupported Intl.DisplayNames
+      }
+      return name ? (flag + " " + name) : "";
+    }
+
+    function updateCountryPreview() {
+      var preview = document.getElementById("profile-country-preview");
+      if (!preview) {
+        return;
+      }
+      var code = getValue(form, "country_code").toUpperCase();
+      var display = resolveCountryDisplay(code);
+      if (display) {
+        preview.textContent = display;
+        preview.className = "text-light fw-medium";
+      } else if (code.length === 2) {
+        preview.textContent = "Unknown country code";
+        preview.className = "small text-warning";
+      } else {
+        preview.textContent = "";
+        preview.className = "text-light fw-medium";
+      }
+    }
+
     ["handle", "country_code", "password", "confirm_password"].forEach(function (name) {
       if (form.elements[name]) {
-        form.elements[name].addEventListener("input", refreshActionButtons);
+        form.elements[name].addEventListener("input", function () {
+          if (name === "country_code") {
+            updateCountryPreview();
+          }
+          refreshActionButtons();
+        });
       }
     });
 
     window.addEventListener("roadmap-auth-changed", function () {
+      updateCountryPreview();
       refreshActionButtons();
     });
 
