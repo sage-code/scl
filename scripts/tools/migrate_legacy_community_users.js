@@ -51,6 +51,63 @@ function mimeForExt(filePath) {
   return "application/octet-stream";
 }
 
+function extractContacts(html) {
+  const contact = {};
+  for (const m of html.matchAll(/<a[^>]+href="(https:\/\/[^"]+)"[^>]*>/gi)) {
+    const href = m[1];
+    let host;
+    try {
+      host = new URL(href).hostname.toLowerCase();
+    } catch (_error) {
+      continue;
+    }
+    if (!contact.linkedin && host.includes("linkedin.com")) {
+      contact.linkedin = href;
+    } else if (!contact.github && host.includes("github.com")) {
+      contact.github = href;
+    } else if (!contact.x && (host === "x.com" || host.endsWith(".x.com") || host.includes("twitter.com"))) {
+      contact.x = href;
+    } else if (!contact.bluesky && host.includes("bsky.app")) {
+      contact.bluesky = href;
+    }
+  }
+  return contact;
+}
+
+function extractProjects(html) {
+  const sectionMatch = html.match(/<h2[^>]*>\s*Projects\s*<\/h2>([\s\S]*?)(?:<h2|<hr|<footer|$)/i);
+  if (!sectionMatch) {
+    return [];
+  }
+  const sectionHtml = sectionMatch[1];
+  const projects = [];
+  const seenUrls = new Set();
+
+  for (const rowMatch of sectionHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const rowHtml = rowMatch[1];
+    const linkMatch = rowHtml.match(/<a[^>]+href="(https:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!linkMatch) continue;
+    const href = linkMatch[1];
+    const name = stripTags(linkMatch[2]) || href;
+    if (seenUrls.has(href) || projects.length >= 5) continue;
+    seenUrls.add(href);
+
+    const cells = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((c) => stripTags(c[1]));
+    const description = cells.length >= 4 ? cells[3].slice(0, 200) : "";
+    projects.push(description ? { name: name.slice(0, 80), url: href, description } : { name: name.slice(0, 80), url: href });
+  }
+  return projects;
+}
+
+function extractEducationParagraphs(html) {
+  const eduMatch = html.match(/<h2[^>]*>\s*Education\s*<\/h2>\s*<p[^>]*>([\s\S]*?)<\/p>/i);
+  if (!eduMatch) {
+    return [];
+  }
+  const body = stripTags(eduMatch[1]).slice(0, 1000);
+  return body ? [{ heading: "Education", body }] : [];
+}
+
 function parseLegacyMember(entry) {
   const htmlPath = path.join(VCP_DIR, `${entry.slug}.html`);
   const html = fs.existsSync(htmlPath) ? fs.readFileSync(htmlPath, "utf8") : "";
@@ -61,15 +118,9 @@ function parseLegacyMember(entry) {
   const avatarMatch = html.match(/<img[^>]+src="(\/community\/images\/[^"]+)"/i);
   const certMatch = html.match(/<a[^>]+href="(\/community\/certificate\/[^"]+)"/i);
 
-  const projects = [];
-  const seenUrls = new Set();
-  for (const m of html.matchAll(/<a[^>]+href="(https:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)) {
-    const href = m[1];
-    const label = stripTags(m[2]) || href;
-    if (seenUrls.has(href) || projects.length >= 5) continue;
-    seenUrls.add(href);
-    projects.push({ name: label.slice(0, 80), url: href });
-  }
+  const contact = extractContacts(html);
+  const projects = extractProjects(html);
+  const paragraphs = extractEducationParagraphs(html);
 
   return {
     slug: entry.slug,
@@ -80,7 +131,9 @@ function parseLegacyMember(entry) {
     bio,
     avatar_rel: avatarMatch ? avatarMatch[1].replace(/^\//, "") : null,
     certificate_rel: certMatch ? certMatch[1].replace(/^\//, "") : null,
-    projects
+    contact,
+    projects,
+    paragraphs
   };
 }
 
@@ -189,14 +242,17 @@ async function main() {
     await db.execute({
       sql: `insert into community_members
               (user_id, public_id, display_name, avatar_url, bio, projects_json,
+               contact_json, paragraphs_json,
                qualified_track, qualified_topic, role, certification_label, certificate_url,
                member_since, is_legacy_verified, is_published, claimed_at, created_at, updated_at)
-            values (?, ?, ?, ?, ?, ?, 'cse', 'fundamentals', ?, ?, ?, ?, 1, 1, ?, ?, ?)
+            values (?, ?, ?, ?, ?, ?, ?, ?, 'cse', 'fundamentals', ?, ?, ?, ?, 1, 1, ?, ?, ?)
             on conflict (user_id) do update set
               display_name = excluded.display_name,
               avatar_url = coalesce(excluded.avatar_url, community_members.avatar_url),
               bio = excluded.bio,
               projects_json = excluded.projects_json,
+              contact_json = excluded.contact_json,
+              paragraphs_json = excluded.paragraphs_json,
               role = excluded.role,
               certification_label = excluded.certification_label,
               certificate_url = coalesce(excluded.certificate_url, community_members.certificate_url),
@@ -211,6 +267,8 @@ async function main() {
         avatarUrl,
         m.bio,
         JSON.stringify(m.projects),
+        JSON.stringify(m.contact || {}),
+        JSON.stringify(m.paragraphs || []),
         m.role,
         m.certification_label,
         certUrl,

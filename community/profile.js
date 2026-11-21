@@ -161,9 +161,8 @@
   }
 
   function renderProjects(projects) {
-    var table = document.getElementById("profile-projects-table");
+    var section = document.getElementById("profile-projects-section");
     var tbody = document.getElementById("profile-projects-body");
-    var empty = document.getElementById("profile-projects-empty");
     tbody.replaceChildren();
 
     var index = 0;
@@ -194,9 +193,7 @@
       tbody.append(tr);
     });
 
-    var hasProjects = tbody.childElementCount > 0;
-    table.hidden = !hasProjects;
-    empty.hidden = hasProjects;
+    section.hidden = tbody.childElementCount === 0;
   }
 
   function renderCertificates(profile) {
