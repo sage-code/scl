@@ -12,6 +12,7 @@ const ROADMAP_LABS_DIR = path.join(ROOT, "roadmap", "labs");
 const ROADMAP_DIR = path.join(ROOT, "roadmap");
 const PROJECTS_DIR = path.join(ROOT, "projects");
 const COMMUNITY_DIR = path.join(ROOT, "community");
+const SERVICES_DIR = path.join(ROOT, "services");
 const LAYOUTS_DIR = path.join(ROOT, "layouts");
 const ASSETS_DIR = path.join(ROOT, "assets");
 
@@ -152,6 +153,10 @@ function collectBuildInputFiles() {
     sourceFiles.add(filePath);
   }
 
+  for (const filePath of collectFilesRecursive(SERVICES_DIR)) {
+    sourceFiles.add(filePath);
+  }
+
   return Array.from(sourceFiles).sort();
 }
 
@@ -219,7 +224,17 @@ function diffSourceHashes(previousHashes, currentHashes) {
 
 function cleanPublicDir() {
   if (fs.existsSync(PUBLIC_DIR)) {
-    fs.rmSync(PUBLIC_DIR, { recursive: true, force: true });
+    try {
+      fs.rmSync(PUBLIC_DIR, { recursive: true, force: true });
+    } catch (err) {
+      if (err && (err.code === "EPERM" || err.code === "EBUSY")) {
+        for (const entry of fs.readdirSync(PUBLIC_DIR)) {
+          fs.rmSync(path.join(PUBLIC_DIR, entry), { recursive: true, force: true });
+        }
+      } else {
+        throw err;
+      }
+    }
   }
   ensureDir(PUBLIC_DIR);
 }
@@ -566,6 +581,10 @@ function shouldRelativizeRootLinks(sourcePath) {
   // folder too high and 404, so keep root-absolute links for the whole
   // community namespace (including /community/index.html).
   if (normalized.includes("/public/community/")) {
+    return false;
+  }
+
+  if (normalized.includes("/public/services/")) {
     return false;
   }
 
@@ -1456,6 +1475,16 @@ function copyCommunityContent() {
   copyProjectStaticAssetsRecursive(COMMUNITY_DIR, destinationDir);
 }
 
+function copyServicesContent() {
+  if (!fs.existsSync(SERVICES_DIR)) {
+    return;
+  }
+
+  const destinationDir = path.join(PUBLIC_DIR, "services");
+  copyHtmlOnlyRecursive(SERVICES_DIR, destinationDir);
+  copyProjectStaticAssetsRecursive(SERVICES_DIR, destinationDir);
+}
+
 function copyProjectStaticAssetsRecursive(src, dest) {
   if (!fs.existsSync(src)) {
     return;
@@ -1597,6 +1626,10 @@ function sourcePathToPublishedPath(sourcePath) {
     return path.join(PUBLIC_DIR, "community", path.relative(COMMUNITY_DIR, sourcePath));
   }
 
+  if (isPathInside(sourcePath, SERVICES_DIR)) {
+    return path.join(PUBLIC_DIR, "services", path.relative(SERVICES_DIR, sourcePath));
+  }
+
   if (isPathInside(sourcePath, ROADMAP_LABS_DIR)) {
     const relative = path.relative(ROADMAP_LABS_DIR, sourcePath);
     const parts = relative.split(path.sep);
@@ -1650,7 +1683,7 @@ function isRootContentHtmlFile(sourcePath) {
 function shouldPublishSourceAsset(sourcePath) {
   const ext = path.extname(sourcePath).toLowerCase();
 
-  if (isPathInside(sourcePath, PROJECTS_DIR) || isPathInside(sourcePath, COMMUNITY_DIR)) {
+  if (isPathInside(sourcePath, PROJECTS_DIR) || isPathInside(sourcePath, COMMUNITY_DIR) || isPathInside(sourcePath, SERVICES_DIR)) {
     return shouldCopyProjectStaticAsset(sourcePath);
   }
 
@@ -1841,6 +1874,7 @@ function runFullBuild() {
   copyLabStaticAssets();
   copyProjectContent();
   copyCommunityContent();
+  copyServicesContent();
   copyRoadmapDirectories();
   copyRoadmapTopLevelPages();
   copyRoadmapLandingPage();

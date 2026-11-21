@@ -109,6 +109,7 @@ URL_PATTERNS = {
     # Community section - medium priority
     "/community/": {"priority": 0.75, "changefreq": "monthly"},
     "/community/vcp/": {"priority": 0.7, "changefreq": "yearly"},
+    "/services/": {"priority": 0.75, "changefreq": "monthly"},
     
     # Utility pages - low priority
     "/legal": {"priority": 0.5, "changefreq": "yearly"},

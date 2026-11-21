@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from validation_lib import H1_RE, H2_RE, read_text, sidebar_issues, validate_json_syntax  # noqa: E402
 
-HTML_ROOTS = ["roadmap", "projects", "community", "layouts"]
+HTML_ROOTS = ["roadmap", "projects", "community", "services", "layouts"]
 JSON_ROOTS = ["roadmap", "projects", "community"]
 JS_ROOTS = ["api", "assets/js", "community", "scripts"]
 PY_ROOTS = ["scripts"]
