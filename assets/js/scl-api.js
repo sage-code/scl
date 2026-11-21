@@ -121,6 +121,28 @@
       removeAvatar: function () { return request("DELETE", "/api/community/avatar/"); },
       directory: function () { return request("GET", "/api/community/directory/"); },
       member: function (userId) { return request("GET", "/api/community/member/" + query({ user_id: userId })); },
+      addTestimonial: function (userId, content) { return post("/api/community/testimonial/", { user_id: userId, content: content }); },
+      deleteTestimonial: function (id) { return request("DELETE", "/api/community/testimonial/" + query({ id: id })); },
+      uploadAvatar: async function (file) {
+        try {
+          var response = await fetch("/api/community/avatar/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": file.type || "application/octet-stream"
+            },
+            body: file
+          });
+          var payload = await response.json().catch(function () { return {}; });
+          if (!response.ok) {
+            return { data: null, error: { status: response.status, message: extractErrorMessage(payload, response.status) } };
+          }
+          return { data: payload, error: null };
+        } catch (_error) {
+          return { data: null, error: { status: 0, message: "Network error. Check your connection and try again." } };
+        }
+      },
       trackLabel: function (track) {
         var labels = {
           ada: "Ada", assembly: "Assembly", bash: "Bash", c: "C", cpp: "C++",

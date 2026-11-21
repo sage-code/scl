@@ -17,6 +17,7 @@ const communityAvatar = require("../../api/community/avatar");
 const communityProfile = require("../../api/community/profile");
 const communityDirectory = require("../../api/community/directory");
 const communityMember = require("../../api/community/member");
+const communityTestimonial = require("../../api/community/testimonial");
 
 const db = getDb();
 const sessionToken = "community-api-test-session";
@@ -114,6 +115,16 @@ before(async () => {
       is_legacy_verified integer not null default 0,
       is_published integer not null,
       claimed_at text,
+      created_at text not null,
+      updated_at text not null
+    );
+    create table community_testimonials (
+      id text primary key,
+      target_user_id text not null,
+      author_user_id text not null,
+      author_name text not null,
+      author_role text not null,
+      content text not null,
       created_at text not null,
       updated_at text not null
     );
@@ -410,4 +421,59 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
     contact: { website: "http://insecure.example.com" }
   });
   assert.equal(badContact.status, 400);
+
+  // Education rows, certification_label, and Mentor testimonials.
+  const withEdu = await request(communityProfile, "POST", {
+    ...profileInput,
+    role: "Mentor",
+    certification_label: "Web Developer",
+    education_rows: [
+      { institution: "MIT / US", year_started: "2018", year_ended: "2022" }
+    ],
+    publish: true
+  });
+  assert.equal(withEdu.status, 200);
+  assert.equal(withEdu.body.profile.certification_label, "Web Developer");
+  assert.equal(withEdu.body.profile.education_rows.length, 1);
+  assert.equal(withEdu.body.profile.education_rows[0].institution, "MIT / US");
+
+  // Non-mentor cannot add a testimonial.
+  const nonMentorTestimonial = {
+    headers: {},
+    statusCode: 200,
+    setHeader(name, value) { this.headers[name] = value; },
+    getHeader(name) { return this.headers[name]; },
+    end(value) { this.body = value; }
+  };
+  await communityTestimonial({
+    method: "POST",
+    url: "/api/community/testimonial",
+    headers: {
+      cookie: `scl_sid=${otherToken}`,
+      host: "localhost",
+      origin: "http://localhost",
+      "content-type": "application/json"
+    },
+    body: { user_id: publicId, content: "Great developer!" }
+  }, nonMentorTestimonial);
+  assert.equal(nonMentorTestimonial.statusCode, 403);
+
+  // Mentor can add a testimonial and it appears on the profile.
+  const mentorTestimonial = await request(communityTestimonial, "POST", {
+    user_id: publicId,
+    content: "Excellent engineering skills."
+  });
+  assert.equal(mentorTestimonial.status, 201);
+  assert.equal(mentorTestimonial.body.testimonial.author_role, "Mentor");
+
+  const withTestimonials = await request(
+    communityMember,
+    "GET",
+    undefined,
+    "/api/community/member?user_id=" + encodeURIComponent(publicId)
+  );
+  assert.equal(withTestimonials.status, 200);
+  assert.equal(withTestimonials.body.can_add_testimonial, true);
+  assert.equal(withTestimonials.body.profile.testimonials.length, 1);
+  assert.equal(withTestimonials.body.profile.testimonials[0].content, "Excellent engineering skills.");
 });

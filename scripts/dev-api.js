@@ -31,7 +31,8 @@ const routes = [
   { pattern: /^\/api\/community\/avatar\/?$/, handler: () => require("../api/community/avatar.js") },
   { pattern: /^\/api\/community\/directory\/?$/, handler: () => require("../api/community/directory.js") },
   { pattern: /^\/api\/community\/member\/?$/, handler: () => require("../api/community/member.js") },
-  { pattern: /^\/api\/community\/profile\/?$/, handler: () => require("../api/community/profile.js") }
+  { pattern: /^\/api\/community\/profile\/?$/, handler: () => require("../api/community/profile.js") },
+  { pattern: /^\/api\/community\/testimonial\/?$/, handler: () => require("../api/community/testimonial.js") }
 ];
 
 const TYPES = {

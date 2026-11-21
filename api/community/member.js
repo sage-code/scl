@@ -19,5 +19,9 @@ module.exports = handle(async (req, res) => {
   if (!result) {
     throw new HttpError(404, "Community profile not found.");
   }
-  sendJson(res, 200, { profile: result.profile, is_owner: result.is_owner });
+  sendJson(res, 200, {
+    profile: result.profile,
+    is_owner: result.is_owner,
+    can_add_testimonial: result.can_add_testimonial
+  });
 });

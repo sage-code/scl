@@ -151,9 +151,18 @@ function validateProfile(body) {
   if (body.role !== undefined) {
     role = typeof body.role === "string" ? body.role.trim() : "";
     if (role.length > 80) {
-      throw new HttpError(400, "Position / role must be 80 characters or fewer.");
+      throw new HttpError(400, "Role must be 80 characters or fewer.");
     }
-    role = role || "VCP Graduate";
+    role = role || "Student";
+  }
+
+  let certificationLabel;
+  if (body.certification_label !== undefined) {
+    certificationLabel = typeof body.certification_label === "string" ? body.certification_label.trim() : "";
+    if (certificationLabel.length > 80) {
+      throw new HttpError(400, "Position / qualification must be 80 characters or fewer.");
+    }
+    certificationLabel = certificationLabel || null;
   }
 
   let education;
@@ -164,15 +173,51 @@ function validateProfile(body) {
     }
   }
 
+  let educationRows;
+  if (body.education_rows !== undefined) {
+    if (!Array.isArray(body.education_rows) || body.education_rows.length > 10) {
+      throw new HttpError(400, "Provide no more than 10 education entries.");
+    }
+    educationRows = body.education_rows.map((item) => {
+      if (!item || typeof item !== "object") {
+        throw new HttpError(400, "Each education entry must be an object.");
+      }
+      const institution = typeof item.institution === "string" ? item.institution.trim() : "";
+      const yearStarted = item.year_started != null ? String(item.year_started).trim() : "";
+      const yearEnded = item.year_ended != null ? String(item.year_ended).trim() : "";
+      if (!institution || institution.length > 120) {
+        throw new HttpError(400, "Institution / Country is required and must be 120 characters or fewer.");
+      }
+      if (yearStarted.length > 20 || yearEnded.length > 20) {
+        throw new HttpError(400, "Education years must be 20 characters or fewer.");
+      }
+      return {
+        kind: "education_row",
+        institution,
+        year_started: yearStarted,
+        year_ended: yearEnded
+      };
+    });
+  }
+
   let paragraphs = validateParagraphs(body.paragraphs);
-  if (education !== undefined) {
-    const others = (paragraphs || []).filter((p) => p.heading !== "Education");
-    paragraphs = education ? [{ heading: "Education", body: education }, ...others] : others;
+  if (education !== undefined || educationRows !== undefined) {
+    const base = paragraphs || [];
+    const others = base.filter((p) => p.heading !== "Education" && p.kind !== "education_row");
+    const eduItems = [];
+    if (education) {
+      eduItems.push({ heading: "Education", body: education });
+    }
+    if (educationRows) {
+      eduItems.push(...educationRows);
+    }
+    paragraphs = [...eduItems, ...others];
   }
 
   return {
     displayName,
     role,
+    certificationLabel,
     bio,
     countryCode,
     projects,
@@ -265,15 +310,23 @@ function buildCertificates(row, qualifiedTracks) {
 function extractEducationAndParagraphs(rawParagraphs) {
   const list = parseJsonArray(rawParagraphs, "community paragraphs");
   let education = "";
+  const educationRows = [];
   const paragraphs = [];
   for (const item of list) {
-    if (item && item.heading === "Education" && !education) {
+    if (!item) continue;
+    if (item.kind === "education_row" && item.institution) {
+      educationRows.push({
+        institution: item.institution,
+        year_started: item.year_started || "",
+        year_ended: item.year_ended || ""
+      });
+    } else if (item.heading === "Education" && !education) {
       education = item.body || "";
-    } else if (item && item.body) {
+    } else if (item.body) {
       paragraphs.push(item);
     }
   }
-  return { education, paragraphs };
+  return { education, educationRows, paragraphs };
 }
 
 function memberFromRow(row) {
@@ -282,20 +335,21 @@ function memberFromRow(row) {
   }
   const projects = parseJsonArray(row.projects_json, "community projects");
   const contact = parseJsonObject(row.contact_json, "community contact");
-  const { education, paragraphs } = extractEducationAndParagraphs(row.paragraphs_json);
+  const { education, educationRows, paragraphs } = extractEducationAndParagraphs(row.paragraphs_json);
   return {
     public_id: row.public_id,
     display_name: row.display_name,
     avatar_url: row.avatar_url,
     bio: row.bio,
     education,
+    education_rows: educationRows,
     country_code: row.country_code,
     projects,
     contact,
     paragraphs,
     qualified_track: row.qualified_track,
     qualified_topic: row.qualified_topic,
-    role: row.role || "VCP Graduate",
+    role: row.role || "Student",
     certification_label: row.certification_label || null,
     certificate_url: row.certificate_url || null,
     member_since: row.member_since != null ? Number(row.member_since) : null,
@@ -307,7 +361,7 @@ function memberFromRow(row) {
   };
 }
 
-function publicMemberFromRow(row, qualifiedTracks) {
+function publicMemberFromRow(row, qualifiedTracks, testimonials) {
   const member = memberFromRow(row);
   if (!member) {
     return null;
@@ -319,6 +373,7 @@ function publicMemberFromRow(row, qualifiedTracks) {
     avatar_url: member.avatar_url,
     bio: member.bio,
     education: member.education,
+    education_rows: member.education_rows,
     country_code: member.country_code,
     projects: member.projects,
     contact: member.contact,
@@ -329,11 +384,105 @@ function publicMemberFromRow(row, qualifiedTracks) {
     certification_label: member.certification_label,
     certificate_url: member.certificate_url,
     certificates,
+    testimonials: testimonials || [],
     vcp_verified: member.is_legacy_verified || certificates.length > 0,
     member_since: member.member_since,
     is_legacy_verified: member.is_legacy_verified,
     claimed_at: member.claimed_at
   };
+}
+
+async function listTestimonials(targetUserId, viewerUserId) {
+  try {
+    const result = await getDb().execute({
+      sql: `select id, author_user_id, author_name, author_role, content, created_at
+            from community_testimonials
+            where target_user_id = ?
+            order by created_at desc`,
+      args: [targetUserId]
+    });
+    return result.rows.map((row) => ({
+      id: row.id,
+      author_name: row.author_name,
+      author_role: row.author_role,
+      content: row.content,
+      created_at: row.created_at,
+      can_delete: Boolean(viewerUserId && (viewerUserId === row.author_user_id || viewerUserId === targetUserId))
+    }));
+  } catch (_error) {
+    return [];
+  }
+}
+
+async function isMentorUser(userId) {
+  if (!userId) return false;
+  const result = await getDb().execute({
+    sql: "select role, is_legacy_verified from community_members where user_id = ? limit 1",
+    args: [userId]
+  });
+  const row = result.rows[0];
+  if (!row) return false;
+  return String(row.role || "").trim().toLowerCase() === "mentor" || Number(row.is_legacy_verified) === 1;
+}
+
+async function addTestimonial(authorUserId, targetPublicId, rawContent) {
+  const isMentor = await isMentorUser(authorUserId);
+  if (!isMentor) {
+    throw new HttpError(403, "Only verified mentors can add testimonials.");
+  }
+  const content = typeof rawContent === "string" ? rawContent.trim() : "";
+  if (!content || content.length > 1000) {
+    throw new HttpError(400, "Testimonial must be 1 to 1000 characters.");
+  }
+  const targetRes = await getDb().execute({
+    sql: "select user_id from community_members where public_id = ? and is_published = 1 limit 1",
+    args: [targetPublicId]
+  });
+  const target = targetRes.rows[0];
+  if (!target) {
+    throw new HttpError(404, "Target community profile not found.");
+  }
+  const authorRes = await getDb().execute({
+    sql: "select display_name, role from community_members where user_id = ? limit 1",
+    args: [authorUserId]
+  });
+  const author = authorRes.rows[0] || {};
+  const id = crypto.randomUUID();
+  const now = nowIso();
+  const authorName = author.display_name || "Mentor";
+  const authorRole = author.role || "Mentor";
+  await getDb().execute({
+    sql: `insert into community_testimonials
+            (id, target_user_id, author_user_id, author_name, author_role, content, created_at, updated_at)
+          values (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, target.user_id, authorUserId, authorName, authorRole, content, now, now]
+  });
+  return {
+    id,
+    author_name: authorName,
+    author_role: authorRole,
+    content,
+    created_at: now,
+    can_delete: true
+  };
+}
+
+async function deleteTestimonial(viewerUserId, testimonialId) {
+  const existing = await getDb().execute({
+    sql: "select id, target_user_id, author_user_id from community_testimonials where id = ? limit 1",
+    args: [testimonialId]
+  });
+  const row = existing.rows[0];
+  if (!row) {
+    throw new HttpError(404, "Testimonial not found.");
+  }
+  if (row.author_user_id !== viewerUserId && row.target_user_id !== viewerUserId) {
+    throw new HttpError(403, "You can only remove your own testimonials.");
+  }
+  await getDb().execute({
+    sql: "delete from community_testimonials where id = ?",
+    args: [testimonialId]
+  });
 }
 
 async function getPublicMemberWithOwnership(publicId, viewerUserId) {
@@ -354,17 +503,29 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
     return null;
   }
   const isOwner = Boolean(viewerUserId && row.user_id === viewerUserId);
+  const canAddTestimonial = await isMentorUser(viewerUserId);
   const qualifiedTracks = await getQualifiedTracks({
     id: row.user_id,
     is_anonymous: row.is_anonymous,
     email_verified_at: row.email_verified_at
   });
+  const testimonials = await listTestimonials(row.user_id, viewerUserId);
   if (Number(row.is_legacy_verified) === 1) {
-    return { profile: publicMemberFromRow(row, qualifiedTracks), is_owner: isOwner };
+    return {
+      profile: publicMemberFromRow(row, qualifiedTracks, testimonials),
+      is_owner: isOwner,
+      can_add_testimonial: canAddTestimonial
+    };
   }
 
   const qualified = qualifiedTracks.some((track) => track.track === row.qualified_track && track.topic === row.qualified_topic);
-  return qualified ? { profile: publicMemberFromRow(row, qualifiedTracks), is_owner: isOwner } : null;
+  return qualified
+    ? {
+        profile: publicMemberFromRow(row, qualifiedTracks, testimonials),
+        is_owner: isOwner,
+        can_add_testimonial: canAddTestimonial
+      }
+    : null;
 }
 
 async function getPublicMember(publicId) {
@@ -421,12 +582,13 @@ async function saveMember(userId, profile, qualifiedTrack) {
   const contactArg = profile.contact !== undefined ? JSON.stringify(profile.contact) : null;
   const paragraphsArg = profile.paragraphs !== undefined ? JSON.stringify(profile.paragraphs) : null;
   const roleArg = profile.role !== undefined ? profile.role : null;
+  const certLabelArg = profile.certificationLabel !== undefined ? profile.certificationLabel : null;
   await getDb().execute({
     sql: `insert into community_members
             (user_id, public_id, display_name, bio, country_code, projects_json,
-             contact_json, paragraphs_json, role,
+             contact_json, paragraphs_json, role, certification_label,
              qualified_track, qualified_topic, is_published, claimed_at, created_at, updated_at)
-          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           on conflict (user_id) do update set
             display_name = excluded.display_name,
             bio = excluded.bio,
@@ -435,6 +597,7 @@ async function saveMember(userId, profile, qualifiedTrack) {
             contact_json = coalesce(?, community_members.contact_json),
             paragraphs_json = coalesce(?, community_members.paragraphs_json),
             role = coalesce(?, community_members.role),
+            certification_label = coalesce(?, community_members.certification_label),
             qualified_track = excluded.qualified_track,
             qualified_topic = excluded.qualified_topic,
             is_published = excluded.is_published,
@@ -452,7 +615,8 @@ async function saveMember(userId, profile, qualifiedTrack) {
       JSON.stringify(profile.projects),
       contactArg !== null ? contactArg : "{}",
       paragraphsArg !== null ? paragraphsArg : "[]",
-      roleArg !== null ? roleArg : "VCP Graduate",
+      roleArg !== null ? roleArg : "Student",
+      certLabelArg,
       qualifiedTrack.track,
       qualifiedTrack.topic,
       profile.publish ? 1 : 0,
@@ -461,7 +625,8 @@ async function saveMember(userId, profile, qualifiedTrack) {
       now,
       contactArg,
       paragraphsArg,
-      roleArg
+      roleArg,
+      certLabelArg
     ]
   });
   return getMember(userId);
@@ -477,5 +642,7 @@ module.exports = {
   getPublicMember,
   getPublicMemberWithOwnership,
   listPublishedMembers,
-  saveMember
+  saveMember,
+  addTestimonial,
+  deleteTestimonial
 };

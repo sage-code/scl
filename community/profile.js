@@ -1,29 +1,34 @@
 (function () {
   var MAX_PROJECTS = 5;
-  var MAX_PARAGRAPHS = 5;
+  var MAX_EDUCATION = 10;
   var AVATAR_PLACEHOLDER = "/assets/images/avatar-placeholder.svg";
 
-  var status = document.getElementById("profile-status");
-  var details = document.getElementById("profile-details");
-  var title = document.getElementById("profile-title");
-  var ownerBar = document.getElementById("profile-owner-bar");
-  var editorSection = document.getElementById("profile-editor");
+  var statusEl = document.getElementById("profile-status");
+  var detailsEl = document.getElementById("profile-details");
+  var titleEl = document.getElementById("profile-title");
 
   var currentProfile = null;
   var isOwner = false;
+  var canAddTestimonial = false;
+  var projectsEditMode = false;
+  var editingProjectIndex = -1;
+  var draftProjects = [];
+  var educationEditMode = false;
+  var editingEducationIndex = -1;
+  var draftEducation = [];
 
   function showStatus(message, kind) {
-    status.hidden = !message;
-    status.className = "alert alert-" + kind + " mt-3";
-    status.textContent = message;
+    statusEl.hidden = !message;
+    statusEl.className = "alert alert-" + kind + " mt-3";
+    statusEl.textContent = message;
   }
 
-  function showSaveStatus(message, kind) {
-    var box = document.getElementById("profile-save-status");
-    if (!box) return;
-    box.hidden = !message;
-    box.className = "alert alert-" + kind;
-    box.textContent = message;
+  function showInlineStatus(id, message, kind) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.hidden = !message;
+    el.className = "alert alert-" + kind + " mt-2 mb-0 py-1 px-2 small";
+    el.textContent = message;
   }
 
   function trackName(track) {
@@ -66,10 +71,72 @@
     }
   }
 
-  function renderHighlights(profile) {
+  function buildSavePayload(overrides) {
+    var payload = {
+      qualified_track: currentProfile.qualified_track,
+      display_name: currentProfile.display_name,
+      role: currentProfile.role || "Student",
+      certification_label: currentProfile.certification_label || "",
+      country_code: currentProfile.country_code || "",
+      bio: currentProfile.bio || "",
+      projects: currentProfile.projects || [],
+      education_rows: currentProfile.education_rows || [],
+      contact: currentProfile.contact || {},
+      publish: true
+    };
+    Object.keys(overrides || {}).forEach(function (key) {
+      payload[key] = overrides[key];
+    });
+    return payload;
+  }
+
+  function renderVcpStatus(profile) {
+    var badge = document.getElementById("profile-vcp-status");
+    var certs = Array.isArray(profile.certificates) ? profile.certificates : [];
+    var verified = Boolean(profile.vcp_verified || profile.is_legacy_verified || certs.length > 0 || profile.certificate_url);
+    badge.replaceChildren();
+    if (verified) {
+      badge.className = "badge bg-success-subtle text-success-emphasis border border-success-subtle";
+      var icon = document.createElement("i");
+      icon.className = "bi bi-patch-check-fill me-1";
+      icon.setAttribute("aria-hidden", "true");
+      badge.append(icon, document.createTextNode("VCP Verified"));
+    } else {
+      badge.className = "badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle";
+      badge.textContent = "VCP Unverified";
+    }
+  }
+
+  function renderIdentity(profile) {
+    titleEl.textContent = profile.display_name;
+    document.title = profile.display_name + " | Sage-Code Community";
+    document.getElementById("profile-role").textContent = profile.role || "Student";
+    renderVcpStatus(profile);
+
+    var metaParts = [];
+    if (profile.country_code) {
+      metaParts.push(countryFlag(profile.country_code) + " " + profile.country_code);
+    }
+    var claimed = profile.claimed_at ? new Date(profile.claimed_at) : null;
+    if (profile.member_since) {
+      metaParts.push("Member since " + profile.member_since);
+    } else if (claimed && !Number.isNaN(claimed.getTime())) {
+      metaParts.push("Member since " + claimed.toLocaleDateString(undefined, { year: "numeric", month: "long" }));
+    }
+    var metaEl = document.getElementById("profile-meta");
+    metaEl.textContent = metaParts.join(" · ");
+    metaEl.hidden = metaParts.length === 0;
+
+    var avatar = document.getElementById("profile-avatar");
+    var safeAvatar = safeHttpsUrl(profile.avatar_url);
+    avatar.src = safeAvatar || AVATAR_PLACEHOLDER;
+    avatar.alt = "Avatar of " + profile.display_name;
+  }
+
+  function renderQualificationPanel(profile) {
     var qualText = profile.certification_label
       ? profile.certification_label
-      : trackName(profile.qualified_track) + " roadmap qualification";
+      : trackName(profile.qualified_track) + " Developer";
     document.getElementById("profile-qualification").textContent = qualText;
 
     var bio = document.getElementById("profile-bio");
@@ -79,34 +146,284 @@
     bioEmpty.hidden = Boolean(profile.bio);
   }
 
-  function renderEducation(educationText, paragraphs) {
-    var eduEl = document.getElementById("profile-education");
-    var eduEmpty = document.getElementById("profile-education-empty");
-    var container = document.getElementById("profile-paragraphs");
+  function syncProjectsFromInputs(rowEl, index) {
+    if (!rowEl || index < 0 || index >= draftProjects.length) return;
+    var nameInput = rowEl.querySelector("[data-inline-project-name]");
+    var urlInput = rowEl.querySelector("[data-inline-project-url]");
+    var descInput = rowEl.querySelector("[data-inline-project-desc]");
+    if (!nameInput || !urlInput || !descInput) return;
+    draftProjects[index] = {
+      name: nameInput.value.trim(),
+      url: urlInput.value.trim(),
+      description: descInput.value.trim()
+    };
+  }
 
-    eduEl.textContent = educationText || "";
-    eduEl.hidden = !educationText;
+  function renderProjectsTable() {
+    var section = document.getElementById("profile-projects-section");
+    var table = document.getElementById("profile-projects-table");
+    var tbody = document.getElementById("profile-projects-body");
+    var empty = document.getElementById("profile-projects-empty");
+    var saveBtn = document.getElementById("projects-save-btn");
+    var hintEl = document.getElementById("projects-edit-hint");
+    tbody.replaceChildren();
 
-    container.replaceChildren();
-    var list = Array.isArray(paragraphs) ? paragraphs : [];
-    list.forEach(function (item) {
-      if (!item || !item.body || item.heading === "Education") return;
-      var block = document.createElement("div");
-      block.className = "mb-3";
-      if (item.heading) {
-        var h3 = document.createElement("h3");
-        h3.className = "h5 mb-1";
-        h3.textContent = item.heading;
-        block.append(h3);
+    var list = projectsEditMode ? draftProjects : (currentProfile.projects || []);
+    list.forEach(function (project, idx) {
+      var tr = document.createElement("tr");
+      var tdNum = document.createElement("td");
+      tdNum.textContent = String(idx + 1);
+
+      if (projectsEditMode && idx === editingProjectIndex) {
+        var tdProject = document.createElement("td");
+        var nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.className = "form-control form-control-sm mb-1";
+        nameInput.maxLength = 80;
+        nameInput.placeholder = "Project name";
+        nameInput.value = project.name || "";
+        nameInput.setAttribute("data-inline-project-name", "");
+
+        var urlInput = document.createElement("input");
+        urlInput.type = "url";
+        urlInput.className = "form-control form-control-sm";
+        urlInput.maxLength = 500;
+        urlInput.placeholder = "https://example.com";
+        urlInput.value = project.url || "";
+        urlInput.setAttribute("data-inline-project-url", "");
+        tdProject.append(nameInput, urlInput);
+
+        var tdDesc = document.createElement("td");
+        var descWrap = document.createElement("div");
+        descWrap.className = "d-flex gap-2 align-items-start";
+        var descInput = document.createElement("input");
+        descInput.type = "text";
+        descInput.className = "form-control form-control-sm";
+        descInput.maxLength = 200;
+        descInput.placeholder = "Project description";
+        descInput.value = project.description || "";
+        descInput.setAttribute("data-inline-project-desc", "");
+
+        var delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn btn-outline-danger btn-sm flex-shrink-0";
+        delBtn.title = "Remove row";
+        delBtn.textContent = "×";
+        delBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          draftProjects.splice(idx, 1);
+          editingProjectIndex = -1;
+          renderProjectsTable();
+        });
+
+        descWrap.append(descInput, delBtn);
+        tdDesc.append(descWrap);
+        tr.append(tdNum, tdProject, tdDesc);
+        tbody.append(tr);
+        setTimeout(function () { nameInput.focus(); }, 0);
+        return;
       }
-      var p = document.createElement("p");
-      p.className = "mb-0";
-      p.textContent = item.body;
-      block.append(p);
-      container.append(block);
+
+      var href = safeHttpsUrl(project && project.url);
+      var tdName = document.createElement("td");
+      if (href && project.name) {
+        var link = document.createElement("a");
+        link.href = href;
+        link.textContent = project.name;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer nofollow";
+        tdName.append(link);
+      } else {
+        tdName.textContent = (project && project.name) || "(Untitled)";
+      }
+
+      var tdDesc = document.createElement("td");
+      tdDesc.className = project && project.description ? "" : "text-secondary";
+      tdDesc.textContent = (project && project.description) || "—";
+
+      if (projectsEditMode) {
+        tr.className = "profile-row-selectable";
+        tr.title = "Click to edit row";
+        tr.addEventListener("click", function (e) {
+          if (e.target.tagName === "A") {
+            e.preventDefault();
+          }
+          var activeRow = tbody.querySelector("[data-inline-project-name]");
+          if (activeRow) {
+            syncProjectsFromInputs(activeRow.closest("tr"), editingProjectIndex);
+          }
+          editingProjectIndex = idx;
+          renderProjectsTable();
+        });
+      }
+
+      tr.append(tdNum, tdName, tdDesc);
+      tbody.append(tr);
     });
-    container.hidden = container.childElementCount === 0;
-    eduEmpty.hidden = Boolean(educationText) || container.childElementCount > 0;
+
+    var hasRows = list.length > 0;
+    table.hidden = !hasRows;
+    empty.hidden = hasRows || !isOwner;
+    saveBtn.hidden = !projectsEditMode;
+    hintEl.hidden = !projectsEditMode;
+    section.hidden = !isOwner && !hasRows;
+  }
+
+  function syncEducationFromInputs(rowEl, index) {
+    if (!rowEl || index < 0 || index >= draftEducation.length) return;
+    var instInput = rowEl.querySelector("[data-inline-edu-inst]");
+    var startInput = rowEl.querySelector("[data-inline-edu-start]");
+    var endInput = rowEl.querySelector("[data-inline-edu-end]");
+    if (!instInput || !startInput || !endInput) return;
+    draftEducation[index] = {
+      institution: instInput.value.trim(),
+      year_started: startInput.value.trim(),
+      year_ended: endInput.value.trim()
+    };
+  }
+
+  function renderEducationTable() {
+    var table = document.getElementById("profile-education-table");
+    var tbody = document.getElementById("profile-education-body");
+    var empty = document.getElementById("profile-education-empty");
+    var legacyEl = document.getElementById("profile-education-legacy");
+    var saveBtn = document.getElementById("education-save-btn");
+    var hintEl = document.getElementById("education-edit-hint");
+    tbody.replaceChildren();
+
+    var legacyText = currentProfile.education || "";
+    legacyEl.textContent = legacyText;
+    legacyEl.hidden = !legacyText;
+
+    var list = educationEditMode ? draftEducation : (currentProfile.education_rows || []);
+    list.forEach(function (row, idx) {
+      var tr = document.createElement("tr");
+
+      if (educationEditMode && idx === editingEducationIndex) {
+        var tdInst = document.createElement("td");
+        var instInput = document.createElement("input");
+        instInput.type = "text";
+        instInput.className = "form-control form-control-sm";
+        instInput.maxLength = 120;
+        instInput.placeholder = "University / Country";
+        instInput.value = row.institution || "";
+        instInput.setAttribute("data-inline-edu-inst", "");
+        tdInst.append(instInput);
+
+        var tdStart = document.createElement("td");
+        var startInput = document.createElement("input");
+        startInput.type = "text";
+        startInput.className = "form-control form-control-sm";
+        startInput.maxLength = 20;
+        startInput.placeholder = "2020";
+        startInput.value = row.year_started || "";
+        startInput.setAttribute("data-inline-edu-start", "");
+        tdStart.append(startInput);
+
+        var tdEnd = document.createElement("td");
+        var endWrap = document.createElement("div");
+        endWrap.className = "d-flex gap-2 align-items-center";
+        var endInput = document.createElement("input");
+        endInput.type = "text";
+        endInput.className = "form-control form-control-sm";
+        endInput.maxLength = 20;
+        endInput.placeholder = "2024";
+        endInput.value = row.year_ended || "";
+        endInput.setAttribute("data-inline-edu-end", "");
+
+        var delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn btn-outline-danger btn-sm flex-shrink-0";
+        delBtn.title = "Remove row";
+        delBtn.textContent = "×";
+        delBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          draftEducation.splice(idx, 1);
+          editingEducationIndex = -1;
+          renderEducationTable();
+        });
+
+        endWrap.append(endInput, delBtn);
+        tdEnd.append(endWrap);
+        tr.append(tdInst, tdStart, tdEnd);
+        tbody.append(tr);
+        setTimeout(function () { instInput.focus(); }, 0);
+        return;
+      }
+
+      var tdInst = document.createElement("td");
+      tdInst.textContent = row.institution || "—";
+      var tdStart = document.createElement("td");
+      tdStart.textContent = row.year_started || "—";
+      var tdEnd = document.createElement("td");
+      tdEnd.textContent = row.year_ended || "—";
+
+      if (educationEditMode) {
+        tr.className = "profile-row-selectable";
+        tr.title = "Click to edit row";
+        tr.addEventListener("click", function () {
+          var activeRow = tbody.querySelector("[data-inline-edu-inst]");
+          if (activeRow) {
+            syncEducationFromInputs(activeRow.closest("tr"), editingEducationIndex);
+          }
+          editingEducationIndex = idx;
+          renderEducationTable();
+        });
+      }
+
+      tr.append(tdInst, tdStart, tdEnd);
+      tbody.append(tr);
+    });
+
+    var hasRows = list.length > 0;
+    table.hidden = !hasRows;
+    empty.hidden = hasRows || Boolean(legacyText);
+    saveBtn.hidden = !educationEditMode;
+    hintEl.hidden = !educationEditMode;
+  }
+
+  function renderCertificates(profile) {
+    var empty = document.getElementById("profile-certificate-empty");
+    var list = document.getElementById("profile-certificates-list");
+    list.replaceChildren();
+
+    var certs = Array.isArray(profile.certificates) ? profile.certificates.slice() : [];
+    if (certs.length === 0 && profile.certificate_url) {
+      certs.push({
+        title: profile.certification_label || "Certificate of Completion",
+        url: profile.certificate_url
+      });
+    }
+
+    certs.forEach(function (cert) {
+      if (!cert || !cert.url) return;
+      var safeUrl;
+      try {
+        var parsed = new URL(cert.url, window.location.origin);
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
+        safeUrl = parsed.href;
+      } catch (_error) {
+        return;
+      }
+      var li = document.createElement("li");
+      var link = document.createElement("a");
+      link.href = safeUrl;
+      link.className = "btn btn-outline-primary btn-sm";
+      if (safeUrl.indexOf(window.location.origin) !== 0) {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer nofollow";
+      }
+      var icon = document.createElement("i");
+      icon.className = "bi bi-patch-check-fill me-1";
+      icon.setAttribute("aria-hidden", "true");
+      link.append(icon, document.createTextNode(cert.title || "View Certificate"));
+      li.append(link);
+      list.append(li);
+    });
+
+    var hasCerts = list.childElementCount > 0;
+    list.hidden = !hasCerts;
+    empty.hidden = hasCerts;
   }
 
   function renderContact(contact) {
@@ -160,382 +477,370 @@
     emptyEl.hidden = hasContent;
   }
 
-  function renderProjects(projects) {
-    var section = document.getElementById("profile-projects-section");
-    var tbody = document.getElementById("profile-projects-body");
-    tbody.replaceChildren();
+  function renderTestimonials(profile) {
+    var section = document.getElementById("profile-testimonials-section");
+    var grid = document.getElementById("profile-testimonials-grid");
+    var addBtn = document.getElementById("testimonial-add-btn");
+    grid.replaceChildren();
 
-    var index = 0;
-    (projects || []).forEach(function (project) {
-      var href = safeHttpsUrl(project && project.url);
-      if (!href || !project.name) {
-        return;
+    var items = Array.isArray(profile.testimonials) ? profile.testimonials : [];
+    var colClass = items.length === 1 ? "col-12" : "col-lg-6";
+
+    items.forEach(function (item) {
+      var col = document.createElement("div");
+      col.className = colClass;
+
+      var card = document.createElement("article");
+      card.className = "card-slate p-4 h-100 d-flex flex-column justify-content-between";
+
+      var quote = document.createElement("p");
+      quote.className = "mb-3";
+      quote.textContent = item.content || "";
+
+      var footer = document.createElement("div");
+      footer.className = "d-flex justify-content-between align-items-center gap-2 pt-2 border-top border-secondary-subtle";
+
+      var author = document.createElement("div");
+      author.className = "small";
+      var strong = document.createElement("strong");
+      strong.textContent = item.author_name || "Mentor";
+      var roleSpan = document.createElement("span");
+      roleSpan.className = "text-secondary ms-2";
+      roleSpan.textContent = item.author_role || "Mentor";
+      author.append(strong, roleSpan);
+
+      footer.append(author);
+
+      if (item.can_delete) {
+        var delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn btn-outline-danger btn-sm";
+        delBtn.textContent = "Remove";
+        delBtn.addEventListener("click", async function () {
+          delBtn.disabled = true;
+          var res = await window.sclApi.community.deleteTestimonial(item.id);
+          if (!res.error) {
+            currentProfile.testimonials = (currentProfile.testimonials || []).filter(function (t) {
+              return t.id !== item.id;
+            });
+            renderTestimonials(currentProfile);
+          } else {
+            delBtn.disabled = false;
+          }
+        });
+        footer.append(delBtn);
       }
-      index += 1;
-      var tr = document.createElement("tr");
 
-      var tdNum = document.createElement("td");
-      tdNum.textContent = String(index);
-
-      var tdName = document.createElement("td");
-      var link = document.createElement("a");
-      link.href = href;
-      link.textContent = project.name;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer nofollow";
-      tdName.append(link);
-
-      var tdDesc = document.createElement("td");
-      tdDesc.className = project.description ? "" : "text-secondary";
-      tdDesc.textContent = project.description || "—";
-
-      tr.append(tdNum, tdName, tdDesc);
-      tbody.append(tr);
+      card.append(quote, footer);
+      col.append(card);
+      grid.append(col);
     });
 
-    section.hidden = tbody.childElementCount === 0;
-  }
-
-  function renderCertificates(profile) {
-    var empty = document.getElementById("profile-certificate-empty");
-    var list = document.getElementById("profile-certificates-list");
-    list.replaceChildren();
-
-    var certs = Array.isArray(profile.certificates) ? profile.certificates.slice() : [];
-    if (certs.length === 0 && profile.certificate_url) {
-      certs.push({
-        title: profile.certification_label || "Certificate of Completion",
-        url: profile.certificate_url
-      });
-    }
-
-    certs.forEach(function (cert) {
-      if (!cert || !cert.url) return;
-      var safeUrl;
-      try {
-        var parsed = new URL(cert.url, window.location.origin);
-        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
-        safeUrl = parsed.href;
-      } catch (_error) {
-        return;
-      }
-      var li = document.createElement("li");
-      var link = document.createElement("a");
-      link.href = safeUrl;
-      link.className = "btn btn-outline-primary btn-sm";
-      if (safeUrl.indexOf(window.location.origin) !== 0) {
-        link.target = "_blank";
-        link.rel = "noopener noreferrer nofollow";
-      }
-      var icon = document.createElement("i");
-      icon.className = "bi bi-patch-check-fill me-1";
-      icon.setAttribute("aria-hidden", "true");
-      link.append(icon, document.createTextNode(cert.title || "View Certificate"));
-      li.append(link);
-      list.append(li);
-    });
-
-    var hasCerts = list.childElementCount > 0;
-    list.hidden = !hasCerts;
-    empty.hidden = hasCerts;
-  }
-
-  function renderVcpStatus(profile) {
-    var badge = document.getElementById("profile-vcp-status");
-    var certs = Array.isArray(profile.certificates) ? profile.certificates : [];
-    var verified = Boolean(profile.vcp_verified || profile.is_legacy_verified || certs.length > 0 || profile.certificate_url);
-    badge.replaceChildren();
-    if (verified) {
-      badge.className = "badge bg-success-subtle text-success-emphasis border border-success-subtle";
-      var icon = document.createElement("i");
-      icon.className = "bi bi-patch-check-fill me-1";
-      icon.setAttribute("aria-hidden", "true");
-      badge.append(icon, document.createTextNode("VCP Verified"));
-    } else {
-      badge.className = "badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle";
-      badge.textContent = "VCP Unverified";
-    }
+    addBtn.hidden = !canAddTestimonial;
+    section.hidden = items.length === 0 && !canAddTestimonial;
   }
 
   function renderProfile(profile) {
     currentProfile = profile;
-    title.textContent = profile.display_name;
-    document.title = profile.display_name + " | Sage-Code Community";
-
-    document.getElementById("profile-position").textContent = profile.role || "VCP Graduate";
-    renderVcpStatus(profile);
-
-    var metaParts = [];
-    if (profile.country_code) {
-      metaParts.push(countryFlag(profile.country_code) + " " + profile.country_code);
-    }
-    var claimed = profile.claimed_at ? new Date(profile.claimed_at) : null;
-    if (profile.member_since) {
-      metaParts.push("Member since " + profile.member_since);
-    } else if (claimed && !Number.isNaN(claimed.getTime())) {
-      metaParts.push("Member since " + claimed.toLocaleDateString(undefined, { year: "numeric", month: "long" }));
-    }
-    var metaEl = document.getElementById("profile-meta");
-    metaEl.textContent = metaParts.join(" · ");
-    metaEl.hidden = metaParts.length === 0;
-
-    var avatar = document.getElementById("profile-avatar");
-    var safeAvatar = safeHttpsUrl(profile.avatar_url);
-    avatar.src = safeAvatar || AVATAR_PLACEHOLDER;
-    avatar.alt = "Avatar of " + profile.display_name;
-
-    renderHighlights(profile);
-    renderEducation(profile.education, profile.paragraphs);
-    renderContact(profile.contact);
-    renderProjects(profile.projects);
+    renderIdentity(profile);
+    renderQualificationPanel(profile);
+    renderProjectsTable();
+    renderEducationTable();
     renderCertificates(profile);
+    renderContact(profile.contact);
+    renderTestimonials(profile);
 
-    ownerBar.hidden = !isOwner;
-    if (!isOwner) {
-      editorSection.hidden = true;
-    }
-
-    details.hidden = false;
+    detailsEl.hidden = false;
     showStatus("", "info");
   }
 
-  function addParagraphRow(item) {
-    var list = document.getElementById("edit-paragraphs-list");
-    if (list.childElementCount >= MAX_PARAGRAPHS) return;
-
-    var row = document.createElement("div");
-    row.className = "border border-secondary-subtle rounded p-3";
-    row.setAttribute("data-edit-paragraph", "");
-
-    var headerRow = document.createElement("div");
-    headerRow.className = "d-flex gap-2 mb-2 align-items-center";
-
-    var headingInput = document.createElement("input");
-    headingInput.type = "text";
-    headingInput.className = "form-control form-control-sm";
-    headingInput.maxLength = 80;
-    headingInput.placeholder = "Section heading (optional)";
-    headingInput.value = item && item.heading ? item.heading : "";
-    headingInput.setAttribute("data-paragraph-heading", "");
-
-    var removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "btn btn-outline-danger btn-sm flex-shrink-0";
-    removeBtn.textContent = "Remove";
-    removeBtn.addEventListener("click", function () {
-      row.remove();
-    });
-
-    headerRow.append(headingInput, removeBtn);
-
-    var bodyInput = document.createElement("textarea");
-    bodyInput.className = "form-control form-control-sm";
-    bodyInput.rows = 3;
-    bodyInput.maxLength = 1000;
-    bodyInput.placeholder = "Write a paragraph…";
-    bodyInput.value = item && item.body ? item.body : "";
-    bodyInput.setAttribute("data-paragraph-body", "");
-
-    row.append(headerRow, bodyInput);
-    list.append(row);
-  }
-
-  function addProjectRow(project) {
-    var list = document.getElementById("edit-projects-list");
-    if (list.childElementCount >= MAX_PROJECTS) return null;
-
-    var row = document.createElement("div");
-    row.className = "border border-secondary-subtle rounded p-3";
-    row.setAttribute("data-edit-project", "");
-
-    var topRow = document.createElement("div");
-    topRow.className = "row g-2 mb-2";
-
-    var nameCol = document.createElement("div");
-    nameCol.className = "col-md-5";
-    var nameInput = document.createElement("input");
-    nameInput.type = "text";
-    nameInput.className = "form-control form-control-sm";
-    nameInput.maxLength = 80;
-    nameInput.placeholder = "Project name";
-    nameInput.value = project && project.name ? project.name : "";
-    nameInput.setAttribute("data-project-name", "");
-    nameCol.append(nameInput);
-
-    var urlCol = document.createElement("div");
-    urlCol.className = "col-md-5";
-    var urlInput = document.createElement("input");
-    urlInput.type = "url";
-    urlInput.className = "form-control form-control-sm";
-    urlInput.maxLength = 500;
-    urlInput.placeholder = "https://example.com";
-    urlInput.value = project && project.url ? project.url : "";
-    urlInput.setAttribute("data-project-url", "");
-    urlCol.append(urlInput);
-
-    var btnCol = document.createElement("div");
-    btnCol.className = "col-md-2 d-grid";
-    var removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "btn btn-outline-danger btn-sm";
-    removeBtn.textContent = "Remove";
-    removeBtn.addEventListener("click", function () {
-      row.remove();
-    });
-    btnCol.append(removeBtn);
-
-    topRow.append(nameCol, urlCol, btnCol);
-
-    var descInput = document.createElement("input");
-    descInput.type = "text";
-    descInput.className = "form-control form-control-sm";
-    descInput.maxLength = 200;
-    descInput.placeholder = "Project description";
-    descInput.value = project && project.description ? project.description : "";
-    descInput.setAttribute("data-project-desc", "");
-
-    row.append(topRow, descInput);
-    list.append(row);
-    return nameInput;
-  }
-
-  function populateEditor(profile) {
-    if (!isOwner || !profile) return;
-    document.getElementById("edit-display-name").value = profile.display_name || "";
-    document.getElementById("edit-role").value = profile.role || "";
-    document.getElementById("edit-country-code").value = profile.country_code || "";
-    document.getElementById("edit-bio").value = profile.bio || "";
-    document.getElementById("edit-education").value = profile.education || "";
-    document.getElementById("edit-publish").checked = true;
-
-    var contact = profile.contact && typeof profile.contact === "object" ? profile.contact : {};
-    document.getElementById("edit-contact-website").value = contact.website || "";
-    document.getElementById("edit-contact-github").value = contact.github || "";
-    document.getElementById("edit-contact-linkedin").value = contact.linkedin || "";
-    document.getElementById("edit-contact-x").value = contact.x || "";
-    document.getElementById("edit-contact-bluesky").value = contact.bluesky || "";
-    document.getElementById("edit-contact-discord").value = contact.discord || "";
-    document.getElementById("edit-contact-email").value = contact.email || "";
-
-    var paragraphsList = document.getElementById("edit-paragraphs-list");
-    paragraphsList.replaceChildren();
-    (profile.paragraphs || []).forEach(addParagraphRow);
-
-    var projectsList = document.getElementById("edit-projects-list");
-    projectsList.replaceChildren();
-    (profile.projects || []).forEach(addProjectRow);
-    showSaveStatus("", "info");
-  }
-
-  function openEditor(focusNewProject) {
-    if (!isOwner || !currentProfile) return;
-    populateEditor(currentProfile);
-    editorSection.hidden = false;
-    if (focusNewProject) {
-      var newInput = addProjectRow({});
-      if (newInput) {
-        newInput.focus();
-        return;
-      }
-    }
-    editorSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   function wireOwnerControls() {
-    document.getElementById("profile-edit-toggle").addEventListener("click", function () {
-      if (!isOwner) return;
-      if (editorSection.hidden) {
-        openEditor(false);
-      } else {
-        editorSection.hidden = true;
+    document.getElementById("edit-avatar-btn").hidden = false;
+    document.getElementById("edit-identity-btn").hidden = false;
+    document.getElementById("edit-highlights-btn").hidden = false;
+    document.getElementById("projects-owner-controls").hidden = false;
+    document.getElementById("education-owner-controls").hidden = false;
+    document.getElementById("edit-contacts-btn").hidden = false;
+
+    // Avatar crop & upload
+    var avatarInput = document.getElementById("profile-avatar-input");
+    var cropper = window.sclAvatarCropper
+      ? window.sclAvatarCropper.init({
+          onConfirm: async function (optimized) {
+            var res = await window.sclApi.community.uploadAvatar(optimized.file);
+            if (res.error) {
+              showStatus(res.error.message, "danger");
+              return;
+            }
+            if (res.data && res.data.avatar_url) {
+              currentProfile.avatar_url = res.data.avatar_url;
+              renderIdentity(currentProfile);
+            }
+          },
+          onError: function (msg) {
+            showStatus(msg, "danger");
+          }
+        })
+      : null;
+
+    document.getElementById("edit-avatar-btn").addEventListener("click", function () {
+      avatarInput.click();
+    });
+
+    avatarInput.addEventListener("change", function () {
+      var file = avatarInput.files && avatarInput.files[0];
+      avatarInput.value = "";
+      if (!file) return;
+      if (cropper) {
+        cropper.openFile(file);
       }
     });
 
-    document.getElementById("profile-add-project-btn").addEventListener("click", function () {
-      if (!isOwner) return;
-      openEditor(true);
-    });
-
-    document.getElementById("profile-cancel-btn").addEventListener("click", function () {
-      editorSection.hidden = true;
-      showSaveStatus("", "info");
-    });
-
-    document.getElementById("edit-add-paragraph").addEventListener("click", function () {
-      if (!isOwner) return;
-      addParagraphRow({});
-    });
-
-    document.getElementById("edit-add-project").addEventListener("click", function () {
-      if (!isOwner) return;
-      var input = addProjectRow({});
-      if (input) input.focus();
-    });
-
-    document.getElementById("profile-edit-form").addEventListener("submit", async function (event) {
-      event.preventDefault();
-      if (!isOwner || !currentProfile) return;
-
-      var saveBtn = document.getElementById("profile-save-btn");
-      saveBtn.disabled = true;
-      showSaveStatus("", "info");
-
-      var projects = Array.from(document.querySelectorAll("[data-edit-project]")).map(function (row) {
-        return {
-          name: row.querySelector("[data-project-name]").value.trim(),
-          url: row.querySelector("[data-project-url]").value.trim(),
-          description: row.querySelector("[data-project-desc]").value.trim()
-        };
-      }).filter(function (project) {
-        return project.name || project.url || project.description;
-      });
-
-      var paragraphs = Array.from(document.querySelectorAll("[data-edit-paragraph]")).map(function (row) {
-        return {
-          heading: row.querySelector("[data-paragraph-heading]").value.trim(),
-          body: row.querySelector("[data-paragraph-body]").value.trim()
-        };
-      }).filter(function (item) {
-        return item.heading || item.body;
-      });
-
-      var contact = {
-        website: document.getElementById("edit-contact-website").value.trim(),
-        github: document.getElementById("edit-contact-github").value.trim(),
-        linkedin: document.getElementById("edit-contact-linkedin").value.trim(),
-        x: document.getElementById("edit-contact-x").value.trim(),
-        bluesky: document.getElementById("edit-contact-bluesky").value.trim(),
-        discord: document.getElementById("edit-contact-discord").value.trim(),
-        email: document.getElementById("edit-contact-email").value.trim()
-      };
-
-      var result = await window.sclApi.community.saveProfile({
-        qualified_track: currentProfile.qualified_track,
-        display_name: document.getElementById("edit-display-name").value,
-        role: document.getElementById("edit-role").value,
-        country_code: document.getElementById("edit-country-code").value,
-        bio: document.getElementById("edit-bio").value,
-        education: document.getElementById("edit-education").value,
-        projects: projects,
-        paragraphs: paragraphs,
-        contact: contact,
-        publish: document.getElementById("edit-publish").checked
-      });
-
-      saveBtn.disabled = false;
-      if (result.error) {
-        showSaveStatus(result.error.message, "danger");
+    // Identity panel form (Name + Role + Country)
+    var formIdentity = document.getElementById("form-identity");
+    document.getElementById("edit-identity-btn").addEventListener("click", function () {
+      if (!formIdentity.hidden) {
+        formIdentity.hidden = true;
         return;
       }
-
-      if (result.data && result.data.profile) {
-        if (!result.data.profile.published) {
-          showSaveStatus("Your profile is now private and unlisted from the community directory.", "info");
-          return;
-        }
-        renderProfile(result.data.profile);
-        editorSection.hidden = true;
+      document.getElementById("input-display-name").value = currentProfile.display_name || "";
+      var roleSelect = document.getElementById("input-role");
+      var currentRole = currentProfile.role || "Student";
+      roleSelect.value = ["Student", "Developer", "Mentor"].indexOf(currentRole) !== -1 ? currentRole : "Student";
+      document.getElementById("input-country-code").value = currentProfile.country_code || "";
+      showInlineStatus("status-identity", "", "info");
+      formIdentity.hidden = false;
+    });
+    document.getElementById("cancel-identity-btn").addEventListener("click", function () {
+      formIdentity.hidden = true;
+    });
+    formIdentity.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var res = await window.sclApi.community.saveProfile(buildSavePayload({
+        display_name: document.getElementById("input-display-name").value,
+        role: document.getElementById("input-role").value,
+        country_code: document.getElementById("input-country-code").value
+      }));
+      if (res.error) {
+        showInlineStatus("status-identity", res.error.message, "danger");
+        return;
       }
+      currentProfile = res.data.profile;
+      renderIdentity(currentProfile);
+      formIdentity.hidden = true;
+    });
+
+    // Qualification / Description panel form
+    var formHighlights = document.getElementById("form-highlights");
+    document.getElementById("edit-highlights-btn").addEventListener("click", function () {
+      if (!formHighlights.hidden) {
+        formHighlights.hidden = true;
+        return;
+      }
+      document.getElementById("input-qualification").value = currentProfile.certification_label || "";
+      document.getElementById("input-bio").value = currentProfile.bio || "";
+      showInlineStatus("status-highlights", "", "info");
+      formHighlights.hidden = false;
+    });
+    document.getElementById("cancel-highlights-btn").addEventListener("click", function () {
+      formHighlights.hidden = true;
+    });
+    formHighlights.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var res = await window.sclApi.community.saveProfile(buildSavePayload({
+        certification_label: document.getElementById("input-qualification").value,
+        bio: document.getElementById("input-bio").value
+      }));
+      if (res.error) {
+        showInlineStatus("status-highlights", res.error.message, "danger");
+        return;
+      }
+      currentProfile = res.data.profile;
+      renderQualificationPanel(currentProfile);
+      formHighlights.hidden = true;
+    });
+
+    // Projects in-place table editing
+    document.getElementById("projects-edit-btn").addEventListener("click", function () {
+      if (projectsEditMode) {
+        projectsEditMode = false;
+        editingProjectIndex = -1;
+        showInlineStatus("status-projects", "", "info");
+        renderProjectsTable();
+        return;
+      }
+      draftProjects = (currentProfile.projects || []).map(function (p) {
+        return { name: p.name || "", url: p.url || "", description: p.description || "" };
+      });
+      projectsEditMode = true;
+      editingProjectIndex = draftProjects.length ? 0 : -1;
+      showInlineStatus("status-projects", "", "info");
+      renderProjectsTable();
+    });
+
+    document.getElementById("projects-add-btn").addEventListener("click", function () {
+      if (!projectsEditMode) {
+        draftProjects = (currentProfile.projects || []).map(function (p) {
+          return { name: p.name || "", url: p.url || "", description: p.description || "" };
+        });
+        projectsEditMode = true;
+      } else {
+        var active = document.querySelector("[data-inline-project-name]");
+        if (active) syncProjectsFromInputs(active.closest("tr"), editingProjectIndex);
+      }
+      if (draftProjects.length >= MAX_PROJECTS) {
+        showInlineStatus("status-projects", "You can list up to " + MAX_PROJECTS + " projects.", "warning");
+        return;
+      }
+      draftProjects.push({ name: "", url: "", description: "" });
+      editingProjectIndex = draftProjects.length - 1;
+      showInlineStatus("status-projects", "", "info");
+      renderProjectsTable();
+    });
+
+    document.getElementById("projects-save-btn").addEventListener("click", async function () {
+      var active = document.querySelector("[data-inline-project-name]");
+      if (active) syncProjectsFromInputs(active.closest("tr"), editingProjectIndex);
+
+      var cleaned = draftProjects.filter(function (p) {
+        return p.name || p.url || p.description;
+      });
+      var res = await window.sclApi.community.saveProfile(buildSavePayload({ projects: cleaned }));
+      if (res.error) {
+        showInlineStatus("status-projects", res.error.message, "danger");
+        return;
+      }
+      currentProfile = res.data.profile;
+      projectsEditMode = false;
+      editingProjectIndex = -1;
+      showInlineStatus("status-projects", "", "info");
+      renderProjectsTable();
+    });
+
+    // Education in-place table editing
+    document.getElementById("education-edit-btn").addEventListener("click", function () {
+      if (educationEditMode) {
+        educationEditMode = false;
+        editingEducationIndex = -1;
+        showInlineStatus("status-education", "", "info");
+        renderEducationTable();
+        return;
+      }
+      draftEducation = (currentProfile.education_rows || []).map(function (r) {
+        return { institution: r.institution || "", year_started: r.year_started || "", year_ended: r.year_ended || "" };
+      });
+      educationEditMode = true;
+      editingEducationIndex = draftEducation.length ? 0 : -1;
+      showInlineStatus("status-education", "", "info");
+      renderEducationTable();
+    });
+
+    document.getElementById("education-add-btn").addEventListener("click", function () {
+      if (!educationEditMode) {
+        draftEducation = (currentProfile.education_rows || []).map(function (r) {
+          return { institution: r.institution || "", year_started: r.year_started || "", year_ended: r.year_ended || "" };
+        });
+        educationEditMode = true;
+      } else {
+        var active = document.querySelector("[data-inline-edu-inst]");
+        if (active) syncEducationFromInputs(active.closest("tr"), editingEducationIndex);
+      }
+      if (draftEducation.length >= MAX_EDUCATION) {
+        showInlineStatus("status-education", "You can list up to " + MAX_EDUCATION + " education entries.", "warning");
+        return;
+      }
+      draftEducation.push({ institution: "", year_started: "", year_ended: "" });
+      editingEducationIndex = draftEducation.length - 1;
+      showInlineStatus("status-education", "", "info");
+      renderEducationTable();
+    });
+
+    document.getElementById("education-save-btn").addEventListener("click", async function () {
+      var active = document.querySelector("[data-inline-edu-inst]");
+      if (active) syncEducationFromInputs(active.closest("tr"), editingEducationIndex);
+
+      var cleaned = draftEducation.filter(function (r) {
+        return r.institution || r.year_started || r.year_ended;
+      });
+      var res = await window.sclApi.community.saveProfile(buildSavePayload({ education_rows: cleaned }));
+      if (res.error) {
+        showInlineStatus("status-education", res.error.message, "danger");
+        return;
+      }
+      currentProfile = res.data.profile;
+      educationEditMode = false;
+      editingEducationIndex = -1;
+      showInlineStatus("status-education", "", "info");
+      renderEducationTable();
+    });
+
+    // Contacts panel form
+    var formContacts = document.getElementById("form-contacts");
+    document.getElementById("edit-contacts-btn").addEventListener("click", function () {
+      if (!formContacts.hidden) {
+        formContacts.hidden = true;
+        return;
+      }
+      var c = currentProfile.contact || {};
+      document.getElementById("input-contact-website").value = c.website || "";
+      document.getElementById("input-contact-github").value = c.github || "";
+      document.getElementById("input-contact-linkedin").value = c.linkedin || "";
+      document.getElementById("input-contact-x").value = c.x || "";
+      document.getElementById("input-contact-bluesky").value = c.bluesky || "";
+      document.getElementById("input-contact-discord").value = c.discord || "";
+      document.getElementById("input-contact-email").value = c.email || "";
+      showInlineStatus("status-contacts", "", "info");
+      formContacts.hidden = false;
+    });
+    document.getElementById("cancel-contacts-btn").addEventListener("click", function () {
+      formContacts.hidden = true;
+    });
+    formContacts.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var contact = {
+        website: document.getElementById("input-contact-website").value.trim(),
+        github: document.getElementById("input-contact-github").value.trim(),
+        linkedin: document.getElementById("input-contact-linkedin").value.trim(),
+        x: document.getElementById("input-contact-x").value.trim(),
+        bluesky: document.getElementById("input-contact-bluesky").value.trim(),
+        discord: document.getElementById("input-contact-discord").value.trim(),
+        email: document.getElementById("input-contact-email").value.trim()
+      };
+      var res = await window.sclApi.community.saveProfile(buildSavePayload({ contact: contact }));
+      if (res.error) {
+        showInlineStatus("status-contacts", res.error.message, "danger");
+        return;
+      }
+      currentProfile = res.data.profile;
+      renderContact(currentProfile.contact);
+      formContacts.hidden = true;
+    });
+  }
+
+  function wireMentorTestimonialControls() {
+    var form = document.getElementById("form-testimonial");
+    document.getElementById("testimonial-add-btn").addEventListener("click", function () {
+      form.hidden = !form.hidden;
+      showInlineStatus("status-testimonial", "", "info");
+      if (!form.hidden) {
+        document.getElementById("input-testimonial-content").focus();
+      }
+    });
+    document.getElementById("cancel-testimonial-btn").addEventListener("click", function () {
+      form.hidden = true;
+    });
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var content = document.getElementById("input-testimonial-content").value.trim();
+      var res = await window.sclApi.community.addTestimonial(currentProfile.public_id, content);
+      if (res.error) {
+        showInlineStatus("status-testimonial", res.error.message, "danger");
+        return;
+      }
+      document.getElementById("input-testimonial-content").value = "";
+      form.hidden = true;
+      currentProfile.testimonials = [res.data.testimonial].concat(currentProfile.testimonials || []);
+      renderTestimonials(currentProfile);
     });
   }
 
@@ -553,9 +858,13 @@
       return;
     }
     isOwner = Boolean(result.data && result.data.is_owner === true);
+    canAddTestimonial = Boolean(result.data && result.data.can_add_testimonial === true);
     renderProfile(result.data.profile);
     if (isOwner) {
       wireOwnerControls();
+    }
+    if (canAddTestimonial) {
+      wireMentorTestimonialControls();
     }
   }
 
