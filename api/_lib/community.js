@@ -192,10 +192,14 @@ function validateProfile(body) {
         throw new HttpError(400, "Each education entry must be an object.");
       }
       const institution = typeof item.institution === "string" ? item.institution.trim() : "";
+      const country = typeof item.country === "string" ? item.country.trim() : "";
       const yearStarted = item.year_started != null ? String(item.year_started).trim() : "";
       const yearEnded = item.year_ended != null ? String(item.year_ended).trim() : "";
       if (!institution || institution.length > 120) {
-        throw new HttpError(400, "Institution / Country is required and must be 120 characters or fewer.");
+        throw new HttpError(400, "Institution is required and must be 120 characters or fewer.");
+      }
+      if (country.length > 80) {
+        throw new HttpError(400, "Country must be 80 characters or fewer.");
       }
       if (yearStarted.length > 20 || yearEnded.length > 20) {
         throw new HttpError(400, "Education years must be 20 characters or fewer.");
@@ -203,6 +207,7 @@ function validateProfile(body) {
       return {
         kind: "education_row",
         institution,
+        country,
         year_started: yearStarted,
         year_ended: yearEnded
       };
@@ -326,6 +331,7 @@ function extractEducationAndParagraphs(rawParagraphs) {
     if (item.kind === "education_row" && item.institution) {
       educationRows.push({
         institution: item.institution,
+        country: item.country || "",
         year_started: item.year_started || "",
         year_ended: item.year_ended || ""
       });

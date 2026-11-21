@@ -132,25 +132,46 @@
     }
   }
 
+  function countryName(countryCode) {
+    if (typeof countryCode !== "string" || !/^[A-Z]{2}$/.test(countryCode)) {
+      return "";
+    }
+    try {
+      if (typeof Intl !== "undefined" && Intl.DisplayNames) {
+        var names = new Intl.DisplayNames(["en"], { type: "region" });
+        return names.of(countryCode) || countryCode;
+      }
+    } catch (_error) {
+      // Fallback to code
+    }
+    return countryCode;
+  }
+
   function renderIdentity(profile) {
     titleEl.textContent = profile.display_name;
     document.title = profile.display_name + " | Sage-Code Community";
     document.getElementById("profile-role").textContent = profile.role || "Student";
     renderVcpStatus(profile);
 
-    var metaParts = [];
+    var originEl = document.getElementById("profile-origin");
     if (profile.country_code) {
-      metaParts.push(countryFlag(profile.country_code) + " " + profile.country_code);
+      originEl.textContent = "From: " + countryFlag(profile.country_code) + " " + countryName(profile.country_code);
+      originEl.hidden = false;
+    } else {
+      originEl.textContent = "";
+      originEl.hidden = true;
     }
+
     var claimed = profile.claimed_at ? new Date(profile.claimed_at) : null;
+    var sinceText = "";
     if (profile.member_since) {
-      metaParts.push("Member since " + profile.member_since);
+      sinceText = "Member since " + profile.member_since;
     } else if (claimed && !Number.isNaN(claimed.getTime())) {
-      metaParts.push("Member since " + claimed.toLocaleDateString(undefined, { year: "numeric", month: "long" }));
+      sinceText = "Member since " + claimed.toLocaleDateString(undefined, { year: "numeric", month: "long" });
     }
     var metaEl = document.getElementById("profile-meta");
-    metaEl.textContent = metaParts.join(" · ");
-    metaEl.hidden = metaParts.length === 0;
+    metaEl.textContent = sinceText;
+    metaEl.hidden = !sinceText;
 
     var avatar = document.getElementById("profile-avatar");
     var safeAvatar = safeHttpsUrl(profile.avatar_url);
@@ -192,6 +213,8 @@
     var tbody = document.getElementById("profile-projects-body");
     var empty = document.getElementById("profile-projects-empty");
     var saveBtn = document.getElementById("projects-save-btn");
+    var cancelBtn = document.getElementById("projects-cancel-btn");
+    var editBtn = document.getElementById("projects-edit-btn");
     var hintEl = document.getElementById("projects-edit-hint");
     tbody.replaceChildren();
 
@@ -329,6 +352,8 @@
     table.hidden = !hasRows;
     empty.hidden = hasRows || !canEdit;
     saveBtn.hidden = !projectsEditMode;
+    cancelBtn.hidden = !projectsEditMode;
+    editBtn.hidden = projectsEditMode;
     hintEl.hidden = !projectsEditMode;
     section.hidden = !canEdit && !hasRows;
   }
@@ -336,11 +361,13 @@
   function syncEducationFromInputs(rowEl, index) {
     if (!rowEl || index < 0 || index >= draftEducation.length) return;
     var instInput = rowEl.querySelector("[data-inline-edu-inst]");
+    var countryInput = rowEl.querySelector("[data-inline-edu-country]");
     var startInput = rowEl.querySelector("[data-inline-edu-start]");
     var endInput = rowEl.querySelector("[data-inline-edu-end]");
-    if (!instInput || !startInput || !endInput) return;
+    if (!instInput || !countryInput || !startInput || !endInput) return;
     draftEducation[index] = {
       institution: instInput.value.trim(),
+      country: countryInput.value.trim(),
       year_started: startInput.value.trim(),
       year_ended: endInput.value.trim()
     };
@@ -352,6 +379,8 @@
     var empty = document.getElementById("profile-education-empty");
     var legacyEl = document.getElementById("profile-education-legacy");
     var saveBtn = document.getElementById("education-save-btn");
+    var cancelBtn = document.getElementById("education-cancel-btn");
+    var editBtn = document.getElementById("education-edit-btn");
     var hintEl = document.getElementById("education-edit-hint");
     tbody.replaceChildren();
 
@@ -369,10 +398,20 @@
         instInput.type = "text";
         instInput.className = "form-control form-control-sm";
         instInput.maxLength = 120;
-        instInput.placeholder = "University / Country";
+        instInput.placeholder = "University / School";
         instInput.value = row.institution || "";
         instInput.setAttribute("data-inline-edu-inst", "");
         tdInst.append(instInput);
+
+        var tdCountry = document.createElement("td");
+        var countryInput = document.createElement("input");
+        countryInput.type = "text";
+        countryInput.className = "form-control form-control-sm";
+        countryInput.maxLength = 80;
+        countryInput.placeholder = "Country";
+        countryInput.value = row.country || "";
+        countryInput.setAttribute("data-inline-edu-country", "");
+        tdCountry.append(countryInput);
 
         var tdStart = document.createElement("td");
         var startInput = document.createElement("input");
@@ -409,7 +448,7 @@
 
         endWrap.append(endInput, delBtn);
         tdEnd.append(endWrap);
-        tr.append(tdInst, tdStart, tdEnd);
+        tr.append(tdInst, tdCountry, tdStart, tdEnd);
         tbody.append(tr);
         setTimeout(function () { instInput.focus(); }, 0);
         return;
@@ -417,6 +456,8 @@
 
       var tdInstView = document.createElement("td");
       tdInstView.textContent = row.institution || "—";
+      var tdCountryView = document.createElement("td");
+      tdCountryView.textContent = row.country || "—";
       var tdStartView = document.createElement("td");
       tdStartView.textContent = row.year_started || "—";
       var tdEndView = document.createElement("td");
@@ -435,7 +476,7 @@
         });
       }
 
-      tr.append(tdInstView, tdStartView, tdEndView);
+      tr.append(tdInstView, tdCountryView, tdStartView, tdEndView);
       tbody.append(tr);
     });
 
@@ -443,6 +484,8 @@
     table.hidden = !hasRows;
     empty.hidden = hasRows || Boolean(legacyText);
     saveBtn.hidden = !educationEditMode;
+    cancelBtn.hidden = !educationEditMode;
+    editBtn.hidden = educationEditMode;
     hintEl.hidden = !educationEditMode;
   }
 
@@ -785,6 +828,13 @@
       renderProjectsTable();
     });
 
+    document.getElementById("projects-cancel-btn").addEventListener("click", function () {
+      projectsEditMode = false;
+      editingProjectIndex = -1;
+      showInlineStatus("status-projects", "", "info");
+      renderProjectsTable();
+    });
+
     document.getElementById("projects-save-btn").addEventListener("click", async function () {
       var active = document.querySelector("[data-inline-project-name]");
       if (active) syncProjectsFromInputs(active.closest("tr"), editingProjectIndex);
@@ -814,7 +864,7 @@
         return;
       }
       draftEducation = (currentProfile.education_rows || []).map(function (r) {
-        return { institution: r.institution || "", year_started: r.year_started || "", year_ended: r.year_ended || "" };
+        return { institution: r.institution || "", country: r.country || "", year_started: r.year_started || "", year_ended: r.year_ended || "" };
       });
       educationEditMode = true;
       editingEducationIndex = draftEducation.length ? 0 : -1;
@@ -825,7 +875,7 @@
     document.getElementById("education-add-btn").addEventListener("click", function () {
       if (!educationEditMode) {
         draftEducation = (currentProfile.education_rows || []).map(function (r) {
-          return { institution: r.institution || "", year_started: r.year_started || "", year_ended: r.year_ended || "" };
+          return { institution: r.institution || "", country: r.country || "", year_started: r.year_started || "", year_ended: r.year_ended || "" };
         });
         educationEditMode = true;
       } else {
@@ -836,8 +886,15 @@
         showInlineStatus("status-education", "You can list up to " + MAX_EDUCATION + " education entries.", "warning");
         return;
       }
-      draftEducation.push({ institution: "", year_started: "", year_ended: "" });
+      draftEducation.push({ institution: "", country: "", year_started: "", year_ended: "" });
       editingEducationIndex = draftEducation.length - 1;
+      showInlineStatus("status-education", "", "info");
+      renderEducationTable();
+    });
+
+    document.getElementById("education-cancel-btn").addEventListener("click", function () {
+      educationEditMode = false;
+      editingEducationIndex = -1;
       showInlineStatus("status-education", "", "info");
       renderEducationTable();
     });
@@ -847,7 +904,7 @@
       if (active) syncEducationFromInputs(active.closest("tr"), editingEducationIndex);
 
       var cleaned = draftEducation.filter(function (r) {
-        return r.institution || r.year_started || r.year_ended;
+        return r.institution || r.country || r.year_started || r.year_ended;
       });
       var res = await window.sclApi.community.saveProfile(buildSavePayload({ education_rows: cleaned }));
       if (res.error) {
