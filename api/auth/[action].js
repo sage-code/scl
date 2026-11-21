@@ -407,6 +407,10 @@ const actions = {
         const anonId = current.user.id;
         statements.push(
           {
+            sql: "update users set avatar_url = coalesce(avatar_url, ?), avatar_path = coalesce(avatar_path, ?) where id = ?",
+            args: [current.user.avatar_url || null, current.user.avatar_path || null, user.id]
+          },
+          {
             sql: `insert into roadmap_progress (user_id, roadmap_code, topic_key, status, progress_percent, created_at, updated_at)
                   select ?, roadmap_code, topic_key, status, progress_percent, created_at, updated_at
                   from roadmap_progress where user_id = ? on conflict do nothing`,

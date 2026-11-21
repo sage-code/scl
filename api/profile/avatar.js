@@ -67,10 +67,19 @@ module.exports = handle(async (req, res) => {
 
   if (req.method === "DELETE") {
     const previousUrl = session.user.avatar_url;
+    const now = nowIso();
     await db.execute({
       sql: "update users set avatar_url = null, avatar_path = null, updated_at = ? where id = ?",
-      args: [nowIso(), session.user.id]
+      args: [now, session.user.id]
     });
+    try {
+      await db.execute({
+        sql: "update community_members set avatar_url = null, avatar_path = null, updated_at = ? where user_id = ?",
+        args: [now, session.user.id]
+      });
+    } catch (_error) {
+      // Test schemas may omit community_members.
+    }
 
     let warning = null;
     if (previousUrl && mediaToken) {
@@ -121,10 +130,19 @@ module.exports = handle(async (req, res) => {
 
   const previousUrl = session.user.avatar_url;
   try {
+    const now = nowIso();
     await db.execute({
       sql: "update users set avatar_url = ?, avatar_path = ?, updated_at = ? where id = ?",
-      args: [blob.url, blob.pathname, nowIso(), session.user.id]
+      args: [blob.url, blob.pathname, now, session.user.id]
     });
+    try {
+      await db.execute({
+        sql: "update community_members set avatar_url = ?, avatar_path = ?, updated_at = ? where user_id = ?",
+        args: [blob.url, blob.pathname, now, session.user.id]
+      });
+    } catch (_error) {
+      // Test schemas may omit community_members.
+    }
   } catch (error) {
     try {
       await del(blob.url, { token: mediaToken });

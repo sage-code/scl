@@ -524,6 +524,22 @@
       icon.className = "bi bi-patch-check-fill me-1";
       icon.setAttribute("aria-hidden", "true");
       link.append(icon, document.createTextNode(cert.title || "View Certificate"));
+
+      if (/\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(safeUrl) || safeUrl.indexOf("/community/certificate/") !== -1) {
+        link.addEventListener("click", function (e) {
+          var dlg = document.getElementById("dialog-certificate");
+          var img = document.getElementById("certificate-modal-img");
+          var dlgTitle = document.getElementById("dialog-certificate-title");
+          if (dlg && img) {
+            e.preventDefault();
+            img.src = safeUrl;
+            img.alt = cert.title || "Certificate";
+            if (dlgTitle) dlgTitle.textContent = cert.title || "Certificate";
+            dlg.showModal();
+          }
+        });
+      }
+
       li.append(link);
       list.append(li);
     });

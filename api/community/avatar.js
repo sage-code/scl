@@ -47,24 +47,36 @@ module.exports = handle(async (req, res) => {
   if (!session.user.email_verified_at) {
     throw new HttpError(403, "Confirm your email before uploading a community avatar.");
   }
-  if ((await getQualifiedTracks(session.user)).length === 0) {
+
+  const db = getDb();
+  const memberCheck = await db.execute({
+    sql: "select avatar_url, is_legacy_verified from community_members where user_id = ?",
+    args: [session.user.id]
+  });
+  const existingRow = memberCheck.rows[0];
+  const isLegacyOrAdmin = Number(session.user.is_admin) === 1 || (existingRow && Number(existingRow.is_legacy_verified) === 1);
+  if (!isLegacyOrAdmin && (await getQualifiedTracks(session.user)).length === 0) {
     throw new HttpError(403, "Pass quiz sets A, B, and C for a roadmap before claiming VCP authentication.");
   }
 
-  const db = getDb();
   if (req.method === "DELETE") {
-    const existing = await db.execute({
-      sql: "select avatar_url from community_members where user_id = ?",
-      args: [session.user.id]
-    });
-    if (!existing.rows[0]) {
+    if (!existingRow) {
       throw new HttpError(404, "Community profile not found.");
     }
-    const previousUrl = existing.rows[0].avatar_url;
+    const previousUrl = existingRow.avatar_url;
+    const now = nowIso();
     await db.execute({
       sql: "update community_members set avatar_url = null, avatar_path = null, updated_at = ? where user_id = ?",
-      args: [nowIso(), session.user.id]
+      args: [now, session.user.id]
     });
+    try {
+      await db.execute({
+        sql: "update users set avatar_url = null, avatar_path = null, updated_at = ? where id = ?",
+        args: [now, session.user.id]
+      });
+    } catch (_error) {
+      // Test schemas may omit users.avatar_url.
+    }
     let warning = null;
     const mediaToken = String(process.env.MEDIA_READ_WRITE_TOKEN || "").trim();
     if (previousUrl && mediaToken) {
@@ -116,10 +128,19 @@ module.exports = handle(async (req, res) => {
   );
   const previousUrl = existing.rows[0].avatar_url;
   try {
+    const now = nowIso();
     await db.execute({
       sql: "update community_members set avatar_url = ?, avatar_path = ?, updated_at = ? where user_id = ?",
-      args: [blob.url, blob.pathname, nowIso(), session.user.id]
+      args: [blob.url, blob.pathname, now, session.user.id]
     });
+    try {
+      await db.execute({
+        sql: "update users set avatar_url = ?, avatar_path = ?, updated_at = ? where id = ?",
+        args: [blob.url, blob.pathname, now, session.user.id]
+      });
+    } catch (_error) {
+      // Test schemas may omit users.avatar_url.
+    }
   } catch (error) {
     try {
       await del(blob.url, { token: mediaToken });
