@@ -184,10 +184,10 @@
 
     if (registerAction) {
       if (registered) {
-        setButtonLabel(registerAction, "REMOVE");
+        setButtonLabel(registerAction, "FORGET");
         setButtonIcon(registerAction, "bi bi-person-dash");
         setHref(registerAction, "/roadmaps/unregister.html" + returnSuffix);
-        registerAction.setAttribute("aria-label", "Remove the current roadmap account");
+        registerAction.setAttribute("aria-label", "Forget and remove the current roadmap account");
         registerAction.setAttribute("title", "Open the unregister form to delete this account");
       } else {
         setButtonLabel(registerAction, "REGISTER");

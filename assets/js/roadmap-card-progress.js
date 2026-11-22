@@ -296,6 +296,57 @@
     return map;
   }
 
+  var CARD_STATUS_TOPIC_KEY = "@card::status";
+
+  function getApi() {
+    return window.sclApi && window.sclApi.progress ? window.sclApi.progress : null;
+  }
+
+  function hasSessionUser() {
+    return !!(window.roadmapState && typeof window.roadmapState.getUser === "function" && window.roadmapState.getUser());
+  }
+
+  function syncCardStatusRemote(trackKey, status) {
+    var api = getApi();
+    if (!api || !hasSessionUser() || !trackKey) {
+      return Promise.resolve();
+    }
+
+    var normalized = normalizeStatus(status);
+    if (normalized === STATUS_IN_PROGRESS) {
+      return api.upsert(trackKey, [{ topic_key: CARD_STATUS_TOPIC_KEY, status: "in_progress", progress_percent: 50 }]).catch(function () {});
+    }
+    if (normalized === STATUS_COMPLETED) {
+      return api.upsert(trackKey, [{ topic_key: CARD_STATUS_TOPIC_KEY, status: "done", progress_percent: 100 }]).catch(function () {});
+    }
+    return api.remove(trackKey, { keys: [CARD_STATUS_TOPIC_KEY] }).catch(function () {});
+  }
+
+  function migrateAnonymousStatusMap(statusMap) {
+    var userId = getUserId();
+    if (!userId) {
+      return statusMap;
+    }
+    var anonRaw = localStorage.getItem("sage-roadmap-index-in-progress-anonymous");
+    if (!anonRaw) {
+      return statusMap;
+    }
+    var anonMap = safeParseObject(anonRaw);
+    var merged = Object.assign({}, statusMap);
+    var changed = false;
+    Object.keys(anonMap).forEach(function (key) {
+      var norm = normalizeStatus(anonMap[key]);
+      if (norm !== STATUS_NOT_STARTED && !merged[key]) {
+        merged[key] = norm;
+        changed = true;
+      }
+    });
+    if (changed) {
+      writeStatusMap(merged);
+    }
+    return merged;
+  }
+
   function writeStatusMap(statusMap) {
     localStorage.setItem(storageKey(), JSON.stringify(statusMap || {}));
   }
@@ -450,6 +501,7 @@
         writeStatusMap(statusMap);
         card.setAttribute("data-progress-status", nextStatus);
         applyVisual(wrap, nextStatus);
+        syncCardStatusRemote(key, nextStatus);
         window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
       });
     }
@@ -490,11 +542,15 @@
       return;
     }
 
-    var statusMap = normalizeStatusMap(readStatusMap());
+    var statusMap = normalizeStatusMap(migrateAnonymousStatusMap(readStatusMap()));
     var remoteStatsByTrack = {};
     var localKeys = collectLocalStorageKeys();
 
-    if (window.roadmapState && typeof window.roadmapState.getUser === "function" && window.roadmapState.getUser()) {
+    if (hasSessionUser()) {
+      Object.keys(statusMap).forEach(function (trackKey) {
+        syncCardStatusRemote(trackKey, statusMap[trackKey]);
+      });
+
       var sync = getSync();
       if (sync && typeof sync.loadRoadmapProgress === "function") {
         for (var i = 0; i < cards.length; i += 1) {

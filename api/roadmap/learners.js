@@ -22,7 +22,7 @@ module.exports = handle(async (req, res) => {
                    coalesce(u.avatar_url, max(c.avatar_url)) as avatar_url,
                    u.last_seen_at,
                    count(p.topic_key) as total_topics,
-                   sum(case when p.status = 'done' or p.progress_percent >= 100 then 1 else 0 end) as completed_topics,
+                   sum(case when p.topic_key != '@card::status' and (p.status = 'done' or p.progress_percent >= 100) then 1 else 0 end) as completed_topics,
                    group_concat(distinct p.roadmap_code) as tracks_csv,
                    max(p.updated_at) as last_progress_at
             from users u
@@ -41,7 +41,7 @@ module.exports = handle(async (req, res) => {
     result = await db.execute({
       sql: `select u.handle, u.avatar_url, u.last_seen_at,
                    count(p.topic_key) as total_topics,
-                   sum(case when p.status = 'done' or p.progress_percent >= 100 then 1 else 0 end) as completed_topics,
+                   sum(case when p.topic_key != '@card::status' and (p.status = 'done' or p.progress_percent >= 100) then 1 else 0 end) as completed_topics,
                    group_concat(distinct p.roadmap_code) as tracks_csv,
                    max(p.updated_at) as last_progress_at
             from users u
