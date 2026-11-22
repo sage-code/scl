@@ -776,12 +776,26 @@
       checkbox.type = "checkbox";
       checkbox.className = "form-check-input";
       checkbox.checked = item.status === "approved";
-      checkbox.disabled = !(canApproveProjects && contributorEditMode);
+      checkbox.disabled = !canApproveProjects;
       checkbox.setAttribute("aria-label", "Approved for " + (item.project_name || "project"));
-      if (canApproveProjects && contributorEditMode) {
-        checkbox.addEventListener("change", function () {
-          item.status = checkbox.checked ? "approved" : "pending";
+      if (canApproveProjects) {
+        checkbox.addEventListener("change", async function () {
+          if (contributorEditMode) {
+            item.status = checkbox.checked ? "approved" : "pending";
+            tdStatus.textContent = item.status === "approved" ? "Approved" : "Pending";
+            return;
+          }
+          checkbox.disabled = true;
+          var res = await window.sclApi.projects.approveContributor(item.id, checkbox.checked);
+          checkbox.disabled = false;
+          if (res.error) {
+            checkbox.checked = !checkbox.checked;
+            showInlineStatus("status-contributor", res.error.message, "danger");
+            return;
+          }
+          item.status = (res.data && res.data.status) || (checkbox.checked ? "approved" : "pending");
           tdStatus.textContent = item.status === "approved" ? "Approved" : "Pending";
+          showInlineStatus("status-contributor", "", "info");
         });
       }
       tdApproved.append(checkbox);

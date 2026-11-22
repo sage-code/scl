@@ -88,8 +88,8 @@
         var isExternal = href.indexOf("https://") === 0;
         var reqStatus = state.myRequests[p.id] || "";
         var joinClass = reqStatus === "approved"
-          ? "btn-success"
-          : (reqStatus === "pending" ? "btn-warning" : "btn-outline-info");
+          ? "btn-outline-success"
+          : (reqStatus === "pending" ? "btn-outline-warning" : "btn-outline-info");
         var joinTitle = reqStatus === "approved"
           ? "Approved contributor"
           : (reqStatus === "pending" ? "Join request pending" : ("Request to join " + p.name));
