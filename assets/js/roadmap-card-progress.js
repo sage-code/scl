@@ -319,7 +319,7 @@
     if (normalized === STATUS_COMPLETED) {
       return api.upsert(trackKey, [{ topic_key: CARD_STATUS_TOPIC_KEY, status: "done", progress_percent: 100 }]).catch(function () {});
     }
-    return api.remove(trackKey, { keys: [CARD_STATUS_TOPIC_KEY] }).catch(function () {});
+    return api.remove(trackKey, {}).catch(function () {});
   }
 
   function migrateAnonymousStatusMap(statusMap) {

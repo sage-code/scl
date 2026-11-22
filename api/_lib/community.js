@@ -376,7 +376,7 @@ function memberFromRow(row) {
   };
 }
 
-function publicMemberFromRow(row, qualifiedTracks, testimonials) {
+function publicMemberFromRow(row, qualifiedTracks, testimonials, roadmaps) {
   const member = memberFromRow(row);
   if (!member) {
     return null;
@@ -391,6 +391,7 @@ function publicMemberFromRow(row, qualifiedTracks, testimonials) {
     education_rows: member.education_rows,
     country_code: member.country_code,
     projects: member.projects,
+    roadmaps: Array.isArray(roadmaps) ? roadmaps : [],
     contact: member.contact,
     paragraphs: member.paragraphs,
     qualified_track: member.qualified_track,
@@ -404,6 +405,69 @@ function publicMemberFromRow(row, qualifiedTracks, testimonials) {
     is_legacy_verified: member.is_legacy_verified,
     claimed_at: member.claimed_at
   };
+}
+
+async function getTrackedRoadmaps(userId) {
+  if (!userId) return [];
+  const db = getDb();
+  let progRows = [];
+  try {
+    const progRes = await db.execute({
+      sql: `select roadmap_code,
+                   min(created_at) as started_at,
+                   max(case when topic_key = '@card::status' then status else null end) as card_status,
+                   count(case when topic_key != '@card::status' then 1 end) as topic_count,
+                   sum(case when topic_key != '@card::status' and (status = 'done' or progress_percent >= 100) then 1 else 0 end) as done_count
+            from roadmap_progress
+            where user_id = ?
+              and lower(roadmap_code) not in ('romanian', 'english')
+            group by roadmap_code
+            order by min(created_at) asc, roadmap_code asc`,
+      args: [userId]
+    });
+    progRows = progRes.rows;
+  } catch (_error) {
+    return [];
+  }
+
+  if (progRows.length === 0) {
+    return [];
+  }
+
+  const quizScores = new Map();
+  try {
+    const quizRes = await db.execute({
+      sql: `select track, level, max(score_percent) as best_percent
+            from quiz_attempts
+            where user_id = ?
+            group by track, level`,
+      args: [userId]
+    });
+    for (const q of quizRes.rows) {
+      const key = `${String(q.track || "").toLowerCase()}:${String(q.level || "").toUpperCase()}`;
+      quizScores.set(key, Number(q.best_percent));
+    }
+  } catch (_error) {
+    // Minimal test schemas may omit quiz_attempts columns.
+  }
+
+  return progRows.map((row) => {
+    const code = String(row.roadmap_code || "").trim().toLowerCase();
+    const cardStatus = String(row.card_status || "").toLowerCase();
+    const topicCount = Number(row.topic_count || 0);
+    const doneCount = Number(row.done_count || 0);
+    const isCompleted = cardStatus === "done" || (!cardStatus && topicCount > 0 && doneCount >= topicCount);
+    return {
+      code,
+      label: trackLabel(code),
+      url: `/roadmaps/${encodeURIComponent(code)}/`,
+      started_at: row.started_at || null,
+      status: isCompleted ? "Completed" : "In Progress",
+      quiz_a: quizScores.has(`${code}:A`) ? quizScores.get(`${code}:A`) : null,
+      quiz_b: quizScores.has(`${code}:B`) ? quizScores.get(`${code}:B`) : null,
+      quiz_c: quizScores.has(`${code}:C`) ? quizScores.get(`${code}:C`) : null
+    };
+  });
 }
 
 async function listTestimonials(targetUserId, viewerUserId) {
@@ -609,9 +673,10 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
     email_verified_at: row.email_verified_at
   });
   const testimonials = await listTestimonials(row.user_id, viewerUserId);
+  const trackedRoadmaps = await getTrackedRoadmaps(row.user_id);
   if (Number(row.is_legacy_verified) === 1 || isOwner || canEdit) {
     return {
-      profile: publicMemberFromRow(row, qualifiedTracks, testimonials),
+      profile: publicMemberFromRow(row, qualifiedTracks, testimonials, trackedRoadmaps),
       is_owner: isOwner,
       can_edit: canEdit,
       allowed_roles: allowedRoles,
@@ -626,7 +691,7 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
   const hasQuiz = attemptsRes.rows.length > 0;
   return isPublished && hasQuiz
     ? {
-        profile: publicMemberFromRow(row, qualifiedTracks, testimonials),
+        profile: publicMemberFromRow(row, qualifiedTracks, testimonials, trackedRoadmaps),
         is_owner: isOwner,
         can_edit: canEdit,
         allowed_roles: allowedRoles,

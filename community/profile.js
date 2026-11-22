@@ -655,11 +655,73 @@
     section.hidden = items.length === 0 && !canAddTestimonial;
   }
 
+  function formatRoadmapDate(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toISOString().slice(0, 10);
+  }
+
+  function formatQuizScore(val) {
+    if (val === null || val === undefined || Number.isNaN(Number(val))) {
+      return "—";
+    }
+    return Math.round(Number(val)) + "%";
+  }
+
+  function renderRoadmapsTable(profile) {
+    var section = document.getElementById("profile-roadmaps-section");
+    var tbody = document.getElementById("profile-roadmaps-body");
+    if (!section || !tbody) return;
+
+    var roadmaps = Array.isArray(profile && profile.roadmaps) ? profile.roadmaps : [];
+    tbody.replaceChildren();
+
+    if (roadmaps.length === 0) {
+      section.hidden = true;
+      return;
+    }
+
+    roadmaps.forEach(function (item) {
+      var tr = document.createElement("tr");
+
+      var tdCode = document.createElement("td");
+      var link = document.createElement("a");
+      link.href = item.url || ("/roadmaps/" + encodeURIComponent(item.code) + "/");
+      link.textContent = item.label || String(item.code || "").toUpperCase();
+      tdCode.append(link);
+
+      var tdStart = document.createElement("td");
+      tdStart.textContent = formatRoadmapDate(item.started_at);
+
+      var tdStatus = document.createElement("td");
+      tdStatus.textContent = item.status || "In Progress";
+
+      var tdA = document.createElement("td");
+      tdA.className = "text-center";
+      tdA.textContent = formatQuizScore(item.quiz_a);
+
+      var tdB = document.createElement("td");
+      tdB.className = "text-center";
+      tdB.textContent = formatQuizScore(item.quiz_b);
+
+      var tdC = document.createElement("td");
+      tdC.className = "text-center";
+      tdC.textContent = formatQuizScore(item.quiz_c);
+
+      tr.append(tdCode, tdStart, tdStatus, tdA, tdB, tdC);
+      tbody.append(tr);
+    });
+
+    section.hidden = false;
+  }
+
   function renderProfile(profile) {
     currentProfile = profile;
     renderIdentity(profile);
     renderQualificationPanel(profile);
     renderProjectsTable();
+    renderRoadmapsTable(profile);
     renderEducationTable();
     renderCertificates(profile);
     renderContact(profile.contact, profile.display_name);
