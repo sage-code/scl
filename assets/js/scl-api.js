@@ -118,7 +118,12 @@
     projects: {
       list: function () { return request("GET", "/api/projects/"); },
       save: function (project) { return post("/api/projects/", project); },
-      remove: function (id) { return post("/api/projects/", { action: "delete", id: id }); }
+      remove: function (id) { return post("/api/projects/", { action: "delete", id: id }); },
+      join: function (projectId) { return post("/api/projects/", { action: "join", project_id: projectId }); },
+      approveContributor: function (requestId, approved) {
+        return post("/api/projects/", { action: "approve", request_id: requestId, approved: Boolean(approved) });
+      },
+      leaveProject: function (requestId) { return post("/api/projects/", { action: "leave", request_id: requestId }); }
     },
     community: {
       profile: function () { return request("GET", "/api/community/profile/"); },

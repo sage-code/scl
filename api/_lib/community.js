@@ -376,7 +376,7 @@ function memberFromRow(row) {
   };
 }
 
-function publicMemberFromRow(row, qualifiedTracks, testimonials, roadmaps) {
+function publicMemberFromRow(row, qualifiedTracks, testimonials, roadmaps, projectRequests) {
   const member = memberFromRow(row);
   if (!member) {
     return null;
@@ -392,6 +392,7 @@ function publicMemberFromRow(row, qualifiedTracks, testimonials, roadmaps) {
     country_code: member.country_code,
     projects: member.projects,
     roadmaps: Array.isArray(roadmaps) ? roadmaps : [],
+    project_requests: Array.isArray(projectRequests) ? projectRequests : [],
     contact: member.contact,
     paragraphs: member.paragraphs,
     qualified_track: member.qualified_track,
@@ -468,6 +469,33 @@ async function getTrackedRoadmaps(userId) {
       quiz_c: quizScores.has(`${code}:C`) ? quizScores.get(`${code}:C`) : null
     };
   });
+}
+
+async function getProjectContributions(userId) {
+  if (!userId) return [];
+  try {
+    const res = await getDb().execute({
+      sql: `select pc.id, pc.project_id, pc.status, pc.created_at, pc.approved_at,
+                   p.name as project_name, p.url as project_url, p.category as project_category
+            from project_contributors pc
+            join scl_projects p on p.id = pc.project_id
+            where pc.user_id = ?
+            order by pc.created_at desc`,
+      args: [userId]
+    });
+    return res.rows.map((r) => ({
+      id: r.id,
+      project_id: r.project_id,
+      project_name: r.project_name,
+      project_url: r.project_url,
+      project_category: r.project_category,
+      status: r.status === "approved" ? "approved" : "pending",
+      created_at: r.created_at,
+      approved_at: r.approved_at || null
+    }));
+  } catch (_error) {
+    return [];
+  }
 }
 
 async function listTestimonials(targetUserId, viewerUserId) {
@@ -674,13 +702,16 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
   });
   const testimonials = await listTestimonials(row.user_id, viewerUserId);
   const trackedRoadmaps = await getTrackedRoadmaps(row.user_id);
+  const projectRequests = await getProjectContributions(row.user_id);
+  const canApproveProjects = Boolean(viewerInfo.isAdmin || viewerInfo.role === "Manager" || viewerInfo.isLegacyVerified);
   if (Number(row.is_legacy_verified) === 1 || isOwner || canEdit) {
     return {
-      profile: publicMemberFromRow(row, qualifiedTracks, testimonials, trackedRoadmaps),
+      profile: publicMemberFromRow(row, qualifiedTracks, testimonials, trackedRoadmaps, projectRequests),
       is_owner: isOwner,
       can_edit: canEdit,
       allowed_roles: allowedRoles,
-      can_add_testimonial: canAddTestimonial
+      can_add_testimonial: canAddTestimonial,
+      can_approve_projects: canApproveProjects
     };
   }
 
@@ -691,11 +722,12 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
   const hasQuiz = attemptsRes.rows.length > 0;
   return isPublished && hasQuiz
     ? {
-        profile: publicMemberFromRow(row, qualifiedTracks, testimonials, trackedRoadmaps),
+        profile: publicMemberFromRow(row, qualifiedTracks, testimonials, trackedRoadmaps, projectRequests),
         is_owner: isOwner,
         can_edit: canEdit,
         allowed_roles: allowedRoles,
-        can_add_testimonial: canAddTestimonial
+        can_add_testimonial: canAddTestimonial,
+        can_approve_projects: canApproveProjects
       }
     : null;
 }

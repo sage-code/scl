@@ -12,6 +12,7 @@
   var canEdit = false;
   var allowedRoles = [];
   var canAddTestimonial = false;
+  var canApproveProjects = false;
   var projectsEditMode = false;
   var editingProjectIndex = -1;
   var draftProjects = [];
@@ -716,12 +717,113 @@
     section.hidden = false;
   }
 
+  function renderContributorTable(profile) {
+    var section = document.getElementById("profile-contributor-section");
+    var tbody = document.getElementById("profile-contributor-body");
+    var actionCol = document.getElementById("contributor-action-col");
+    if (!section || !tbody) return;
+
+    var requests = Array.isArray(profile && profile.project_requests) ? profile.project_requests : [];
+    tbody.replaceChildren();
+
+    if (requests.length === 0) {
+      section.hidden = true;
+      return;
+    }
+
+    var canRemove = isOwner || canApproveProjects;
+    if (actionCol) {
+      actionCol.hidden = !canRemove;
+    }
+
+    requests.forEach(function (item) {
+      var tr = document.createElement("tr");
+
+      var tdProject = document.createElement("td");
+      var href = String(item.project_url || "").trim();
+      if (href && (href.startsWith("/") || href.startsWith("https://"))) {
+        var link = document.createElement("a");
+        link.href = href;
+        link.textContent = item.project_name || "Project";
+        if (href.startsWith("https://")) {
+          link.target = "_blank";
+          link.rel = "noopener noreferrer nofollow";
+        }
+        tdProject.append(link);
+      } else {
+        tdProject.textContent = item.project_name || "Project";
+      }
+
+      var tdStatus = document.createElement("td");
+      tdStatus.textContent = item.status === "approved" ? "Approved" : "Pending";
+
+      var tdApproved = document.createElement("td");
+      tdApproved.className = "text-center";
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "form-check-input";
+      checkbox.checked = item.status === "approved";
+      checkbox.disabled = !canApproveProjects;
+      checkbox.setAttribute("aria-label", "Approved for " + (item.project_name || "project"));
+      if (canApproveProjects) {
+        checkbox.addEventListener("change", async function () {
+          checkbox.disabled = true;
+          var res = await window.sclApi.projects.approveContributor(item.id, checkbox.checked);
+          checkbox.disabled = false;
+          if (res.error) {
+            checkbox.checked = !checkbox.checked;
+            showInlineStatus("status-contributor", res.error.message, "danger");
+            return;
+          }
+          item.status = (res.data && res.data.status) || (checkbox.checked ? "approved" : "pending");
+          tdStatus.textContent = item.status === "approved" ? "Approved" : "Pending";
+          showInlineStatus("status-contributor", "", "info");
+        });
+      }
+      tdApproved.append(checkbox);
+
+      tr.append(tdProject, tdStatus, tdApproved);
+
+      if (canRemove) {
+        var tdAction = document.createElement("td");
+        tdAction.className = "text-center";
+        var cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "btn btn-outline-danger btn-sm";
+        cancelBtn.title = "Cancel request and unsubscribe";
+        cancelBtn.setAttribute("aria-label", "Cancel request and unsubscribe from " + (item.project_name || "project"));
+        cancelBtn.textContent = "×";
+        cancelBtn.addEventListener("click", async function () {
+          cancelBtn.disabled = true;
+          var res = await window.sclApi.projects.leaveProject(item.id);
+          cancelBtn.disabled = false;
+          if (res.error) {
+            showInlineStatus("status-contributor", res.error.message, "danger");
+            return;
+          }
+          currentProfile.project_requests = (currentProfile.project_requests || []).filter(function (r) {
+            return r.id !== item.id;
+          });
+          renderContributorTable(currentProfile);
+          showInlineStatus("status-contributor", "", "info");
+        });
+        tdAction.append(cancelBtn);
+        tr.append(tdAction);
+      }
+
+      tbody.append(tr);
+    });
+
+    section.hidden = false;
+  }
+
   function renderProfile(profile) {
     currentProfile = profile;
     renderIdentity(profile);
     renderQualificationPanel(profile);
     renderProjectsTable();
     renderRoadmapsTable(profile);
+    renderContributorTable(profile);
     renderEducationTable();
     renderCertificates(profile);
     renderContact(profile.contact, profile.display_name);
@@ -1080,6 +1182,7 @@
     canEdit = Boolean(result.data && (result.data.can_edit === true || isOwner));
     allowedRoles = Array.isArray(result.data && result.data.allowed_roles) ? result.data.allowed_roles : [];
     canAddTestimonial = Boolean(result.data && result.data.can_add_testimonial === true);
+    canApproveProjects = Boolean(result.data && result.data.can_approve_projects === true);
     renderProfile(result.data.profile);
     if (canEdit) {
       wireOwnerControls();

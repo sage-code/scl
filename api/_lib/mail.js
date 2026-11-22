@@ -84,64 +84,84 @@ function cleanEnv(name) {
   return String(process.env[name] || "").trim().replace(/^(['"])(.*)\1$/, "$2").trim();
 }
 
-// Sends one email. Never throws: returns { ok, id } or { ok: false, error } so a
-// mail outage cannot block sign-up. Retries network errors, 429 and 5xx.
-async function sendTemplate(kind, to, handle, link, idempotencyKey) {
+async function sendEmail({ to, subject, html, text, idempotencyKey, logLabel }) {
   const apiKey = cleanEnv("RESEND_SEND_KEY") || cleanEnv("RESEND_API_KEY");
   if (!apiKey) {
     console.warn("[mail] RESEND_SEND_KEY / RESEND_API_KEY is not set; email not sent.");
     return { ok: false, error: "Email is not configured." };
   }
 
-  const content = TEMPLATES[kind](handle || "there", link);
+  const recipients = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
+  if (recipients.length === 0) {
+    return { ok: false, error: "No recipients." };
+  }
+
   const payload = {
     from: cleanEnv("RESEND_FROM") || "Sage-Code <noreply@mail.sagecode.org>",
-    to: [to],
-    subject: content.subject,
-    html: content.html,
-    text: content.text
+    to: recipients,
+    subject,
+    html,
+    text
   };
   const replyTo = cleanEnv("RESEND_REPLY_TO");
   if (replyTo) {
     payload.reply_to = replyTo;
   }
 
+  const label = logLabel || "custom";
   for (let attempt = 0; attempt < 3; attempt += 1) {
     let response;
     try {
+      const headers = {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      };
+      if (idempotencyKey) {
+        headers["Idempotency-Key"] = idempotencyKey;
+      }
       response = await fetch(RESEND_ENDPOINT, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "Idempotency-Key": idempotencyKey
-        },
+        headers,
         body: JSON.stringify(payload)
       });
     } catch (error) {
-      console.warn(`[mail] ${kind} attempt ${attempt + 1} network error:`, error.message);
+      console.warn(`[mail] ${label} attempt ${attempt + 1} network error:`, error.message);
       await sleep(400 * (attempt + 1));
       continue;
     }
 
     const body = await response.json().catch(() => ({}));
     if (response.ok) {
-      console.log(`[mail] sent ${kind} email id=${body.id}`);
+      console.log(`[mail] sent ${label} email id=${body.id}`);
       return { ok: true, id: body.id };
     }
 
     if (response.status === 429 || response.status >= 500) {
       const retryAfter = Number(response.headers.get("retry-after")) || attempt + 1;
-      console.warn(`[mail] ${kind} attempt ${attempt + 1} got ${response.status}; retrying.`);
+      console.warn(`[mail] ${label} attempt ${attempt + 1} got ${response.status}; retrying.`);
       await sleep(Math.min(retryAfter, 3) * 1000);
       continue;
     }
 
-    console.error(`[mail] ${kind} rejected (${response.status}):`, body.message || body);
+    console.error(`[mail] ${label} rejected (${response.status}):`, body.message || body);
     return { ok: false, error: body.message || `Resend returned ${response.status}` };
   }
 
   return { ok: false, error: "Email service unavailable." };
 }
 
-module.exports = { siteUrl, sendTemplate, escapeHtml };
+// Sends one email. Never throws: returns { ok, id } or { ok: false, error } so a
+// mail outage cannot block sign-up. Retries network errors, 429 and 5xx.
+async function sendTemplate(kind, to, handle, link, idempotencyKey) {
+  const content = TEMPLATES[kind](handle || "there", link);
+  return sendEmail({
+    to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey,
+    logLabel: kind
+  });
+}
+
+module.exports = { siteUrl, sendTemplate, sendEmail, escapeHtml };

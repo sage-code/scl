@@ -13,7 +13,9 @@
   var state = {
     projects: [],
     categories: [],
-    canEdit: false
+    canEdit: false,
+    myRequests: {},
+    pendingJoinHandled: false
   };
 
   var CATEGORY_NEW_VALUE = "__new__";
@@ -59,7 +61,7 @@
       actionColHead.hidden = !state.canEdit;
     }
 
-    var colCount = state.canEdit ? 7 : 6;
+    var colCount = state.canEdit ? 8 : 7;
     if (!state.projects.length) {
       tbody.innerHTML = '<tr><td colspan="' + colCount + '" class="text-center text-secondary">No projects found.</td></tr>';
       return;
@@ -84,6 +86,13 @@
         var href = safeHref(p.url);
         var srcHref = safeHref(p.source_url);
         var isExternal = href.indexOf("https://") === 0;
+        var reqStatus = state.myRequests[p.id] || "";
+        var joinClass = reqStatus === "approved"
+          ? "btn-success"
+          : (reqStatus === "pending" ? "btn-warning" : "btn-outline-info");
+        var joinTitle = reqStatus === "approved"
+          ? "Approved contributor"
+          : (reqStatus === "pending" ? "Join request pending" : ("Request to join " + p.name));
         html += "<tr>";
         html += "<td>" + (idx + 1) + "</td>";
         html += '<td class="text-center"><span title="' + escapeHtml(p.status_title) + '" style="cursor:help; color: ' + escapeHtml(p.status_color || "#6c757d") + ';">' + escapeHtml(p.status_icon || "🛠️") + "</span></td>";
@@ -91,6 +100,10 @@
         html += "<td>" + escapeHtml(p.description) + "</td>";
         html += "<td>" + escapeHtml(p.technology) + "</td>";
         html += '<td class="text-center"><a href="' + escapeHtml(srcHref) + '" target="_blank" rel="noopener noreferrer nofollow" title="GitHub Repository">GitHub</a></td>';
+        html += '<td class="text-center">'
+          + '<button type="button" class="btn ' + joinClass + ' btn-sm rounded-circle project-row-edit-btn project-row-join-btn" data-join-id="' + escapeHtml(p.id) + '" aria-label="' + escapeHtml(joinTitle) + '" title="' + escapeHtml(joinTitle) + '">'
+          + '<span aria-hidden="true">✋</span>'
+          + "</button></td>";
         if (state.canEdit) {
           html += '<td class="text-center">'
             + '<button type="button" class="btn btn-outline-secondary btn-sm rounded-circle project-row-edit-btn" data-project-id="' + escapeHtml(p.id) + '" aria-label="Edit ' + escapeHtml(p.name) + '" title="Edit project">'
@@ -103,8 +116,17 @@
 
     tbody.innerHTML = html;
 
+    tbody.querySelectorAll(".project-row-join-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var projectId = btn.getAttribute("data-join-id");
+        if (projectId) {
+          requestJoinProject(projectId);
+        }
+      });
+    });
+
     if (state.canEdit) {
-      tbody.querySelectorAll(".project-row-edit-btn").forEach(function (btn) {
+      tbody.querySelectorAll(".project-row-edit-btn[data-project-id]").forEach(function (btn) {
         btn.addEventListener("click", function () {
           var id = btn.getAttribute("data-project-id");
           var proj = state.projects.find(function (item) { return item.id === id; });
@@ -267,17 +289,55 @@
     });
   }
 
+  function isRegisteredUser() {
+    return Boolean(window.roadmapState && typeof window.roadmapState.isRegistered === "function" && window.roadmapState.isRegistered());
+  }
+
+  async function requestJoinProject(projectId) {
+    if (!isRegisteredUser()) {
+      var returnTarget = "/projects/?join=" + encodeURIComponent(projectId);
+      window.location.href = "/roadmaps/login.html?return=" + encodeURIComponent(returnTarget);
+      return;
+    }
+
+    var res = await window.sclApi.projects.join(projectId);
+    if (res.error) {
+      showStatus(statusBox, res.error.message || "Could not record your request.", "danger");
+      return;
+    }
+
+    state.myRequests[projectId] = (res.data && res.data.status) || "pending";
+    renderProjects();
+    showStatus(statusBox, (res.data && res.data.message) || "Your request was recorded.", "success");
+  }
+
+  async function maybeCompletePendingJoin() {
+    if (state.pendingJoinHandled) return;
+    var params = new URLSearchParams(window.location.search || "");
+    var joinId = params.get("join");
+    if (!joinId || !isRegisteredUser()) {
+      return;
+    }
+    state.pendingJoinHandled = true;
+    params.delete("join");
+    var cleanQuery = params.toString();
+    var cleanUrl = window.location.pathname + (cleanQuery ? "?" + cleanQuery : "") + window.location.hash;
+    window.history.replaceState({}, "", cleanUrl);
+    await requestJoinProject(joinId);
+  }
+
   async function loadProjects() {
     var res = await window.sclApi.projects.list();
     if (res.error) {
       showStatus(statusBox, "Could not refresh projects from database (" + res.error.message + ").", "warning");
       return;
     }
-    showStatus(statusBox, "", "info");
     state.projects = Array.isArray(res.data && res.data.projects) ? res.data.projects : [];
     state.categories = Array.isArray(res.data && res.data.categories) ? res.data.categories : [];
     state.canEdit = Boolean(res.data && res.data.can_edit === true);
+    state.myRequests = (res.data && res.data.my_requests && typeof res.data.my_requests === "object") ? res.data.my_requests : {};
     renderProjects();
+    await maybeCompletePendingJoin();
   }
 
   wireDialog();

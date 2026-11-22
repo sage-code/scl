@@ -5,6 +5,7 @@ const { getDb, nowIso } = require("./_lib/db");
 const { HttpError, sendJson, readJson, assertSameOriginJson, handle } = require("./_lib/http");
 const { readSession, requireRegistered } = require("./_lib/session");
 const { getViewerRoleInfo } = require("./_lib/community");
+const { sendEmail, siteUrl, escapeHtml } = require("./_lib/mail");
 
 const ALLOWED_STATUS_ICONS = new Set(["🛠️", "⏸️", "✅", "🚀", "🧪", "📦"]);
 
@@ -14,6 +15,66 @@ async function canManageProjects(userId) {
   if (info.isAdmin || info.isLegacyVerified) return true;
   const role = String(info.role || "").trim().toLowerCase();
   return role === "manager" || role === "mentor";
+}
+
+async function isManagerUser(userId) {
+  if (!userId) return false;
+  const info = await getViewerRoleInfo(userId);
+  if (info.isAdmin || info.isLegacyVerified) return true;
+  return String(info.role || "").trim().toLowerCase() === "manager";
+}
+
+async function notifyManagersOfJoinRequest(req, user, project) {
+  const db = getDb();
+  let managerRows = [];
+  try {
+    const res = await db.execute(
+      `select distinct u.email
+       from users u
+       left join community_members c on c.user_id = u.id
+       where u.email is not null
+         and trim(u.email) != ''
+         and u.is_anonymous = 0
+         and (lower(coalesce(c.role, '')) = 'manager' or u.is_admin = 1)`
+    );
+    managerRows = res.rows;
+  } catch (_err) {
+    return;
+  }
+
+  const recipients = managerRows.map((r) => String(r.email || "").trim()).filter(Boolean);
+  if (recipients.length === 0) {
+    return;
+  }
+
+  const username = user.handle || user.email || "A user";
+  const projectName = project.name || "a project";
+  const base = siteUrl(req);
+  const memberRes = await db.execute({
+    sql: "select public_id from community_members where user_id = ? limit 1",
+    args: [user.id]
+  }).catch(() => ({ rows: [] }));
+  const publicId = memberRes.rows[0] && memberRes.rows[0].public_id;
+  const reviewUrl = publicId
+    ? `${base}/community/profile.html?user_id=${encodeURIComponent(publicId)}`
+    : `${base}/projects/`;
+
+  const subject = "Sage-Code User Request";
+  const text = `${username} has requested to join ${projectName}.\n\nReview request:\n${reviewUrl}`;
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f4f5f7;font-family:Segoe UI,Arial,sans-serif;color:#1f2328">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:8px;padding:28px">
+    <h1 style="font-size:20px;margin:0 0 12px">Sage-Code User Request</h1>
+    <p style="font-size:15px;line-height:1.5;margin:0 0 20px"><strong>${escapeHtml(username)}</strong> has requested to join <strong>${escapeHtml(projectName)}</strong>.</p>
+    <p style="margin:0"><a href="${escapeHtml(reviewUrl)}" style="display:inline-block;background:#1f6feb;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600">Review Request</a></p>
+  </div></body></html>`;
+
+  await sendEmail({
+    to: recipients,
+    subject,
+    html,
+    text,
+    logLabel: "project-join"
+  });
 }
 
 function validateProjectUrl(raw, label) {
@@ -95,7 +156,21 @@ module.exports = handle(async (req, res) => {
         categories.push(p.category);
       }
     }
-    sendJson(res, 200, { projects, categories, can_edit: canEdit });
+    const myRequests = {};
+    if (session && Number(session.user.is_anonymous) !== 1) {
+      try {
+        const reqRes = await getDb().execute({
+          sql: "select project_id, status from project_contributors where user_id = ?",
+          args: [session.user.id]
+        });
+        for (const r of reqRes.rows) {
+          myRequests[r.project_id] = r.status;
+        }
+      } catch (_err) {
+        // Ignore before migration runs.
+      }
+    }
+    sendJson(res, 200, { projects, categories, can_edit: canEdit, my_requests: myRequests });
     return;
   }
 
@@ -105,12 +180,80 @@ module.exports = handle(async (req, res) => {
 
   assertSameOriginJson(req);
   const session = await requireRegistered(req);
+  const body = await readJson(req);
+  const db = getDb();
+
+  if (body.action === "join") {
+    const projectId = validateText(body.project_id, "Project ID", 64);
+    const projRes = await db.execute({
+      sql: "select id, name from scl_projects where id = ? limit 1",
+      args: [projectId]
+    });
+    const project = projRes.rows[0];
+    if (!project) {
+      throw new HttpError(404, "Project not found.");
+    }
+    const existing = await db.execute({
+      sql: "select id, status from project_contributors where project_id = ? and user_id = ? limit 1",
+      args: [projectId, session.user.id]
+    });
+    if (existing.rows[0]) {
+      sendJson(res, 200, { ok: true, status: existing.rows[0].status, message: "Your request was recorded." });
+      return;
+    }
+    const now = nowIso();
+    await db.execute({
+      sql: `insert into project_contributors (id, project_id, user_id, status, created_at, updated_at)
+            values (?, ?, ?, 'pending', ?, ?)`,
+      args: [crypto.randomUUID(), projectId, session.user.id, now, now]
+    });
+    await notifyManagersOfJoinRequest(req, session.user, project).catch((err) => {
+      console.warn("[projects/join] email notification failed:", err.message);
+    });
+    sendJson(res, 201, { ok: true, status: "pending", message: "Your request was recorded." });
+    return;
+  }
+
+  if (body.action === "approve") {
+    if (!(await isManagerUser(session.user.id))) {
+      throw new HttpError(403, "Only Managers can approve contributor requests.");
+    }
+    const requestId = validateText(body.request_id, "Request ID", 64);
+    const approved = Boolean(body.approved);
+    const now = nowIso();
+    const newStatus = approved ? "approved" : "pending";
+    await db.execute({
+      sql: `update project_contributors
+            set status = ?, approved_by = ?, approved_at = ?, updated_at = ?
+            where id = ?`,
+      args: [newStatus, approved ? session.user.id : null, approved ? now : null, now, requestId]
+    });
+    sendJson(res, 200, { ok: true, status: newStatus });
+    return;
+  }
+
+  if (body.action === "leave") {
+    const requestId = validateText(body.request_id, "Request ID", 64);
+    const existing = await db.execute({
+      sql: "select id, user_id from project_contributors where id = ? limit 1",
+      args: [requestId]
+    });
+    const row = existing.rows[0];
+    if (!row) {
+      throw new HttpError(404, "Contributor request not found.");
+    }
+    const isOwner = row.user_id === session.user.id;
+    if (!isOwner && !(await isManagerUser(session.user.id))) {
+      throw new HttpError(403, "You do not have permission to remove this contributor request.");
+    }
+    await db.execute({ sql: "delete from project_contributors where id = ?", args: [requestId] });
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
   if (!(await canManageProjects(session.user.id))) {
     throw new HttpError(403, "Only Managers and Mentors can edit or add projects.");
   }
-
-  const body = await readJson(req);
-  const db = getDb();
 
   if (body.action === "delete") {
     const id = validateText(body.id, "Project ID", 64);
