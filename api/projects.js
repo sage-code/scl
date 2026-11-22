@@ -119,6 +119,19 @@ module.exports = handle(async (req, res) => {
     return;
   }
 
+  if (body.action === "rename_category") {
+    const oldCategory = validateText(body.old_category, "Current category", 60);
+    const newCategory = validateText(body.new_category, "New category", 60);
+    if (oldCategory !== newCategory) {
+      await db.execute({
+        sql: "update scl_projects set category = ?, updated_at = ? where category = ?",
+        args: [newCategory, nowIso(), oldCategory]
+      });
+    }
+    sendJson(res, 200, { ok: true, category: newCategory });
+    return;
+  }
+
   const category = validateText(body.category, "Category", 60);
   const name = validateText(body.name, "Project name", 60);
   const url = validateProjectUrl(body.url, "Project URL");
