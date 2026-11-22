@@ -335,6 +335,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (typeof sync.clearRoadmapProgress === 'function') {
       await sync.clearRoadmapProgress(courseId);
+      const trackKey = getHubTrackKey();
+      if (trackKey && trackKey !== String(courseId || '').toLowerCase()) {
+        await sync.clearRoadmapProgress(trackKey);
+      }
       return true;
     }
 

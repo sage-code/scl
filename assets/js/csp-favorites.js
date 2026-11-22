@@ -378,6 +378,17 @@
 
   async function clearRemoteCourseProgress(courseId) {
     var sync = getSync();
+    if (sync && typeof sync.clearRoadmapProgress === "function") {
+      await sync.clearRoadmapProgress(courseId);
+      return;
+    }
+
+    var client = getClient();
+    if (client && client.progress && getUserId()) {
+      await client.progress.remove(courseId, {}).catch(function () {});
+      return;
+    }
+
     if (!sync || typeof sync.fetchCourseRows !== "function" || typeof sync.clearTopicProgress !== "function") {
       return;
     }

@@ -101,8 +101,8 @@ function assertSameOrigin(req, allowedMethods) {
 }
 
 // JSON content type forces a CORS preflight for browser state-changing calls.
-function assertSameOriginJson(req) {
-  assertSameOrigin(req);
+function assertSameOriginJson(req, allowedMethods) {
+  assertSameOrigin(req, allowedMethods);
   const contentType = String(req.headers["content-type"] || "").toLowerCase();
   if (contentType.indexOf("application/json") !== 0) {
     throw new HttpError(415, "Content-Type must be application/json.");

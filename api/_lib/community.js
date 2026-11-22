@@ -513,6 +513,7 @@ async function listTestimonials(targetUserId, viewerUserId) {
       author_role: row.author_role,
       content: row.content,
       created_at: row.created_at,
+      can_edit: Boolean(viewerUserId && viewerUserId === row.author_user_id),
       can_delete: Boolean(viewerUserId && (viewerUserId === row.author_user_id || viewerUserId === targetUserId))
     }));
   } catch (_error) {
@@ -645,6 +646,39 @@ async function addTestimonial(authorUserId, targetPublicId, rawContent) {
     author_role: authorRole,
     content,
     created_at: now,
+    can_edit: true,
+    can_delete: true
+  };
+}
+
+async function updateTestimonial(viewerUserId, testimonialId, rawContent) {
+  const content = typeof rawContent === "string" ? rawContent.trim() : "";
+  if (!content || content.length > 1000) {
+    throw new HttpError(400, "Testimonial must be 1 to 1000 characters.");
+  }
+  const existing = await getDb().execute({
+    sql: `select id, target_user_id, author_user_id, author_name, author_role, created_at
+          from community_testimonials where id = ? limit 1`,
+    args: [testimonialId]
+  });
+  const row = existing.rows[0];
+  if (!row) {
+    throw new HttpError(404, "Testimonial not found.");
+  }
+  if (row.author_user_id !== viewerUserId) {
+    throw new HttpError(403, "You can only edit your own testimonials.");
+  }
+  await getDb().execute({
+    sql: "update community_testimonials set content = ?, updated_at = ? where id = ?",
+    args: [content, nowIso(), testimonialId]
+  });
+  return {
+    id: row.id,
+    author_name: row.author_name,
+    author_role: row.author_role,
+    content,
+    created_at: row.created_at,
+    can_edit: true,
     can_delete: true
   };
 }
@@ -856,5 +890,6 @@ module.exports = {
   listPublishedMembers,
   saveMember,
   addTestimonial,
+  updateTestimonial,
   deleteTestimonial
 };

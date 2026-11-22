@@ -132,6 +132,7 @@
       directory: function () { return request("GET", "/api/community/directory/"); },
       member: function (userId) { return request("GET", "/api/community/member/" + query({ user_id: userId })); },
       addTestimonial: function (userId, content) { return post("/api/community/testimonial/", { user_id: userId, content: content }); },
+      updateTestimonial: function (id, content) { return request("PATCH", "/api/community/testimonial/", { id: id, content: content }); },
       deleteTestimonial: function (id) { return request("DELETE", "/api/community/testimonial/" + query({ id: id })); },
       uploadAvatar: async function (file) {
         try {

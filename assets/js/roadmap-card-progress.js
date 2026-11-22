@@ -191,6 +191,17 @@
 
   async function clearRemoteCourseProgress(courseId) {
     var sync = getSync();
+    if (sync && typeof sync.clearRoadmapProgress === "function") {
+      await sync.clearRoadmapProgress(courseId);
+      return;
+    }
+
+    var api = getApi();
+    if (api && hasSessionUser()) {
+      await api.remove(courseId, {}).catch(function () {});
+      return;
+    }
+
     if (!sync || typeof sync.fetchCourseRows !== "function" || typeof sync.clearTopicProgress !== "function") {
       return;
     }
@@ -489,7 +500,7 @@
 
     if (currentToggle.dataset.manualStatusWired !== "true") {
       currentToggle.dataset.manualStatusWired = "true";
-      currentToggle.addEventListener("click", function () {
+      currentToggle.addEventListener("click", async function () {
         var nextStatus = cycleStatus(normalizeStatus(card.getAttribute("data-progress-status")));
 
         if (nextStatus === STATUS_NOT_STARTED) {
@@ -501,7 +512,13 @@
         writeStatusMap(statusMap);
         card.setAttribute("data-progress-status", nextStatus);
         applyVisual(wrap, nextStatus);
-        syncCardStatusRemote(key, nextStatus);
+
+        if (nextStatus === STATUS_NOT_STARTED) {
+          await clearAllProgressForTrack(key);
+        } else {
+          await syncCardStatusRemote(key, nextStatus);
+        }
+
         window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
       });
     }

@@ -2,7 +2,7 @@
 
 const { HttpError, sendJson, readJson, getQuery, assertSameOrigin, assertSameOriginJson, handle } = require("../_lib/http");
 const { requireRegistered } = require("../_lib/session");
-const { addTestimonial, deleteTestimonial } = require("../_lib/community");
+const { addTestimonial, updateTestimonial, deleteTestimonial } = require("../_lib/community");
 
 module.exports = handle(async (req, res) => {
   if (req.method === "POST") {
@@ -15,6 +15,19 @@ module.exports = handle(async (req, res) => {
     }
     const testimonial = await addTestimonial(session.user.id, targetId, body.content);
     sendJson(res, 201, { testimonial });
+    return;
+  }
+
+  if (req.method === "PATCH" || req.method === "PUT") {
+    assertSameOriginJson(req, ["PATCH", "PUT"]);
+    const session = await requireRegistered(req);
+    const body = await readJson(req);
+    const testimonialId = String(body.id || getQuery(req).id || "").trim();
+    if (!testimonialId) {
+      throw new HttpError(400, "Testimonial ID is required.");
+    }
+    const testimonial = await updateTestimonial(session.user.id, testimonialId, body.content);
+    sendJson(res, 200, { testimonial });
     return;
   }
 

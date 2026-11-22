@@ -13,6 +13,7 @@
   var allowedRoles = [];
   var canAddTestimonial = false;
   var canApproveProjects = false;
+  var editingTestimonialId = null;
   var contributorEditMode = false;
   var draftContributors = [];
   var contributorRemovedIds = [];
@@ -634,24 +635,51 @@
 
       footer.append(author);
 
-      if (item.can_delete) {
-        var delBtn = document.createElement("button");
-        delBtn.type = "button";
-        delBtn.className = "btn btn-outline-danger btn-sm";
-        delBtn.textContent = "Remove";
-        delBtn.addEventListener("click", async function () {
-          delBtn.disabled = true;
-          var res = await window.sclApi.community.deleteTestimonial(item.id);
-          if (!res.error) {
-            currentProfile.testimonials = (currentProfile.testimonials || []).filter(function (t) {
-              return t.id !== item.id;
-            });
-            renderTestimonials(currentProfile);
-          } else {
-            delBtn.disabled = false;
-          }
-        });
-        footer.append(delBtn);
+      if (item.can_edit || item.can_delete) {
+        var actions = document.createElement("div");
+        actions.className = "d-flex align-items-center gap-2";
+
+        if (item.can_edit) {
+          var editBtn = document.createElement("button");
+          editBtn.type = "button";
+          editBtn.className = "btn btn-outline-secondary btn-sm rounded-circle profile-panel-edit-btn";
+          editBtn.setAttribute("aria-label", "Edit testimonial");
+          editBtn.title = "Edit testimonial";
+          var editIcon = document.createElement("i");
+          editIcon.className = "bi bi-pencil";
+          editIcon.setAttribute("aria-hidden", "true");
+          editBtn.append(editIcon);
+          editBtn.addEventListener("click", function () {
+            editingTestimonialId = item.id;
+            document.getElementById("dialog-testimonial-title").textContent = "Edit Testimonial";
+            document.getElementById("input-testimonial-content").value = item.content || "";
+            showInlineStatus("status-testimonial", "", "info");
+            document.getElementById("dialog-testimonial").showModal();
+          });
+          actions.append(editBtn);
+        }
+
+        if (item.can_delete) {
+          var delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "btn btn-outline-danger btn-sm";
+          delBtn.textContent = "Remove";
+          delBtn.addEventListener("click", async function () {
+            delBtn.disabled = true;
+            var res = await window.sclApi.community.deleteTestimonial(item.id);
+            if (!res.error) {
+              currentProfile.testimonials = (currentProfile.testimonials || []).filter(function (t) {
+                return t.id !== item.id;
+              });
+              renderTestimonials(currentProfile);
+            } else {
+              delBtn.disabled = false;
+            }
+          });
+          actions.append(delBtn);
+        }
+
+        footer.append(actions);
       }
 
       card.append(quote, footer);
@@ -1235,6 +1263,8 @@
   function wireMentorTestimonialControls() {
     var dialogTestimonial = document.getElementById("dialog-testimonial");
     document.getElementById("testimonial-add-btn").addEventListener("click", function () {
+      editingTestimonialId = null;
+      document.getElementById("dialog-testimonial-title").textContent = "Add Testimonial";
       document.getElementById("input-testimonial-content").value = "";
       showInlineStatus("status-testimonial", "", "info");
       dialogTestimonial.showModal();
@@ -1242,13 +1272,22 @@
     document.getElementById("form-testimonial").addEventListener("submit", async function (e) {
       e.preventDefault();
       var content = document.getElementById("input-testimonial-content").value.trim();
-      var res = await window.sclApi.community.addTestimonial(currentProfile.public_id, content);
+      var res = editingTestimonialId
+        ? await window.sclApi.community.updateTestimonial(editingTestimonialId, content)
+        : await window.sclApi.community.addTestimonial(currentProfile.public_id, content);
       if (res.error) {
         showInlineStatus("status-testimonial", res.error.message, "danger");
         return;
       }
       dialogTestimonial.close("save");
-      currentProfile.testimonials = [res.data.testimonial].concat(currentProfile.testimonials || []);
+      if (editingTestimonialId) {
+        currentProfile.testimonials = (currentProfile.testimonials || []).map(function (t) {
+          return t.id === editingTestimonialId ? res.data.testimonial : t;
+        });
+      } else {
+        currentProfile.testimonials = [res.data.testimonial].concat(currentProfile.testimonials || []);
+      }
+      editingTestimonialId = null;
       renderTestimonials(currentProfile);
     });
   }
@@ -1279,7 +1318,9 @@
     if (canApproveProjects) {
       wireManagerContributorControls();
     }
-    if (canAddTestimonial) {
+    var hasEditableTestimonial = Array.isArray(result.data && result.data.profile && result.data.profile.testimonials)
+      && result.data.profile.testimonials.some(function (t) { return t && t.can_edit; });
+    if (canAddTestimonial || hasEditableTestimonial) {
       wireMentorTestimonialControls();
     }
   }

@@ -477,6 +477,38 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
   assert.equal(withTestimonials.body.can_add_testimonial, true);
   assert.equal(withTestimonials.body.profile.testimonials.length, 1);
   assert.equal(withTestimonials.body.profile.testimonials[0].content, "Excellent engineering skills.");
+  assert.equal(withTestimonials.body.profile.testimonials[0].can_edit, true);
+
+  // Author can edit their own testimonial; another user cannot.
+  const testimonialId = mentorTestimonial.body.testimonial.id;
+  const editedTestimonial = await request(communityTestimonial, "PATCH", {
+    id: testimonialId,
+    content: "Updated engineering skills endorsement."
+  });
+  assert.equal(editedTestimonial.status, 200);
+  assert.equal(editedTestimonial.body.testimonial.content, "Updated engineering skills endorsement.");
+  assert.equal(editedTestimonial.body.testimonial.can_edit, true);
+
+  const nonAuthorEdit = {
+    statusCode: 200,
+    headers: {},
+    body: "",
+    setHeader(name, value) { this.headers[name] = value; },
+    getHeader(name) { return this.headers[name]; },
+    end(value) { this.body = value; }
+  };
+  await communityTestimonial({
+    method: "PATCH",
+    url: "/api/community/testimonial",
+    headers: {
+      cookie: `scl_sid=${otherToken}`,
+      host: "localhost",
+      origin: "http://localhost",
+      "content-type": "application/json"
+    },
+    body: { id: testimonialId, content: "Tampered testimonial." }
+  }, nonAuthorEdit);
+  assert.equal(nonAuthorEdit.statusCode, 403);
 });
 
 test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Student -> Developer; Manager edits any role; Developer/Mentor testimonial rules", async () => {
