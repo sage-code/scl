@@ -548,16 +548,35 @@ const actions = {
 
     // The reset link proves email ownership, so it also confirms the email.
     // Mark the token used atomically in the same batch as updating the password.
-    await getDb().batch([
+    const db = getDb();
+    await db.batch([
       {
-        sql: "update users set password_hash = ?, email_verified_at = coalesce(email_verified_at, ?), updated_at = ? where id = ?",
-        args: [passwordHash, now, now, userId]
+        sql: "update users set password_hash = ?, email_verified_at = coalesce(email_verified_at, ?), updated_at = ?, last_seen_at = ? where id = ?",
+        args: [passwordHash, now, now, now, userId]
       },
       { sql: "update email_tokens set used_at = ? where token_hash = ?", args: [now, tokenHash] },
       { sql: "delete from sessions where user_id = ?", args: [userId] }
     ], "write");
-    S.clearSessionCookie(req, res);
-    sendJson(res, 200, { ok: true });
+
+    await S.createSession(req, res, userId);
+
+    let updated;
+    try {
+      updated = (await db.execute({
+        sql: `select u.*,
+                     c.role as community_role,
+                     c.public_id as community_public_id,
+                     c.country_code as community_country_code,
+                     coalesce(u.avatar_url, c.avatar_url) as avatar_url
+              from users u
+              left join community_members c on c.user_id = u.id
+              where u.id = ?`,
+        args: [userId]
+      })).rows[0];
+    } catch (_error) {
+      updated = (await db.execute({ sql: "select * from users where id = ?", args: [userId] })).rows[0];
+    }
+    sendJson(res, 200, { ok: true, user: S.publicUser(updated) });
   },
 
   async profile(req, res) {

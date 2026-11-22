@@ -189,11 +189,40 @@
     status.textContent = message;
   }
 
+  var VIEW_STORAGE_KEY = 'sage_community_view';
+  var VALID_VIEWS = new Set(['core', 'learners', 'top-score']);
+
+  function readSavedView() {
+    try {
+      var saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
+      return VALID_VIEWS.has(saved) ? saved : 'core';
+    } catch (_error) {
+      return 'core';
+    }
+  }
+
+  function saveView(view) {
+    try {
+      if (VALID_VIEWS.has(view)) {
+        window.localStorage.setItem(VIEW_STORAGE_KEY, view);
+      }
+    } catch (_error) {
+      // Ignore storage errors (private mode / quota).
+    }
+  }
+
   function setActiveButton(view) {
     viewButtons.forEach(function (btn) {
       var active = btn.getAttribute('data-community-view') === view;
+      btn.disabled = false;
+      btn.classList.remove('disabled');
+      btn.removeAttribute('aria-disabled');
       btn.classList.toggle('is-active', active);
-      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      btn.setAttribute('aria-checked', active ? 'true' : 'false');
+      var radioIcon = btn.querySelector('.community-view-radio');
+      if (radioIcon) {
+        radioIcon.className = 'bi ' + (active ? 'bi-record-circle-fill' : 'bi-circle') + ' community-view-radio';
+      }
     });
   }
 
@@ -285,28 +314,30 @@
   }
 
   async function selectView(view) {
-    currentView = view;
+    var targetView = VALID_VIEWS.has(view) ? view : 'core';
+    currentView = targetView;
     page = 0;
-    setActiveButton(view);
+    saveView(targetView);
+    setActiveButton(targetView);
 
-    if (view === 'core') {
+    if (targetView === 'core') {
       setStatus('Core Team: Instructors, Mentors and Developers', 'info');
-    } else if (view === 'learners') {
+    } else if (targetView === 'learners') {
       setStatus("Loading Who's Learning…", 'info');
-    } else if (view === 'top-score') {
+    } else if (targetView === 'top-score') {
       setStatus('Loading Top Score…', 'info');
     }
 
     var payload;
-    if (view === 'learners') {
+    if (targetView === 'learners') {
       payload = await loadLearners();
-    } else if (view === 'top-score') {
+    } else if (targetView === 'top-score') {
       payload = await loadTopScore();
     } else {
       payload = await loadCoreTeam();
     }
 
-    if (currentView !== view) {
+    if (currentView !== targetView) {
       return;
     }
 
@@ -318,16 +349,16 @@
       return;
     }
 
-    if (view === 'core') {
+    if (targetView === 'core') {
       setStatus('Core Team: Instructors, Mentors and Developers', 'info');
-    } else if (view === 'learners') {
+    } else if (targetView === 'learners') {
       setStatus(
         rows.length
           ? ("Who's Learning: Members with active roadmaps (" + rows.length + ')')
           : "Who's Learning: No members with active roadmaps yet.",
         'info'
       );
-    } else if (view === 'top-score') {
+    } else if (targetView === 'top-score') {
       setStatus(
         rows.length
           ? ('Top Score: Members who passed at least one quiz (' + rows.length + ')')
@@ -365,7 +396,7 @@
     }
   });
 
-  selectView('core').catch(function (error) {
+  selectView(readSavedView()).catch(function (error) {
     setStatus(error.message || 'Community members could not be loaded.', 'danger');
     rows = [];
     render();

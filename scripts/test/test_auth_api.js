@@ -163,6 +163,8 @@ test("forgot resolves Gmail canonical aliases, sends reset link, and reset updat
       password: "NewStrongPassword!42"
     });
     assert.equal(resetRes.status, 200);
+    assert.equal(resetRes.body.ok, true);
+    assert.equal(resetRes.body.user.handle, "alice_one");
 
     // Reusing the same token must fail
     const reuseRes = await callAuth("reset", "POST", {

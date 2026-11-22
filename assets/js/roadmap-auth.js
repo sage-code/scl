@@ -44,18 +44,26 @@
     });
   }
 
-  var AUTH_PAGE_PATHS = [
-    "/roadmaps/login.html",
-    "/roadmaps/register.html",
-    "/roadmaps/reset-password.html",
-    "/roadmaps/profile.html",
-    "/roadmaps/unregister.html"
+  var AUTH_PAGE_SLUGS = [
+    "/roadmaps/login",
+    "/roadmaps/register",
+    "/roadmaps/reset-password",
+    "/roadmaps/profile",
+    "/roadmaps/unregister",
+    "/roadmap/login",
+    "/roadmap/register",
+    "/roadmap/reset-password",
+    "/roadmap/profile",
+    "/roadmap/unregister"
   ];
 
   function isAuthPagePath(pathname) {
-    return AUTH_PAGE_PATHS.some(function (p) {
-      return pathname === p || pathname === "/public" + p;
-    });
+    var normalized = String(pathname || "")
+      .replace(/^\/public(?=\/)/i, "")
+      .replace(/\.html$/i, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+    return AUTH_PAGE_SLUGS.indexOf(normalized) !== -1;
   }
 
   function sanitizeReturnPath(raw) {
@@ -454,9 +462,12 @@
       }
 
       clearFields(form, ["password", "confirm_password"]);
-      setStatus(status, "Password updated. You can sign in with the new password now.", "success");
+      if (result.data && result.data.user) {
+        applyUser(result.data.user);
+      }
+      setStatus(status, "New password accepted. You are signed in now.", "success");
       window.setTimeout(function () {
-        window.location.href = "/roadmaps/login.html";
+        window.location.href = getReturnUrl();
       }, 1200);
     }));
   }
