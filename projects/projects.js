@@ -149,10 +149,6 @@
     }
 
     var isNew = select.value === CATEGORY_NEW_VALUE;
-    var renameBtn = document.getElementById("project-rename-category-btn");
-    var renameWrap = document.getElementById("input-project-rename-category-wrap");
-    if (renameBtn) renameBtn.hidden = isNew;
-    if (renameWrap) renameWrap.hidden = true;
     if (newWrap) newWrap.hidden = !isNew;
     if (newInput) {
       newInput.required = isNew;
@@ -191,64 +187,14 @@
     var catSelect = document.getElementById("input-project-category");
     var newWrap = document.getElementById("input-project-new-category-wrap");
     var newInput = document.getElementById("input-project-new-category");
-    var renameBtn = document.getElementById("project-rename-category-btn");
-    var renameWrap = document.getElementById("input-project-rename-category-wrap");
-    var renameInput = document.getElementById("input-project-rename-category");
-    var renameSaveBtn = document.getElementById("project-rename-category-save");
-    var renameCancelBtn = document.getElementById("project-rename-category-cancel");
-
     if (catSelect) {
       catSelect.addEventListener("change", function () {
         var isNew = catSelect.value === CATEGORY_NEW_VALUE;
-        if (renameBtn) renameBtn.hidden = isNew;
-        if (renameWrap) renameWrap.hidden = true;
         if (newWrap) newWrap.hidden = !isNew;
         if (newInput) {
           newInput.required = isNew;
           if (isNew) newInput.focus();
         }
-      });
-    }
-
-    if (renameBtn && renameWrap && renameInput && catSelect) {
-      renameBtn.addEventListener("click", function () {
-        if (catSelect.value === CATEGORY_NEW_VALUE || !catSelect.value) return;
-        renameInput.value = catSelect.value;
-        renameWrap.hidden = false;
-        renameInput.focus();
-        renameInput.select();
-      });
-    }
-
-    if (renameCancelBtn && renameWrap) {
-      renameCancelBtn.addEventListener("click", function () {
-        renameWrap.hidden = true;
-      });
-    }
-
-    if (renameSaveBtn && renameInput && catSelect) {
-      renameSaveBtn.addEventListener("click", async function () {
-        var oldCat = catSelect.value;
-        var newCat = renameInput.value.trim();
-        if (!newCat) {
-          showStatus(document.getElementById("status-project"), "Category name cannot be empty.", "warning");
-          return;
-        }
-        if (newCat === oldCat) {
-          renameWrap.hidden = true;
-          return;
-        }
-        renameSaveBtn.disabled = true;
-        var res = await window.sclApi.projects.renameCategory(oldCat, newCat);
-        renameSaveBtn.disabled = false;
-        if (res.error) {
-          showStatus(document.getElementById("status-project"), res.error.message, "danger");
-          return;
-        }
-        showStatus(document.getElementById("status-project"), "Category renamed to \"" + newCat + "\".", "success");
-        renameWrap.hidden = true;
-        await loadProjects();
-        populateCategorySelect(newCat);
       });
     }
 

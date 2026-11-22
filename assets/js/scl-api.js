@@ -118,10 +118,7 @@
     projects: {
       list: function () { return request("GET", "/api/projects/"); },
       save: function (project) { return post("/api/projects/", project); },
-      remove: function (id) { return post("/api/projects/", { action: "delete", id: id }); },
-      renameCategory: function (oldCategory, newCategory) {
-        return post("/api/projects/", { action: "rename_category", old_category: oldCategory, new_category: newCategory });
-      }
+      remove: function (id) { return post("/api/projects/", { action: "delete", id: id }); }
     },
     community: {
       profile: function () { return request("GET", "/api/community/profile/"); },
