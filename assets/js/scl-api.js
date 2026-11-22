@@ -115,6 +115,11 @@
       learners: function () { return request("GET", "/api/roadmap/learners/"); },
       leaderboard: function () { return request("GET", "/api/roadmap/leaderboard/"); }
     },
+    projects: {
+      list: function () { return request("GET", "/api/projects/"); },
+      save: function (project) { return post("/api/projects/", project); },
+      remove: function (id) { return post("/api/projects/", { action: "delete", id: id }); }
+    },
     community: {
       profile: function () { return request("GET", "/api/community/profile/"); },
       saveProfile: function (profile) { return post("/api/community/profile/", profile); },

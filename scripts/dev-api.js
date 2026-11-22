@@ -23,6 +23,7 @@ for (const line of (fs.existsSync(path.join(ROOT, "env.local")) ? fs.readFileSyn
 const routes = [
   { pattern: /^\/api\/auth\/([a-z]+)\/?$/, handler: () => require("../api/auth/[action].js"), param: "action" },
   { pattern: /^\/api\/progress\/?$/, handler: () => require("../api/progress.js") },
+  { pattern: /^\/api\/projects\/?$/, handler: () => require("../api/projects.js") },
   { pattern: /^\/api\/favorites\/?$/, handler: () => require("../api/favorites.js") },
   { pattern: /^\/api\/profile\/avatar\/?$/, handler: () => require("../api/profile/avatar.js") },
   { pattern: /^\/api\/quizzes\/submit\/?$/, handler: () => require("../api/quizzes/submit.js") },
