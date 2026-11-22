@@ -43,13 +43,17 @@
       : track;
   }
 
-  function countryFlag(countryCode) {
-    if (typeof countryCode !== "string" || !/^[A-Z]{2}$/.test(countryCode)) {
-      return "";
+  function renderCountryWithFlag(el, countryCode, resolvedName) {
+    if (!el) return;
+    el.textContent = "";
+    var normalized = String(countryCode || "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(normalized) || !resolvedName) {
+      return;
     }
-    return String.fromCodePoint.apply(null, countryCode.split("").map(function (letter) {
-      return 0x1f1e6 + letter.charCodeAt(0) - 65;
-    }));
+    var flag = document.createElement("span");
+    flag.className = "fi fi-" + normalized.toLowerCase() + " me-1";
+    flag.setAttribute("aria-hidden", "true");
+    el.append(flag, document.createTextNode(resolvedName));
   }
 
   function resolveProfileId() {
@@ -147,7 +151,7 @@
     var normalizedCountry = String(profile.country_code || "").trim().toUpperCase();
     var resolvedName = countryName(normalizedCountry);
     if (normalizedCountry && resolvedName) {
-      originEl.textContent = countryFlag(normalizedCountry) + " " + resolvedName;
+      renderCountryWithFlag(originEl, normalizedCountry, resolvedName);
       originEl.hidden = false;
     } else {
       originEl.textContent = "";
@@ -1000,7 +1004,7 @@
       if (countryPreview) {
         var initCode = String(countryInput.value || "").trim().toUpperCase();
         var initName = countryName(initCode);
-        countryPreview.textContent = initName ? (countryFlag(initCode) + " " + initName) : "";
+        renderCountryWithFlag(countryPreview, initCode, initName);
         countryPreview.className = "small text-light fw-medium";
       }
       showInlineStatus("status-identity", "", "info");
@@ -1012,7 +1016,7 @@
       var code = String(e.target.value || "").trim().toUpperCase();
       var name = countryName(code);
       if (name) {
-        countryPreview.textContent = countryFlag(code) + " " + name;
+        renderCountryWithFlag(countryPreview, code, name);
         countryPreview.className = "small text-light fw-medium";
       } else if (code.length === 2) {
         countryPreview.textContent = "Unknown country code";

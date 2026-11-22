@@ -572,27 +572,23 @@
       });
     }
 
-    function resolveCountryDisplay(code) {
+    function resolveCountryName(code) {
       var normalized = String(code || "").trim().toUpperCase();
       if (!/^[A-Z]{2}$/.test(normalized)) {
         return "";
       }
-      var flag = String.fromCodePoint.apply(null, normalized.split("").map(function (letter) {
-        return 0x1f1e6 + letter.charCodeAt(0) - 65;
-      }));
-      var name = "";
       try {
         if (typeof Intl !== "undefined" && Intl.DisplayNames) {
           var names = new Intl.DisplayNames(["en"], { type: "region" });
           var resolved = names.of(normalized);
           if (resolved && resolved.toUpperCase() !== normalized && resolved !== "Unknown Region") {
-            name = resolved;
+            return resolved;
           }
         }
       } catch (_error) {
         // Ignore unsupported Intl.DisplayNames
       }
-      return name ? (flag + " " + name) : "";
+      return "";
     }
 
     function updateCountryPreview() {
@@ -601,15 +597,18 @@
         return;
       }
       var code = getValue(form, "country_code").toUpperCase();
-      var display = resolveCountryDisplay(code);
-      if (display) {
-        preview.textContent = display;
+      var name = resolveCountryName(code);
+      preview.textContent = "";
+      if (name) {
+        var flag = document.createElement("span");
+        flag.className = "fi fi-" + code.toLowerCase() + " me-1";
+        flag.setAttribute("aria-hidden", "true");
+        preview.append(flag, document.createTextNode(name));
         preview.className = "text-light fw-medium";
       } else if (code.length === 2) {
         preview.textContent = "Unknown country code";
         preview.className = "small text-warning";
       } else {
-        preview.textContent = "";
         preview.className = "text-light fw-medium";
       }
     }
