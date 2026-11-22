@@ -45,60 +45,60 @@ META_TAG_RE = re.compile(r"<meta\b[^>]*>", re.IGNORECASE)
 ATTRIBUTE_RE = re.compile(r"([a-zA-Z-]+)\s*=\s*[\"']([^\"']*)[\"']")
 
 # URL priority and change frequency rules based on path patterns
-# Organized by actual Sage-Code SCL structure: /roadmap/<track>/<topic>
+# Organized by actual Sage-Code SCL structure: /roadmaps/<track>/<topic>
 URL_PATTERNS = {
     # Homepage - highest priority
     "index.html": {"priority": 1.0, "changefreq": "weekly"},
     
     # Main roadmap hub - very high priority
-    "/roadmap/": {"priority": 0.95, "changefreq": "weekly"},
-    "/roadmap/index": {"priority": 0.95, "changefreq": "weekly"},
+    "/roadmaps/": {"priority": 0.95, "changefreq": "weekly"},
+    "/roadmaps/index": {"priority": 0.95, "changefreq": "weekly"},
     
     # Roadmap auth pages - high priority
-    "/roadmap/login": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/register": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/profile": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/reset-password": {"priority": 0.7, "changefreq": "yearly"},
+    "/roadmaps/login": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/register": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/profile": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/reset-password": {"priority": 0.7, "changefreq": "yearly"},
     
     # Roadmap track hubs (learning paths) - high priority
-    "/roadmap/cse/": {"priority": 0.9, "changefreq": "monthly"},
-    "/roadmap/": {"priority": 0.9, "changefreq": "monthly"},
-    "/roadmap/dsa/": {"priority": 0.9, "changefreq": "monthly"},
-    "/roadmap/dba/": {"priority": 0.9, "changefreq": "monthly"},
-    "/roadmap/dsl/": {"priority": 0.9, "changefreq": "monthly"},
-    "/roadmap/hpc/": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/tek/": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/sml/": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/osd/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/cse/": {"priority": 0.9, "changefreq": "monthly"},
+    "/roadmaps/": {"priority": 0.9, "changefreq": "monthly"},
+    "/roadmaps/dsa/": {"priority": 0.9, "changefreq": "monthly"},
+    "/roadmaps/dba/": {"priority": 0.9, "changefreq": "monthly"},
+    "/roadmaps/dsl/": {"priority": 0.9, "changefreq": "monthly"},
+    "/roadmaps/hpc/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/tek/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/sml/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/osd/": {"priority": 0.8, "changefreq": "monthly"},
     
     # Popular programming languages (topics)
-    "/roadmap/python/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/javascript/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/svelte/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/react/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/typescript/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/rust/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/go/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/java/": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/cpp/": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/csharp/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/python/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/javascript/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/svelte/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/react/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/typescript/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/rust/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/go/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/java/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/cpp/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/csharp/": {"priority": 0.8, "changefreq": "monthly"},
     
     # Core CSE topics
-    "/roadmap/cse/": {"priority": 0.9, "changefreq": "monthly"},
+    "/roadmaps/cse/": {"priority": 0.9, "changefreq": "monthly"},
     
     # Standard DSA topics
-    "/roadmap/dsa/": {"priority": 0.9, "changefreq": "monthly"},
+    "/roadmaps/dsa/": {"priority": 0.9, "changefreq": "monthly"},
     
     # Database and infrastructure topics
-    "/roadmap/dba/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/hpc/": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/osd/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/dba/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/hpc/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/osd/": {"priority": 0.8, "changefreq": "monthly"},
     
     # Topic index pages - medium-high priority
-    "/roadmap/": {"priority": 0.85, "changefreq": "monthly"},
-    "/roadmap/html/": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/css/": {"priority": 0.8, "changefreq": "monthly"},
-    "/roadmap/script/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/": {"priority": 0.85, "changefreq": "monthly"},
+    "/roadmaps/html/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/css/": {"priority": 0.8, "changefreq": "monthly"},
+    "/roadmaps/script/": {"priority": 0.8, "changefreq": "monthly"},
     
     # Projects - medium priority
     "/projects/": {"priority": 0.8, "changefreq": "monthly"},

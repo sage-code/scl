@@ -43,8 +43,8 @@ Activate the relevant skill before specialized work instead of guessing:
 
 - **Static-first vanilla stack:** Pure HTML5/CSS3/ES6+ and Bootstrap. Shared headers, footers, and sidebars are injected at build time (`node build.js`), never fetched at runtime. Inline JS is extracted to `public/assets/js/inline/`.
 - **Template-defined roadmaps (5+ phases):** Follow `assets/roadmap_template.html`, `assets/topic_template.html`, and `assets/topic_sidebar_template.json` (see `manual/ARCHITECTURE.md`).
-- **3-level sidebar JSON (`roadmap/<track>/data/<topic>.json`):** Single root `h1` folder → `h2` chapters → `h3` anchors (no `role` key; leaf `h2` omits `children`). Never publish flat sidebar lists.
-- **Canonical URLs & security:** Topic links `/roadmap/<track>/<topic>.html`; track roots `/roadmap/<track>/`. Never use relative links. External links require `target="_blank" rel="noopener noreferrer nofollow"`.
+- **3-level sidebar JSON (`roadmaps/<track>/data/<topic>.json`):** Single root `h1` folder → `h2` chapters → `h3` anchors (no `role` key; leaf `h2` omits `children`). Never publish flat sidebar lists.
+- **Canonical URLs & security:** Topic links `/roadmaps/<track>/<topic>.html`; track roots `/roadmaps/<track>/`. Never use relative links. External links require `target="_blank" rel="noopener noreferrer nofollow"`.
 - **Content quality overrides token economy:** Token discipline applies to context and process ONLY — **never** trim learner-facing explanations, examples, or didactic comments. Author as a mentor, professor, and engineer; avoid promotional adjectives (*Ultimate*, *Complete*, *Professional*, *Easy*, *Simple*); keep references only on track `index.html` and `references.html`.
 
 ---

@@ -28,7 +28,7 @@ scripts/validation_lib.py):
 
 Usage:
     python scripts/tools/check_html_fragments.py .temp/fortran_pages/*.html
-    python scripts/tools/check_html_fragments.py roadmap/fortran
+    python scripts/tools/check_html_fragments.py roadmaps/fortran
     python scripts/tools/check_html_fragments.py --strict roadmap swift
 Exit code is 1 when any FAIL is reported (any WARN too, with --strict).
 """
@@ -70,7 +70,7 @@ def main(argv: list[str]) -> int:
     list_only = "--list" in argv
     targets = [a for a in argv if not a.startswith("-")]
     if not targets:
-        targets = ["roadmap", "projects", "community", "assets", "layouts"]
+        targets = ["roadmaps", "projects", "community", "assets", "layouts"]
 
     pages = collect(targets)
     failed = warned = 0

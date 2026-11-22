@@ -24,7 +24,7 @@ Usage:
     python scripts/tools/compose_topic_pages.py --track nim --fragments .temp/nim_pages --dry-run
     python scripts/tools/compose_topic_pages.py --track nim --fragments .temp/nim_pages --force
 
-A page is written to roadmap/<track>/<topic>.html. An existing file is left
+A page is written to roadmaps/<track>/<topic>.html. An existing file is left
 alone unless --force is given, so a regeneration can never silently discard a
 hand edit. The topic page contract is checked before writing: one <h1>, two or
 more <h2>, and at least one <h3> inside every <h2> chapter.
@@ -182,7 +182,7 @@ def main() -> int:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--track", required=True, help="track folder under roadmap/, e.g. nim")
+    parser.add_argument("--track", required=True, help="track folder under roadmaps/, e.g. nim")
     parser.add_argument("--fragments", required=True, help="folder holding <topic>.html fragments")
     parser.add_argument("--dry-run", action="store_true", help="report what would be written, write nothing")
     parser.add_argument("--force", action="store_true", help="overwrite pages that already exist")
@@ -195,7 +195,7 @@ def main() -> int:
         print(f"FATAL: fragment folder not found: {fragment_dir}")
         return 2
 
-    target_dir = ROOT / "roadmap" / args.track
+    target_dir = ROOT / "roadmaps" / args.track
     if not target_dir.is_dir():
         print(f"FATAL: track folder not found: {target_dir}")
         return 2

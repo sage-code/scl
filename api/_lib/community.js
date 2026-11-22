@@ -315,7 +315,7 @@ function buildCertificates(row, qualifiedTracks) {
       track: qt.track,
       topic: qt.topic,
       title: `${trackLabel(qt.track)} Roadmap Certificate`,
-      url: `/roadmap/${encodeURIComponent(qt.track)}/`
+      url: `/roadmaps/${encodeURIComponent(qt.track)}/`
     });
   }
   return certificates;

@@ -6,7 +6,7 @@ const path = require("node:path");
 const { test } = require("node:test");
 const answerKeys = require("../../api/_lib/quiz-answer-keys.json");
 const { qualifiedRoadmaps } = require("../../api/_lib/quiz");
-const publicQuiz = require("../../roadmap/go/quiz/syntax-A.json");
+const publicQuiz = require("../../roadmaps/go/quiz/syntax-A.json");
 const quiz = withAnswerKey(publicQuiz);
 const pilotQuiz = {
   ...quiz,
@@ -23,7 +23,7 @@ const {
   validateQuiz
 } = require("../../assets/js/roadmap-quiz.js");
 
-const roadmapRoot = path.resolve(__dirname, "../../roadmap");
+const roadmapRoot = path.resolve(__dirname, "../../roadmaps");
 const quizFiles = fs.readdirSync(roadmapRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .flatMap((track) => {

@@ -7,7 +7,7 @@ This repository is a static-site source workspace. The build pipeline assembles 
 ## Canonical Routes
 
 - Site root: `/`
-- Roadmap hub: `/roadmap/`
+- Roadmap hub: `/roadmaps/`
 - Projects: `/projects/`
 - Community: `/community/`
 
@@ -55,7 +55,7 @@ The `run.sh` script provides a unified command-line interface for managing the l
 
 - Shared authoring templates live only in `assets/`.
 - Canonical shared templates are `assets/roadmap_template.html` and `assets/topic_template.html`.
-- Do not keep `template.html` files inside individual `roadmap/<track>/` folders.
+- Do not keep `template.html` files inside individual `roadmaps/<track>/` folders.
 - Roadmap track pages should use concrete source pages (`index.html`, topic pages, and optional `topic.html`) instead of per-track template files.
 
 ## Build Pipeline (Actual)
@@ -70,7 +70,7 @@ The `run.sh` script provides a unified command-line interface for managing the l
 6. Copies source content into publish namespaces:
    - `projects/**` -> `public/projects/**`
    - `community/**` -> `public/community/**`
-   - `roadmap/**` (including top-level auth pages and track folders) -> `public/roadmap/**`
+   - `roadmaps/**` (including top-level auth pages and track folders) -> `public/roadmaps/**`
 7. Builds top-level root pages (`*.html`) into `public/*.html`.
 8. Optimizes all published HTML files:
    - injects shared header/footer from `layouts/`
@@ -86,16 +86,16 @@ Build does not run validations; verification is a separate step (`run test` for 
 ## Route Contract
 
 - Root pages: `public/*.html` from repository-root `*.html`.
-- Roadmap landing: `public/roadmap/index.html` from `roadmap/index.html`.
-- Roadmap auth/profile pages: `public/roadmap/login.html`, `public/roadmap/register.html`, `public/roadmap/profile.html`, `public/roadmap/reset-password.html`, `public/roadmap/unregister.html`.
-- Roadmap tracks/topics: `public/roadmap/<track>/**`.
+- Roadmap landing: `public/roadmaps/index.html` from `roadmaps/index.html`.
+- Roadmap auth/profile pages: `public/roadmaps/login.html`, `public/roadmaps/register.html`, `public/roadmaps/profile.html`, `public/roadmaps/reset-password.html`, `public/roadmaps/unregister.html`.
+- Roadmap tracks/topics: `public/roadmaps/<track>/**`.
 - Project pages: `public/projects/**`.
 - Community pages: `public/community/**`.
 
 ## Roadmap Link Rules
 
-- Topic links in roadmap index tables must use absolute static routes: `/roadmap/<track>/<topic>.html`.
-- Track roots should use trailing slash canonical routes: `/roadmap/<track>/`.
+- Topic links in roadmap index tables must use absolute static routes: `/roadmaps/<track>/<topic>.html`.
+- Track roots should use trailing slash canonical routes: `/roadmaps/<track>/`.
 - Do not author legacy top-level route prefixes (`/cse/`, `/csp/`, `/pro/`); the build has compatibility rewrites, but source should stay canonical.
 
 ## Runtime Script Ownership
@@ -140,7 +140,7 @@ All roadmap code is rendered by a **single Prism bundle** that supports every la
 - **CSS requirement (topic pages)**:
   - Always: `content-code.css` (pre/code styling) and `content-sidebar.css` (left navigation).
   - Only when the page contains a table: `content-tables.css`.
-  - Track index pages (`roadmap/<track>/index.html`) use `roadmap-index.css`, not the content-* set.
+  - Track index pages (`roadmaps/<track>/index.html`) use `roadmap-index.css`, not the content-* set.
 
 #### Exotic-Language Special Case (DSL Implementation Languages)
 
@@ -153,7 +153,7 @@ Rules of thumb: prefer registering the grammar centrally in `assets/prism.js` (t
 
 ### Topic sidebar JSON — template
 
-The sidebar is a tree with THREE collapsible levels: the page TITLE is the root folder, the `<h2>` chapters hang from it, and each chapter owns its `<h3>` anchors. `roadmap/<track>/data/<topic>.json` must obey that hierarchy — flat lists break `topic-loader.js`.
+The sidebar is a tree with THREE collapsible levels: the page TITLE is the root folder, the `<h2>` chapters hang from it, and each chapter owns its `<h3>` anchors. `roadmaps/<track>/data/<topic>.json` must obey that hierarchy — flat lists break `topic-loader.js`.
 
 The block below is the **template**. No track is a reference implementation and no track's file is the source of the shape: tracks are only instances of the template, and the template is defined here plus as a copy-ready scaffold in `assets/topic_sidebar_template.json`.
 
@@ -163,14 +163,14 @@ The block below is the **template**. No track is a reference implementation and 
                     "children": [ { "title": "<H3 text>", "link": "#<h3-id>" } ] } ] } ]
 ```
 
-- The `<h1>` entry is the ONLY top-level node, and it is an ordinary folder: it renders with the same folder toggle as a chapter (`bi-folder-fill` when closed, `bi-folder2-open` when open) and folds the whole lab away like any other node. Nothing marks the title as special — no `"role"` key, no positional tag. A node folds because it HAS children: a topic page ships an empty `<ul id="bookmark-list">` and `topic-loader.js` builds the tree at runtime from `roadmap/<track>/data/<topic>.json` (same stem as the page). `build.js` implements the identical rule in `renderSidebarItems` for the pages whose sidebar it injects statically (`data-static-sidebar="true"`), so both renderers stay in sync.
+- The `<h1>` entry is the ONLY top-level node, and it is an ordinary folder: it renders with the same folder toggle as a chapter (`bi-folder-fill` when closed, `bi-folder2-open` when open) and folds the whole lab away like any other node. Nothing marks the title as special — no `"role"` key, no positional tag. A node folds because it HAS children: a topic page ships an empty `<ul id="bookmark-list">` and `topic-loader.js` builds the tree at runtime from `roadmaps/<track>/data/<topic>.json` (same stem as the page). `build.js` implements the identical rule in `renderSidebarItems` for the pages whose sidebar it injects statically (`data-static-sidebar="true"`), so both renderers stay in sync.
 - Title and chapters open by default (title = level 0, chapter = level 1, section = level 2, see `isSidebarLevelExpanded` in `build.js` / `isTreeLevelExpandedByDefault` in `topic-loader.js`), so title → chapter → sub-section is browsable without a single click and every level can be folded by the reader.
 - Three levels where the page has content for three; an `<h2>` chapter with no `<h3>` is a **leaf chapter** inside the root folder (no `children` key) — forcing an empty `children` list would render a folder that opens onto nothing. The `h3-under-every-h2` rule stays an authoring requirement, so `npm run test` keeps warning about the missing section level as content debt.
 - A page may declare more than one `<h1>`; each one opens its own top-level root and claims the `<h2>` sections that follow it. The template expects ONE root: a multi-`<h1>` page is a page-structure issue for the author to merge, not a JSON variant.
 - **Legacy (un-migrated tracks, left untouched).** The first entry is a childless `{ "role": "title" }` leaf above flat `<h2>` chapters. `npm run test` / `npm run check` warn on it as content debt — migration proceeds per track. The tag survives only so those pages keep their gold title glyph; nothing the generator writes emits it. A `"role": "title"` entry whose `link` is not a `#` anchor fails the gate (dead navigation).
 
 - **Convert an existing track** with `python scripts/tools/migrate_sidebars.py --track <track> [--dry-run]`: it takes the STRUCTURE from the page (root folder + `<h3>` level, dead anchors dropped) and keeps the titles already stored in the sidecar, so short navigation labels are never replaced by long decorated headings. `--all` walks every track and `--report <file>` lists what changed, what was dropped, and which pages are blocked. A sidecar whose tree already matches the template is left byte-for-byte alone, so the diff shows structure only.
-- **Author a new page** with `python scripts/tools/gen_topic_sidebars.py roadmap/<track>/<topic>.html`: it rebuilds titles verbatim from the headings and is strict (every `<h2>` needs `<h3>`, so it doubles as an authoring gate; `--mixed` relaxes that for `references.html` and `demo_examples.html`). Re-running either tool is idempotent. With an anchorable `<h1>` the tool emits the root folder; a page with no `<h1>` — or an `<h1>` without an `id` — is reported and cannot be rooted, so give the `<h1>` an `id`.
+- **Author a new page** with `python scripts/tools/gen_topic_sidebars.py roadmaps/<track>/<topic>.html`: it rebuilds titles verbatim from the headings and is strict (every `<h2>` needs `<h3>`, so it doubles as an authoring gate; `--mixed` relaxes that for `references.html` and `demo_examples.html`). Re-running either tool is idempotent. With an anchorable `<h1>` the tool emits the root folder; a page with no `<h1>` — or an `<h1>` without an `id` — is reported and cannot be rooted, so give the `<h1>` an `id`.
 - Check a track before/after migrating: `python scripts/tools/verify_sidebars.py <track>` — it walks the sidecar recursively, asserts the template shape, that the root anchors the page `<h1>`, and that a page nesting `<h3>` also nests them in the JSON. `python scripts/tools/check_sidebar_anchors.py` proves every anchor still resolves to an id on its page.
 - Live census of migration state: `python scripts/tools/migrate_sidebars.py --all --dry-run` prints `migrated / unchanged / blocked / orphan` per track. A BLOCKED page has no anchorable `<h1>` — the repair is a page edit, not a JSON edit.
 - Keep the tree shallow and legible (title + H2/H3); titles short and factual with plain `&` (no entities).
@@ -179,7 +179,7 @@ The block below is the **template**. No track is a reference implementation and 
 
 Roadmap pages may include **hand-authored SVG diagrams** to explain spatial or relational concepts (control flow, memory layout, type/class hierarchy, async timelines, build pipelines).
 
-- File convention: shared diagrams go to `assets/images/<name>.svg` and are embedded as `<img src="/images/<name>.svg" alt="...">`; track-specific diagrams go to `roadmap/<track>/img/<name>.svg` and are embedded as `/roadmap/<track>/img/<name>.svg`.
+- File convention: shared diagrams go to `assets/images/<name>.svg` and are embedded as `<img src="/images/<name>.svg" alt="...">`; track-specific diagrams go to `roadmaps/<track>/img/<name>.svg` and are embedded as `/roadmaps/<track>/img/<name>.svg`.
 - Editable sources for tool-made diagrams live in `assets/draw/*.drawio` (draw.io), exported to `.svg`.
 - SVG requirements: declare `viewBox`, responsive `width:100%`, minimal and technical (never decorative); add a one-line caption paragraph under the image.
 - **Dark-theme SVG style spec (mandatory for every SVG — draw.io export or hand-authored):**
@@ -220,27 +220,27 @@ Reference lists live ONLY in two places: the track `index.html` "Free References
 
 ### Diagrams
 
-Reuse shared assets first: `assets/images/<name>.svg` is referenced in SOURCE as `/images/<name>.svg` (the build rewrites it to `/assets/images/<name>.svg` in `public/`). Known shared inventory: control flow — `decision`, `switch`, `classic-for`, `for-loop`, `while`, `do-while`; HPC — `parallel_system`, `asynch`, `processes`. Track-specific diagrams: `roadmap/<track>/img/<name>.svg`. Shared SVGs are generic, language-agnostic primitives — never copy one into a track; when a language's construct differs (not all languages are the same), author a new track-specific SVG. Embed pattern: `<div class="text-center"><img src="..." width="..." class="img-fluid protect rounded shadow border"><p>caption</p></div>`.
+Reuse shared assets first: `assets/images/<name>.svg` is referenced in SOURCE as `/images/<name>.svg` (the build rewrites it to `/assets/images/<name>.svg` in `public/`). Known shared inventory: control flow — `decision`, `switch`, `classic-for`, `for-loop`, `while`, `do-while`; HPC — `parallel_system`, `asynch`, `processes`. Track-specific diagrams: `roadmaps/<track>/img/<name>.svg`. Shared SVGs are generic, language-agnostic primitives — never copy one into a track; when a language's construct differs (not all languages are the same), author a new track-specific SVG. Embed pattern: `<div class="text-center"><img src="..." width="..." class="img-fluid protect rounded shadow border"><p>caption</p></div>`.
 ## Demo Example Pages (required for every roadmap)
 
 Every roadmap track MUST include a **practice & demo** section.
 
-### 1. Demo Source Files — `roadmap/<track>/demo/`
-- Store one runnable example per file inside the track's `demo/` folder: `roadmap/<track>/demo/NN_name.<ext>`.
+### 1. Demo Source Files — `roadmaps/<track>/demo/`
+- Store one runnable example per file inside the track's `demo/` folder: `roadmaps/<track>/demo/NN_name.<ext>`.
 - Number files sequentially (`01`, `02`, ...) and group them by lesson category (the demo page groups them).
 - Keep files single-file, commented, consistent with the track's tutorial style, and runnable with the language's standard tooling (e.g. `dotnet run` for C#).
-- Demo folders are part of the published `roadmap/**` namespace, so the build copies them to `public/` unchanged.
-- The demo folder MAY contain subfolders to group demos by phase or category: `roadmap/<track>/demo/<group>/NN_name.<ext>`; the demo page and the code viewer accept the subfolder path.
+- Demo folders are part of the published `roadmaps/**` namespace, so the build copies them to `public/` unchanged.
+- The demo folder MAY contain subfolders to group demos by phase or category: `roadmaps/<track>/demo/<group>/NN_name.<ext>`; the demo page and the code viewer accept the subfolder path.
 - Demos may also be embedded inline in topic pages ("spread around the tutorial"), so a lesson can link its own example; the centralized demo page remains the single index.
 
-### 2. Demo Page — `roadmap/<track>/demo_examples.html`
+### 2. Demo Page — `roadmaps/<track>/demo_examples.html`
 - Standard lab topic page: `topicId: 'demo_examples'`, `labId: <track>`, powered by `assets/js/topic-loader.js`.
 - Exactly one `h1`; one `h2` per phase/category (demos may be centralized per phase); each category lists its demos in a table: `# | Description | Link`.
 - The Link column opens the unified code viewer:
-  `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<filename>`
+  `/roadmaps/code-viewer.html?file=/roadmaps/<track>/demo/<filename>`
 - Tracks whose demos render standalone in a browser (e.g. HTML) add a second
   column, **Preview**, linking the demo file directly —
-  `/roadmap/<track>/demo/<filename>` with `target="_blank"`
+  `/roadmaps/<track>/demo/<filename>` with `target="_blank"`
   `rel="noopener noreferrer"` — next to the code-viewer link. Table header:
   `# | Description | View code | Preview`. Previewable demos must be
   self-contained (no site shell, no unresolvable relative links); the build
@@ -250,7 +250,7 @@ Every roadmap track MUST include a **practice & demo** section.
   language is introduced only two things are needed: extend the `langMap` and ensure the grammar is
   registered in `assets/prism.js` (the download link in its header lists the included languages).
 
-### 3. Sidebar JSON — `roadmap/<track>/data/demo_examples.json`
+### 3. Sidebar JSON — `roadmaps/<track>/data/demo_examples.json`
 - The same template as any other page: the page `<h1>` is the root folder and each category is a
   chapter under it — `{ "title": "<category>", "link": "#<category-id>" }`, a **leaf chapter**
   (categories have no `<h3>` level, so they carry no `children` key).
@@ -260,8 +260,8 @@ Every roadmap track MUST include a **practice & demo** section.
   `--mixed`); never hand-maintain a flat list, which drops out of the template shape.
 
 ### 4. Track Index Link
-- `roadmap/<track>/index.html` must list a `demo_examples` row — under a
-  *Practice & Demo* phase — linking to `/roadmap/<track>/demo_examples.html`.
+- `roadmaps/<track>/index.html` must list a `demo_examples` row — under a
+  *Practice & Demo* phase — linking to `/roadmaps/<track>/demo_examples.html`.
 
 
 - `manual/build-manifest.json` and `manual/migration-status.json` are generated reports.

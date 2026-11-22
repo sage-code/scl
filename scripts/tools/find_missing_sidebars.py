@@ -1,7 +1,7 @@
 import os
 
 def find_missing_sidebars(root_dir):
-    roadmap_dir = "roadmap"
+    roadmap_dir = "roadmaps"
     todo_file = "TODO_DETAILED.md"
     results = []
 

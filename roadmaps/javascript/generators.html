@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="JavaScript iterators and generators: the iterator protocol, yield, lazy pipelines, async iterators, and backpressure.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="generators, iterators, yield, async iteration, backpressure">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>Iterators, Generators and Async Iteration</title>
+  <link rel="canonical" href="https://sagecode.org/roadmaps/javascript/generators.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <style>.side-bar{order:1}#main-content{order:2}@media(max-width:991px){.side-bar{display:none}.side-bar.active{display:block;position:absolute;top:100px;left:0;right:0;z-index:1000;background:rgba(0,0,0,.95)}}</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="lab-topics">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="iterators-generators-and-async-iteration">Iterators, Generators and Async Iteration</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  <code>for…of</code> works on anything that implements the iterator protocol. Generators let
+  you implement that protocol with a function — producing values <em>on demand</em>, even
+  infinitely, even asynchronously. This lesson covers the protocol, <code>yield</code>,
+  delegation, and the lazy pipelines they enable.
+</div>
+
+<h2 id="the-iterator-protocol">The iterator protocol</h2>
+
+<h3 id="by-hand">By hand first — then never again</h3>
+<pre><code class="language-javascript">// An ITERABLE has a Symbol.iterator method returning an ITERATOR:
+const handMade = {
+  upTo: 3,
+  [Symbol.iterator]() {
+    let i = 1;
+    return {
+      next: () => (i <= this.upTo
+        ? { value: i++, done: false }   // a step
+        : { value: undefined, done: true }), // the end
+    };
+  },
+};
+
+console.log([...handMade].join(", ")); // spread and for…of both speak this protocol
+// Expected output:
+// 1, 2, 3</code></pre>
+<p>
+  Arrays, strings, Maps, Sets, and NodeLists all implement this — which is exactly one
+  protocol, and why <code>for…of</code> works uniformly on all of them.
+</p>
+
+<h2 id="generators">Generators: the protocol, written for you</h2>
+
+<h3 id="yield">yield pauses the function; next() resumes it</h3>
+<pre><code class="language-javascript">function* fibonacci() {
+  let [a, b] = [0, 1];
+  while (true) {        // an INFINITE loop — safe, because nothing runs until asked
+    yield a;            // pause here, hand out a, wait to be asked again
+    [a, b] = [b, a + b];
+  }
+}
+
+const fib = fibonacci();
+console.log(fib.next().value, fib.next().value, fib.next().value, fib.next().value);
+
+// Expected output:
+// 0 1 1 2</code></pre>
+<p>
+  Calling <code>fibonacci()</code> runs <strong>no code</strong> — it returns a paused
+  generator. Each <code>.next()</code> runs to the next <code>yield</code> and freezes again.
+  Contrast with an array: a generator holds no history, only the recipe.
+</p>
+
+<h3 id="lazy-pipelines">Lazy pipelines: cap the infinite</h3>
+<pre><code class="language-javascript">// take(n) stops PULLING — the generator freezes at its yield, computing nothing more.
+function* take(iterable, n) {
+  let count = 0;
+  for (const value of iterable) {
+    if (count++ >= n) return;
+    yield value;
+  }
+}
+
+console.log([...take(fibonacci(), 8)].join(", "));
+// Expected output:
+// 0, 1, 1, 2, 3, 5, 8, 13</code></pre>
+<h3 id="yield-star">yield* — delegation</h3>
+<pre><code class="language-javascript">// yield* hands control to ANOTHER generator — its yields flow through ours.
+function* tree(node) {
+  if (typeof node !== "object" || node === null) {
+    yield node;               // a leaf: produce its value
+    return;
+  }
+  for (const child of Object.values(node)) {
+    yield* tree(child);       // recursive delegation: depth-first traversal
+  }
+}
+
+const doc = { id: "root", children: [{ id: "a" }, { id: "b", children: [{ id: "ba" }] }] };
+console.log([...tree(doc)].join(", "));
+// Expected output:
+// root, a, b, ba   (every string leaf, depth first)</code></pre>
+<p>
+  This is the natural shape for walking trees, flattening structures, and composing
+  pipelines — recursion that produces a stream instead of building an array.
+</p>
+
+<h2 id="async-iteration">Async iteration: for await…of</h2>
+<p>
+  An <strong>async generator</strong> yields promises; <code>for await…of</code> awaits each
+  value in order. This is the foundation of streaming data — event sources, paginated APIs,
+  reading a file chunk by chunk:
+</p>
+<pre><code class="language-javascript">async function* ticks(count) {
+  for (let i = 1; i <= count; i++) {
+    await new Promise((r) => setTimeout(r, 10)); // simulate an async event source
+    yield `tick ${i}`;                           // produced only when the consumer asks
+  }
+}
+
+for await (const message of ticks(3)) {
+  console.log(message); // the loop awaits each value before the next iteration
+}
+// Expected output (one per 10ms):
+// tick 1
+// tick 2
+// tick 3</code></pre>
+<p>
+  Because values are produced <em>on demand</em>, a slow consumer applies natural
+  <strong>backpressure</strong>: the generator simply pauses at its <code>yield</code> until
+  the next pull. No buffer grows, nothing is computed early.
+</p>
+
+<h2 id="practice-generators">Practice: infinite, capped</h2>
+
+<h3 id="the-task-generators">The task</h3>
+<p>
+  Run <code>async/29_generators_lab.js</code> with <code>node</code>. Then build
+  <code>function* unique(iterable)</code> that yields each value only the first time it appears
+  (a lazy <code>Set</code> filter), and chain it:
+  <code>[...unique(take(fibonacci(), 20))]</code>. Predict the result before running.
+</p>
+
+<h3 id="the-checklist-generators">The checklist</h3>
+<ul>
+  <li>You can implement Symbol.iterator by hand — and explain what a generator saves you.</li>
+  <li>You know calling a generator function runs no code until the first next().</li>
+  <li>You use <code>yield*</code> for recursive delegation instead of manual forwarding.</li>
+  <li>You can explain backpressure: consumers pull, producers pause at yield.</li>
+</ul>
+
+      </main>
+    </div>
+  </div>
+
+  <hr>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'javascript',
+    topicId: 'generators',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

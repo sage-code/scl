@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit generated roadmap/projects pages for common footer integrity.
+"""Audit generated roadmaps/projects pages for common footer integrity.
 
 Checks performed:
 - Exactly one <footer> tag per HTML page.
@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PUBLIC_DIR = ROOT / "public"
-TARGET_DIRS = [PUBLIC_DIR / "roadmap", PUBLIC_DIR / "projects"]
+TARGET_DIRS = [PUBLIC_DIR / "roadmaps", PUBLIC_DIR / "projects"]
 
 FOOTER_RE = re.compile(r"<footer\b", re.IGNORECASE)
 COMMON_MARKER_RE = re.compile(r"Mentorship\s*&(?:amp;)?\s*Resources", re.IGNORECASE)

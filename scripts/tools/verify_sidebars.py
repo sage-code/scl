@@ -32,10 +32,10 @@ from pathlib import Path
 
 track = "julia"
 topics = sys.argv[1:]
-if topics and (Path("roadmap") / topics[0]).is_dir():
+if topics and (Path("roadmaps") / topics[0]).is_dir():
     track = topics.pop(0)
 
-root = Path("roadmap") / track
+root = Path("roadmaps") / track
 if topics:
     selected = topics
 else:

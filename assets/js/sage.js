@@ -60,9 +60,9 @@ function initDynamicHeader() {
                         <span></span><span></span><span></span>
                     </button>
                     <ul class="nav-links" id="nav-menu">
-                        <li><a href="/roadmap/">Roadmap</a></li>
                         <li><a href="/projects/">Projects</a></li>
                         <li><a href="/services/">Services</a></li>
+                        <li><a href="/roadmaps/">Roadmaps</a></li>
                         <li><a href="/community/">Community</a></li>
                     </ul>
                 </nav>
@@ -166,8 +166,8 @@ function generateBreadcrumbs() {
         const searchParams = new URLSearchParams(window.location.search);
         const quizTrack = searchParams.get('track');
         const quizLevel = (searchParams.get('level') || '').toUpperCase();
-        const isQuizCatalogRoute = pathArray[0] === 'roadmap' && pathArray[1] === 'quizzes.html';
-        const isQuizPlayerRoute = pathArray[0] === 'roadmap' && pathArray[1] === 'quiz.html';
+        const isQuizCatalogRoute = (pathArray[0] === 'roadmaps' || pathArray[0] === 'roadmap') && pathArray[1] === 'quizzes.html';
+        const isQuizPlayerRoute = (pathArray[0] === 'roadmaps' || pathArray[0] === 'roadmap') && pathArray[1] === 'quiz.html';
         const hasValidQuizTrack = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(quizTrack || '');
         if ((isQuizCatalogRoute || isQuizPlayerRoute) && hasValidQuizTrack) {
             if (isQuizPlayerRoute) {
@@ -192,7 +192,7 @@ function generateBreadcrumbs() {
             // Remove extension and format text
             let name = segment.replace('.html', '').replace(/-/g, ' ').toUpperCase();
             const normalizedSegment = segment.toLowerCase();
-            const isRoadmapSegment = normalizedSegment === 'roadmap' || normalizedSegment === 'roadmap.html';
+            const isRoadmapSegment = normalizedSegment === 'roadmaps' || normalizedSegment === 'roadmap' || normalizedSegment === 'roadmap.html';
             
             // Special handling for topic.html - extract topic parameter
             const isTopicPage = segment.includes('topic.html') || segment === 'topic';
@@ -212,11 +212,11 @@ function generateBreadcrumbs() {
             
             if (index === pathArray.length - 1) {
                 if (isRoadmapSegment) {
-                    html += `<a href="${MAIN_HUB}/roadmap/">ROADMAP</a>`;
+                    html += `<a href="${MAIN_HUB}/roadmaps/">ROADMAPS</a>`;
                     return;
                 }
                 if (isQuizPlayerRoute && hasValidQuizTrack && normalizedSegment === 'quizzes.html') {
-                    html += `<a href="${MAIN_HUB}/roadmap/quizzes.html?track=${encodeURIComponent(quizTrack)}">QUIZZES</a>`;
+                    html += `<a href="${MAIN_HUB}/roadmaps/quizzes.html?track=${encodeURIComponent(quizTrack)}">QUIZZES</a>`;
                     return;
                 }
 
@@ -229,11 +229,11 @@ function generateBreadcrumbs() {
                 }
             } else {
                 if (isRoadmapSegment) {
-                    html += `<a href="${MAIN_HUB}/roadmap/">ROADMAP</a>`;
+                    html += `<a href="${MAIN_HUB}/roadmaps/">ROADMAPS</a>`;
                     return;
                 }
                 if (isQuizPlayerRoute && hasValidQuizTrack && normalizedSegment === 'quizzes.html') {
-                    html += `<a href="${MAIN_HUB}/roadmap/quizzes.html?track=${encodeURIComponent(quizTrack)}">QUIZZES</a>`;
+                    html += `<a href="${MAIN_HUB}/roadmaps/quizzes.html?track=${encodeURIComponent(quizTrack)}">QUIZZES</a>`;
                     return;
                 }
 

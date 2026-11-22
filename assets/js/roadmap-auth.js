@@ -45,11 +45,11 @@
   }
 
   var AUTH_PAGE_PATHS = [
-    "/roadmap/login.html",
-    "/roadmap/register.html",
-    "/roadmap/reset-password.html",
-    "/roadmap/profile.html",
-    "/roadmap/unregister.html"
+    "/roadmaps/login.html",
+    "/roadmaps/register.html",
+    "/roadmaps/reset-password.html",
+    "/roadmaps/profile.html",
+    "/roadmaps/unregister.html"
   ];
 
   function isAuthPagePath(pathname) {
@@ -79,7 +79,7 @@
 
   function getRoadmapIndexUrl() {
     var path = window.location.pathname || "/";
-    return path.startsWith("/public/") ? "/public/roadmap/" : "/roadmap/";
+    return path.startsWith("/public/") ? "/public/roadmaps/" : "/roadmaps/";
   }
 
   function getReturnUrl() {
@@ -224,7 +224,7 @@
     if (forgotLink) {
       forgotLink.addEventListener("click", function () {
         var email = getValue(form, "email");
-        var url = new URL("/roadmap/reset-password.html", window.location.origin);
+        var url = new URL("/roadmaps/reset-password.html", window.location.origin);
         if (email) {
           url.searchParams.set("email", email);
         }
@@ -456,7 +456,7 @@
       clearFields(form, ["password", "confirm_password"]);
       setStatus(status, "Password updated. You can sign in with the new password now.", "success");
       window.setTimeout(function () {
-        window.location.href = "/roadmap/login.html";
+        window.location.href = "/roadmaps/login.html";
       }, 1200);
     }));
   }
@@ -800,7 +800,7 @@
       clearFields(form, ["password"]);
       setStatus(status, "Your roadmap account has been removed.", "success");
       window.setTimeout(function () {
-        window.location.href = "/roadmap/";
+        window.location.href = "/roadmaps/";
       }, 1500);
     }));
   }

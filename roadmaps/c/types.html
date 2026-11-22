@@ -1,0 +1,166 @@
+    <!DOCTYPE html>
+    <html lang="en" data-bs-theme="dark">
+    <head>
+      <meta charset="utf-8">
+      <meta name="description" content="C data types: integers, floats, fixed-width types, booleans, qualifiers, and the implicit and explicit conversion rules.">
+      <meta name="author" content="Elucian Moise">
+      <meta name="keywords" content="sage, code, c, types, int, float, conversions, casting, stdint">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <title>C — Data Types &amp; Conversions</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+      <link rel="stylesheet" href="/assets/prism.css">
+      <script src="/assets/prism.js"></script>
+      <link rel="stylesheet" href="/assets/css/sage-common.css">
+      <link rel="stylesheet" href="/assets/css/content-topic.css">
+      <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+      <link rel="stylesheet" href="/assets/css/content-code.css">
+      <link rel="stylesheet" href="/assets/css/content-tables.css">
+      <style>
+        .side-bar { order: 1; }
+        #main-content { order: 2; }
+        @media (max-width: 991px) {
+          .side-bar { display: none; }
+          .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+        }
+      </style>
+    </head>
+    <body>
+    <div class="container">
+      <header id="dynamic-header" class="container-fluid pb-2"></header>
+      <div class="container-fluid px-0">
+        <div class="row g-0">
+          <aside class="side-bar col-lg-3 col-12">
+            <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lab Topics</h5>
+              </div>
+              <hr>
+              <ul id="bookmark-list" class="list-unstyled"></ul>
+            </div>
+          </aside>
+          <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+
+    <h1 id="c-types">Data Types &amp; Conversions</h1>
+
+    <div class="alert alert-secondary shadow-sm">
+      C's type system is small but strict. Every object has a type chosen at declaration; the compiler uses it to size variables and to decide what operators mean. This page covers the primitive types, how to pick the right one for a job, and the conversion rules — where most subtle C bugs are born.
+    </div>
+
+    <h2 id="primitive-types">Primitive Types</h2>
+    <p>There are two families: <strong>integer</strong> types (whole numbers, including <code>char</code>) and <strong>floating-point</strong> types (approximate real numbers). The table shows typical 64-bit platform values — the standard only guarantees <em>minimum</em> ranges, so always think in terms of <code>limits.h</code>.</p>
+    <table class="table table-bordered table-striped table-dark">
+      <thead><tr><th>Type</th><th>Typical size</th><th>Typical range</th><th>printf specifier</th></tr></thead>
+      <tbody>
+        <tr><td><code>char</code></td><td>1 byte</td><td>-128 .. 127 (or 0..255)</td><td><code>%c</code> / <code>%d</code></td></tr>
+        <tr><td><code>short</code></td><td>2 bytes</td><td>-32,768 .. 32,767</td><td><code>%hd</code></td></tr>
+        <tr><td><code>int</code></td><td>4 bytes</td><td>-2,147,483,648 .. 2,147,483,647</td><td><code>%d</code></td></tr>
+        <tr><td><code>long</code></td><td>8 bytes (Windows 4)</td><td>±9×10<sup>18</sup> (Windows ±2×10<sup>9</sup>)</td><td><code>%ld</code></td></tr>
+        <tr><td><code>long long</code></td><td>8 bytes</td><td>±9×10<sup>18</sup></td><td><code>%lld</code></td></tr>
+        <tr><td><code>float</code></td><td>4 bytes</td><td>~±3.4×10<sup>38</sup>, ~7 digits</td><td><code>%f</code></td></tr>
+        <tr><td><code>double</code></td><td>8 bytes</td><td>~±1.8×10<sup>308</sup>, ~15 digits</td><td><code>%f</code> / <code>%g</code></td></tr>
+      </tbody>
+    </table>
+    <p>Note the trap in the table: <code>long</code> is <em>8 bytes on Linux/macOS but 4 on Windows</em>. Code that assumes a size is not portable. If you need an exact width, use the fixed-width types below.</p>
+
+    <h3 id="fixed-width">Fixed-Width Integers</h3>
+    <p>For precise control — the C way — include <code>&lt;stdint.h&gt;</code> and use types that state their width in the name: <code>int8_t</code>, <code>uint16_t</code>, <code>int32_t</code>, <code>int64_t</code>, and friends. These are <code>typedef</code> aliases selected by the compiler for the current platform, so they are portable by construction.</p>
+    <pre><code class="language-c line-numbers">#include &lt;stdint.h&gt;   // exact-width integer types
+#include &lt;inttypes.h&gt; // PRId64 macro for printing fixed-width types
+
+int main(void) {
+    uint32_t port_count = 65535;            // exactly 32 bits, unsigned
+    int64_t  big_total  = 1000000000000LL;  // exactly 64 bits
+    // PRId64 expands to the right format specifier ("ld" or "lld")
+    printf("port=%" PRIu32 " total=%" PRId64 "\n", port_count, big_total);
+    return 0;
+}
+</code></pre>
+    <p>Use <code>size_t</code> (from <code>&lt;stddef.h&gt;</code>) for array sizes and lengths: it is the unsigned type that fits any object size on the platform.</p>
+
+    <h2 id="booleans">Booleans</h2>
+    <p>C has no dedicated boolean keyword; <code>_Bool</code> is the C11 spelling, and <code>&lt;stdbool.h&gt;</code> provides <code>bool</code>, <code>true</code>, and <code>false</code> as conveniences. Any nonzero integer value is truthy — <code>if (x)</code> is identical to <code>if (x != 0)</code> — which is exactly why <code>if (x = 5)</code> (assignment, always true) is so dangerous next to <code>if (x == 5)</code>.</p>
+    <pre><code class="language-c line-numbers">#include &lt;stdbool.h&gt;   // bool, true, false
+
+int main(void) {
+    bool ready = true;                 // stores 0 or 1 internally
+    if (ready) {
+        // taken because ready is true (nonzero)
+    }
+    return 0;
+}
+</code></pre>
+        <h2 id="floating-point">Floating-Point Pitfalls</h2>
+        <p>Floats approximate real numbers in binary, so many decimals cannot be represented exactly — compare with a tolerance, never with <code>==</code>. Prefer <code>double</code> unless memory matters: float's 7 digits of precision silently corrupts accumulated values.</p>
+        <pre><code class="language-c line-numbers">#include &lt;math.h&gt;   // fabs()
+#include &lt;stdio.h&gt;
+
+int main(void) {
+    double a = 0.1 + 0.2;      // in binary this is 0.30000000000000004...
+    if (a == 0.3) {            // false! comparing floats with == is a bug
+        printf("equal\n");
+    }
+    // correct: compare the distance with a tolerance
+    if (fabs(a - 0.3) &lt; 1e-12) {
+        printf("close enough\n");
+    }
+    return 0;
+}
+</code></pre>
+
+        <h2 id="qualifiers">Qualifiers: const, volatile, signed/unsigned</h2>
+        <p>Type <strong>qualifiers</strong> adjust how a type may be used. <code>const</code> promises the object will not be modified (the compiler rejects writes). <code>volatile</code> tells the compiler a value may change outside the program — memory-mapped hardware registers and signal handlers. <code>signed</code>/<code>unsigned</code> pick the interpretation of integer bits: <code>unsigned</code> doubles the positive range but wraps on overflow instead of producing undefined behavior.</p>
+        <pre><code class="language-c line-numbers">const double TAX_RATE = 0.19;   // read-only; TAX_RATE = 0.2 would not compile
+volatile int clock_ticks = 0;   // may be updated by hardware or a signal
+unsigned int max_bytes = 4000000000U;  // fits 4 billion without sign bit
+</code></pre>
+        <p>Signed overflow is undefined behavior; unsigned overflow is defined (wraps modulo 2<sup>N</sup>). This single line in the standard is why security-critical counters are usually unsigned.</p>
+
+        <h2 id="conversions">Type Conversions</h2>
+        <p>When an operator combines values of different types, C applies <strong>implicit conversion</strong>: small integers are promoted to <code>int</code> (integer promotion), then both operands are converted to the "usual arithmetic conversion" type — ints become floats, floats become <code>double</code>. Promotions are safe; the danger is <em>narrowing</em>, where a larger value is squeezed into a smaller type and silently loses bits.</p>
+        <h3 id="explicit-casts">Explicit Casts</h3>
+        <p>A cast <code>(type)expr</code> forces a conversion. Use it when the intent must be explicit — and especially when mixing integer division with floating results: <code>7/2</code> is <code>3</code> in C (integer division truncates), so you need <code>(double)7/2</code> to get <code>3.5</code>.</p>
+        <pre><code class="language-c line-numbers">#include &lt;stdio.h&gt;
+
+int main(void) {
+    int numerator = 7, denominator = 2;
+    printf("int:   %d\n", numerator / denominator);        // 3 (truncated!)
+    printf("float: %.1f\n", (double)numerator / denominator); // 3.5
+
+    // narrowing cast: compiler warns, bits are dropped silently
+    double big = 3.99;
+    int truncated = (int)big;       // 3 — fractional part discarded
+    printf("truncated: %d\n", truncated);
+    return 0;
+}
+</code></pre>
+        <div class="alert alert-warning shadow-sm">
+          <strong>Rule of thumb:</strong> never rely on implicit narrowing; enable <code>-Wconversion</code> so the compiler shows you every place a value could silently change meaning. Explicit casts make your intention readable and reviewable.
+        </div>
+        <p>Next: <a href="/roadmaps/c/composite.html">arrays, structs, and unions</a> — how C groups data.</p>
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'c',
+    topicId: 'types',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>
+

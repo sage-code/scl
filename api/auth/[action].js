@@ -167,7 +167,7 @@ async function sendTokenEmail(req, user, purpose) {
 
   const base = siteUrl(req);
   const isLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(base);
-  const resetPath = isLocal ? "/roadmap/reset-password.html" : "/roadmap/reset-password/";
+  const resetPath = isLocal ? "/roadmaps/reset-password.html" : "/roadmaps/reset-password/";
   const link = purpose === "verify"
     ? `${base}/api/auth/verify/?token=${encodeURIComponent(token)}`
     : `${base}${resetPath}?token=${encodeURIComponent(token)}`;
@@ -456,7 +456,7 @@ const actions = {
       userId = await consumeToken(token, "verify");
     } catch (error) {
       if (error instanceof HttpError) {
-        redirect(res, "/roadmap/login.html?verified=0");
+        redirect(res, "/roadmaps/login.html?verified=0");
         return;
       }
       throw error;
@@ -511,7 +511,7 @@ const actions = {
     }
 
     const session = await S.readSession(req);
-    redirect(res, session && session.user.id === userId ? "/roadmap/?verified=1" : "/roadmap/login.html?verified=1");
+    redirect(res, session && session.user.id === userId ? "/roadmaps/?verified=1" : "/roadmaps/login.html?verified=1");
   },
 
   async forgot(req, res) {

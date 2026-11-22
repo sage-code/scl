@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+
+<html data-bs-theme="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Ada: OOP</title>
+<link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
+<link href="/images/favicon.ico" rel="icon" type="image/png"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
+<link rel="stylesheet" href="/assets/css/sage-common.css">
+<link rel="stylesheet" href="/assets/css/content-topic.css">
+<link rel="stylesheet" href="/assets/css/content-sidebar.css">
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<header class="container-fluid pb-2" id="dynamic-header"></header>
+<div class="container-fluid px-0">
+<div class="row g-0">
+<aside class="side-bar col-lg-3 col-12">
+<div class="sidebar-content shadow-sm p-3 sticky-top" id="study-sidebar">
+<div class="d-flex justify-content-between align-items-center mb-2">
+<h5 class="mb-0">Lab Topics</h5>
+</div>
+<hr/>
+<ul class="list-unstyled" id="bookmark-list"></ul>
+</div>
+</aside>
+<main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
+<h1 id="ada-oop">Ada: OOP</h1>
+<p>Ada's object-oriented model is built on tagged records: types that carry a hidden <em>tag</em> enabling dynamic dispatch. It is deliberately explicit — inheritance is written <code>new ... with</code>, dispatching calls are visible as class-wide operations, and interfaces are separate from state. You always know where the dynamic behavior is.</p>
+
+<h2 id="tagged-types-and-inheritance">Tagged Types and Inheritance</h2>
+<p><code>tagged</code> marks a record as extensible. A descendant extends it with <code>new ... with record</code>, inheriting fields and primitive operations:</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmaps/ada/img/ada-dispatch-table.svg" class="figure-img img-fluid rounded" alt="Shape hierarchy with dispatching Area call through the type tag" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Each tagged object carries a tag; class-wide calls read it to select the overriding subprogram.</figcaption>
+</figure>
+<pre><code class="language-ada">package Shapes is
+   type Shape is tagged record
+      X, Y : Float;                        -- position shared by all shapes
+   end record;
+
+   function Area (S : in Shape) return Float is (0.0);   -- a primitive operation
+
+   type Circle is new Shape with record
+      Radius : Float;
+   end record;
+
+   overriding
+   function Area (C : in Circle) return Float is (3.14159 * C.Radius ** 2);
+end Shapes;
+</code></pre>
+<p><code>overriding</code> is optional but strongly recommended: it makes the compiler confirm you actually overrode something — a typo in the name or profile becomes an error instead of a silent new subprogram.</p>
+
+<h2 id="class-wide-polymorphism">Class-Wide Polymorphism</h2>
+<p><code>Shape'Class</code> is the class-wide type: any type in the family. A dispatching call through it picks the concrete <code>Area</code> at run time:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+with Shapes; use Shapes;
+
+procedure Dispatch_Demo is
+   S : Shape'Class := Circle'(X | Y =&gt; 0.0, Radius =&gt; 2.0);
+begin
+   --  the compiler does not know which Area runs; the tag decides:
+   Put_Line (Float'Image (Area (S)));   -- dispatches to Circle.Area: 12.57
+end Dispatch_Demo;
+</code></pre>
+<p>The rule: a class-wide value can hold any family member, but must be initialized (the tag is fixed at creation); a class-wide <em>parameter</em> accepts any family member passed in.</p>
+
+<h2 id="abstract-types-and-interfaces">Abstract Types and Interfaces</h2>
+<p><code>abstract</code> types have no objects — only descendants. <code>interface</code> types declare contracts without any state at all:</p>
+<pre><code class="language-ada">package Render is
+   type Drawable is interface;
+   procedure Draw (D : in Drawable) is abstract;
+   --  every descendant MUST provide Draw
+
+   type Shape is abstract tagged null record;   -- abstract base
+   function Area (S : in Shape) return Float is abstract;
+end Render;
+</code></pre>
+<pre><code class="language-ada">declare
+   type Square is new Render.Shape and Render.Drawable with record
+      Side : Float;
+   end record;
+   --  Square must implement both Area and Draw — or itself be abstract
+begin
+   null;
+end;
+</code></pre>
+<p>Interfaces multiply: a type can implement several (<code>new A and B and C</code>) but extend only one tagged parent — the classic single-inheritance, multi-interface compromise, statically checked.</p>
+
+<h2 id="where-ada-oop-differs">Where Ada OOP Differs</h2>
+<ul>
+  <li><strong>Subprograms live outside the type.</strong> Operations are primitive to a type by being declared in the same package — there is no <code>this</code>, no method table syntax, no forced encapsulation of state with behavior in one construct.</li>
+  <li><strong>Dispatch is opt-in.</strong> A call through a specific type is bound at compile time; only class-wide calls dispatch. Reading the code tells you which you get.</li>
+  <li><strong>No hidden hierarchy.</strong> Every ancestor is written in the type declaration and resolvable through the source.</li>
+</ul>
+<p>Next: <a href="/roadmaps/ada/contracts.html">Contracts</a> — pre- and postconditions on all of this.</p>
+
+</main>
+</div>
+</div>
+<footer class="footer copyright">
+<p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'ada',
+    topicId: 'ada-oop',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script defer="" src="/assets/js/sage.js"></script>
+<script defer="" src="/assets/js/topic-loader.js"></script>
+</body>
+</html>

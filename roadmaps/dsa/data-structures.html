@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Data structures map in Go: abstract data types, arrays, slices, maps, structs and pointers, standard library containers, a complexity catalog of every structure in the roadmap, and how to choose one.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="dsa, data structures, go, golang, slices, maps, container/list, container/heap, abstract data type, big o catalog">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DSA Data Structures Map</title>
+  <link rel="canonical" href="https://sagecode.org/roadmaps/dsa/data-structures.html">
+  <meta name="robots" content="index, follow">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="data-structures">Data Structures Map</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A data structure is a way of organizing data in memory so that certain operations are cheap. No structure makes every operation cheap — each one is a trade-off. This lesson is the map for the rest of the roadmap: what Go gives you built in, what the standard library adds, what each structure costs, and how to choose between them.
+        </div>
+
+        <h2 id="adt">Abstract Types and Implementations</h2>
+        <p>It helps to separate <em>what</em> a structure does from <em>how</em> it does it. A stack is defined by its behavior — push, pop, last in first out — and can be implemented with a slice or a linked list. Users of the stack should not care which.</p>
+
+        <h3 id="interface-contract">Interface as Contract</h3>
+        <p>An <strong>abstract data type</strong> (ADT) is a set of operations with defined behavior. In Go an interface expresses the ADT, and a concrete type implements it. Generics (Go 1.18+) let one implementation serve any element type.</p>
+        <pre><code class="language-go line-numbers">// Stack is the ADT: behavior only, no storage decisions.
+type Stack[T any] interface {
+	Push(v T)
+	Pop() (T, bool) // ok=false when the stack is empty
+	Len() int
+}
+
+// SliceStack is one implementation, backed by a slice.
+type SliceStack[T any] struct {
+	items []T
+}
+
+func (s *SliceStack[T]) Push(v T) { s.items = append(s.items, v) } // amortized O(1)
+func (s *SliceStack[T]) Len() int { return len(s.items) }
+
+func (s *SliceStack[T]) Pop() (T, bool) {
+	var zero T // the zero value of T, returned when empty
+	if len(s.items) == 0 {
+		return zero, false
+	}
+	v := s.items[len(s.items)-1]
+	s.items = s.items[:len(s.items)-1] // O(1): shrink the length only
+	return v, true
+}
+
+// compile-time check that *SliceStack[int] satisfies Stack[int]
+var _ Stack[int] = (*SliceStack[int])(nil)</code></pre>
+
+        <h3 id="operations-first">Choose by Operations</h3>
+        <p>Before choosing a structure, list the operations your program performs and roughly how often: lookups by key, lookups by position, insertions at the end or in the middle, removal of the smallest element, iteration in sorted order. The structure that makes the <em>most frequent</em> operations cheap is usually right. The <a href="#catalog">catalog</a> below lists the costs.</p>
+        <hr>
+
+        <h2 id="go-builtins">Go's Built-in Structures</h2>
+        <p>Go has three built-in collection types — arrays, slices, and maps — plus structs and pointers for building your own. Understanding their memory behavior prevents a whole class of bugs.</p>
+
+        <h3 id="arrays">Arrays</h3>
+        <p>An array <code>[N]T</code> has a length that is part of its type: <code>[3]int</code> and <code>[4]int</code> are different types. Arrays are <strong>values</strong>: assigning or passing one copies every element. They are used for small fixed-size data (a 3D point, a SHA-256 digest <code>[32]byte</code>) and as the storage beneath slices.</p>
+        <pre><code class="language-go line-numbers">a := [3]int{1, 2, 3}
+b := a       // copies all three elements
+b[0] = 99    // a is unchanged: a == [1 2 3]
+fmt.Println(a == [3]int{1, 2, 3}) // arrays of comparable types support ==</code></pre>
+
+        <h3 id="slices">Slices</h3>
+        <p>A slice <code>[]T</code> is a small header of three fields — a pointer into a backing array, a length, and a capacity. Slicing creates a new header over the <em>same</em> array; it does not copy elements. This makes sub-slices cheap, and it also means that writing through one slice can change another.</p>
+
+        <div class="text-center">
+          <img src="/roadmaps/dsa/img/dsa-slice-header.svg" alt="Slice header s with ptr, len 5, cap 5 and slice t = s[1:3] with ptr to index 1, len 2, cap 4, both pointing into one backing array" width="620" class="img-fluid protect rounded shadow border">
+          <p class="small text-secondary mt-2">After <code>t := s[1:3]</code>, both headers point into one backing array. Writing <code>t[0] = 99</code> changes <code>s[1]</code>. The capacity of <code>t</code> runs to the end of the shared array.</p>
+        </div>
+        <pre><code class="language-go line-numbers">s := []int{1, 2, 3, 4, 5}
+t := s[1:3]        // len 2, cap 4 — a view, not a copy
+t[0] = 99          // s is now [1 99 3 4 5]
+
+u := slices.Clone(s[1:3]) // Go 1.21+: independent copy
+u[0] = -1                 // s is unaffected
+
+// append grows capacity geometrically, so appends are amortized O(1)
+var g []int
+for i := 0; i &lt; 10; i++ {
+	g = append(g, i) // may move g to a new, larger backing array
+}</code></pre>
+
+        <h3 id="maps">Maps</h3>
+        <p>A map <code>map[K]V</code> is a hash table: insertion, lookup, and deletion are O(1) on average. Keys must be comparable (<code>==</code> defined), so slices cannot be keys but arrays and structs of comparable fields can. Since Go 1.24 maps are implemented as Swiss tables, but the rules for using them did not change.</p>
+        <pre><code class="language-go line-numbers">freq := make(map[string]int) // a nil map can be read but not written
+for _, w := range strings.Fields("go is fun go") {
+	freq[w]++ // missing keys read as the zero value, 0
+}
+
+// "comma ok" distinguishes a missing key from a stored zero
+if n, ok := freq["go"]; ok {
+	fmt.Println("go appears", n, "times")
+}
+
+// iteration order is randomized; sort keys for stable output (Go 1.23+)
+for _, k := range slices.Sorted(maps.Keys(freq)) {
+	fmt.Println(k, freq[k])
+}</code></pre>
+
+        <h3 id="structs-pointers">Structs and Pointers</h3>
+        <p>Every linked structure in this roadmap — lists, trees, graphs — is a struct that holds pointers to other structs of the same type. A nil pointer marks "no next node" or "no child". Go's garbage collector frees nodes that are no longer reachable, so removing a node is simply a matter of unlinking it.</p>
+        <pre><code class="language-go line-numbers">// ListNode is the building block of a singly linked list.
+type ListNode struct {
+	Val  int
+	Next *ListNode // nil at the end of the list
+}
+
+// TreeNode is the building block of a binary tree.
+type TreeNode struct {
+	Val         int
+	Left, Right *TreeNode // nil when the child is absent
+}
+
+// build 1 -&gt; 2 -&gt; 3 and walk it
+head := &amp;ListNode{1, &amp;ListNode{2, &amp;ListNode{3, nil}}}
+for n := head; n != nil; n = n.Next {
+	fmt.Print(n.Val, " ")
+}</code></pre>
+        <hr>
+
+        <h2 id="stdlib">Standard Library Containers</h2>
+        <p>The standard library adds a small set of containers and generic helpers. Knowing them saves time; implementing them yourself (in later lessons) teaches how they work. The demo <a href="/roadmaps/code-viewer.html?file=/roadmaps/dsa/demo/phase1/09_builtin_structures.go">09_builtin_structures.go</a> exercises every one.</p>
+
+        <h3 id="container-list">container/list</h3>
+        <p>A doubly linked list with O(1) insertion and removal at any element you hold a reference to. Values are stored as <code>any</code>, so reading them requires a type assertion. In practice it is used for LRU caches and ordered queues where elements move frequently; for simple sequences a slice is faster because its elements sit together in memory.</p>
+
+        <h3 id="container-heap">container/heap</h3>
+        <p>Heap algorithms (<code>Init</code> in O(n), <code>Push</code> and <code>Pop</code> in O(log n)) over any type that implements <code>heap.Interface</code>: the <code>sort.Interface</code> methods plus <code>Push</code> and <code>Pop</code>. You provide the storage and the ordering; the package maintains the heap property. This is Go's priority queue, covered fully in <a href="/roadmaps/dsa/heaps.html">Heaps &amp; Priority Queues</a>.</p>
+
+        <h3 id="container-ring">container/ring</h3>
+        <p>A circular linked list in which the last element links back to the first. It suits round-robin rotation over a fixed set of items. A slice with a wrapping index (a ring buffer) is usually the faster choice and is built in <a href="/roadmaps/dsa/stacks-queues.html">Stacks &amp; Queues</a>.</p>
+
+        <h3 id="slices-maps-pkg">slices and maps Packages</h3>
+        <p>Since Go 1.21 the <code>slices</code> and <code>maps</code> packages provide generic algorithms: <code>slices.Sort</code>, <code>slices.BinarySearch</code>, <code>slices.Index</code>, <code>slices.Reverse</code>, <code>slices.Clone</code>, and <code>maps.Clone</code>, among others. Go 1.23 added iterator functions such as <code>maps.Keys</code> and <code>slices.Sorted</code>. Use them in production code — but know their cost: <code>slices.Index</code> and <code>slices.Contains</code> are linear scans.</p>
+        <hr>
+
+        <h2 id="catalog">Structure Catalog</h2>
+        <p>This catalog is the roadmap in one place: each structure, the cost of its main operations, and the lesson that builds it. Costs are worst case unless marked <em>avg</em> (average) or <em>am.</em> (amortized).</p>
+
+        <h3 id="linear">Linear Structures</h3>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Structure</th><th>Access</th><th>Search</th><th>Insert</th><th>Delete</th><th>Lesson</th></tr></thead>
+          <tbody>
+            <tr><td>Slice (dynamic array)</td><td>O(1) by index</td><td>O(n)</td><td>O(1) am. at end, O(n) middle</td><td>O(1) at end, O(n) middle</td><td><a href="/roadmaps/dsa/arrays-slices.html">Arrays &amp; Slices</a></td></tr>
+            <tr><td>Sorted slice</td><td>O(1) by index</td><td>O(log n)</td><td>O(n)</td><td>O(n)</td><td><a href="/roadmaps/dsa/searching.html">Searching</a></td></tr>
+            <tr><td>Linked list</td><td>O(n)</td><td>O(n)</td><td>O(1) at a held node</td><td>O(1) at a held node*</td><td><a href="/roadmaps/dsa/linked-lists.html">Linked Lists</a></td></tr>
+            <tr><td>Stack</td><td>top O(1)</td><td>—</td><td>push O(1) am.</td><td>pop O(1)</td><td><a href="/roadmaps/dsa/stacks-queues.html">Stacks &amp; Queues</a></td></tr>
+            <tr><td>Queue / deque (ring buffer)</td><td>ends O(1)</td><td>—</td><td>O(1) am.</td><td>O(1)</td><td><a href="/roadmaps/dsa/stacks-queues.html">Stacks &amp; Queues</a></td></tr>
+            <tr><td>Hash map / set</td><td>by key O(1) avg</td><td>O(1) avg</td><td>O(1) avg</td><td>O(1) avg</td><td><a href="/roadmaps/dsa/hash-tables.html">Hash Tables</a></td></tr>
+          </tbody>
+        </table>
+        <p class="small text-secondary">* O(1) deletion at a held node requires a doubly linked list, or a singly linked list when you hold the previous node.</p>
+
+        <h3 id="hierarchical">Hierarchical Structures</h3>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Structure</th><th>Key operations</th><th>Cost</th><th>Lesson</th></tr></thead>
+          <tbody>
+            <tr><td>Binary search tree (unbalanced)</td><td>search, insert, delete</td><td>O(h): O(log n) if balanced, O(n) if degenerate</td><td><a href="/roadmaps/dsa/trees.html">Binary Trees &amp; BST</a></td></tr>
+            <tr><td>Balanced BST (AVL, red-black)</td><td>search, insert, delete, ordered iteration</td><td>O(log n), iteration O(n)</td><td><a href="/roadmaps/dsa/advanced-trees.html">Advanced Trees</a></td></tr>
+            <tr><td>Binary heap</td><td>peek min, push, pop min</td><td>O(1), O(log n), O(log n)</td><td><a href="/roadmaps/dsa/heaps.html">Heaps</a></td></tr>
+            <tr><td>Trie (prefix tree)</td><td>insert, lookup, prefix search</td><td>O(k) for a key of length k</td><td><a href="/roadmaps/dsa/advanced-trees.html">Advanced Trees</a></td></tr>
+            <tr><td>Segment tree / Fenwick tree</td><td>range query, point update</td><td>O(log n)</td><td><a href="/roadmaps/dsa/advanced-trees.html">Advanced Trees</a></td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="graphs-sets">Graphs and Disjoint Sets</h3>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Representation</th><th>Space</th><th>Edge check</th><th>Iterate neighbors</th><th>Lesson</th></tr></thead>
+          <tbody>
+            <tr><td>Adjacency list</td><td>O(V + E)</td><td>O(degree)</td><td>O(degree)</td><td><a href="/roadmaps/dsa/graphs.html">Graph Traversal</a></td></tr>
+            <tr><td>Adjacency matrix</td><td>O(V²)</td><td>O(1)</td><td>O(V)</td><td><a href="/roadmaps/dsa/graphs.html">Graph Traversal</a></td></tr>
+            <tr><td>Union-find (disjoint set)</td><td>O(n)</td><td colspan="2">union / find: near O(1) am.</td><td><a href="/roadmaps/dsa/graphs.html">Graph Traversal</a></td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="specialized">Probabilistic and Specialized Structures</h3>
+        <p>These structures solve narrow problems extremely well, often by trading exactness or generality for memory and speed. They appear in Phase 4.</p>
+        <ul>
+          <li><strong>Bloom filter</strong> — set membership in a small bit array; false positives are possible, false negatives are not. Used to skip disk lookups and filter already-seen items. (<a href="/roadmaps/dsa/advanced-techniques.html">Advanced Techniques</a>)</li>
+          <li><strong>HyperLogLog</strong> — estimates the number of distinct elements in a stream using a few kilobytes, regardless of stream size. (<a href="/roadmaps/dsa/advanced-techniques.html">Advanced Techniques</a>)</li>
+          <li><strong>LRU cache</strong> — a hash map plus a doubly linked list, giving O(1) lookup and O(1) eviction of the least recently used entry. (<a href="/roadmaps/dsa/production-structures.html">Production Structures</a>)</li>
+          <li><strong>Skip list</strong> — a layered linked list with O(log n) expected search, simpler to make concurrent than a balanced tree. (<a href="/roadmaps/dsa/production-structures.html">Production Structures</a>)</li>
+          <li><strong>Interval tree</strong> — finds all intervals overlapping a query interval; used for scheduling conflicts and genome ranges. (<a href="/roadmaps/dsa/advanced-trees.html">Advanced Trees</a>)</li>
+          <li><strong>Rope and suffix array</strong> — string representations for fast edits of very large texts and fast substring search. (<a href="/roadmaps/dsa/string-algorithms.html">String Algorithms</a>)</li>
+        </ul>
+        <hr>
+
+        <h2 id="choosing">Choosing a Structure</h2>
+        <p>Choosing a structure is an engineering decision with measurable consequences. A short list of questions narrows the choice quickly; measurement settles the rest.</p>
+
+        <h3 id="decision-questions">Questions to Ask</h3>
+        <ol>
+          <li><strong>How do I find things?</strong> By position → slice. By key → map. By order (smallest, range, next larger) → sorted slice, balanced tree, or heap.</li>
+          <li><strong>Where do insertions and deletions happen?</strong> At the end → slice. At both ends → ring-buffer deque. In the middle at a known place → linked list.</li>
+          <li><strong>Do I need sorted order?</strong> Once → sort a slice. Continuously while data changes → balanced tree or heap.</li>
+          <li><strong>How large is n, and how many operations?</strong> For small n, the simplest structure usually wins because constants dominate.</li>
+          <li><strong>What does memory cost?</strong> A map uses several times the memory of a slice holding the same keys; a linked list adds a pointer per element and scatters elements across memory.</li>
+        </ol>
+
+        <h3 id="case-blocklist">Case Study: A Blocklist</h3>
+        <p>A service keeps N blocked user IDs and answers Q queries of the form "is this ID blocked?". Three representations are reasonable, and the right one depends on the workload:</p>
+        <table class="table table-bordered table-dark">
+          <thead><tr><th>Representation</th><th>Build</th><th>Query</th><th>Also supports</th></tr></thead>
+          <tbody>
+            <tr><td>Unsorted slice</td><td>O(n)</td><td>O(n)</td><td>nothing extra; cheapest when queries are rare</td></tr>
+            <tr><td>Sorted slice + binary search</td><td>O(n log n)</td><td>O(log n)</td><td>range queries, smallest memory</td></tr>
+            <tr><td>Map used as a set</td><td>O(n)</td><td>O(1) avg</td><td>fastest point queries, most memory</td></tr>
+          </tbody>
+        </table>
+        <p>The demo hides all three behind one interface, runs them on identical data, and times the build and query phases separately for three workloads: <a href="/roadmaps/code-viewer.html?file=/roadmaps/dsa/demo/phase1/10_choose_structure.go">10_choose_structure.go</a>.</p>
+        <hr>
+
+        <h2 id="pitfalls">Common Pitfalls</h2>
+        <p>Most data-structure bugs in Go come from misunderstanding how slices and maps share memory.</p>
+
+        <h3 id="pitfall-aliasing">Slice Aliasing After append</h3>
+        <p>If a slice has spare capacity, <code>append</code> writes into the shared backing array, and another slice over the same array sees the change. If it has no spare capacity, <code>append</code> moves to a new array and the two slices silently separate. Code that relies on either behavior is fragile: use <code>slices.Clone</code> when you need an independent copy.</p>
+        <pre><code class="language-go line-numbers">base := make([]int, 3, 10) // len 3, cap 10: room to grow in place
+a := append(base, 1)       // writes base's array at index 3
+b := append(base, 2)       // ALSO writes index 3 — overwrites a[3]
+fmt.Println(a[3], b[3])    // prints "2 2", not "1 2"</code></pre>
+
+        <h3 id="pitfall-nil-map">Writing to a nil Map</h3>
+        <p>A declared but uninitialized map (<code>var m map[string]int</code>) is nil. Reading it returns zero values, but writing panics with <code>assignment to entry in nil map</code>. Always create maps with <code>make</code> or a literal before writing, including maps stored in struct fields.</p>
+
+        <h3 id="pitfall-order">Relying on Map Order</h3>
+        <p>Go deliberately randomizes map iteration order, so output that depends on it changes between runs. Tests that pass locally may fail in CI. Sort the keys when order matters, or keep a separate slice that records insertion order.</p>
+        <hr>
+
+        <h2 id="lab">Practice Lab</h2>
+        <p>These exercises connect the map to real code before Phase 2 builds each structure from scratch.</p>
+
+        <h3 id="lab-demos">Run the Demos</h3>
+        <ol>
+          <li>Run <a href="/roadmaps/code-viewer.html?file=/roadmaps/dsa/demo/phase1/09_builtin_structures.go">09_builtin_structures.go</a> and note where capacity growth slows from doubling. Change the element type from <code>int</code> to a 64-byte struct and compare.</li>
+          <li>Run <a href="/roadmaps/code-viewer.html?file=/roadmaps/dsa/demo/phase1/10_choose_structure.go">10_choose_structure.go</a>. Add a fourth workload with N = 1,000,000 and Q = 100 and predict the winner before running it.</li>
+        </ol>
+
+        <h3 id="lab-exercises">Exercises</h3>
+        <ol>
+          <li><strong>Generic queue.</strong> Following the <code>Stack[T]</code> example, define a <code>Queue[T]</code> interface and a slice-backed implementation. What is the cost of removing from the front with <code>q.items = q.items[1:]</code>, and what happens to the memory at the front?</li>
+          <li><strong>Word index.</strong> Build <code>map[string][]int</code> mapping each word of a text to the line numbers where it appears. Print the words in alphabetical order.</li>
+          <li><strong>Pick a structure.</strong> For each case, choose a structure and justify it with the catalog: an undo history; the 10 most expensive orders in a live feed; checking whether a username is taken; a playlist where songs are frequently moved.</li>
+        </ol>
+        <p>Phase 1 is complete. Continue with <a href="/roadmaps/dsa/arrays-slices.html">Arrays &amp; Slices</a>, the first lesson of Phase 2.</p>
+      </main>
+    </div>
+  </div>
+
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'dsa',
+    topicId: 'data-structures',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

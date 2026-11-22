@@ -19,7 +19,7 @@ import sys
 from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BASE = os.path.join(ROOT, "roadmap")
+BASE = os.path.join(ROOT, "roadmaps")
 OUT = os.path.join(ROOT, "tracking", "roadmaps-status.json")
 OUT_SUMMARY = os.path.join(ROOT, "tracking", "roadmaps-summary.json")
 
@@ -317,8 +317,8 @@ def main():
                 "track": track,
                 "title": entry.get("title", ""),
                 "kind": entry.get("kind", ""),
-                "url": entry.get("url", "/roadmap/{}/".format(track)),
-                "path": "roadmap/{}".format(track),
+                "url": entry.get("url", "/roadmaps/{}/".format(track)),
+                "path": "roadmaps/{}".format(track),
                 "status": status,
                 "issues": build_issues(track, metrics, status),
                 "navigation_status": navigation_status,

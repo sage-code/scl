@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const trackId = resolveTrackId() || labId || courseId;
     button.id = 'roadmap-quiz-button';
     button.className = 'btn btn-outline-info btn-sm';
-    button.href = `/roadmap/quizzes.html?track=${encodeURIComponent(trackId)}`;
+    button.href = `/roadmaps/quizzes.html?track=${encodeURIComponent(trackId)}`;
     button.textContent = 'Quizzes';
     button.setAttribute('aria-label', 'Open roadmap quizzes');
 
@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const anchor = row.querySelector('a[href]');
       if (!anchor) return;
 
-      anchor.setAttribute('href', `/roadmap/${trackId}/${topicId}.html`);
+      anchor.setAttribute('href', `/roadmaps/${trackId}/${topicId}.html`);
     });
   }
 

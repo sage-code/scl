@@ -69,8 +69,8 @@
 
   function getProfileRedirectUrl() {
     var inPublicPreview = (window.location.pathname || "").indexOf("/public/") === 0;
-    var loginPath = inPublicPreview ? "/public/roadmap/login.html" : "/roadmap/login.html";
-    var profilePath = inPublicPreview ? "/public/roadmap/profile.html" : "/roadmap/profile.html";
+    var loginPath = inPublicPreview ? "/public/roadmaps/login.html" : "/roadmaps/login.html";
+    var profilePath = inPublicPreview ? "/public/roadmaps/profile.html" : "/roadmaps/profile.html";
     return loginPath + "?next=" + encodeURIComponent(profilePath);
   }
 
@@ -88,8 +88,8 @@
   }
 
   function currentReturnParam() {
-    var path = window.location.pathname || "/roadmap/";
-    if (path.indexOf("/community/") === 0 || path.indexOf("/roadmap/") === 0) {
+    var path = window.location.pathname || "/roadmaps/";
+    if (path.indexOf("/community/") === 0 || path.indexOf("/roadmaps/") === 0) {
       return "?return=" + encodeURIComponent(path);
     }
     return "";
@@ -127,7 +127,7 @@
         userLink.setAttribute("aria-label", "Open community profile for " + idText);
         userLink.setAttribute("title", "View your community profile");
       } else {
-        setHref(userLink, "/roadmap/profile.html" + currentReturnParam());
+        setHref(userLink, "/roadmaps/profile.html" + currentReturnParam());
         userLink.setAttribute("aria-label", "Open your profile");
         userLink.setAttribute("title", "Open your learner profile");
       }
@@ -148,12 +148,12 @@
       if (registered) {
         setButtonLabel(primaryAction, "Your Profile");
         setButtonIcon(primaryAction, "bi bi-person-circle");
-        setHref(primaryAction, "/roadmap/profile.html" + returnSuffix);
+        setHref(primaryAction, "/roadmaps/profile.html" + returnSuffix);
         primaryAction.setAttribute("aria-label", "Open your profile");
       } else {
         setButtonLabel(primaryAction, "Sign In");
         setButtonIcon(primaryAction, "bi bi-box-arrow-in-right");
-        setHref(primaryAction, "/roadmap/login.html" + returnSuffix);
+        setHref(primaryAction, "/roadmaps/login.html" + returnSuffix);
         primaryAction.setAttribute("aria-label", "Sign in to roadmap account");
       }
     }
@@ -171,13 +171,13 @@
     if (loginAction) {
       setButtonLabel(loginAction, registered ? "SIGN OUT" : "SIGN IN");
       setButtonIcon(loginAction, registered ? "bi bi-box-arrow-right" : "bi bi-box-arrow-in-right");
-      setHref(loginAction, registered ? "#roadmap-logout" : ("/roadmap/login.html" + returnSuffix));
+      setHref(loginAction, registered ? "#roadmap-logout" : ("/roadmaps/login.html" + returnSuffix));
       loginAction.setAttribute("aria-label", registered ? "Sign out of roadmap account" : "Sign in to roadmap account");
     }
 
     if (profileAction) {
       setDisabledLink(profileAction, false);
-      setHref(profileAction, "/roadmap/profile.html" + returnSuffix);
+      setHref(profileAction, "/roadmaps/profile.html" + returnSuffix);
       profileAction.setAttribute("aria-label", "Open your learner profile");
       profileAction.setAttribute("title", "Update your username or profile picture (" + formatIdentity() + ")");
     }
@@ -186,13 +186,13 @@
       if (registered) {
         setButtonLabel(registerAction, "REMOVE");
         setButtonIcon(registerAction, "bi bi-person-dash");
-        setHref(registerAction, "/roadmap/unregister.html" + returnSuffix);
+        setHref(registerAction, "/roadmaps/unregister.html" + returnSuffix);
         registerAction.setAttribute("aria-label", "Remove the current roadmap account");
         registerAction.setAttribute("title", "Open the unregister form to delete this account");
       } else {
         setButtonLabel(registerAction, "REGISTER");
         setButtonIcon(registerAction, "bi bi-person-plus");
-        setHref(registerAction, "/roadmap/register.html" + returnSuffix);
+        setHref(registerAction, "/roadmaps/register.html" + returnSuffix);
         registerAction.setAttribute("aria-label", "Register a roadmap account");
         registerAction.setAttribute("title", "Create a new roadmap account");
       }
@@ -419,7 +419,7 @@
 
     await state.api.auth.logout();
     state.user = null;
-    window.location.href = "/roadmap/";
+    window.location.href = "/roadmaps/";
   }
 
   function wireLogoutAction() {

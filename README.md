@@ -9,7 +9,7 @@ Sage-Code SCL is a static educational website for learning and open source proje
 
 - Home website: [sagecode.org](https://sagecode.org)
 - Architecture: [manual/ARCHITECTURE.md](manual/ARCHITECTURE.md)
-- Roadmap home: [roadmap/index.html](roadmap/index.html)
+- Roadmap home: [roadmaps/index.html](roadmaps/index.html)
 - Project home: [projects/index.html](projects/index.html)
 
 ## Project Structure
@@ -87,14 +87,14 @@ Environment variables (Vercel project settings, and `env.local` for local work; 
 
 `npm run build` applies pending schema migrations from [database/turso/](database/turso/) before building (skipped when the Turso variables are absent). Run them alone with `npm run db:migrate`.
 
-Local API + site: `npm run build && npm run dev:api`, then open `http://localhost:3000/roadmap/`.
+Local API + site: `npm run build && npm run dev:api`, then open `http://localhost:3000/roadmaps/`.
 
 Roadmap account pages:
-- [roadmap/login.html](roadmap/login.html)
-- [roadmap/profile.html](roadmap/profile.html)
-- [roadmap/register.html](roadmap/register.html)
-- [roadmap/unregister.html](roadmap/unregister.html)
-- [roadmap/reset-password.html](roadmap/reset-password.html)
+- [roadmaps/login.html](roadmaps/login.html)
+- [roadmaps/profile.html](roadmaps/profile.html)
+- [roadmaps/register.html](roadmaps/register.html)
+- [roadmaps/unregister.html](roadmaps/unregister.html)
+- [roadmaps/reset-password.html](roadmaps/reset-password.html)
 
 ### Validate locally
 
@@ -174,7 +174,7 @@ In git command terminal you can use run.sh to manage project operations. After y
 ## Code Viewer
 We use a unified viewer to display demo source code snippets. This tool has a download button and you can scroll large block of code. Code display in syntax color and font can be set larger or smaller; the W toggle soft-wraps long lines. Font size and wrap preference are remembered in the browser (localStorage) and restored on the next visit. To link any code example file in the repository, developer create links like the following URL structure:
 
-`/roadmap/code-viewer.html?file=/path/to/your/file.ext`
+`/roadmaps/code-viewer.html?file=/path/to/your/file.ext`
 
 **Notes:**
 

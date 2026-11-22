@@ -19,7 +19,7 @@
  *
  * Usage:
  *   node scripts/tools/check_sidebar_render.js                 # representative sample
- *   node scripts/tools/check_sidebar_render.js /roadmap/go/overview.html
+ *   node scripts/tools/check_sidebar_render.js /roadmaps/go/overview.html
  *   npm run check:sidebar
  * Requires `npm run build` first (it reads public/) and dev puppeteer.
  */
@@ -37,22 +37,22 @@ const MIME = {
 
 // Routes exercise every shape the template allows.
 const DEFAULT_ROUTES = [
-  '/roadmap/csharp/control.html',        // template: root folder + chapters + sections
-  '/roadmap/scala/syntax.html',          // single-root: page title + chapters + sections
-  '/roadmap/julia/control.html',         // template, second track (no track is special)
-  '/roadmap/dart/demo_examples.html',    // leaf chapters: h2 categories with no h3 level
-  '/roadmap/python/classes.html',        // legacy flat sidebar (page has no <h1> yet)
-  '/roadmap/plsql/control.html',         // legacy flat sidebar, second track, has h3 children
-  '/roadmap/cse/testing.html',           // single-root; was unwired (wrong script path) until fixed
-  '/roadmap/pgp/functional.html',        // single-root; migrated from cse/paradigms.html content
-  '/roadmap/tek/linux-systems.html',     // single-root; migrated from cse/platforms.html content
-  '/roadmap/sml/basic-concepts.html',    // single-root; rewired from legacy unwired page
-  '/roadmap/hpc/computers.html',         // single-root; rewired from legacy unwired page
-  '/roadmap/osd/maintainership.html',    // single-root; authored from a dummy stub
-  '/roadmap/svelte/basics.html',         // legacy-generated sidebar; rewired from sidebar.js shell
-  '/roadmap/dba/query-optimization.html', // single-root; authored from a placeholder stub
-  '/roadmap/tek/incident-response.html', // single-root; authored from a placeholder stub
-  '/roadmap/cpp/modern.html',            // single-root; 10 chapters, authored from a stub
+  '/roadmaps/csharp/control.html',        // template: root folder + chapters + sections
+  '/roadmaps/scala/syntax.html',          // single-root: page title + chapters + sections
+  '/roadmaps/julia/control.html',         // template, second track (no track is special)
+  '/roadmaps/dart/demo_examples.html',    // leaf chapters: h2 categories with no h3 level
+  '/roadmaps/python/classes.html',        // legacy flat sidebar (page has no <h1> yet)
+  '/roadmaps/plsql/control.html',         // legacy flat sidebar, second track, has h3 children
+  '/roadmaps/cse/testing.html',           // single-root; was unwired (wrong script path) until fixed
+  '/roadmaps/pgp/functional.html',        // single-root; migrated from cse/paradigms.html content
+  '/roadmaps/tek/linux-systems.html',     // single-root; migrated from cse/platforms.html content
+  '/roadmaps/sml/basic-concepts.html',    // single-root; rewired from legacy unwired page
+  '/roadmaps/hpc/computers.html',         // single-root; rewired from legacy unwired page
+  '/roadmaps/osd/maintainership.html',    // single-root; authored from a dummy stub
+  '/roadmaps/svelte/basics.html',         // legacy-generated sidebar; rewired from sidebar.js shell
+  '/roadmaps/dba/query-optimization.html', // single-root; authored from a placeholder stub
+  '/roadmaps/tek/incident-response.html', // single-root; authored from a placeholder stub
+  '/roadmaps/cpp/modern.html',            // single-root; 10 chapters, authored from a stub
 ];
 
 function readSidecar(route) {

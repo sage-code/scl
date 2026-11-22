@@ -104,13 +104,13 @@
           statusEl.replaceChildren(
             document.createTextNode("Sign in with a registered account to see who is actively learning. "),
             Object.assign(document.createElement("a"), {
-              href: "/roadmap/login.html?return=%2Froadmap%2Flearners.html",
+              href: "/roadmaps/login.html?return=%2Froadmaps%2Flearners.html",
               className: "alert-link",
               textContent: "Sign In"
             }),
             document.createTextNode(" or "),
             Object.assign(document.createElement("a"), {
-              href: "/roadmap/register.html?return=%2Froadmap%2Flearners.html",
+              href: "/roadmaps/register.html?return=%2Froadmaps%2Flearners.html",
               className: "alert-link",
               textContent: "Sign Up / Register"
             }),

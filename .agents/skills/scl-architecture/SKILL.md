@@ -26,7 +26,7 @@ Sage-Code SCL is a static-first, vanilla HTML5/CSS3/ES6+ (+ Bootstrap) learning 
 
 | Path | Purpose |
 |---|---|
-| `roadmap/` | Learning tracks: `index.html`, topic `.html` pages, `data/<topic>.json` sidebars, `img/*.svg`, `demo/` runnable examples, `demo_examples.html`, `samples.html`, `references.html` |
+| `roadmaps/` | Learning tracks: `index.html`, topic `.html` pages, `data/<topic>.json` sidebars, `img/*.svg`, `demo/` runnable examples, `demo_examples.html`, `samples.html`, `references.html` |
 | `projects/` | Standalone project sites (`bee`, `eve`, `maj`) |
 | `community/` | Community pages |
 | `layouts/` | Shared header/footer/base HTML wrappers injected at build time |
@@ -49,9 +49,9 @@ Sage-Code SCL is a static-first, vanilla HTML5/CSS3/ES6+ (+ Bootstrap) learning 
 - **Phases:** Every track defines **5+ phases** of increasing sophistication (e.g., foundations → implementation/advanced → domain/application → practice & demos → references).
 - **Table layout (`index.html`):**
   - Phase row: `<tr class="roadmap-phase-row"><th colspan="4" class="roadmap-phase">PHASE X: NAME</th></tr>`
-  - Topic row: `<tr data-topic="id"><td class="text-center"><input type="checkbox" class="topic-check"></td><td>ID</td><td><a href="/roadmap/<track>/<topic>.html">Title</a></td><td class="small text-secondary">Description</td></tr>`
+  - Topic row: `<tr data-topic="id"><td class="text-center"><input type="checkbox" class="topic-check"></td><td>ID</td><td><a href="/roadmaps/<track>/<topic>.html">Title</a></td><td class="small text-secondary">Description</td></tr>`
   - Topic rows are numbered sequentially (`01..NN`); inserting or moving a topic renumbers later rows and phase headers.
-- **Sidebar JSON (`roadmap/<track>/data/<topic>.json`):**
+- **Sidebar JSON (`roadmaps/<track>/data/<topic>.json`):**
   - Three collapsible levels: the page `h1` title is the **sole top-level entry** `{ "title": "...", "link": "#<h1-id>", "children": [ ... ] }`, containing `h2` chapters, each with a `children` array of `h3` anchors.
   - No `role` key or special glyph on the root title. An `h2` without `h3` children omits the `children` key (leaf chapter).
 - **References policy:** Reference lists live only on the track `index.html` and dedicated `references.html` — never add a trailing References section to a lesson page.
@@ -60,11 +60,11 @@ Sage-Code SCL is a static-first, vanilla HTML5/CSS3/ES6+ (+ Bootstrap) learning 
 
 - **CSS:** Always link `content-code.css` and `content-sidebar.css`; link `content-tables.css` only when the page has tables.
 - **Prism:** Use the single bundle `/assets/prism.css` + `/assets/prism.js` (`language-<lang> line-numbers`). Never use `prism-loader.js` or `data-lang`. Add new grammars centrally to `assets/prism.js`; for exotic languages without a grammar, provide a CSS extension so comments, strings, and keywords remain distinguishable in the dark theme.
-- **Code Viewer:** Extend `langMap` in `assets/js/code-viewer.js` for new file extensions so `/roadmap/code-viewer.html?file=...` highlights demo files properly.
-- **Diagrams:** Shared primitives in `assets/images/*.svg` (`/images/<name>.svg`) are reused only when they faithfully match the language construct. Otherwise author a new track-specific SVG in `roadmap/<track>/img/<name>.svg` (never copy a shared SVG into a track). Follow `manual/ARCHITECTURE.md` §Diagrams dark-theme rules.
+- **Code Viewer:** Extend `langMap` in `assets/js/code-viewer.js` for new file extensions so `/roadmaps/code-viewer.html?file=...` highlights demo files properly.
+- **Diagrams:** Shared primitives in `assets/images/*.svg` (`/images/<name>.svg`) are reused only when they faithfully match the language construct. Otherwise author a new track-specific SVG in `roadmaps/<track>/img/<name>.svg` (never copy a shared SVG into a track). Follow `manual/ARCHITECTURE.md` §Diagrams dark-theme rules.
 
 ## Canonical URLs & Security
 
-- Topic links: `/roadmap/<track>/<topic>.html` (never relative `./topic` or root `/cse/topic.html`).
-- Track roots: `/roadmap/<track>/` (trailing slash).
+- Topic links: `/roadmaps/<track>/<topic>.html` (never relative `./topic` or root `/cse/topic.html`).
+- Track roots: `/roadmaps/<track>/` (trailing slash).
 - External links: always include `target="_blank" rel="noopener noreferrer nofollow"`.

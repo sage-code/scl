@@ -37,7 +37,7 @@ Additional targeted checks when relevant:
 Verify after `npm run build`:
 - `public/index.html` contains embedded navigation header and footer markup.
 - `public/assets/js/inline/` contains extracted inline scripts.
-- Modified `roadmap/<track>/data/*.json` files are valid 3-level hierarchical trees.
+- Modified `roadmaps/<track>/data/*.json` files are valid 3-level hierarchical trees.
 
 ## 4. Fail-Fast Rule (Executor)
 

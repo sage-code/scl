@@ -71,10 +71,10 @@ def css_modules_for_page(rel_path):
 
     if name in AUTH_PAGE_NAMES:
         return AUTH_CSS, "auth"
-    # Roadmap track index: roadmap/<track>/index.html
-    if len(parts) >= 3 and parts[0] == "roadmap" and name == "index.html":
+    # Roadmap track index: roadmaps/<track>/index.html
+    if len(parts) >= 3 and parts[0] == "roadmaps" and name == "index.html":
         return INDEX_CSS, "index"
-    if parts and parts[0] in ("roadmap", "projects", "community"):
+    if parts and parts[0] in ("roadmaps", "projects", "community"):
         return TOPIC_CSS, "topic"
     return DEFAULT_CSS, "default"
 

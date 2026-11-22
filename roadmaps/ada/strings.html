@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+
+<html data-bs-theme="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Ada: Strings</title>
+<link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
+<link href="/images/favicon.ico" rel="icon" type="image/png"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
+<link rel="stylesheet" href="/assets/css/sage-common.css">
+<link rel="stylesheet" href="/assets/css/content-topic.css">
+<link rel="stylesheet" href="/assets/css/content-sidebar.css">
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<header class="container-fluid pb-2" id="dynamic-header"></header>
+<div class="container-fluid px-0">
+<div class="row g-0">
+<aside class="side-bar col-lg-3 col-12">
+<div class="sidebar-content shadow-sm p-3 sticky-top" id="study-sidebar">
+<div class="d-flex justify-content-between align-items-center mb-2">
+<h5 class="mb-0">Lab Topics</h5>
+</div>
+<hr/>
+<ul class="list-unstyled" id="bookmark-list"></ul>
+</div>
+</aside>
+<main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
+<h1 id="ada-strings">Ada: Strings</h1>
+<p>Ada does not have one string type — it has three, each with different ownership and performance rules: fixed <code>String</code>, <code>Bounded_String</code>, and <code>Unbounded_String</code>. Choosing among them deliberately is a core Ada skill.</p>
+
+<h2 id="fixed-string">Fixed String</h2>
+<p><code>String</code> is an array of <code>Character</code> with a length fixed at declaration. It needs no library, no allocation, and is what every API ultimately speaks:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+
+procedure Fixed_Demo is
+   Name : String (1 .. 10);            -- exactly 10 characters, index 1..10
+   Greeting : constant String := "Hi, Ada";   -- length 7, known at compile time
+begin
+   --  Name := "Ada";         -- compile error: length must be exactly 10
+   Name (1 .. 3) := "Ada";  -- a SLICE assignment: replace characters 1..3
+   Name (4 .. 10) := "      ";         -- the rest stays blank padding
+   Put_Line (Name (1 .. 3));           -- slice read: "Ada"
+   Put_Line (Greeting'Length'Image);   -- 7 — attribute, no strlen() anywhere
+end Fixed_Demo;
+</code></pre>
+<p>Fixed length sounds restrictive; it is actually a guarantee. A function taking <code>String</code> knows every caller's buffer exactly, there is no hidden allocation, and no NUL terminator — the length travels with the value.</p>
+
+<h2 id="unbounded-string">Unbounded String</h2>
+<p><code>Unbounded_String</code> (in <code>Ada.Strings.Unbounded</code>) grows and shrinks at run time. Assignment copies; the implementation manages the memory:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+
+procedure Unbounded_Demo is
+   Line : Unbounded_String := To_Unbounded_String ("Hello");
+begin
+   Append (Line, ", ");                -- grows: now "Hello, "
+   Append (Line, "world!");            -- "Hello, world!"
+   Put_Line (To_String (Line));
+   Put_Line (Natural'Image (Length (Line)));   -- 13
+   --  Line (1) works too: unbounded strings support the same indexing
+end Unbounded_Demo;
+</code></pre>
+<p>Use unbounded strings when text is user input, file content, or anything whose size you cannot predict. Each assignment may allocate — keep them out of tight loops.</p>
+
+<h2 id="choosing-the-right-type">Choosing the Right Type</h2>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Type</th><th>Length</th><th>Allocation</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><code>String</code></td><td>Fixed at declaration</td><td>None — it is an array</td><td>Format strings, keys, small buffers, APIs</td></tr>
+    <tr><td><code>Bounded_String</code></td><td>Max fixed at declaration</td><td>None beyond the object</td><td>Variable text with a hard cap; embedded code</td></tr>
+    <tr><td><code>Unbounded_String</code></td><td>Dynamic</td><td>Heap, managed</td><td>User input, file data, building text</td></tr>
+  </tbody>
+</table>
+<p><code>Bounded_String</code> is the compromise most languages never offer: dynamic-length semantics with statically guaranteed worst-case memory — one reason Ada runs on avionics hardware where heap use is banned.</p>
+
+<h2 id="everyday-string-operations">Everyday String Operations</h2>
+<p>Concatenation (<code>&amp;</code>), comparison (<code>=</code>, <code>&lt;</code>, …), slicing, and translation cover daily needs. String literals have no type until context fixes one, so the same <code>"Ada"</code> can initialize any string-ish type:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+
+procedure Operations_Demo is
+   Sentence : constant String  := "Ada is precise";
+   Word     : constant String  := Sentence (1 .. 3);      -- "Ada"
+   Upper    : constant Unbounded_String :=
+      To_Unbounded_String (Sentence);
+begin
+   if Word = "Ada" then                       -- value comparison, not pointer
+      Put_Line ("matched: " &amp; Word);
+   end if;
+   Put_Line (Sentence &amp; " by design.");       -- &amp; concatenates any strings
+   Put_Line (To_String (Upper));
+   --  Ada.Strings.Fixed offers Count, Trim, Replace_Slice, Translate...
+   --  Ada.Strings.Maps offers character sets for searching and filtering.
+end Operations_Demo;
+</code></pre>
+<div class="alert alert-secondary shadow-sm">
+  <strong>Common pitfall.</strong> A fixed <code>String</code> of length 5 cannot hold <code>"Ada"</code> (length 3) — but you can write <code>Name := "Ada" &amp; "  "</code> or use a slice. The compiler rejects length mismatches instead of corrupting memory, which is the entire point.
+</div>
+<p>Next: <a href="/roadmaps/ada/enumeration.html">Enumerations</a>.</p>
+
+</main>
+</div>
+</div>
+<footer class="footer copyright">
+<p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'ada',
+    topicId: 'ada-strings',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script defer="" src="/assets/js/sage.js"></script>
+<script defer="" src="/assets/js/topic-loader.js"></script>
+</body>
+</html>

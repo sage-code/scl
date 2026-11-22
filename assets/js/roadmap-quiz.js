@@ -468,7 +468,7 @@
         throw new Error("This quiz link is invalid. Open a quiz from its roadmap page.");
       }
 
-      const response = await windowRef.fetch(`/roadmap/${track}/quiz/${topic}-${level}.json`);
+      const response = await windowRef.fetch(`/roadmaps/${track}/quiz/${topic}-${level}.json`);
       if (!response.ok) {
         throw new Error(`Quiz could not be loaded (HTTP ${response.status}).`);
       }
@@ -487,7 +487,7 @@
       documentRef.getElementById("quiz-description").textContent =
         `Assess your ${roadmapTitle(quiz.track)} skills with ${quiz.questions.length} questions. You have two minutes per question; a score of at least 70% passes.`;
       const roadmapLink = documentRef.getElementById("quiz-roadmap-link");
-      roadmapLink.href = `/roadmap/${quiz.track}/`;
+      roadmapLink.href = `/roadmaps/${quiz.track}/`;
       roadmapLink.textContent = `Return to the ${roadmapTitle(quiz.track)} roadmap`;
       status.hidden = true;
       app.hidden = false;

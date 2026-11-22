@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Verify that every roadmap sidebar anchor resolves to a heading id in its page.
 
-A sidebar (`roadmap/<track>/data/<topic>.json`) drives `assets/js/topic-loader.js`,
+A sidebar (`roadmaps/<track>/data/<topic>.json`) drives `assets/js/topic-loader.js`,
 which scrolls to `#anchor` links. A typo — or a heading renamed after the JSON was
 generated — produces a sidebar entry that silently does nothing. This tool
 cross-checks the two sources so the drift is caught before the build.
 
 Usage:
     python scripts/tools/check_sidebar_anchors.py                # whole roadmap
-    python scripts/tools/check_sidebar_anchors.py roadmap/swift  # one track
+    python scripts/tools/check_sidebar_anchors.py roadmaps/swift  # one track
 Exit code is 1 when any anchor is unresolved.
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ def collect_links(data, found: list[str]) -> None:
 
 
 def main() -> int:
-    scope = sys.argv[1] if len(sys.argv) > 1 else "roadmap"
+    scope = sys.argv[1] if len(sys.argv) > 1 else "roadmaps"
     base = ROOT / scope
     missing_data = 0
     checked = skipped = 0

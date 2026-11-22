@@ -91,13 +91,13 @@
           statusEl.replaceChildren(
             document.createTextNode("Sign in with a registered account to view the Top Score leaderboard. "),
             Object.assign(document.createElement("a"), {
-              href: "/roadmap/login.html?return=%2Froadmap%2Ftop-score.html",
+              href: "/roadmaps/login.html?return=%2Froadmaps%2Ftop-score.html",
               className: "alert-link",
               textContent: "Sign In"
             }),
             document.createTextNode(" or "),
             Object.assign(document.createElement("a"), {
-              href: "/roadmap/register.html?return=%2Froadmap%2Ftop-score.html",
+              href: "/roadmaps/register.html?return=%2Froadmaps%2Ftop-score.html",
               className: "alert-link",
               textContent: "Sign Up / Register"
             }),

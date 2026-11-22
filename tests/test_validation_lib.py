@@ -4,7 +4,7 @@ import unittest
 from tests.base import ROOT  # noqa: F401  (puts scripts/ on sys.path)
 from validation_lib import html_markup_issues, sidebar_issues, validate_json_syntax
 
-REL = "roadmap/a/data/b.json"
+REL = "roadmaps/a/data/b.json"
 
 
 class JsonSyntaxTest(unittest.TestCase):

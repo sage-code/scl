@@ -51,9 +51,9 @@ def page_type(rel_path, html):
     parts = rel_path.replace("\\", "/").split("/")
     if name in AUTH_PAGES:
         return "auth"
-    if len(parts) >= 3 and parts[0] == "roadmap" and name == "index.html":
+    if len(parts) >= 3 and parts[0] == "roadmaps" and name == "index.html":
         return "index"
-    if (parts and parts[0] in ("roadmap", "projects", "community")
+    if (parts and parts[0] in ("roadmaps", "projects", "community")
             and any(marker in html for marker in TOPIC_MARKERS)):
         return "topic"
     return None

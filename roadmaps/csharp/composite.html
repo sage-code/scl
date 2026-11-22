@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="C# composite types: value vs reference semantics, structs, classes, records and record structs, arrays, List, HashSet, Dictionary, and tuples.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, csharp, c#, composite, struct, class, record, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>C# Composite Types</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="csharp-composite">C# Composite Types</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A composite type groups several values into one unit with a name. C# has four ways to declare your own: <strong>struct</strong> and <strong>class</strong>, and their data-focused shortcuts <strong>record struct</strong> and <strong>record</strong>. The standard library adds ready-made containers &mdash; arrays, <code>List&lt;T&gt;</code>, <code>Dictionary&lt;TKey, TValue&gt;</code> &mdash; and tuples for quick, unnamed groups. The one idea that ties them together is the difference between <em>value</em> and <em>reference</em> semantics, introduced in <a href="/roadmaps/csharp/types.html">Data Types</a>.
+        </div>
+
+        <p>All examples are complete <code>dotnet new console</code> programs (.NET 8 or later). Type declarations go <em>after</em> the top-level statements in the same file.</p>
+
+        <h2 id="semantics">Value vs Reference Semantics</h2>
+        <h3 id="copy-vs-share">Copying vs Sharing</h3>
+        <p>A <strong>struct</strong> is a value type: the variable <em>contains</em> the data. Assigning it to another variable, or passing it to a method, copies all its fields. A <strong>class</strong> is a reference type: the variable contains a <em>reference</em> to an object that lives on the heap, so assignment copies the reference and both variables then point to the same object. The program below makes the difference visible.</p>
+        <pre><code class="language-csharp line-numbers">// Assigning or passing a struct copies it; a class instance is shared.
+var a = new PointStruct(1, 2);
+var b = a;            // b is an independent copy
+b.X = 99;
+Console.WriteLine($"struct: a.X={a.X}, b.X={b.X}");
+
+var p = new PointClass(1, 2);
+var q = p;            // q refers to the same object as p
+q.X = 99;
+Console.WriteLine($"class:  p.X={p.X}, q.X={q.X}");
+
+MoveStruct(a);        // the method receives a copy
+MoveClass(p);         // the method receives the reference
+Console.WriteLine($"after Move: a.X={a.X}, p.X={p.X}");
+
+static void MoveStruct(PointStruct s) =&gt; s.X += 10;
+static void MoveClass(PointClass c) =&gt; c.X += 10;
+
+struct PointStruct(int x, int y)
+{
+    public int X = x;
+    public int Y = y;
+}
+
+class PointClass(int x, int y)
+{
+    public int X = x;
+    public int Y = y;
+}</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">struct: a.X=1, b.X=99
+class:  p.X=99, q.X=99
+after Move: a.X=1, p.X=109</code></pre>
+        <p>The <code>(int x, int y)</code> after the type name is a <em>primary constructor</em> (C# 12): its parameters are in scope for the whole body and here initialise the fields. To let a method change the caller's struct, pass it with <code>ref</code> &mdash; see <a href="/roadmaps/csharp/functions.html">Functions &amp; References</a>.</p>
+
+        <h2 id="struct">Structs</h2>
+        <p>Use a struct for a small value that is defined entirely by its data and is usually treated as a single number-like thing: a point, a colour, a date, a money amount. The built-in <code>int</code>, <code>double</code>, <code>DateTime</code> and <code>TimeSpan</code> are all structs. Microsoft's design guidelines give a good rule of thumb: a struct should be small (roughly 16 bytes or less), immutable, and rarely boxed.</p>
+
+        <h3 id="readonly-struct">Immutable Structs</h3>
+        <p>Mark a struct <code>readonly</code> to make every field read-only. Because copies are made silently all the time, a mutable struct is a classic source of bugs: you change a copy and wonder why the original did not change. An immutable struct cannot have that problem, and "changing" it means creating a new value.</p>
+        <pre><code class="language-csharp line-numbers">readonly struct Money
+{
+    public decimal Amount { get; }
+    public string Currency { get; }
+
+    public Money(decimal amount, string currency)
+    {
+        Amount = amount;
+        Currency = currency;
+    }
+
+    public Money Add(Money other) =&gt; new(Amount + other.Amount, Currency);
+    public override string ToString() =&gt; $"{Amount} {Currency}";
+}</code></pre>
+        <p>Every struct also has a parameterless state, <code>default(Money)</code>, in which all fields are zero or <code>null</code>. Design your struct so that this zero state is valid, or at least harmless.</p>
+
+        <h2 id="class">Classes</h2>
+        <p>A class is the default choice for anything with <em>identity</em> or <em>behaviour</em>: a customer, a bank account, a connection, a game character. Two accounts with the same balance are still two different accounts. Classes support inheritance, can be <code>null</code>, and are passed around cheaply because only the reference is copied.</p>
+
+        <h3 id="members">Fields, Properties and Methods</h3>
+        <p>A class protects its data by keeping fields private and exposing <strong>properties</strong> &mdash; members that look like fields but run code. <code>{ get; }</code> makes a property read-only after construction, and <code>{ get; private set; }</code> lets only the class itself change it. Methods then enforce the rules, so the object can never reach an invalid state.</p>
+        <pre><code class="language-csharp line-numbers">// A class guards its own state: callers can read Balance but only change it through methods.
+var account = new BankAccount("Ada");
+account.Deposit(100);
+account.Withdraw(30);
+Console.WriteLine(account);
+
+try
+{
+    account.Withdraw(500);
+}
+catch (InvalidOperationException ex)
+{
+    Console.WriteLine(ex.Message);
+}
+
+class BankAccount
+{
+    public string Owner { get; }
+    public decimal Balance { get; private set; }
+
+    public BankAccount(string owner) =&gt; Owner = owner;
+
+    public void Deposit(decimal amount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+        Balance += amount;
+    }
+
+    public void Withdraw(decimal amount)
+    {
+        if (amount &gt; Balance)
+            throw new InvalidOperationException($"Insufficient funds: balance is {Balance}");
+        Balance -= amount;
+    }
+
+    public override string ToString() =&gt; $"{Owner}: {Balance}";
+}</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">Ada: 70
+Insufficient funds: balance is 70</code></pre>
+        <p>Money uses <code>decimal</code>, not <code>double</code>, because decimal stores base-10 fractions exactly. Throwing exceptions on invalid operations is covered in <a href="/roadmaps/csharp/errors.html">Error Handling</a>.</p>
+
+        <h2 id="record">Records</h2>
+        <p>Many types exist only to carry data: a DTO from a web API, a row from a query, a configuration entry. For those, a <strong>record</strong> generates the boilerplate in one line. A positional record <code>record Point(int X, int Y);</code> gets a constructor, init-only properties, value-based <code>Equals</code> and <code>==</code>, <code>GetHashCode</code>, a readable <code>ToString</code>, and a <code>Deconstruct</code> method.</p>
+
+        <h3 id="record-equality">Value Equality and with</h3>
+        <p>A <code>record</code> (also written <code>record class</code>) is still a reference type, but two records with equal data compare as equal. The <code>with</code> expression creates a modified <em>copy</em> &mdash; called non-destructive mutation &mdash; which is how you "change" immutable data. A <code>record struct</code> gives the same conveniences for a value type; unlike a positional record class, its properties are writable unless you declare it <code>readonly record struct</code>.</p>
+        <pre><code class="language-csharp line-numbers">// Records compare by value, print their data, deconstruct, and copy with "with".
+var a = new Point(1, 2);
+var b = new Point(1, 2);
+var moved = a with { X = 5 };
+
+Console.WriteLine(a == b);                 // same data
+Console.WriteLine(ReferenceEquals(a, b));  // but two objects
+Console.WriteLine(moved);
+
+var (x, y) = moved;                        // deconstruction
+Console.WriteLine($"x={x}, y={y}");
+
+var size = new Size(3, 4);
+var copy = size;
+copy.Width = 10;                           // record struct: a copy, and mutable
+Console.WriteLine(size);
+
+record Point(int X, int Y);
+record struct Size(int Width, int Height);</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">True
+False
+Point { X = 5, Y = 2 }
+x=5, y=2
+Size { Width = 3, Height = 4 }</code></pre>
+
+        <h3 id="choosing-type">Choosing a Kind of Type</h3>
+        <table class="table table-sm table-striped">
+          <thead><tr><th>Kind</th><th>Semantics</th><th>Equality by default</th><th>Typical use</th></tr></thead>
+          <tbody>
+            <tr><td><code>class</code></td><td>reference</td><td>identity (same object)</td><td>entities with behaviour and state: services, accounts, UI elements</td></tr>
+            <tr><td><code>struct</code></td><td>value</td><td>field by field (slow, reflection-based unless overridden)</td><td>small number-like values; performance-critical code</td></tr>
+            <tr><td><code>record</code></td><td>reference</td><td>value (generated)</td><td>immutable data: DTOs, messages, results</td></tr>
+            <tr><td><code>record struct</code></td><td>value</td><td>value (generated)</td><td>small data values that need equality and a nice <code>ToString</code></td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="collections">Arrays &amp; Collections</h2>
+        <p>When you need <em>many</em> values of the same type, use a collection. Every collection below is generic: the element type goes in angle brackets, and the compiler rejects anything else.</p>
+
+        <h3 id="array">Arrays</h3>
+        <p>An array has a fixed length chosen when it is created, and its elements are stored next to each other in memory, which makes indexing very fast. C# has three shapes: one-dimensional <code>int[]</code>, rectangular <code>int[,]</code> (a true grid) and jagged <code>int[][]</code> (an array of arrays whose rows may differ in length). Indexes start at 0; <code>^1</code> counts from the end, and a <em>range</em> <code>a..b</code> takes a slice from <code>a</code> up to, but not including, <code>b</code>.</p>
+        <pre><code class="language-csharp line-numbers">// One-dimensional, rectangular and jagged arrays; indexes from the end and ranges.
+int[] scores = { 90, 75, 88 };
+Array.Sort(scores);
+Console.WriteLine(string.Join(", ", scores));
+
+int[,] grid = new int[2, 3];          // 2 rows, 3 columns, all zero
+grid[1, 2] = 7;
+Console.WriteLine($"{grid.GetLength(0)}x{grid.GetLength(1)}, grid[1,2]={grid[1, 2]}");
+
+int[][] jagged = [[1], [2, 3], [4, 5, 6]];   // collection expressions (C# 12)
+foreach (int[] row in jagged)
+    Console.WriteLine(string.Join(" ", row));
+
+Console.WriteLine(scores[^1]);                    // last element
+Console.WriteLine(string.Join(", ", scores[..2])); // first two</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">75, 88, 90
+2x3, grid[1,2]=7
+1
+2 3
+4 5 6
+90
+75, 88</code></pre>
+
+        <h3 id="list">List, HashSet and Dictionary</h3>
+        <p>For data whose size changes, use the generic collections in <code>System.Collections.Generic</code>:</p>
+        <ul>
+          <li><code>List&lt;T&gt;</code> &mdash; an ordered, resizable array. The default choice.</li>
+          <li><code>HashSet&lt;T&gt;</code> &mdash; unique elements with very fast <code>Contains</code>; order is not meaningful.</li>
+          <li><code>Dictionary&lt;TKey, TValue&gt;</code> &mdash; values looked up by a unique key. Reading a missing key with <code>dict[key]</code> throws a <code>KeyNotFoundException</code>, so use <code>TryGetValue</code> when the key may be absent.</li>
+        </ul>
+        <pre><code class="language-csharp line-numbers">// The three collections you will use most.
+var names = new List&lt;string&gt; { "Grace", "Ada", "Linus" };
+names.Add("Ada");
+names.Sort();
+Console.WriteLine(string.Join(", ", names));
+
+var unique = new HashSet&lt;string&gt;(names);       // duplicates are dropped
+Console.WriteLine($"{unique.Count} unique, has Ada: {unique.Contains("Ada")}");
+
+var ages = new Dictionary&lt;string, int&gt; { ["Ada"] = 36, ["Grace"] = 85 };
+ages["Linus"] = 54;                              // add or replace
+
+if (ages.TryGetValue("Grace", out int age))
+    Console.WriteLine($"Grace: {age}");
+Console.WriteLine(ages.ContainsKey("Alan"));
+
+foreach (var (name, years) in ages)
+    Console.WriteLine($"{name} -&gt; {years}");</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">Ada, Ada, Grace, Linus
+3 unique, has Ada: True
+Grace: 85
+False
+Ada -&gt; 36
+Grace -&gt; 85
+Linus -&gt; 54</code></pre>
+        <p>A <code>Dictionary</code> happens to return items in insertion order while nothing has been removed, but that is not guaranteed. Use <code>SortedDictionary</code> or sort the keys when order matters. The demos <a href="/roadmaps/code-viewer.html?file=/roadmaps/csharp/demo/11_lists.cs">11_lists.cs</a> and <a href="/roadmaps/code-viewer.html?file=/roadmaps/csharp/demo/12_dictionaries.cs">12_dictionaries.cs</a> go further.</p>
+
+        <h2 id="tuples">Tuples</h2>
+        <h3 id="named-tuples">Named Elements and Deconstruction</h3>
+        <p>A <em>tuple</em> groups a few values without declaring a type, which is ideal for returning more than one result from a method. Name the elements so that callers read <code>result.Min</code> instead of <code>result.Item1</code>, and deconstruct them directly into variables. When a tuple starts travelling across your program, promote it to a record.</p>
+        <pre><code class="language-csharp line-numbers">// A tuple returns two values from one method without a dedicated type.
+var (min, max) = MinMax([4, 9, 1, 7]);
+Console.WriteLine($"min={min}, max={max}");
+
+var stats = MinMax([10, 20]);
+Console.WriteLine($"{stats.Min}..{stats.Max}");
+
+static (int Min, int Max) MinMax(int[] values) =&gt; (values.Min(), values.Max());</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">min=1, max=9
+10..20</code></pre>
+
+        <h2 id="practice">Practice</h2>
+        <h3 id="exercises">Exercises</h3>
+        <ol>
+          <li>Change <code>MoveStruct</code> to take <code>ref PointStruct s</code> and call it with <code>MoveStruct(ref a)</code>. What does the program print now?</li>
+          <li>Rewrite <code>Money</code> as a <code>readonly record struct</code> and compare the amount of code. Make <code>Add</code> throw when the currencies differ.</li>
+          <li>Count how often each word occurs in a sentence with a <code>Dictionary&lt;string, int&gt;</code>, then print the words sorted by count.</li>
+          <li>Store a 3&times;3 tic-tac-toe board in a <code>char[,]</code> and write a method that returns the winner, or <code>' '</code> when there is none.</li>
+        </ol>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'csharp',
+    topicId: 'composite',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

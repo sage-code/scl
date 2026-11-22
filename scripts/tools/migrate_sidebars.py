@@ -51,7 +51,7 @@ Usage:
     python scripts/tools/migrate_sidebars.py --track csharp
     python scripts/tools/migrate_sidebars.py --all --dry-run --report .temp/all.md
     python scripts/tools/migrate_sidebars.py --all
-    python scripts/tools/migrate_sidebars.py --pages roadmap/go/data/overview.json
+    python scripts/tools/migrate_sidebars.py --pages roadmaps/go/data/overview.json
 
 Exit code is 1 if any page could not be processed (unreadable JSON, no chapters); a
 blocked page is a reported condition, not a failure.
@@ -179,7 +179,7 @@ def targets_from_args(args) -> list:
     if args.all and args.track:
         raise SystemExit("ERROR: --all and --track are mutually exclusive")
     if args.all:
-        tracks = sorted(p.name for p in (ROOT / "roadmap").iterdir() if p.is_dir())
+        tracks = sorted(p.name for p in (ROOT / "roadmaps").iterdir() if p.is_dir())
     elif args.track:
         tracks = [args.track]
     else:
@@ -187,7 +187,7 @@ def targets_from_args(args) -> list:
 
     found = []
     for track in tracks:
-        data = ROOT / "roadmap" / track / "data"
+        data = ROOT / "roadmaps" / track / "data"
         if not data.is_dir():
             print(f"[WARN] no data directory for track '{track}'")
             continue
@@ -199,7 +199,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--pages", nargs="+", help="explicit sidecar JSON paths")
-    parser.add_argument("--track", help="one track name under roadmap/")
+    parser.add_argument("--track", help="one track name under roadmaps/")
     parser.add_argument("--all", action="store_true", help="every track")
     parser.add_argument("--dry-run", action="store_true", help="show diffs, write nothing")
     parser.add_argument("--regen-titles", action="store_true",

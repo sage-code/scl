@@ -924,7 +924,7 @@
     document.getElementById("quiz-catalog-title").textContent = `${trackTitle} Quizzes`;
     document.getElementById("quiz-catalog-description").textContent =
       `These quizzes measure how well you recall, apply, and reason about ${trackTitle} concepts. Set A checks foundations, Set B combines core techniques, and Set C tests engineering judgment. Use the results to identify gaps and guide further study. Each quiz allows two minutes per question.`;
-    document.getElementById("roadmap-return-link").href = `/roadmap/${track}/`;
+    document.getElementById("roadmap-return-link").href = `/roadmaps/${track}/`;
     document.getElementById("roadmap-return-link").textContent = `Return to the ${trackTitle} roadmap`;
 
     let statuses;
@@ -960,7 +960,7 @@
       statusBadge.className = `quiz-set-status badge ${validStatus ? statusClasses[status] : "text-bg-warning"}`;
 
       if (quizSet.topic) {
-        startLink.href = `/roadmap/quiz.html?track=${track}&topic=${quizSet.topic}&level=${quizSet.level}`;
+        startLink.href = `/roadmaps/quiz.html?track=${track}&topic=${quizSet.topic}&level=${quizSet.level}`;
       } else {
         startLink.removeAttribute("href");
         startLink.classList.add("disabled");

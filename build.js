@@ -8,8 +8,8 @@ const PUBLIC_DIR = path.join(ROOT, "public");
 const BUILD_CACHE_PATH = path.join(ROOT, "manual", "build-cache.json");
 const BUILD_CACHE_VERSION = 2; // v2 adds publishedFileCount; v1 caches lack it and are discarded
 const ROOT_PAGES_DIR = ROOT;
-const ROADMAP_LABS_DIR = path.join(ROOT, "roadmap", "labs");
-const ROADMAP_DIR = path.join(ROOT, "roadmap");
+const ROADMAP_LABS_DIR = path.join(ROOT, "roadmaps", "labs");
+const ROADMAP_DIR = path.join(ROOT, "roadmaps");
 const PROJECTS_DIR = path.join(ROOT, "projects");
 const COMMUNITY_DIR = path.join(ROOT, "community");
 const SERVICES_DIR = path.join(ROOT, "services");
@@ -468,23 +468,23 @@ function rewriteAssetPaths(html) {
     transformed = transformed.replace(rule.pattern, rule.replacement);
   }
 
-  // Normalize roadmap publish routes under /roadmap and standalone project routes under /projects.
-  transformed = rewritePublishedRoutePrefix(transformed, "engineering", "roadmap/cse");
-  transformed = rewritePublishedRoutePrefix(transformed, "programming", "roadmap");
-  transformed = rewritePublishedRoutePrefix(transformed, "cse", "roadmap/cse");
-  transformed = rewritePublishedRoutePrefix(transformed, "csp", "roadmap");
-  transformed = rewritePublishedRoutePrefix(transformed, "csa", "roadmap/csa");
-  transformed = rewritePublishedRoutePrefix(transformed, "dsa", "roadmap/dsa");
-  transformed = rewritePublishedRoutePrefix(transformed, "itc", "roadmap/hpc");
-  transformed = rewritePublishedRoutePrefix(transformed, "hpc", "roadmap/hpc");
-  transformed = rewritePublishedRoutePrefix(transformed, "tek", "roadmap/tek");
-  transformed = rewritePublishedRoutePrefix(transformed, "ops", "roadmap/tek");
-  transformed = rewritePublishedRoutePrefix(transformed, "dba", "roadmap/dba");
-  transformed = rewritePublishedRoutePrefix(transformed, "sml", "roadmap/sml");
-  transformed = rewritePublishedRoutePrefix(transformed, "osd", "roadmap/osd");
-  transformed = rewritePublishedRoutePrefix(transformed, "dsk", "roadmap/dsk");
-  transformed = rewritePublishedRoutePrefix(transformed, "das", "roadmap/sml");
-  transformed = rewritePublishedRoutePrefix(transformed, "csd", "roadmap/sml");
+  // Normalize roadmap publish routes under /roadmaps and standalone project routes under /projects.
+  transformed = rewritePublishedRoutePrefix(transformed, "engineering", "roadmaps/cse");
+  transformed = rewritePublishedRoutePrefix(transformed, "programming", "roadmaps");
+  transformed = rewritePublishedRoutePrefix(transformed, "cse", "roadmaps/cse");
+  transformed = rewritePublishedRoutePrefix(transformed, "csp", "roadmaps");
+  transformed = rewritePublishedRoutePrefix(transformed, "csa", "roadmaps/csa");
+  transformed = rewritePublishedRoutePrefix(transformed, "dsa", "roadmaps/dsa");
+  transformed = rewritePublishedRoutePrefix(transformed, "itc", "roadmaps/hpc");
+  transformed = rewritePublishedRoutePrefix(transformed, "hpc", "roadmaps/hpc");
+  transformed = rewritePublishedRoutePrefix(transformed, "tek", "roadmaps/tek");
+  transformed = rewritePublishedRoutePrefix(transformed, "ops", "roadmaps/tek");
+  transformed = rewritePublishedRoutePrefix(transformed, "dba", "roadmaps/dba");
+  transformed = rewritePublishedRoutePrefix(transformed, "sml", "roadmaps/sml");
+  transformed = rewritePublishedRoutePrefix(transformed, "osd", "roadmaps/osd");
+  transformed = rewritePublishedRoutePrefix(transformed, "dsk", "roadmaps/dsk");
+  transformed = rewritePublishedRoutePrefix(transformed, "das", "roadmaps/sml");
+  transformed = rewritePublishedRoutePrefix(transformed, "csd", "roadmaps/sml");
   transformed = rewritePublishedRoutePrefix(transformed, "pro", "projects");
 
   // MAJ assets and media now live under the standalone /projects namespace.
@@ -563,7 +563,7 @@ function normalizeSharedBrandAssets(html, sourcePath) {
 
 function shouldRelativizeRootLinks(sourcePath) {
   const normalized = sourcePath.replace(/\\/g, "/").toLowerCase();
-  if (normalized.includes("/public/roadmap/")) {
+  if (normalized.includes("/public/roadmaps/")) {
     return false;
   }
 
@@ -668,7 +668,7 @@ function resolveSidebarJsonPath(publicHtmlPath) {
     return null;
   }
 
-  const contentRootOffset = publicPathParts[0].toLowerCase() === "roadmap" ? 1 : 0;
+  const contentRootOffset = publicPathParts[0].toLowerCase() === "roadmaps" ? 1 : 0;
   if (publicPathParts.length < contentRootOffset + 2) {
     return null;
   }
@@ -697,7 +697,7 @@ function resolveRoadmapTopicContext(publicHtmlPath) {
     return null;
   }
 
-  const contentRootOffset = rootNamespace === "roadmap" || isProjectTopic ? 1 : 0;
+  const contentRootOffset = rootNamespace === "roadmaps" || isProjectTopic ? 1 : 0;
   if (publicPathParts.length < contentRootOffset + 2) {
     return null;
   }
@@ -720,7 +720,7 @@ function resolveRoadmapTopicContext(publicHtmlPath) {
   }
 
   return {
-    namespace: isProjectTopic ? "projects" : "roadmap",
+    namespace: isProjectTopic ? "projects" : "roadmaps",
     topLevelRoute,
     topicId
   };
@@ -816,7 +816,7 @@ function resolveReturnToRoadmapHref(sourcePath) {
       return `/projects/${context.topLevelRoute}/#topic-${context.topicId}`;
     }
 
-    return `/roadmap/${context.topLevelRoute}/#topic-${context.topicId}`;
+    return `/roadmaps/${context.topLevelRoute}/#topic-${context.topicId}`;
   }
 
   const parentRoute = path
@@ -1082,7 +1082,7 @@ function ensureTopicConfigScript(html, sourcePath) {
   const labId = getLabIdFromRoute(context.topLevelRoute);
   const homeLink = context.namespace === "projects"
     ? `/projects/${context.topLevelRoute}/#topics`
-    : `/roadmap/${context.topLevelRoute}/#topics`;
+    : `/roadmaps/${context.topLevelRoute}/#topics`;
   const labHomeLink = context.namespace === "projects"
     ? `/projects/${context.topLevelRoute}/`
     : resolveReturnToRoadmapHref(sourcePath);
@@ -1193,7 +1193,7 @@ function externalizeInlineScripts(html, sourcePath) {
 
 function canonicalizeRoadmapTrackIndexTopicLinks(html, sourcePath) {
   const normalizedPath = sourcePath.replace(/\\/g, "/").toLowerCase();
-  const match = normalizedPath.match(/\/public\/roadmap\/([a-z0-9_-]+)\/index\.html$/i);
+  const match = normalizedPath.match(/\/public\/roadmaps\/([a-z0-9_-]+)\/index\.html$/i);
   if (!match) {
     return html;
   }
@@ -1207,7 +1207,7 @@ function canonicalizeRoadmapTrackIndexTopicLinks(html, sourcePath) {
         return fullMatch;
       }
 
-      return `${prefix}/roadmap/${trackId}/${normalizedTopicId}.html${suffix}`;
+      return `${prefix}/roadmaps/${trackId}/${normalizedTopicId}.html${suffix}`;
     }
   );
 }
@@ -1215,13 +1215,13 @@ function canonicalizeRoadmapTrackIndexTopicLinks(html, sourcePath) {
 // Gives each track index row a stable anchor so topic pages can scroll back to their row.
 function addRoadmapTrackIndexTopicAnchors(html, sourcePath) {
   const normalizedPath = sourcePath.replace(/\\/g, "/").toLowerCase();
-  const match = normalizedPath.match(/\/public\/roadmap\/([a-z0-9_-]+)\/index\.html$/i);
+  const match = normalizedPath.match(/\/public\/roadmaps\/([a-z0-9_-]+)\/index\.html$/i);
   if (!match) {
     return html;
   }
 
   const trackId = match[1].toLowerCase();
-  const topicHrefRegex = new RegExp(`href=["'][^"']*/roadmap/${trackId}/([a-z0-9_-]+)(?:\\.html|/)`, "i");
+  const topicHrefRegex = new RegExp(`href=["'][^"']*/roadmaps/${trackId}/([a-z0-9_-]+)(?:\\.html|/)`, "i");
 
   const addAnchor = (rowMarkup, tagName, attributes, rowInner) => {
     if (/\bid\s*=/i.test(attributes)) {
@@ -1295,7 +1295,7 @@ function optimizeHtmlOutput(html, headerTemplate, footerTemplate, sourcePath) {
   transformed = addProjectIndexTopicAnchors(transformed, sourcePath);
 
   // Enforce folder-style routes for top-level hubs.
-  transformed = transformed.replace(/\b(href|src)=(['"])([^"']*?)roadmap\.html\2/gi, "$1=$2$3roadmap/$2");
+  transformed = transformed.replace(/\b(href|src)=(['"])([^"']*?)roadmap\.html\2/gi, "$1=$2$3roadmaps/$2");
   transformed = transformed.replace(/\b(href|src)=(['"])([^"']*?)community\.html\2/gi, "$1=$2$3community/$2");
 
   transformed = externalizeInlineScripts(transformed, sourcePath);
@@ -1381,23 +1381,24 @@ function publishSystemRuntimeFile(fileName) {
 
   if (fileName === "sitemap.xml") {
     let sitemap = readTextOrEmpty(source);
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/engineering\//gi, "https://sagecode.org/roadmap/cse/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/programming\//gi, "https://sagecode.org/roadmap/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/cse\//gi, "https://sagecode.org/roadmap/cse/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csp\//gi, "https://sagecode.org/roadmap/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csa\//gi, "https://sagecode.org/roadmap/csa/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsa\//gi, "https://sagecode.org/roadmap/dsa/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/itc\//gi, "https://sagecode.org/roadmap/hpc/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/hpc\//gi, "https://sagecode.org/roadmap/hpc/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/tek\//gi, "https://sagecode.org/roadmap/tek/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/ops\//gi, "https://sagecode.org/roadmap/tek/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dba\//gi, "https://sagecode.org/roadmap/dba/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/sml\//gi, "https://sagecode.org/roadmap/sml/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/osd\//gi, "https://sagecode.org/roadmap/osd/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsk\//gi, "https://sagecode.org/roadmap/dsk/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/das\//gi, "https://sagecode.org/roadmap/sml/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csd\//gi, "https://sagecode.org/roadmap/sml/");
-    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/roadmap\/csp\//gi, "https://sagecode.org/roadmap/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/engineering\//gi, "https://sagecode.org/roadmaps/cse/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/programming\//gi, "https://sagecode.org/roadmaps/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/cse\//gi, "https://sagecode.org/roadmaps/cse/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csp\//gi, "https://sagecode.org/roadmaps/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csa\//gi, "https://sagecode.org/roadmaps/csa/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsa\//gi, "https://sagecode.org/roadmaps/dsa/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/itc\//gi, "https://sagecode.org/roadmaps/hpc/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/hpc\//gi, "https://sagecode.org/roadmaps/hpc/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/tek\//gi, "https://sagecode.org/roadmaps/tek/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/ops\//gi, "https://sagecode.org/roadmaps/tek/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dba\//gi, "https://sagecode.org/roadmaps/dba/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/sml\//gi, "https://sagecode.org/roadmaps/sml/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/osd\//gi, "https://sagecode.org/roadmaps/osd/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/dsk\//gi, "https://sagecode.org/roadmaps/dsk/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/das\//gi, "https://sagecode.org/roadmaps/sml/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/csd\//gi, "https://sagecode.org/roadmaps/sml/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/roadmap\/csp\//gi, "https://sagecode.org/roadmaps/");
+    sitemap = sitemap.replace(/https:\/\/sagecode\.org\/roadmaps\/csp\//gi, "https://sagecode.org/roadmaps/");
     sitemap = sitemap.replace(/https:\/\/sagecode\.org\/pro\//gi, "https://sagecode.org/projects/");
     ensureDir(path.dirname(destination));
     fs.writeFileSync(destination, sitemap, "utf8");
@@ -1536,7 +1537,7 @@ function copyRoadmapDirectories() {
     }
 
     const sourceDir = path.join(ROADMAP_DIR, entry.name);
-    const destinationDir = path.join(PUBLIC_DIR, "roadmap", entry.name);
+    const destinationDir = path.join(PUBLIC_DIR, "roadmaps", entry.name);
     copyHtmlOnlyRecursive(sourceDir, destinationDir);
     copyLabStaticAssetsRecursive(sourceDir, destinationDir);
   }
@@ -1548,7 +1549,7 @@ function copyRoadmapLandingPage() {
     return;
   }
 
-  const destinationIndex = path.join(PUBLIC_DIR, "roadmap", "index.html");
+  const destinationIndex = path.join(PUBLIC_DIR, "roadmaps", "index.html");
   ensureDir(path.dirname(destinationIndex));
   fs.copyFileSync(sourceIndex, destinationIndex);
 }
@@ -1568,7 +1569,7 @@ function copyRoadmapTopLevelPages() {
     }
 
     const sourcePath = path.join(ROADMAP_DIR, entry.name);
-    const destinationPath = path.join(PUBLIC_DIR, "roadmap", entry.name);
+    const destinationPath = path.join(PUBLIC_DIR, "roadmaps", entry.name);
     ensureDir(path.dirname(destinationPath));
     fs.copyFileSync(sourcePath, destinationPath);
   }
@@ -1655,12 +1656,12 @@ function sourcePathToPublishedPath(sourcePath) {
     if (parts.length === 1) {
       const fileName = parts[0];
       if (fileName.toLowerCase() === "index.html") {
-        return path.join(PUBLIC_DIR, "roadmap", "index.html");
+        return path.join(PUBLIC_DIR, "roadmaps", "index.html");
       }
-      return path.join(PUBLIC_DIR, "roadmap", fileName);
+      return path.join(PUBLIC_DIR, "roadmaps", fileName);
     }
 
-    return path.join(PUBLIC_DIR, "roadmap", ...parts);
+    return path.join(PUBLIC_DIR, "roadmaps", ...parts);
   }
 
   return null;

@@ -22,7 +22,7 @@ from validation_lib import read_text, sidebar_issues, validate_json_syntax  # no
 
 PUBLIC_DIR = ROOT / "public"
 FOOTER_RE = re.compile(r"<footer\b", re.IGNORECASE)
-FOOTER_SCOPES = [PUBLIC_DIR / "roadmap", PUBLIC_DIR / "projects"]
+FOOTER_SCOPES = [PUBLIC_DIR / "roadmaps", PUBLIC_DIR / "projects"]
 
 failures: list[str] = []
 warnings: list[str] = []

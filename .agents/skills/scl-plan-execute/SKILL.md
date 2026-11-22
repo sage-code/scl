@@ -4,7 +4,7 @@ description: >-
   Coordinate the two-tier Antigravity workflow for Sage-Code SCL: planning and
   architecting with Gemini 4 Neon, and executing atomic micro-specs with Gemini 4
   Hydrogen (via swarm workers or Act-mode handoff). Use when decomposing multi-step
-  roadmap/site work, creating persistent plans in .temp/, or dispatching Hydrogen executors.
+  roadmaps/site work, creating persistent plans in .temp/, or dispatching Hydrogen executors.
 ---
 
 # Neon Planner → Hydrogen Executor Workflow (Antigravity)
@@ -18,9 +18,9 @@ Sage-Code SCL splits work across two Gemini 4 model tiers in Antigravity:
 
 ## 1. Planner Phase (Gemini 4 Neon)
 
-1. **Onboard lightly:** Check `git status`, `git diff`, and read only target track files (`roadmap/<track>/index.html`, `roadmap/<track>/data/*.json`) or relevant sections of `manual/ARCHITECTURE.md`.
+1. **Onboard lightly:** Check `git status`, `git diff`, and read only target track files (`roadmaps/<track>/index.html`, `roadmaps/<track>/data/*.json`) or relevant sections of `manual/ARCHITECTURE.md`.
 2. **Decompose atomically:** Limit each task to **1 file or 1 isolated track/component**, ordered by dependency. Never write implementation code inside the plan.
-3. **Plan pedagogy & visuals:** Order topics `why → what → how → practice`; schedule explicit SVG diagram tasks (naming concept, target section, and `roadmap/<track>/img/<name>.svg`) when concepts are spatial/relational.
+3. **Plan pedagogy & visuals:** Order topics `why → what → how → practice`; schedule explicit SVG diagram tasks (naming concept, target section, and `roadmaps/<track>/img/<name>.svg`) when concepts are spatial/relational.
 4. **Persist the plan** to `.temp/plan-<id>.md`:
 
 ```text

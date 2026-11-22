@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark"><head>
+  <meta charset="utf-8">
+  <meta name="description" content="Java type inference: var for local variables, the diamond operator, inference for generic methods and lambdas, common pitfalls and style guidance.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="java, syntax, type inference">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>Type Inference</title>  
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<!-- Icon -->
+  <link rel="icon" type="image/png"  href="/images/favicon.ico">  
+  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js">></script>
+  <!-- custom css -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  </head>
+<body>
+
+<div class="container">
+
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled">
+          </ul>
+        </div>
+      </aside>
+
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+<h1 id="type-inference">Type Inference</h1>
+
+<div class="alert alert-secondary shadow-sm">
+  Java is statically typed, but you do not always have to write the types: the compiler can often work them out from context. Type inference reduces repetition while keeping every variable's type fixed at compile time. This lesson covers <code>var</code> for local variables (Java 10), the diamond operator, inference for generic methods and lambdas, and the pitfalls that make explicit types the better choice in some places.
+</div>
+
+<h2 id="var">Local Variables with var</h2>
+<p>Since Java 10, a local variable with an initializer can be declared with <code>var</code>. The compiler gives the variable the static type of the initializer, exactly as if you had written it. <code>var</code> is not dynamic typing: the type cannot change later, and assigning a value of another type is a compile error.</p>
+<pre><code class="language-java">// Local variable type inference (var) and other places the compiler infers types.
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+class InferenceBasics {
+    static &lt;T&gt; T firstOf(List&lt;T&gt; items) { return items.get(0); }   // T is inferred per call
+
+    public static void main(String[] args) {
+        var count = 10;                          // int
+        var price = 9.99;                        // double
+        var name = "Ana";                        // String
+        var names = new ArrayList&lt;String&gt;();     // ArrayList&lt;String&gt;
+        names.add(name);
+
+        Map&lt;String, List&lt;Integer&gt;&gt; scores = new HashMap&lt;&gt;();   // diamond: &lt;String, List&lt;Integer&gt;&gt;
+        scores.put("ana", List.of(90, 85));
+
+        for (var entry : scores.entrySet()) {    // Map.Entry&lt;String, List&lt;Integer&gt;&gt;
+            System.out.println(entry.getKey() + " -&gt; " + entry.getValue());
+        }
+
+        String first = firstOf(names);           // T inferred as String
+        System.out.println(first + " " + count + " " + price);
+
+        // Lambda parameters are inferred from the target type; var may annotate them (Java 11+).
+        java.util.function.BiFunction&lt;Integer, Integer, Integer&gt; add = (var a, var b) -&gt; a + b;
+        System.out.println(add.apply(2, 3));
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">ana -&gt; [90, 85]
+Ana 10 9.99
+5</code></pre>
+
+<h3 id="var-rules">Where var Is Allowed</h3>
+<table class="table table-striped table-bordered">
+  <thead class="table-dark">
+    <tr><th>Allowed</th><th>Not allowed</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Local variables with an initializer</td><td>Fields, method parameters, return types</td></tr>
+    <tr><td>Enhanced <code>for</code> loop variables and classic <code>for</code> counters</td><td>Variables without an initializer, or initialized to <code>null</code></td></tr>
+    <tr><td><code>try</code>-with-resources variables</td><td>Array initializers such as <code>{1, 2, 3}</code></td></tr>
+    <tr><td>Lambda parameters (Java 11+), useful to attach annotations</td><td>Lambdas assigned directly: <code>var f = x -&gt; x;</code> has no target type</td></tr>
+  </tbody>
+</table>
+<p><code>var</code> is a <em>reserved type name</em>, not a keyword, so existing code that uses <code>var</code> as a variable or method name still compiles; it cannot be used as a class name.</p>
+
+<h2 id="generics-inference">Inference with Generics</h2>
+<p>Generic code benefited from inference long before <code>var</code>. The details of generics themselves are covered in <a href="/roadmaps/java/generics.html">Generics</a>.</p>
+
+<h3 id="diamond">The Diamond Operator</h3>
+<p>Since Java 7, <code>new HashMap&lt;&gt;()</code> takes its type arguments from the declaration it is assigned to, so <code>Map&lt;String, List&lt;Integer&gt;&gt; scores = new HashMap&lt;&gt;();</code> states the type only once. Combining the diamond with <code>var</code> leaves the compiler nothing to infer from, and it falls back to <code>Object</code> &mdash; the first pitfall below.</p>
+
+<h3 id="method-inference">Generic Methods and Lambdas</h3>
+<p>When you call a generic method such as <code>firstOf(names)</code>, the compiler infers <code>T</code> from the arguments and from the target type of the result. Lambdas work the same way: a lambda has no type of its own, and its parameter types come from the functional interface it is assigned to, its <em>target type</em>. That is why <code>(a, b) -&gt; a + b</code> compiles as a <code>BiFunction&lt;Integer, Integer, Integer&gt;</code>; see <a href="/roadmaps/java/lambda.html">Lambda Expressions</a>.</p>
+
+<h2 id="pitfalls">Pitfalls</h2>
+<h3 id="surprising-types">Surprising Types</h3>
+<p><code>var</code> always takes the type of the initializer, which is not always the type you meant:</p>
+<pre><code class="language-java">// var keeps the static type of the initializer, which is not always the type you meant.
+import java.util.ArrayList;
+import java.util.List;
+
+class InferencePitfalls {
+    public static void main(String[] args) {
+        var big = 3_000_000_000L;            // without the L suffix this would not compile (int overflow)
+        var ratio = 1 / 2;                   // int division: 0, not 0.5
+        var exact = 1 / 2.0;                 // double: 0.5
+        System.out.println(big + " " + ratio + " " + exact);
+
+        var list = new ArrayList&lt;&gt;();        // ArrayList&lt;Object&gt;: the diamond had nothing to infer from
+        list.add("text");
+        list.add(42);                        // compiles, because the element type is Object
+        System.out.println(list);
+
+        List&lt;String&gt; typed = new ArrayList&lt;&gt;();  // declare the interface type when it matters
+        typed.add("only strings");
+        System.out.println(typed);
+
+        // var nothing;           // error: cannot infer type without an initializer
+        // var nil = null;        // error: null has no usable type
+        // var arr = {1, 2, 3};   // error: array initializer needs an explicit type
+    }
+}</code></pre>
+<p><b>Output:</b></p>
+<pre><code class="language-output">3000000000 0 0.5
+[text, 42]
+[only strings]</code></pre>
+<ul>
+  <li><strong>Numeric literals:</strong> <code>var x = 1;</code> is an <code>int</code>; write <code>1L</code>, <code>1.0</code> or <code>1f</code> for other types.</li>
+  <li><strong>Diamond with var:</strong> <code>var list = new ArrayList&lt;&gt;();</code> is an <code>ArrayList&lt;Object&gt;</code>, which accepts anything.</li>
+  <li><strong>Implementation types:</strong> <code>var list = new ArrayList&lt;String&gt;();</code> has type <code>ArrayList</code>, not <code>List</code>, so later code may come to depend on the implementation.</li>
+</ul>
+
+<h2 id="style">When to Use var</h2>
+<h3 id="var-or-explicit">var or an Explicit Type?</h3>
+<p>Use <code>var</code> when the type is obvious from the right-hand side &mdash; a constructor call, a literal, a well-named factory method &mdash; or when spelling it out adds noise, as with long generic types in loops. Prefer an explicit type when the initializer is a method call whose result type a reader cannot guess, when the variable's interface type matters more than its implementation, or when the exact numeric type is important. Readability for the next person is the deciding factor; the OpenJDK project's <a href="https://openjdk.org/projects/amber/guides/lvti-style-guide" target="_blank" rel="noopener noreferrer nofollow">style guidelines for local variable type inference</a> give detailed advice.</p>
+
+<h2 id="practice">Practice</h2>
+<h3 id="exercises">Exercises</h3>
+<ol>
+  <li>Rewrite a method from an earlier lesson with <code>var</code> wherever it is allowed, then restore explicit types wherever the result became harder to read.</li>
+  <li>Predict the type of each variable: <code>var a = 'x' + 1;</code>, <code>var b = List.of(1, 2.0);</code>, <code>var c = Map.of("k", 1).entrySet();</code>. Check your answers by calling <code>getClass()</code> or hovering in an IDE.</li>
+  <li>Make <code>firstOf</code> fail to infer a type by calling it with <code>List.of()</code> and assigning the result to <code>var</code>; explain what <code>T</code> becomes.</li>
+</ol>
+
+      </main>
+</div>
+  </div>
+
+  <hr>
+<footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+
+</div>
+
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'java',
+    topicId: 'inference',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+
+</body>
+</html>

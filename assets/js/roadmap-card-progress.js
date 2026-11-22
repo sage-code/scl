@@ -304,7 +304,7 @@
     var anchor = card.querySelector("a.btn");
     if (anchor) {
       var href = anchor.getAttribute("href") || "";
-      var match = href.match(/^\/roadmap\/([^\/]+)\/?/i);
+      var match = href.match(/^\/roadmaps\/([^\/]+)\/?/i);
       if (match && match[1]) {
         return match[1].toLowerCase();
       }

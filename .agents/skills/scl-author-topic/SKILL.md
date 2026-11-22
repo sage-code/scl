@@ -1,7 +1,7 @@
 ---
 name: scl-author-topic
 description: >-
-  Author or update Sage-Code SCL roadmap/project topic pages, sidebar JSONs,
+  Author or update Sage-Code SCL roadmaps/project topic pages, sidebar JSONs,
   SVG diagrams, and demo_examples pages. Use when writing curriculum content,
   adding or revising topics, fixing heading/sidebar hierarchy, or creating track demos.
 ---
@@ -39,11 +39,11 @@ Standard topic progression:
 - Boot `window.TOPIC_CONFIG` (`topicId`, `labId`) and include `/assets/js/topic-loader.js`.
 - No inline executable JS/styles in source HTML.
 - Styles & Prism: `/assets/prism.css`, `/assets/prism.js`, `content-code.css`, `content-sidebar.css`, plus `content-tables.css` only when tables are present. Code blocks use `language-<lang> line-numbers`.
-- Canonical links: `/roadmap/<track>/<topic>.html` and `/roadmap/<track>/`.
+- Canonical links: `/roadmaps/<track>/<topic>.html` and `/roadmaps/<track>/`.
 - External links: `target="_blank" rel="noopener noreferrer nofollow"`.
 - No per-topic References section (references belong only on track `index.html` and `references.html`).
 
-## 3. Sidebar JSON (`roadmap/<track>/data/<topic>.json`)
+## 3. Sidebar JSON (`roadmaps/<track>/data/<topic>.json`)
 
 Template shape (`assets/topic_sidebar_template.json`):
 - Single top-level `h1` entry with `children` array of `h2` chapters; each `h2` has a `children` array of `h3` anchors.
@@ -51,7 +51,7 @@ Template shape (`assets/topic_sidebar_template.json`):
 - Short factual titles (plain `&`, no HTML entities) and local `#anchor` links.
 
 Tooling:
-- Generate sidebar from page: `python scripts/tools/gen_topic_sidebars.py roadmap/<track>/<topic>.html`
+- Generate sidebar from page: `python scripts/tools/gen_topic_sidebars.py roadmaps/<track>/<topic>.html`
 - Migrate legacy flat sidebars: `python scripts/tools/migrate_sidebars.py --track <track>`
 - Verify sidebar anchors against HTML IDs: `python scripts/tools/verify_sidebars.py <track>`
 
@@ -59,7 +59,7 @@ Tooling:
 
 When a concept is spatial or relational (control flow, memory layout, type hierarchy, async timelines, pipelines), include an SVG diagram with a one-line explanatory caption:
 - Check `assets/images/*.svg` first; reuse a shared `/images/<name>.svg` ONLY if it faithfully represents the language's construct. Never copy a shared SVG into a track.
-- Otherwise author a NEW self-contained SVG in `roadmap/<track>/img/<name>.svg` (embed via `<img src="/roadmap/<track>/img/<name>.svg" alt="...">`).
+- Otherwise author a NEW self-contained SVG in `roadmaps/<track>/img/<name>.svg` (embed via `<img src="/roadmaps/<track>/img/<name>.svg" alt="...">`).
 - Dark-theme style spec (`manual/ARCHITECTURE.md` §Diagrams — non-negotiable):
   - Declare `viewBox` and responsive `width:100%`.
   - Solid non-transparent canvas (`#0f172a`) and boxes (`#1e293b`).
@@ -68,8 +68,8 @@ When a concept is spatial or relational (control flow, memory layout, type hiera
 
 ## 5. Practice & Demo Pages
 
-- Runnable single-file demos: `roadmap/<track>/demo/NN_name.<ext>` (category subfolders allowed).
-- `demo_examples.html` + `data/demo_examples.json`: one `h1`, one `h2` per category, table `# | Description | Link` pointing to `/roadmap/code-viewer.html?file=/roadmap/<track>/demo/<file>`.
+- Runnable single-file demos: `roadmaps/<track>/demo/NN_name.<ext>` (category subfolders allowed).
+- `demo_examples.html` + `data/demo_examples.json`: one `h1`, one `h2` per category, table `# | Description | Link` pointing to `/roadmaps/code-viewer.html?file=/roadmaps/<track>/demo/<file>`.
 - Browser-renderable demos add a second **Preview** link straight to the demo file (`target="_blank" rel="noopener noreferrer"`).
 - Register `demo_examples` in track `index.html` under a "Practice & Demo" phase.
 - New language extensions: update `langMap` in `assets/js/code-viewer.js` and central grammar in `assets/prism.js`.
@@ -77,7 +77,7 @@ When a concept is spatial or relational (control flow, memory layout, type hiera
 ## 6. Post-Authoring Checklist
 
 1. If a topic or phase was added/moved in `index.html`, renumber sequential topic IDs (`01..NN`) and phase headers.
-2. Check HTML balance if `bee-ed` is available: `bee-ed balance roadmap/<track>/<topic>.html`.
+2. Check HTML balance if `bee-ed` is available: `bee-ed balance roadmaps/<track>/<topic>.html`.
 3. Verify sidebar links match heading IDs: `python scripts/tools/verify_sidebars.py <track>`.
 4. Regenerate tracking status: `python tracking/generate_roadmaps_status.py`.
 5. Run the validation gate (`scl-build-validate` skill): `npm run test` → `npm run build` → `npm run check`.

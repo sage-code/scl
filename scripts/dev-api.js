@@ -3,7 +3,7 @@
 // Local stand-in for `vercel dev`: serves public/ and routes /api/* to the same
 // handlers Vercel runs. Reads env.local for Turso and Resend settings.
 //
-//   npm run build && npm run dev:api      -> http://localhost:3000/roadmap/
+//   npm run build && npm run dev:api      -> http://localhost:3000/roadmaps/
 
 const http = require("http");
 const fs = require("fs");
@@ -78,5 +78,5 @@ http.createServer(async (req, res) => {
   }
   serveStatic(req, res, url.pathname);
 }).listen(PORT, () => {
-  console.log(`[dev-api] http://localhost:${PORT}/roadmap/  (API + public/)`);
+  console.log(`[dev-api] http://localhost:${PORT}/roadmaps/  (API + public/)`);
 });

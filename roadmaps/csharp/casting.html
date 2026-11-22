@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="C# type conversions: implicit and explicit casts, checked overflow, Parse and TryParse with cultures, Convert, is/as and type patterns, boxing, and user-defined conversions.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="sage, code, csharp, c#, casting, conversion, types, tutorial">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>C# Type Casting</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" type="image/png" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+  <link rel="stylesheet" href="/assets/css/code-viewer.css">
+  <link rel="stylesheet" href="/assets/css/forms-controls.css">
+  <style>
+    .side-bar { order: 1; }
+    #main-content { order: 2; }
+    @media (max-width: 991px) {
+      .side-bar { display: none; }
+      .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header id="dynamic-header" class="container-fluid pb-2"></header>
+  <div class="container-fluid px-0">
+    <div class="row g-0">
+      <aside class="side-bar col-lg-3 col-12">
+        <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lab Topics</h5>
+          </div>
+          <hr>
+          <ul id="bookmark-list" class="list-unstyled"></ul>
+        </div>
+      </aside>
+      <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+        <h1 id="csharp-casting">C# Type Casting</h1>
+
+        <div class="alert alert-secondary shadow-sm">
+          A conversion turns a value of one type into a value of another. C# is statically typed, so the compiler checks every conversion: the safe ones happen <strong>implicitly</strong>, the risky ones need an <strong>explicit</strong> cast, and text must be <strong>parsed</strong>. For objects, the <code>is</code> and <code>as</code> operators and pattern matching test a type before using it, so a wrong guess never crashes the program. This lesson builds on <a href="/roadmaps/csharp/types.html">Data Types</a>.
+        </div>
+
+        <p>The examples are complete programs for a <code>dotnet new console</code> project (.NET 8 or later), which uses top-level statements and imports <code>System</code>, <code>System.Linq</code> and <code>System.Collections.Generic</code> automatically. Numbers in the outputs are shown for an English culture; a culture that uses a decimal comma prints <code>3,5</code> instead of <code>3.5</code>.</p>
+
+        <h2 id="implicit">Implicit Conversions</h2>
+        <p>A conversion is <em>implicit</em> when it can never fail and never loses the magnitude of the value. The compiler inserts it for you: an <code>int</code> fits in a <code>long</code>, every <code>int</code> is a valid <code>double</code>, and every <code>string</code> is an <code>object</code>. These are called <em>widening</em> conversions.</p>
+
+        <table class="table table-sm table-striped">
+          <thead><tr><th>From</th><th>Implicitly converts to</th></tr></thead>
+          <tbody>
+            <tr><td><code>byte</code></td><td><code>short</code>, <code>ushort</code>, <code>int</code>, <code>uint</code>, <code>long</code>, <code>ulong</code>, <code>float</code>, <code>double</code>, <code>decimal</code></td></tr>
+            <tr><td><code>int</code></td><td><code>long</code>, <code>float</code>, <code>double</code>, <code>decimal</code></td></tr>
+            <tr><td><code>long</code></td><td><code>float</code>, <code>double</code>, <code>decimal</code></td></tr>
+            <tr><td><code>char</code></td><td><code>ushort</code>, <code>int</code>, <code>uint</code>, <code>long</code>, <code>ulong</code>, <code>float</code>, <code>double</code>, <code>decimal</code></td></tr>
+            <tr><td><code>float</code></td><td><code>double</code></td></tr>
+            <tr><td>any class or struct</td><td>its base class, any interface it implements, <code>object</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>There is no implicit conversion between <code>double</code> and <code>decimal</code> in either direction, and none from <code>bool</code> to a number: C# does not treat <code>true</code> as <code>1</code>.</p>
+
+        <h3 id="precision">Precision Loss Without a Cast</h3>
+        <p>"Never fails" is not quite "never loses anything". A <code>float</code> holds about 7 significant digits and a <code>double</code> about 15&ndash;16, so converting a large <code>int</code> or <code>long</code> to a floating-point type keeps the magnitude but may round the last digits &mdash; silently.</p>
+        <pre><code class="language-csharp line-numbers">// Widening conversions are applied automatically by the compiler.
+int count = 42;
+long big = count;           // int -&gt; long: always exact
+double ratio = count;       // int -&gt; double: always exact
+Console.WriteLine($"{big} {ratio}");
+
+char letter = 'A';
+int code = letter;          // char -&gt; int: the UTF-16 code
+Console.WriteLine(code);
+
+int large = 123_456_789;
+float rough = large;        // implicit, but float has only ~7 digits
+Console.WriteLine((int)rough);</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">42 42
+65
+123456792</code></pre>
+
+        <h2 id="explicit">Explicit Casts</h2>
+        <p>A <em>narrowing</em> conversion may lose information, so the compiler refuses to do it on its own. Writing the target type in parentheses, <code>(int)value</code>, is your statement that you accept the loss. Know exactly what that loss is:</p>
+        <ul>
+          <li>Floating point to integer <strong>truncates</strong> toward zero: <code>(int)9.99</code> is <code>9</code> and <code>(int)-9.99</code> is <code>-9</code>. Use <code>Math.Round</code>, <code>Math.Floor</code> or <code>Math.Ceiling</code> first when you want something else.</li>
+          <li>Integer to a smaller integer keeps only the low bits, so an out-of-range value <strong>wraps around</strong>: <code>(byte)300</code> is <code>44</code>, because 300 &minus; 256 = 44.</li>
+          <li><code>Math.Round</code> uses <em>banker's rounding</em> by default: a value exactly halfway goes to the even neighbour, so <code>2.5</code> rounds to <code>2</code> and <code>3.5</code> to <code>4</code>. Pass <code>MidpointRounding.AwayFromZero</code> for school rounding.</li>
+        </ul>
+
+        <h3 id="checked">checked Conversions</h3>
+        <p>Silent wrap-around hides bugs. Inside a <code>checked</code> expression or block, an integer conversion or arithmetic operation that overflows throws an <code>OverflowException</code> instead. You can also turn checking on for a whole project with <code>&lt;CheckForOverflowUnderflow&gt;true&lt;/CheckForOverflowUnderflow&gt;</code> in the <code>.csproj</code>, and use <code>unchecked</code> where wrapping is intended, as in hash code calculations.</p>
+        <pre><code class="language-csharp line-numbers">// Narrowing needs a cast: truncation, wrap-around and rounding rules.
+double price = 9.99;
+int whole = (int)price;                      // 9: the fraction is dropped
+int rounded = (int)Math.Round(price);        // 10
+Console.WriteLine($"{whole} {rounded}");
+
+Console.WriteLine($"{Math.Round(2.5)} {Math.Round(3.5)} {Math.Round(2.5, MidpointRounding.AwayFromZero)}");
+
+int big = 300;
+byte wrapped = (byte)big;                    // 44: only the low 8 bits survive
+Console.WriteLine(wrapped);
+
+try
+{
+    Console.WriteLine(checked((byte)big));   // throws instead of wrapping
+}
+catch (OverflowException ex)
+{
+    Console.WriteLine(ex.Message);
+}</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">9 10
+2 4 3
+44
+Arithmetic operation resulted in an overflow.</code></pre>
+
+        <h2 id="parse">Parsing Text</h2>
+        <p>Text that <em>looks</em> like a number is still a <code>string</code>; no cast can turn <code>"42"</code> into <code>42</code>. Every numeric type, as well as <code>bool</code>, <code>DateTime</code>, <code>Guid</code> and enums, offers two methods:</p>
+        <ul>
+          <li><code>Parse</code> returns the value and throws a <code>FormatException</code> (or <code>OverflowException</code>) when the text is not valid. Use it when bad text is a bug.</li>
+          <li><code>TryParse</code> returns <code>true</code> or <code>false</code> and hands the value back through an <code>out</code> parameter. Use it for anything a user typed or a file contained: invalid input is normal there, and exceptions are slow and noisy for expected cases.</li>
+        </ul>
+
+        <h3 id="culture">Culture and Invariant Parsing</h3>
+        <p>By default, parsing and formatting follow the <em>current culture</em> of the machine. <code>"3.14"</code> parses as 3.14 in the United States but fails, or means something else, where the decimal separator is a comma. For data exchanged between programs &mdash; configuration files, CSV, protocols &mdash; always pass <code>CultureInfo.InvariantCulture</code>; keep the current culture for text a person types or reads.</p>
+        <pre><code class="language-csharp line-numbers">// Parse throws on bad text; TryParse reports failure through its return value.
+using System.Globalization;
+
+string[] inputs = { "42", "-7", "3.5", "abc", "" };
+foreach (string s in inputs)
+{
+    if (int.TryParse(s, out int n))
+        Console.WriteLine($"'{s}' -&gt; {n}");
+    else
+        Console.WriteLine($"'{s}' -&gt; not an int");
+}
+
+double pi = double.Parse("3.14", CultureInfo.InvariantCulture);
+Console.WriteLine((pi * 2).ToString(CultureInfo.InvariantCulture));
+
+double german = double.Parse("3,14", CultureInfo.GetCultureInfo("de-DE"));
+Console.WriteLine(german.ToString(CultureInfo.InvariantCulture));
+
+bool flag = bool.Parse("True");
+DayOfWeek day = Enum.Parse&lt;DayOfWeek&gt;("Friday");
+Console.WriteLine($"{flag} {day} {(int)day}");</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">'42' -&gt; 42
+'-7' -&gt; -7
+'3.5' -&gt; not an int
+'abc' -&gt; not an int
+'' -&gt; not an int
+6.28
+3.14
+True Friday 5</code></pre>
+
+        <h2 id="convert">The Convert Class</h2>
+        <h3 id="convert-vs-cast">Convert vs Cast and Parse</h3>
+        <p><code>System.Convert</code> converts between all the built-in types with one family of methods (<code>ToInt32</code>, <code>ToDouble</code>, <code>ToBoolean</code>, <code>ToString</code>&hellip;). It differs from a cast and from <code>Parse</code> in ways worth memorising:</p>
+        <table class="table table-sm table-striped">
+          <thead><tr><th>Expression</th><th>Result</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td><code>(int)2.7</code></td><td><code>2</code></td><td>a cast truncates</td></tr>
+            <tr><td><code>Convert.ToInt32(2.7)</code></td><td><code>3</code></td><td><code>Convert</code> rounds</td></tr>
+            <tr><td><code>Convert.ToInt32(2.5)</code></td><td><code>2</code></td><td>&hellip;to even at the midpoint</td></tr>
+            <tr><td><code>int.Parse(null)</code></td><td>throws</td><td><code>ArgumentNullException</code></td></tr>
+            <tr><td><code>Convert.ToInt32((string?)null)</code></td><td><code>0</code></td><td><code>null</code> becomes the default value</td></tr>
+            <tr><td><code>Convert.ToInt32("ff", 16)</code></td><td><code>255</code></td><td>parses bases 2, 8, 10 and 16</td></tr>
+          </tbody>
+        </table>
+        <pre><code class="language-csharp line-numbers">// Convert rounds instead of truncating, and maps null to the default value.
+Console.WriteLine((int)2.7);
+Console.WriteLine(Convert.ToInt32(2.7));
+Console.WriteLine(Convert.ToInt32(2.5));
+Console.WriteLine(Convert.ToInt32(3.5));
+
+string? missing = null;
+Console.WriteLine(Convert.ToInt32(missing));
+
+Console.WriteLine(Convert.ToInt32("ff", 16));
+Console.WriteLine(Convert.ToString(255, 2));
+Console.WriteLine(Convert.ToBoolean("false"));</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">2
+3
+2
+4
+0
+255
+11111111
+False</code></pre>
+        <p>The silent <code>null</code>-to-<code>0</code> mapping is convenient for legacy data but can hide a missing value. In new code, <code>TryParse</code> usually states the intent better.</p>
+
+        <h2 id="safe">Reference Conversions and Patterns</h2>
+        <p>Converting a class to its base type or to an interface (an <em>upcast</em>) is implicit and always safe. Going back down (a <em>downcast</em>) is a claim that the object really is the more specific type; a cast <code>(string)obj</code> throws an <code>InvalidCastException</code> when the claim is wrong. C# gives you three ways to check first:</p>
+        <ul>
+          <li><code>obj is string s</code> tests the type and, if it matches, binds a variable <code>s</code> of that type. This is the everyday tool.</li>
+          <li><code>obj as string</code> returns the object as that type, or <code>null</code> if it is something else. It works only for reference and nullable types.</li>
+          <li>A <code>switch</code> expression with <em>type patterns</em> handles several types in one place, with optional <code>when</code> conditions. The patterns are tried from top to bottom.</li>
+        </ul>
+
+        <h3 id="pattern-cast">Pattern Matching on Type</h3>
+        <pre><code class="language-csharp line-numbers">// A switch expression tests types top to bottom and binds typed variables.
+object?[] items = { "hello", "hi", 42, 3.5, null, new List&lt;int&gt; { 1, 2 } };
+
+foreach (object? item in items)
+{
+    string description = item switch
+    {
+        null =&gt; "null",
+        string s when s.Length &gt; 3 =&gt; $"long string \"{s}\"",
+        string s =&gt; $"short string \"{s}\"",
+        int n =&gt; $"int {n}, doubled {n * 2}",
+        double d =&gt; $"double {d}",
+        IEnumerable&lt;int&gt; seq =&gt; $"sequence of {seq.Count()} ints",
+        _ =&gt; item.GetType().Name
+    };
+    Console.WriteLine(description);
+}</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">long string "hello"
+short string "hi"
+int 42, doubled 84
+double 3.5
+null
+sequence of 2 ints</code></pre>
+
+        <h3 id="boxing">Boxing and Unboxing</h3>
+        <p>Storing a value type such as <code>int</code> in an <code>object</code> variable <em>boxes</em> it: the runtime copies the value into a new object on the heap. Getting it back is <em>unboxing</em>, and it has one strict rule &mdash; you must unbox to the <strong>exact</strong> type that was boxed. A boxed <code>int</code> cannot be unboxed straight to <code>long</code>, even though <code>int</code> converts to <code>long</code> implicitly; unbox first, then convert. Boxing also costs an allocation, which is one reason generic collections like <code>List&lt;int&gt;</code> replaced the old <code>ArrayList</code>.</p>
+        <pre><code class="language-csharp line-numbers">// Unboxing must name the exact boxed type; as returns null instead of throwing.
+object boxed = 42;                 // boxing: the int is copied into an object
+int back = (int)boxed;             // unboxing to the exact type: fine
+Console.WriteLine(back);
+
+try
+{
+    long wrong = (long)boxed;      // a boxed int is not a boxed long
+    Console.WriteLine(wrong);
+}
+catch (InvalidCastException)
+{
+    Console.WriteLine("cannot unbox an int as long");
+}
+
+long right = (long)(int)boxed;     // unbox, then widen
+Console.WriteLine(right);
+
+string? text = boxed as string;    // no exception: just null
+Console.WriteLine(text is null ? "not a string" : text);</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">42
+cannot unbox an int as long
+42
+not a string</code></pre>
+
+        <h2 id="user-defined">User-Defined Conversions</h2>
+        <h3 id="conversion-operators">implicit and explicit Operators</h3>
+        <p>Your own types can declare conversions with <code>implicit operator</code> and <code>explicit operator</code>. Follow the same rule as the built-in types: make a conversion implicit only when it cannot fail and loses nothing, and explicit when it computes, rounds or can throw. Use them sparingly &mdash; a named method such as <code>ToFahrenheit()</code> is often clearer than a cast.</p>
+        <pre><code class="language-csharp line-numbers">// Conversion operators let a domain type behave like a built-in one.
+Celsius boiling = new(100);
+Fahrenheit f = (Fahrenheit)boiling;     // explicit: a calculation happens
+double raw = boiling;                   // implicit: just unwraps the number
+Console.WriteLine($"{boiling.Degrees} C = {f.Degrees} F, raw {raw}");
+
+readonly record struct Celsius(double Degrees)
+{
+    public static implicit operator double(Celsius c) =&gt; c.Degrees;
+    public static explicit operator Fahrenheit(Celsius c) =&gt; new(c.Degrees * 9 / 5 + 32);
+}
+
+readonly record struct Fahrenheit(double Degrees);</code></pre>
+        <p><b>Output:</b></p>
+        <pre><code class="language-output">100 C = 212 F, raw 100</code></pre>
+
+        <h2 id="practice">Practice</h2>
+        <h3 id="choosing">Choosing a Conversion</h3>
+        <table class="table table-sm table-striped">
+          <thead><tr><th>You have</th><th>You want</th><th>Use</th></tr></thead>
+          <tbody>
+            <tr><td>a number</td><td>a wider number</td><td>nothing: implicit</td></tr>
+            <tr><td>a number</td><td>a narrower number</td><td><code>(T)x</code>, inside <code>checked</code> if overflow is possible</td></tr>
+            <tr><td>a <code>double</code></td><td>a rounded integer</td><td><code>(int)Math.Round(x)</code></td></tr>
+            <tr><td>user or file text</td><td>a value</td><td><code>T.TryParse</code></td></tr>
+            <tr><td>text that must be valid</td><td>a value</td><td><code>T.Parse</code>, with <code>CultureInfo.InvariantCulture</code> for data</td></tr>
+            <tr><td>an <code>object</code></td><td>a specific type</td><td><code>is T t</code> or a <code>switch</code> pattern</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="exercises">Exercises</h3>
+        <ol>
+          <li>Read numbers as text from an array, skip the invalid ones with <code>TryParse</code>, and print the average rounded away from zero to the nearest integer.</li>
+          <li>Compute <code>int.MaxValue + 1</code> in a normal and in a <code>checked</code> context, and explain both results.</li>
+          <li>Write a method <code>Describe(object? value)</code> that uses a <code>switch</code> expression to print <code>bool</code>, <code>DateTime</code> and <code>int[]</code> values differently; make sure <code>null</code> is handled.</li>
+          <li>Add an <code>explicit operator Celsius(Fahrenheit f)</code> to the temperature example and convert 98.6 F back to Celsius.</li>
+        </ol>
+
+      </main>
+    </div>
+  </div>
+  <hr>
+  <footer class="footer copyright">
+    <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+  </footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+  <span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'csharp',
+    topicId: 'casting',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

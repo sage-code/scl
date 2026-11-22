@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+
+<html data-bs-theme="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>ADA: Data Types</title>
+<link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
+<link href="/images/favicon.ico" rel="icon" type="image/png"/>
+<link href="/assets/prism.css" rel="stylesheet"/>
+<script src="/assets/prism.js"></script>
+<link rel="stylesheet" href="/assets/css/sage-common.css">
+<link rel="stylesheet" href="/assets/css/content-topic.css">
+<link rel="stylesheet" href="/assets/css/content-sidebar.css">
+<link rel="stylesheet" href="/assets/css/content-code.css">
+<link rel="stylesheet" href="/assets/css/content-tables.css">
+<style>
+.side-bar { order: 1; }
+#main-content { order: 2; }
+@media (max-width: 991px) {
+  .side-bar { display: none; }
+  .side-bar.active { display: block; position: absolute; top: 100px; left: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.95); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<header class="container-fluid pb-2" id="dynamic-header"></header>
+<div class="container-fluid px-0">
+<div class="row g-0">
+<aside class="side-bar col-lg-3 col-12">
+<div class="sidebar-content shadow-sm p-3 sticky-top" id="study-sidebar">
+<div class="d-flex justify-content-between align-items-center mb-2">
+<h5 class="mb-0">Lab Topics</h5>
+</div>
+<hr/>
+<ul class="list-unstyled" id="bookmark-list"></ul>
+</div>
+</aside>
+<main class="col-lg-9 col-12 order-2 order-lg-1 p-3" id="main-content">
+<h1 id="ada-data-types">Ada: Data Types</h1>
+<p>Ada's type system is the language's core safety mechanism. Every value has exactly one type, distinct types never mix implicitly, and you can give a type a <em>range of valid values</em> that the compiler and run time both enforce. This page covers scalar types, subtypes, ranges, and derived types.</p>
+
+<h2 id="the-type-family">The Type Family</h2>
+<p>All Ada types fall into three families. The diagram is worth memorizing — every construct you meet later is somewhere on it:</p>
+<figure class="figure d-block mx-auto my-4">
+  <img src="/roadmaps/ada/img/ada-type-hierarchy.svg" class="figure-img img-fluid rounded" alt="The Ada type family: scalar, composite, and access types" loading="lazy">
+  <figcaption class="figure-caption text-center">Fig. 1 — Scalar types hold one value; composite types hold many; access types reference values.</figcaption>
+</figure>
+<table class="table table-bordered table-striped table-dark">
+  <thead><tr><th>Family</th><th>Predefined types</th><th>Typical use</th></tr></thead>
+  <tbody>
+    <tr><td>Integer types</td><td><code>Integer</code>, <code>Natural</code>, <code>Positive</code></td><td>Counts, indices, loop variables</td></tr>
+    <tr><td>Real types</td><td><code>Float</code>, <code>Long_Float</code>, fixed point</td><td>Measurements, physical quantities</td></tr>
+    <tr><td>Enumeration</td><td><code>Boolean</code>, <code>Character</code>, user-defined</td><td>States, modes, named choices</td></tr>
+    <tr><td>Composite</td><td><code>String</code>, arrays, <code>record</code></td><td>Structured data</td></tr>
+    <tr><td>Access</td><td>typed references</td><td>Linked structures, dynamic objects</td></tr>
+  </tbody>
+</table>
+
+<h2 id="defining-your-own-types">Defining Your Own Types</h2>
+<p>The predefined <code>Integer</code> is an implementation-defined size — fine for counts, useless for domain safety. Ada's <code>range</code> creates a new type that accepts only valid values:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+
+procedure Type_Demo is
+   -- A new integer type: values outside 1..31 are invalid by definition
+   type Day_Of_Month is range 1 .. 31;
+
+   -- A subtype: a restricted view of an existing type (no new checks beyond the range)
+   subtype Work_Hours is Integer range 0 .. 40;
+
+   Day    : Day_Of_Month := 15;
+   Hours  : Work_Hours   := 38;
+   Plain  : Integer      := 42;
+begin
+   --  Day := 32;           -- compile error: 32 is not in 1 .. 31
+   --  Hours := Day;        -- compile error: distinct types never mix
+   Plain  := Hours;        -- OK: a subtype IS its base type
+   Put_Line ("day " &amp; Day_Of_Month'Image (Day));
+end Type_Demo;
+</code></pre>
+<p>The distinction between <code>type</code> and <code>subtype</code> is central:</p>
+<ul>
+  <li><code>type Day_Of_Month is range 1 .. 31;</code> creates a <em>new type</em> — incompatible with <code>Integer</code> and with every other type, even one with the same range. Passing a bare <code>Integer</code> where a <code>Day_Of_Month</code> is expected is a compile error.</li>
+  <li><code>subtype Work_Hours is Integer range 0 .. 40;</code> is still <code>Integer</code> — fully interchangeable, but values are checked against 0..40 on assignment.</li>
+</ul>
+<p>Rule of thumb: <strong>type for meaning, subtype for validation</strong>. A <code>Meters</code> type stops you from adding meters to seconds; a <code>Percent</code> subtype stops any integer above 100.</p>
+
+<h2 id="derived-types">Derived Types</h2>
+<p><code>new</code> derives a type from an existing one, inheriting its operations — the foundation for domain models that still reuse arithmetic:</p>
+<pre><code class="language-ada">procedure Derived_Demo is
+   type Meters   is new Integer range 0 .. 10_000;  -- inherits +, -, =
+   type Seconds  is new Integer range 0 .. 3_600;   -- same base, different type
+
+   Distance : Meters  := 500;
+   Elapsed  : Seconds := 30;
+begin
+   --  Distance := Distance + Elapsed;   -- compile error: meters and seconds
+   --  ...deliberately refuse to mix. The fix is an explicit conversion:
+   Distance := Distance + Meters (Elapsed);  -- legal, but you wrote the intent
+   null;
+end Derived_Demo;
+</code></pre>
+<p>Explicit conversion (<code>Meters (Elapsed)</code>) is the only bridge between incompatible types — the compiler checks the value against the target range, and a violation raises <code>Constraint_Error</code> rather than silently truncating.</p>
+
+<h2 id="attributes">Attributes</h2>
+<p>Attributes are properties queried with a tick: they replace almost every "how big is X" question that C answers with headers or guesswork:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+
+procedure Attribute_Demo is
+   type Pressure is range 0 .. 4000;
+   P : Pressure := Pressure'First;   -- the smallest valid value
+begin
+   Put_Line ("first : " &amp; Pressure'Image (P));
+   Put_Line ("last  : " &amp; Pressure'Image (Pressure'Last));
+   Put_Line ("size  : " &amp; Integer'Image (Pressure'Size) &amp; " bits");
+   Put_Line ("image : " &amp; Boolean'Image (P = 0));   -- TRUE
+end Attribute_Demo;
+</code></pre>
+<p><code>'First</code>, <code>'Last</code>, <code>'Range</code>, <code>'Length</code>, <code>'Image</code>, and <code>'Value</code> are the six you will use daily. <code>'Value</code> parses text back into the type — and raises <code>Constraint_Error</code> on garbage instead of returning nonsense.</p>
+
+<h2 id="checked-at-run-time-too">Checked at Run Time Too</h2>
+<p>Range checks do not stop at compile time. A computed value that leaves the range raises <code>Constraint_Error</code> at the point of the bad assignment:</p>
+<pre><code class="language-ada">with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Exceptions; use Ada.Exceptions;
+
+procedure Overflow_Demo is
+   subtype Percent is Integer range 0 .. 100;
+begin
+   begin
+      declare
+         P : Percent := 90;
+      begin
+         P := P + 20;   -- 110 — out of range: raised HERE, at the assignment
+         Put_Line ("never printed");
+      end;
+   exception
+      when E : Constraint_Error =&gt;
+         Put_Line ("caught: " &amp; Exception_Message (E));
+   end;
+end Overflow_Demo;
+</code></pre>
+<p>In C this code silently wraps or, worse, is undefined. In Ada the failure is a named, catchable event at the exact line of the error. Next: <a href="/roadmaps/ada/expressions.html">Expressions</a>.</p>
+
+</main>
+</div>
+</div>
+<footer class="footer copyright">
+<p class="x-small text-secondary mb-0">© 2026 Sage-Code Laboratory</p>
+</footer>
+</div>
+<button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button">
+<span style="font-size: 24px;">&#9776;</span>
+</button>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'ada',
+    topicId: 'ada-data-types',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script defer="" src="/assets/js/sage.js"></script>
+<script defer="" src="/assets/js/topic-loader.js"></script>
+</body>
+</html>

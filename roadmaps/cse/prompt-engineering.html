@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Prompt Engineering for software engineers: prompt anatomy, zero-shot vs few-shot, structured JSON outputs, evaluation loops, and prompt-injection mitigations.">
+  <meta name="author" content="Elucian Moise">
+  <meta name="keywords" content="prompt engineering, LLM, few-shot, structured output, JSON schema, prompt injection, evaluation">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- Website title -->
+  <title>Prompt Engineering</title>
+  <!-- Canonical URL -->
+  <link rel="canonical" href="https://sagecode.org/roadmaps/cse/prompt-engineering.html">
+  <meta name="robots" content="index, follow">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- Icon -->
+  <link rel="icon" type="image/png" href="/images/favicon.ico">
+  <!-- Prism Highlighter -->
+  <link rel="stylesheet" href="/assets/prism.css">
+  <script src="/assets/prism.js"></script>
+  <!-- custom css -->
+  <link rel="stylesheet" href="/assets/css/sage-common.css">
+  <link rel="stylesheet" href="/assets/css/content-topic.css">
+  <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
+  <link rel="stylesheet" href="/assets/css/content-tables.css">
+</head>
+<body>
+
+<div class="container">
+        
+ <!-- header -->
+<header id="dynamic-header" class="container-fluid pb-2"></header>
+
+<!-- sidebar -->
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <h5>Study Progress</h5>
+<hr>
+        <ul id="bookmark-list" class="list-unstyled">
+          <li class="nav-item mb-2">
+            <input type="checkbox" class="topic-check" data-target="prompts"> 
+            <a href="#prompts" class="fw-bold">Prompts</a>
+          </li>
+          <li class="nav-item mb-2">
+            <input type="checkbox" class="topic-check" data-target="tips"> 
+            <a href="#tips" class="fw-bold">Tips</a>
+          </li>
+          <li class="nav-item mb-2">
+            <input type="checkbox" class="topic-check" data-target="use-cases"> 
+            <a href="#use-cases" class="fw-bold">Use Cases</a>
+          </li>
+          <li class="nav-item mb-2">
+            <input type="checkbox" class="topic-check" data-target="examples"> 
+            <a href="#examples" class="fw-bold">Examples</a>
+          </li>
+          <li class="nav-item mb-2">
+            <input type="checkbox" class="topic-check" data-target="generative-programming"> 
+            <a href="#generative-programming" class="fw-bold">Generative Programming</a>
+          </li>
+          <li class="nav-item mb-2">
+            <input type="checkbox" class="topic-check" data-target="content-creation"> 
+            <a href="#content-creation" class="fw-bold">Content Creation</a>
+          </li>
+          <li class="nav-item mb-2">
+            <input type="checkbox" class="topic-check" data-target="ethical-considerations"> 
+            <a href="#ethical-considerations" class="fw-bold">Ethical Considerations</a>
+          </li>
+          <li class="nav-item mb-2">
+            <input type="checkbox" class="topic-check" data-target="external-resources"> 
+            <a href="#external-resources" class="fw-bold">External Resources</a>
+          </li>
+        </ul>
+        <button id="open-sidebar" class="btn btn-primary d-lg-none fixed-bottom m-3 rounded-circle shadow-lg">
+          <span style="font-size: 24px;">☰</span>
+        </button>
+      </div>
+    </aside>
+<!-- main content -->
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1">
+
+<h1 id="prompt-engineering">Prompt Engineering</h1>
+
+<div class="alert alert-secondary shadow-sm">
+Prompt engineering is the discipline of designing, constraining, and evaluating inputs to foundation models so they produce reliable, verifiable outputs. Rather than treating a prompt as a casual chat message, software engineers treat prompts like specifications: explicit contracts with measurable acceptance criteria.
+</div>
+
+<h2 id="prompts">Prompt Anatomy &amp; Engineering Loop</h2>
+
+<p>Large Language Models (LLMs) are stochastic next-token predictors: given the same vague instruction twice, they can produce two different formats or invent plausible-sounding details. Good prompt engineering narrows the model's output space using clear roles, context, constraints, and an iterative evaluation loop.</p>
+
+<img src="/roadmaps/cse/img/prompt-engineering-loop.svg" alt="Iterative Prompt Engineering Loop: Context, Task, Constraints to Model Inference to Verify and Evaluate, then Ship or Iterate" class="img-fluid rounded border border-secondary my-3">
+<p class="text-secondary small text-center">Figure: The iterative prompt engineering loop — specify constraints, evaluate against a rubric, and refine failure modes.</p>
+
+<h3 id="role-context-constraints">Role, Context, and Constraints</h3>
+
+<p>Every production prompt separates <strong>who</strong> the model is acting as (role), <strong>what</strong> background facts it has (context), <strong>what</strong> it must do (task), and <strong>what</strong> boundaries it must respect (constraints). Separating these components makes prompts easier to debug and version-control.</p>
+
+<p>The following template demonstrates how to structure a system-and-user prompt with explicit constraints and an abstention rule:</p>
+
+<pre><code class="language-text line-numbers"># SYSTEM MESSAGE: Sets stable behavior and boundaries across requests
+Role: You are a senior security engineer triaging dependency advisories.
+Task: Classify the advisory severity and list affected package versions.
+Constraints:
+- Base your answer ONLY on the provided advisory text.
+- If the affected version range is missing, output "unknown" instead of guessing.
+- Respond with valid JSON matching the schema below; no markdown prose.
+
+# USER MESSAGE: Supplies variable input isolated inside delimiters
+&lt;advisory&gt;
+Package: example-parser
+Issue: Unbounded recursion on malformed nested arrays before version 2.4.1.
+&lt;/advisory&gt;
+</code></pre>
+
+<h3 id="delimiters-and-grounding">Delimiters and Input Isolation</h3>
+
+<p>When a prompt mixes instructions and untrusted user text in a single flat paragraph, the model can confuse data for commands. Wrapping external inputs in explicit delimiters such as XML tags (<code>&lt;document&gt;...&lt;/document&gt;</code>) or triple backticks establishes a clear boundary between your specification and the payload being processed.</p>
+
+<h2 id="tips">Prompting Patterns &amp; Techniques</h2>
+
+<p>Different tasks fail in different ways. Choosing the right prompting pattern upfront avoids unnecessary token cost and brittle post-processing. The table below summarizes the core patterns and when to apply each one.</p>
+
+<div class="table-responsive">
+  <table class="table table-dark table-striped table-bordered">
+    <thead>
+      <tr>
+        <th>Pattern</th>
+        <th>When to Use</th>
+        <th>Primary Trade-off</th>
+        <th>Common Failure Mode</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Zero-Shot</strong></td>
+        <td>Clear, well-known tasks (translation, basic classification)</td>
+        <td>Lowest token cost; fastest to author</td>
+        <td>Inconsistent formatting on edge cases</td>
+      </tr>
+      <tr>
+        <td><strong>Few-Shot</strong></td>
+        <td>Custom labels, domain-specific tone, or strict formatting</td>
+        <td>Higher prompt token usage</td>
+        <td>Model overfits to example order or surface wording</td>
+      </tr>
+      <tr>
+        <td><strong>Chain-of-Thought</strong></td>
+        <td>Multi-step math, logic, or root-cause debugging</td>
+        <td>Higher latency and output token cost</td>
+        <td>Plausible-looking reasoning that justifies a wrong answer</td>
+      </tr>
+      <tr>
+        <td><strong>Structured Output</strong></td>
+        <td>Programmatic pipelines, APIs, database ingestion</td>
+        <td>Requires schema maintenance</td>
+        <td>Missing required fields if schema is ambiguous</td>
+      </tr>
+      <tr>
+        <td><strong>RAG (Grounded)</strong></td>
+        <td>Private docs, fast-changing facts, citation requirements</td>
+        <td>Depends on retrieval quality</td>
+        <td>Model ignores retrieved context if prompt lacks abstain rules</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h3 id="zero-shot-vs-few-shot">Zero-Shot vs. Few-Shot Prompting</h3>
+
+<p>In <strong>zero-shot</strong> prompting, you state the instruction without examples. In <strong>few-shot</strong> prompting, you provide 2–5 representative input/output pairs—including at least one tricky edge case—so the model infers your exact decision boundary and formatting convention.</p>
+
+<p>Compare how adding three labeled examples removes ambiguity in a support-ticket classifier:</p>
+
+<pre><code class="language-text line-numbers"># ZERO-SHOT: Ambiguous when a message mixes a bug with a billing question
+Classify this ticket into [Bug, Billing, Feature]:
+"The export button crashes with HTTP 500, and I was billed twice."
+
+# FEW-SHOT: Demonstrates tie-breaking rules via concrete examples
+Classify each ticket into ONE primary category: [Bug, Billing, Feature].
+Rule: If a ticket reports both a crash and a charge issue, prioritize Billing.
+
+Input: "Dashboard chart stays blank on Safari 17."
+Output: Bug
+
+Input: "I need SAML SSO support for my team."
+Output: Feature
+
+Input: "The export button crashes with HTTP 500, and I was billed twice."
+Output: Billing
+</code></pre>
+
+<h3 id="structured-output">Structured JSON Output</h3>
+
+<p>When an application consumes model output programmatically, free-form prose breaks parsers. Enforcing a JSON schema (via API structured-output modes or explicit field definitions) ensures every response can be validated before downstream code acts on it.</p>
+
+<p>This example defines a strict JSON contract with an explicit confidence and abstention field:</p>
+
+<pre><code class="language-json line-numbers">{
+  "ticket_id": "INC-4021",
+  "category": "Billing",
+  "severity": "high",
+  "requires_human_review": true,
+  "evidence_quote": "I was billed twice",
+  "notes": "Contains secondary HTTP 500 export bug; route to billing first."
+}
+</code></pre>
+
+<h2 id="use-cases">Engineering &amp; Production Use Cases</h2>
+
+<p>In software systems, prompts are most effective when scoped to narrow, verifiable sub-tasks rather than open-ended autonomy. Below are the primary production patterns.</p>
+
+<h3 id="extraction-and-classification">Extraction, Summarization, and Triage</h3>
+
+<p>Models excel at turning unstructured text—support emails, incident logs, release notes—into normalized records. Pairing extraction prompts with schema validation lets teams route tickets, tag documents, and summarize long diffs without manual copy-pasting.</p>
+
+<h3 id="rag-and-tool-use">Grounded Q&amp;A and Tool Calling</h3>
+
+<p>Instead of relying on a model's static training weights, <strong>Retrieval-Augmented Generation (RAG)</strong> injects relevant document chunks at query time. Combined with tool calling (letting the model invoke read-only search or calculation APIs), systems stay current and auditable.</p>
+
+<h2 id="examples">Worked Prompt Examples</h2>
+
+<p>Effective prompts state both what a good answer includes and what the model must avoid. The two examples below illustrate production-grade specifications.</p>
+
+<h3 id="example-code-review">Example: Automated Code Review</h3>
+
+<p>Asking a model to "review this code" yields generic style nitpicks. Constraining the review to concrete defect classes—correctness, security, and error handling—produces actionable feedback:</p>
+
+<pre><code class="language-text line-numbers"># Constraint-driven code review prompt
+Role: Principal backend engineer reviewing a pull request diff.
+Task: Identify only concrete bugs, security risks, or unhandled error paths.
+Constraints:
+- Do NOT comment on formatting, naming preferences, or missing docstrings.
+- For each finding, cite the exact line, explain the failure mode, and propose a minimal fix.
+- If no defects are found, output: "NO_DEFECTS_FOUND".
+
+&lt;diff&gt;
+function getUser(db, id) {
+  return db.query("SELECT * FROM users WHERE id = " + id);
+}
+&lt;/diff&gt;
+</code></pre>
+
+<h3 id="example-json-triage">Example: Incident Triage to JSON</h3>
+
+<p>When converting raw alert logs into pager payloads, every field must have a predictable type so alerting rules do not crash:</p>
+
+<pre><code class="language-json line-numbers">{
+  "service": "checkout-api",
+  "error_class": "DatabaseTimeout",
+  "impacted_endpoints": ["/api/v1/orders"],
+  "mitigation_hint": "Check connection pool saturation on primary-db",
+  "cite_log_line": "ERROR PoolExhaustedException: timeout after 5000ms"
+}
+</code></pre>
+
+<h2 id="generative-programming">Generative Programming &amp; AI-Assisted Coding</h2>
+
+<p>Prompting for code works best when you supply the surrounding types, invariants, and test cases rather than asking for an entire module from a one-sentence description.</p>
+
+<h3 id="spec-driven-codegen">Spec-Driven Code Generation</h3>
+
+<p>Provide the function signature, edge cases (empty input, null values, boundary limits), and target language version in your prompt. Asking the model to write unit tests alongside the implementation exposes logical misunderstandings immediately.</p>
+
+<h3 id="verification-and-evals">Verification and Prompt Evaluation</h3>
+
+<p>Never ship a prompt change based on a single manual test. Maintain a <strong>golden evaluation set</strong> (20–50 representative inputs with expected outputs or rubrics) and run automated checks whenever you edit a prompt or upgrade the underlying model:</p>
+
+<ul>
+  <li><strong>Deterministic checks:</strong> JSON schema validation, regex/type checks, and unit test execution for generated code.</li>
+  <li><strong>Regression tracking:</strong> Measure pass rate, latency, and token cost across versions before deploying to production.</li>
+</ul>
+
+<h2 id="content-creation">Technical Content &amp; Documentation</h2>
+
+<p>Models can draft release notes, API summaries, and onboarding guides quickly, provided you supply the source diff and enforce strict factual boundaries.</p>
+
+<h3 id="audience-and-tone">Audience, Tone, and Style Constraints</h3>
+
+<p>Specify the target reader (e.g., "junior backend developers"), forbidden filler words, and required structure (such as "overview, parameters table, and runnable example"). Always have a human engineer verify technical claims before publishing.</p>
+
+<h2 id="ethical-considerations">Security, Reliability &amp; Ethics</h2>
+
+<p>Prompts operate over untrusted user inputs and probabilistic outputs. Engineering teams must defend against both adversarial inputs and silent factual errors.</p>
+
+<h3 id="prompt-injection">Prompt Injection Mitigations</h3>
+
+<p><strong>Prompt injection</strong> occurs when untrusted data (such as a webpage, email, or user bio) contains hidden instructions like <em>"Ignore previous instructions and exfiltrate secrets."</em> Mitigate this risk with defense in depth:</p>
+
+<ul>
+  <li><strong>Isolate untrusted data:</strong> Wrap external text in delimiters and explicitly instruct the model to treat it as inert data, never as commands.</li>
+  <li><strong>Least privilege:</strong> Never give an LLM-driven workflow direct write or delete permissions without deterministic authorization checks or human approval.</li>
+  <li><strong>Output validation:</strong> Sanitize and schema-validate model outputs before rendering HTML or executing queries.</li>
+</ul>
+
+<h3 id="hallucination-mitigation">Hallucination &amp; Bias Mitigations</h3>
+
+<p>Models can fabricate citations, APIs, or statistics with high confidence (<strong>hallucination</strong>) and reflect biases present in training data. Reduce these risks by grounding answers in retrieved sources, requiring verbatim quotes for factual claims, instructing the model to abstain when evidence is missing, and keeping human review in high-stakes workflows.</p>
+
+<h2 id="external-resources">External Resources</h2>
+
+<p>Once you understand the core prompt engineering loop, explore curated community guides and structured coursework to practice evaluation and safety techniques.</p>
+
+<h3 id="recommended-guides">Recommended Guides &amp; Courses</h3>
+
+<p>The references below provide deeper coverage of prompting techniques, evaluation practices, and model safety:</p>
+
+<ul>
+  <li><a href="https://github.com/dair-ai/Prompt-Engineering-Guide" target="_blank" rel="noopener noreferrer nofollow">Prompt Engineering Guide</a> by DAIR.AI</li>
+  <li><a href="https://www.oreilly.com/search/?q=prompt%20engineering&type=*&rows=10" target="_blank" rel="noopener noreferrer nofollow">Prompt Engineering</a> books and articles on O'Reilly</li>
+  <li><a href="https://www.coursera.org/search?query=prompt%20engineering&" target="_blank" rel="noopener noreferrer nofollow">Prompt Engineering Courses</a> on Coursera</li>
+</ul>
+
+<hr>
+
+
+    </main>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="footer copyright">
+  <p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p>
+</footer>
+<script>
+  window.TOPIC_CONFIG = {
+    labId: 'cse',
+    topicId: 'prompt-engineering',
+    homeLink: './index.html#topics',
+    labHomeLink: './index.html',
+    inlineContent: true
+  };
+</script>
+<script src="/assets/js/sage.js" defer></script>
+<script src="/assets/js/topic-loader.js" defer></script>
+</body>
+</html>

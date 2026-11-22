@@ -28,8 +28,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from validation_lib import H1_RE, H2_RE, read_text, sidebar_issues, validate_json_syntax  # noqa: E402
 
-HTML_ROOTS = ["roadmap", "projects", "community", "services", "layouts"]
-JSON_ROOTS = ["roadmap", "projects", "community"]
+HTML_ROOTS = ["roadmaps", "projects", "community", "services", "layouts"]
+JSON_ROOTS = ["roadmaps", "projects", "community"]
 JS_ROOTS = ["api", "assets/js", "community", "scripts"]
 PY_ROOTS = ["scripts"]
 
@@ -53,7 +53,7 @@ def check_json(path: Path) -> None:
     if err:
         fail(f"{rel}: {err}")
         return
-    if rel.startswith("roadmap/") and "/data/" in rel:
+    if rel.startswith("roadmaps/") and "/data/" in rel:
         for level, msg in sidebar_issues(data, rel):
             warn(msg) if level == "warn" else fail(msg)
 
@@ -84,7 +84,7 @@ def check_html(path: Path) -> None:
     parts = rel.split("/")
     is_topic_page = (
         len(parts) == 3
-        and parts[0] == "roadmap"
+        and parts[0] == "roadmaps"
         and parts[2] != "index.html"
     )
     # Redirect stubs (meta refresh) carry no content, so the heading standard does not apply.

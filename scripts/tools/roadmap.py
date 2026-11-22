@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 
 ROOT = Path.cwd()
-ROADMAP_DIR = ROOT / "roadmap"
+ROADMAP_DIR = ROOT / "roadmaps"
 OUTPUT_INDEX = ROADMAP_DIR / "roadmap-index.json"
 
 ENGINEERING_TRACKS = {"cse", "dsa", "dsl", "hpc", "tek", "dba", "sml", "osd", "pgp"}
@@ -83,8 +83,8 @@ def discover_roadmaps():
             "kind": kind,
             "title": title,
             "description": description,
-            "path": f"/roadmap/{name}/index.html",
-            "url": f"/roadmap/{name}/",
+            "path": f"/roadmaps/{name}/index.html",
+            "url": f"/roadmaps/{name}/",
             "topics": [],
             "count": 1,
         }
