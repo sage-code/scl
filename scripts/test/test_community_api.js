@@ -421,11 +421,11 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
   });
   assert.equal(badContact.status, 400);
 
-  // Education rows, certification_label, and Instructor/Mentor role rules.
+  // Education rows, certification_label, and Manager/Mentor role rules.
   await db.execute({ sql: "update users set is_admin = 1 where id = ?", args: [userId] });
   const withEdu = await request(communityProfile, "POST", {
     ...profileInput,
-    role: "Instructor",
+    role: "Manager",
     certification_label: "Web Developer",
     education_rows: [
       { institution: "MIT / US", year_started: "2018", year_ended: "2022" }
@@ -433,12 +433,12 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
     publish: true
   });
   assert.equal(withEdu.status, 200);
-  assert.equal(withEdu.body.profile.role, "Instructor");
+  assert.equal(withEdu.body.profile.role, "Manager");
   assert.equal(withEdu.body.profile.certification_label, "Web Developer");
   assert.equal(withEdu.body.profile.education_rows.length, 1);
   assert.equal(withEdu.body.profile.education_rows[0].institution, "MIT / US");
 
-  // Non-mentor cannot add a testimonial.
+  // Non-mentor/student cannot add a testimonial.
   const nonMentorTestimonial = {
     headers: {},
     statusCode: 200,
@@ -459,13 +459,13 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
   }, nonMentorTestimonial);
   assert.equal(nonMentorTestimonial.statusCode, 403);
 
-  // Mentor can add a testimonial and it appears on the profile.
+  // Manager can add a testimonial and it appears on the profile.
   const mentorTestimonial = await request(communityTestimonial, "POST", {
     user_id: publicId,
     content: "Excellent engineering skills."
   });
   assert.equal(mentorTestimonial.status, 201);
-  assert.equal(mentorTestimonial.body.testimonial.author_role, "Instructor");
+  assert.equal(mentorTestimonial.body.testimonial.author_role, "Manager");
 
   const withTestimonials = await request(
     communityMember,
@@ -479,16 +479,22 @@ test("user_id lookup, owner-only editing, contact/paragraphs, and automatic cert
   assert.equal(withTestimonials.body.profile.testimonials[0].content, "Excellent engineering skills.");
 });
 
-test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Student -> Developer; Instructor edits any role", async () => {
+test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Student -> Developer; Manager edits any role; Developer/Mentor testimonial rules", async () => {
   const now = new Date().toISOString();
   const studentId = "rbac-student";
   const studentToken = "rbac-student-token";
+  const devId = "rbac-dev";
+  const devToken = "rbac-dev-token";
   const mentorId = "rbac-mentor";
   const mentorToken = "rbac-mentor-token";
+  const managerId = "rbac-manager";
+  const managerToken = "rbac-manager-token";
 
   for (const [uid, tok, pubId, role] of [
     [studentId, studentToken, "rbac-student-pub", "Student"],
-    [mentorId, mentorToken, "rbac-mentor-pub", "Mentor"]
+    [devId, devToken, "rbac-dev-pub", "Developer"],
+    [mentorId, mentorToken, "rbac-mentor-pub", "Mentor"],
+    [managerId, managerToken, "rbac-manager-pub", "Manager"]
   ]) {
     await db.execute({
       sql: "insert into users (id, is_anonymous, is_admin, email_verified_at, last_seen_at) values (?, 0, 0, ?, ?)",
@@ -533,7 +539,16 @@ test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Studen
     return { status: res.statusCode, body: JSON.parse(res.body || "{}") };
   }
 
-  // Student cannot change own role.
+  // Retired Instructor role is rejected.
+  const retiredRole = await reqAs(managerToken, communityProfile, "POST", {
+    ...profileInput,
+    target_public_id: "rbac-student-pub",
+    display_name: "Student User",
+    role: "Instructor"
+  });
+  assert.equal(retiredRole.status, 400);
+
+  // Student and Developer cannot change own role.
   const studentSelfPromote = await reqAs(studentToken, communityProfile, "POST", {
     ...profileInput,
     display_name: "Student User",
@@ -541,13 +556,46 @@ test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Studen
   });
   assert.equal(studentSelfPromote.status, 403);
 
-  // Mentor cannot make himself Instructor.
+  const devSelfPromote = await reqAs(devToken, communityProfile, "POST", {
+    ...profileInput,
+    display_name: "Developer User",
+    role: "Mentor"
+  });
+  assert.equal(devSelfPromote.status, 403);
+
+  // Mentor cannot make himself Manager.
   const mentorSelfPromote = await reqAs(mentorToken, communityProfile, "POST", {
     ...profileInput,
     display_name: "Mentor User",
-    role: "Instructor"
+    role: "Manager"
   });
   assert.equal(mentorSelfPromote.status, 403);
+
+  // Developer can post testimonial for Student and for another Developer, but not for self or Mentor.
+  const devForStudent = await reqAs(devToken, communityTestimonial, "POST", {
+    user_id: "rbac-student-pub",
+    content: "Helpful student."
+  });
+  assert.equal(devForStudent.status, 201);
+
+  const devForSelf = await reqAs(devToken, communityTestimonial, "POST", {
+    user_id: "rbac-dev-pub",
+    content: "Self praise."
+  });
+  assert.equal(devForSelf.status, 403);
+
+  const devForMentor = await reqAs(devToken, communityTestimonial, "POST", {
+    user_id: "rbac-mentor-pub",
+    content: "Great mentor."
+  });
+  assert.equal(devForMentor.status, 403);
+
+  // Mentor can post testimonial on any profile (including Manager).
+  const mentorForManager = await reqAs(mentorToken, communityTestimonial, "POST", {
+    user_id: "rbac-manager-pub",
+    content: "Great leadership."
+  });
+  assert.equal(mentorForManager.status, 201);
 
   // Mentor viewing Student sees can_edit: true and allowed_roles: ["Student", "Developer"].
   const mentorViewsStudent = await reqAs(
@@ -561,12 +609,12 @@ test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Studen
   assert.equal(mentorViewsStudent.body.can_edit, true);
   assert.deepEqual(mentorViewsStudent.body.allowed_roles, ["Student", "Developer"]);
 
-  // Mentor cannot promote Student to Mentor or Instructor.
+  // Mentor cannot promote Student to Mentor or Manager.
   const mentorOverPromote = await reqAs(mentorToken, communityProfile, "POST", {
     ...profileInput,
     target_public_id: "rbac-student-pub",
     display_name: "Student User",
-    role: "Instructor"
+    role: "Manager"
   });
   assert.equal(mentorOverPromote.status, 403);
 
@@ -580,6 +628,13 @@ test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Studen
   assert.equal(mentorPromotesStudent.status, 200);
   assert.equal(mentorPromotesStudent.body.profile.role, "Developer");
 
+  // Now that rbac-student-pub is a Developer, rbac-dev CAN post a testimonial for them.
+  const devForOtherDev = await reqAs(devToken, communityTestimonial, "POST", {
+    user_id: "rbac-student-pub",
+    content: "Welcome to Developer!"
+  });
+  assert.equal(devForOtherDev.status, 201);
+
   // Mentor can no longer edit once target is Developer.
   const mentorEditDev = await reqAs(mentorToken, communityProfile, "POST", {
     ...profileInput,
@@ -588,14 +643,13 @@ test("RBAC: Student/Developer/Mentor cannot change own role; Mentor edits Studen
   });
   assert.equal(mentorEditDev.status, 403);
 
-  // Instructor CAN edit Developer and promote to Mentor or Instructor.
-  await db.execute({ sql: "update users set is_admin = 1 where id = ?", args: [userId] });
-  const instructorPromotes = await request(communityProfile, "POST", {
+  // Manager (even with is_admin=0) CAN edit any profile and promote to Mentor or Manager.
+  const managerPromotes = await reqAs(managerToken, communityProfile, "POST", {
     ...profileInput,
     target_public_id: "rbac-student-pub",
-    display_name: "New Instructor",
-    role: "Instructor"
+    display_name: "New Manager",
+    role: "Manager"
   });
-  assert.equal(instructorPromotes.status, 200);
-  assert.equal(instructorPromotes.body.profile.role, "Instructor");
+  assert.equal(managerPromotes.status, 200);
+  assert.equal(managerPromotes.body.profile.role, "Manager");
 });

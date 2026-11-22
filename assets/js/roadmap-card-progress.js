@@ -507,11 +507,17 @@
     }
   }
 
-  function normalizeStatusMap(statusMap) {
+  function normalizeStatusMap(statusMap, validKeys) {
     var map = statusMap || {};
     var changed = false;
 
     Object.keys(map).forEach(function (key) {
+      if (validKeys && !validKeys.has(key)) {
+        delete map[key];
+        changed = true;
+        return;
+      }
+
       var normalized = normalizeStatus(map[key]);
       if (normalized === STATUS_NOT_STARTED) {
         delete map[key];
@@ -542,7 +548,8 @@
       return;
     }
 
-    var statusMap = normalizeStatusMap(migrateAnonymousStatusMap(readStatusMap()));
+    var validKeys = new Set(cards.map(topicKeyForCard).filter(Boolean));
+    var statusMap = normalizeStatusMap(migrateAnonymousStatusMap(readStatusMap()), validKeys);
     var remoteStatsByTrack = {};
     var localKeys = collectLocalStorageKeys();
 

@@ -30,6 +30,7 @@ module.exports = handle(async (req, res) => {
             left join community_members c on c.user_id = u.id
             where u.handle is not null
               and u.is_anonymous = 0
+              and lower(p.roadmap_code) not in ('romanian', 'english')
               and (p.updated_at >= ? or u.last_seen_at >= ?)
             group by u.id
             having count(p.topic_key) > 0
@@ -48,6 +49,7 @@ module.exports = handle(async (req, res) => {
             join roadmap_progress p on p.user_id = u.id
             where u.handle is not null
               and u.is_anonymous = 0
+              and lower(p.roadmap_code) not in ('romanian', 'english')
               and (p.updated_at >= ? or u.last_seen_at >= ?)
             group by u.id
             having count(p.topic_key) > 0

@@ -18,10 +18,9 @@
   var viewButtons = Array.prototype.slice.call(document.querySelectorAll('[data-community-view]'));
 
   var CORE_ROLES = new Set([
-    'instructor',
+    'manager',
     'mentor',
     'developer',
-    'manager',
     'ux/ui designer',
     'content creator',
     'qa inspector',
@@ -321,7 +320,7 @@
     setActiveButton(targetView);
 
     if (targetView === 'core') {
-      setStatus('Core Team: Instructors, Mentors and Developers', 'info');
+      setStatus('Core Team: Managers, Mentors and Developers', 'info');
     } else if (targetView === 'learners') {
       setStatus("Loading Who's Learning…", 'info');
     } else if (targetView === 'top-score') {
@@ -350,7 +349,7 @@
     }
 
     if (targetView === 'core') {
-      setStatus('Core Team: Instructors, Mentors and Developers', 'info');
+      setStatus('Core Team: Managers, Mentors and Developers', 'info');
     } else if (targetView === 'learners') {
       setStatus(
         rows.length

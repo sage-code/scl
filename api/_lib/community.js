@@ -11,7 +11,7 @@ const MAX_PROJECT_DESC = 200;
 const MAX_PARAGRAPHS = 5;
 const MAX_PARAGRAPH_HEADING = 80;
 const MAX_PARAGRAPH_BODY = 1000;
-const VALID_ROLES = ["Student", "Developer", "Mentor", "Instructor"];
+const VALID_ROLES = ["Student", "Developer", "Mentor", "Manager"];
 
 const TRACK_LABELS = {
   ada: "Ada", assembly: "Assembly", bash: "Bash", c: "C", cpp: "C++",
@@ -160,7 +160,7 @@ function validateProfile(body) {
   if (body.role !== undefined) {
     role = typeof body.role === "string" ? body.role.trim() : "";
     if (role && VALID_ROLES.indexOf(role) === -1) {
-      throw new HttpError(400, "Role must be Student, Developer, Mentor, or Instructor.");
+      throw new HttpError(400, "Role must be Student, Developer, Mentor, or Manager.");
     }
     role = role || undefined;
   }
@@ -455,7 +455,7 @@ async function getViewerRoleInfo(userId) {
 }
 
 function getAllowedRolesForEdit(viewerInfo, isOwner, targetRole) {
-  if (viewerInfo.isAdmin || viewerInfo.role === "Instructor") {
+  if (viewerInfo.isAdmin || viewerInfo.role === "Manager") {
     return VALID_ROLES.slice();
   }
   if (!isOwner && viewerInfo.role === "Mentor" && targetRole === "Student") {
@@ -466,8 +466,31 @@ function getAllowedRolesForEdit(viewerInfo, isOwner, targetRole) {
 
 function canEditProfile(viewerInfo, isOwner, targetRole) {
   if (isOwner) return true;
-  if (viewerInfo.isAdmin || viewerInfo.role === "Instructor") return true;
+  if (viewerInfo.isAdmin || viewerInfo.role === "Manager") return true;
   if (viewerInfo.role === "Mentor" && targetRole === "Student") return true;
+  return false;
+}
+
+function canPostTestimonial(authorInfo, authorUserId, targetUserId, targetRole) {
+  if (!authorUserId || !authorInfo) {
+    return false;
+  }
+  if (authorInfo.isAdmin || authorInfo.isLegacyVerified) {
+    return true;
+  }
+  const authorRole = String(authorInfo.role || "").trim().toLowerCase();
+  if (authorRole === "manager" || authorRole === "mentor") {
+    return true;
+  }
+  if (authorRole === "developer") {
+    const tRole = String(targetRole || "Student").trim().toLowerCase();
+    if (tRole === "student") {
+      return true;
+    }
+    if (tRole === "developer" && authorUserId !== targetUserId) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -475,7 +498,7 @@ async function isMentorUser(userId) {
   const info = await getViewerRoleInfo(userId);
   if (info.isAdmin || info.isLegacyVerified) return true;
   const r = String(info.role || "").trim().toLowerCase();
-  return r === "mentor" || r === "instructor";
+  return r === "mentor" || r === "manager";
 }
 
 async function getMemberByPublicId(publicId) {
@@ -493,21 +516,21 @@ async function getMemberByPublicId(publicId) {
 }
 
 async function addTestimonial(authorUserId, targetPublicId, rawContent) {
-  const isMentor = await isMentorUser(authorUserId);
-  if (!isMentor) {
-    throw new HttpError(403, "Only verified mentors can add testimonials.");
-  }
   const content = typeof rawContent === "string" ? rawContent.trim() : "";
   if (!content || content.length > 1000) {
     throw new HttpError(400, "Testimonial must be 1 to 1000 characters.");
   }
   const targetRes = await getDb().execute({
-    sql: "select user_id from community_members where public_id = ? and is_published = 1 limit 1",
+    sql: "select user_id, role from community_members where public_id = ? and is_published = 1 limit 1",
     args: [targetPublicId]
   });
   const target = targetRes.rows[0];
   if (!target) {
     throw new HttpError(404, "Target community profile not found.");
+  }
+  const authorInfo = await getViewerRoleInfo(authorUserId);
+  if (!canPostTestimonial(authorInfo, authorUserId, target.user_id, target.role)) {
+    throw new HttpError(403, "You do not have permission to add a testimonial to this profile.");
   }
   const authorRes = await getDb().execute({
     sql: "select display_name, role from community_members where user_id = ? limit 1",
@@ -574,7 +597,7 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
   const targetRole = row.role || "Student";
   const canEdit = canEditProfile(viewerInfo, isOwner, targetRole);
   const allowedRoles = getAllowedRolesForEdit(viewerInfo, isOwner, targetRole);
-  const canAddTestimonial = await isMentorUser(viewerUserId);
+  const canAddTestimonial = canPostTestimonial(viewerInfo, viewerUserId, row.user_id, targetRole);
   const isPublished = Number(row.is_published) === 1;
   const isPreQuizOwnerDraft = !isPublished && !row.claimed_at && isOwner;
   if (!isPublished && !isPreQuizOwnerDraft) {
