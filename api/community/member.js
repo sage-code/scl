@@ -24,6 +24,7 @@ module.exports = handle(async (req, res) => {
     is_owner: result.is_owner,
     can_edit: result.can_edit,
     allowed_roles: result.allowed_roles,
-    can_add_testimonial: result.can_add_testimonial
+    can_add_testimonial: result.can_add_testimonial,
+    can_approve_projects: Boolean(result.can_approve_projects)
   });
 });

@@ -102,7 +102,7 @@
         html += '<td class="text-center"><a href="' + escapeHtml(srcHref) + '" target="_blank" rel="noopener noreferrer nofollow" title="GitHub Repository">GitHub</a></td>';
         html += '<td class="text-center">'
           + '<button type="button" class="btn ' + joinClass + ' btn-sm rounded-circle project-row-edit-btn project-row-join-btn" data-join-id="' + escapeHtml(p.id) + '" aria-label="' + escapeHtml(joinTitle) + '" title="' + escapeHtml(joinTitle) + '">'
-          + '<span aria-hidden="true">✋</span>'
+          + '<span aria-hidden="true">✋🏾</span>'
           + "</button></td>";
         if (state.canEdit) {
           html += '<td class="text-center">'
