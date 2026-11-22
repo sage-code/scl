@@ -100,9 +100,37 @@
     var idText = formatIdentity().replace(/^Learner-/i, "");
     setText(document.getElementById("roadmap-user-title"), role + ":" + idText);
 
-    var inlineSignout = document.getElementById("roadmap-inline-signout");
-    if (inlineSignout) {
-      inlineSignout.hidden = !isRegistered();
+    var userAvatar = document.getElementById("roadmap-user-avatar");
+    if (userAvatar) {
+      var placeholder = "/assets/images/avatar-placeholder.svg";
+      var avatarUrl = (state.user && typeof state.user.avatar_url === "string" && state.user.avatar_url.trim())
+        ? state.user.avatar_url.trim()
+        : placeholder;
+      userAvatar.src = avatarUrl;
+      userAvatar.alt = idText + " avatar";
+      if (userAvatar.dataset.fallbackWired !== "true") {
+        userAvatar.dataset.fallbackWired = "true";
+        userAvatar.addEventListener("error", function () {
+          if (userAvatar.getAttribute("src") !== placeholder) {
+            userAvatar.src = placeholder;
+          }
+        });
+      }
+    }
+
+    var userLink = document.getElementById("roadmap-user-link");
+    if (userLink) {
+      var confirmedMember = isRegistered() && !!(state.user && state.user.email_verified);
+      var publicId = state.user && (state.user.community_public_id || state.user.handle);
+      if (confirmedMember && publicId) {
+        setHref(userLink, "/community/profile.html?user_id=" + encodeURIComponent(publicId));
+        userLink.setAttribute("aria-label", "Open community profile for " + idText);
+        userLink.setAttribute("title", "View your community profile");
+      } else {
+        setHref(userLink, "/roadmap/profile.html" + currentReturnParam());
+        userLink.setAttribute("aria-label", "Open your profile");
+        userLink.setAttribute("title", "Open your learner profile");
+      }
     }
   }
 
@@ -142,6 +170,7 @@
 
     if (loginAction) {
       setButtonLabel(loginAction, registered ? "SIGN OUT" : "SIGN IN");
+      setButtonIcon(loginAction, registered ? "bi bi-box-arrow-right" : "bi bi-box-arrow-in-right");
       setHref(loginAction, registered ? "#roadmap-logout" : ("/roadmap/login.html" + returnSuffix));
       loginAction.setAttribute("aria-label", registered ? "Sign out of roadmap account" : "Sign in to roadmap account");
     }
@@ -403,14 +432,6 @@
         }
 
         event.preventDefault();
-        signOut();
-      });
-    }
-
-    var inlineSignout = document.getElementById("roadmap-inline-signout");
-    if (inlineSignout && inlineSignout.dataset.roadmapWired !== "true") {
-      inlineSignout.dataset.roadmapWired = "true";
-      inlineSignout.addEventListener("click", function () {
         signOut();
       });
     }

@@ -9,7 +9,6 @@ const HERO_CARET_DOWN_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fil
 document.addEventListener("DOMContentLoaded", function () {
     normalizeLocalPublicLinks();
     initDynamicHeader();
-    initNavAuthLink();
     initHeroVisibilityToggle();
     wireHomeLogoTypewriterTrigger();
     initTooltips();
@@ -65,7 +64,6 @@ function initDynamicHeader() {
                         <li><a href="/projects/">Projects</a></li>
                         <li><a href="/services/">Services</a></li>
                         <li><a href="/community/">Community</a></li>
-                        <li><a href="/roadmap/login.html" id="nav-auth-link" data-auth-state="signed-out">Sign In</a></li>
                     </ul>
                 </nav>
             </div>
@@ -149,88 +147,6 @@ function wireHamburgerMenu() {
             btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         });
     }
-}
-
-function initNavAuthLink() {
-    const authLink = document.getElementById('nav-auth-link');
-    if (!authLink) return;
-
-    const path = window.location.pathname || '/';
-    const loginHref = path.startsWith('/public/') ? '/public/roadmap/login.html' : '/roadmap/login.html';
-    let signingOut = false;
-
-    function applyAuthState(isSignedIn) {
-        if (isSignedIn) {
-            authLink.textContent = 'Sign Out';
-            authLink.setAttribute('href', '#sign-out');
-            authLink.dataset.authState = 'signed-in';
-            authLink.setAttribute('aria-label', 'Sign out of Sage-Code account');
-        } else {
-            authLink.textContent = 'Sign In';
-            authLink.setAttribute('href', loginHref);
-            authLink.dataset.authState = 'signed-out';
-            authLink.setAttribute('aria-label', 'Sign in to Sage-Code account');
-        }
-    }
-
-    if (authLink.dataset.navAuthWired !== 'true') {
-        authLink.dataset.navAuthWired = 'true';
-        authLink.addEventListener('click', async function (event) {
-            if (authLink.dataset.authState !== 'signed-in') {
-                return;
-            }
-            event.preventDefault();
-            if (signingOut) return;
-            signingOut = true;
-            try {
-                if (window.roadmapState && typeof window.roadmapState.signOut === 'function') {
-                    await window.roadmapState.signOut();
-                    return;
-                }
-                if (window.sclApi && window.sclApi.auth && typeof window.sclApi.auth.logout === 'function') {
-                    await window.sclApi.auth.logout();
-                } else {
-                    await fetch('/api/auth/logout/', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-                        body: '{}'
-                    });
-                }
-                applyAuthState(false);
-                window.location.reload();
-            } catch (e) {
-                signingOut = false;
-            }
-        });
-    }
-
-    window.addEventListener('roadmap-auth-changed', function (event) {
-        const registered = Boolean(event && event.detail && event.detail.registered);
-        applyAuthState(registered);
-    });
-
-    if (window.roadmapState && typeof window.roadmapState.isRegistered === 'function') {
-        applyAuthState(window.roadmapState.isRegistered());
-        return;
-    }
-
-    fetch('/api/auth/session/', {
-        method: 'GET',
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' }
-    })
-        .then(function (response) {
-            if (!response.ok) return null;
-            return response.json();
-        })
-        .then(function (payload) {
-            const user = payload && payload.user ? payload.user : null;
-            applyAuthState(Boolean(user && !user.is_anonymous));
-        })
-        .catch(function () {
-            applyAuthState(false);
-        });
 }
 
 /**
