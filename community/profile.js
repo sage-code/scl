@@ -13,6 +13,9 @@
   var allowedRoles = [];
   var canAddTestimonial = false;
   var canApproveProjects = false;
+  var contributorEditMode = false;
+  var draftContributors = [];
+  var contributorRemovedIds = [];
   var projectsEditMode = false;
   var editingProjectIndex = -1;
   var draftProjects = [];
@@ -721,19 +724,29 @@
     var section = document.getElementById("profile-contributor-section");
     var tbody = document.getElementById("profile-contributor-body");
     var actionCol = document.getElementById("contributor-action-col");
+    var managerControls = document.getElementById("contributor-manager-controls");
+    var editBtn = document.getElementById("contributor-edit-btn");
+    var saveBtn = document.getElementById("contributor-save-btn");
+    var cancelBtn = document.getElementById("contributor-cancel-btn");
     if (!section || !tbody) return;
 
-    var requests = Array.isArray(profile && profile.project_requests) ? profile.project_requests : [];
+    var sourceRequests = Array.isArray(profile && profile.project_requests) ? profile.project_requests : [];
+    var requests = contributorEditMode ? draftContributors : sourceRequests;
     tbody.replaceChildren();
 
-    if (requests.length === 0) {
+    if (managerControls) managerControls.hidden = !canApproveProjects;
+    if (editBtn) editBtn.hidden = !canApproveProjects || contributorEditMode;
+    if (saveBtn) saveBtn.hidden = !canApproveProjects || !contributorEditMode;
+    if (cancelBtn) cancelBtn.hidden = !canApproveProjects || !contributorEditMode;
+
+    if (sourceRequests.length === 0 && !contributorEditMode) {
       section.hidden = true;
       return;
     }
 
-    var canRemove = isOwner || canApproveProjects;
+    var showRemoveCol = isOwner || (canApproveProjects && contributorEditMode);
     if (actionCol) {
-      actionCol.hidden = !canRemove;
+      actionCol.hidden = !showRemoveCol;
     }
 
     requests.forEach(function (item) {
@@ -763,40 +776,37 @@
       checkbox.type = "checkbox";
       checkbox.className = "form-check-input";
       checkbox.checked = item.status === "approved";
-      checkbox.disabled = !canApproveProjects;
+      checkbox.disabled = !(canApproveProjects && contributorEditMode);
       checkbox.setAttribute("aria-label", "Approved for " + (item.project_name || "project"));
-      if (canApproveProjects) {
-        checkbox.addEventListener("change", async function () {
-          checkbox.disabled = true;
-          var res = await window.sclApi.projects.approveContributor(item.id, checkbox.checked);
-          checkbox.disabled = false;
-          if (res.error) {
-            checkbox.checked = !checkbox.checked;
-            showInlineStatus("status-contributor", res.error.message, "danger");
-            return;
-          }
-          item.status = (res.data && res.data.status) || (checkbox.checked ? "approved" : "pending");
+      if (canApproveProjects && contributorEditMode) {
+        checkbox.addEventListener("change", function () {
+          item.status = checkbox.checked ? "approved" : "pending";
           tdStatus.textContent = item.status === "approved" ? "Approved" : "Pending";
-          showInlineStatus("status-contributor", "", "info");
         });
       }
       tdApproved.append(checkbox);
 
       tr.append(tdProject, tdStatus, tdApproved);
 
-      if (canRemove) {
+      if (showRemoveCol) {
         var tdAction = document.createElement("td");
         tdAction.className = "text-center";
-        var cancelBtn = document.createElement("button");
-        cancelBtn.type = "button";
-        cancelBtn.className = "btn btn-outline-danger btn-sm";
-        cancelBtn.title = "Cancel request and unsubscribe";
-        cancelBtn.setAttribute("aria-label", "Cancel request and unsubscribe from " + (item.project_name || "project"));
-        cancelBtn.textContent = "×";
-        cancelBtn.addEventListener("click", async function () {
-          cancelBtn.disabled = true;
+        var cancelRowBtn = document.createElement("button");
+        cancelRowBtn.type = "button";
+        cancelRowBtn.className = "btn btn-outline-danger btn-sm";
+        cancelRowBtn.title = contributorEditMode ? "Remove request" : "Cancel request and unsubscribe";
+        cancelRowBtn.setAttribute("aria-label", "Remove request for " + (item.project_name || "project"));
+        cancelRowBtn.textContent = "×";
+        cancelRowBtn.addEventListener("click", async function () {
+          if (contributorEditMode) {
+            contributorRemovedIds.push(item.id);
+            draftContributors = draftContributors.filter(function (r) { return r.id !== item.id; });
+            renderContributorTable(currentProfile);
+            return;
+          }
+          cancelRowBtn.disabled = true;
           var res = await window.sclApi.projects.leaveProject(item.id);
-          cancelBtn.disabled = false;
+          cancelRowBtn.disabled = false;
           if (res.error) {
             showInlineStatus("status-contributor", res.error.message, "danger");
             return;
@@ -807,7 +817,7 @@
           renderContributorTable(currentProfile);
           showInlineStatus("status-contributor", "", "info");
         });
-        tdAction.append(cancelBtn);
+        tdAction.append(cancelRowBtn);
         tr.append(tdAction);
       }
 
@@ -815,6 +825,67 @@
     });
 
     section.hidden = false;
+  }
+
+  function wireManagerContributorControls() {
+    var editBtn = document.getElementById("contributor-edit-btn");
+    var saveBtn = document.getElementById("contributor-save-btn");
+    var cancelBtn = document.getElementById("contributor-cancel-btn");
+    if (!editBtn || !saveBtn || !cancelBtn) return;
+
+    editBtn.addEventListener("click", function () {
+      draftContributors = (currentProfile.project_requests || []).map(function (r) {
+        return { ...r };
+      });
+      contributorRemovedIds = [];
+      contributorEditMode = true;
+      showInlineStatus("status-contributor", "", "info");
+      renderContributorTable(currentProfile);
+    });
+
+    cancelBtn.addEventListener("click", function () {
+      contributorEditMode = false;
+      draftContributors = [];
+      contributorRemovedIds = [];
+      showInlineStatus("status-contributor", "", "info");
+      renderContributorTable(currentProfile);
+    });
+
+    saveBtn.addEventListener("click", async function () {
+      saveBtn.disabled = true;
+      for (var i = 0; i < contributorRemovedIds.length; i += 1) {
+        var delRes = await window.sclApi.projects.leaveProject(contributorRemovedIds[i]);
+        if (delRes.error) {
+          saveBtn.disabled = false;
+          showInlineStatus("status-contributor", delRes.error.message, "danger");
+          return;
+        }
+      }
+
+      var origById = {};
+      (currentProfile.project_requests || []).forEach(function (r) { origById[r.id] = r; });
+
+      for (var j = 0; j < draftContributors.length; j += 1) {
+        var draft = draftContributors[j];
+        var orig = origById[draft.id];
+        if (orig && orig.status !== draft.status) {
+          var appRes = await window.sclApi.projects.approveContributor(draft.id, draft.status === "approved");
+          if (appRes.error) {
+            saveBtn.disabled = false;
+            showInlineStatus("status-contributor", appRes.error.message, "danger");
+            return;
+          }
+        }
+      }
+
+      saveBtn.disabled = false;
+      currentProfile.project_requests = draftContributors.map(function (r) { return { ...r }; });
+      contributorEditMode = false;
+      draftContributors = [];
+      contributorRemovedIds = [];
+      showInlineStatus("status-contributor", "", "info");
+      renderContributorTable(currentProfile);
+    });
   }
 
   function renderProfile(profile) {
@@ -1186,6 +1257,9 @@
     renderProfile(result.data.profile);
     if (canEdit) {
       wireOwnerControls();
+    }
+    if (canApproveProjects) {
+      wireManagerContributorControls();
     }
     if (canAddTestimonial) {
       wireMentorTestimonialControls();
