@@ -703,7 +703,11 @@ async function getPublicMemberWithOwnership(publicId, viewerUserId) {
   const testimonials = await listTestimonials(row.user_id, viewerUserId);
   const trackedRoadmaps = await getTrackedRoadmaps(row.user_id);
   const projectRequests = await getProjectContributions(row.user_id);
-  const canApproveProjects = Boolean(viewerInfo.isAdmin || viewerInfo.role === "Manager" || viewerInfo.isLegacyVerified);
+  const canApproveProjects = Boolean(
+    viewerInfo.isAdmin
+    || String(viewerInfo.role || "").trim().toLowerCase() === "manager"
+    || viewerInfo.isLegacyVerified
+  );
   if (Number(row.is_legacy_verified) === 1 || isOwner || canEdit) {
     return {
       profile: publicMemberFromRow(row, qualifiedTracks, testimonials, trackedRoadmaps, projectRequests),
