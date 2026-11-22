@@ -1,14 +1,14 @@
 "use strict";
 
-// Shared Turso (libSQL) client. Env names follow the Vercel Turso integration
-// (SCL_DATABASE_ prefix) with plain TURSO_* as a fallback.
+// Shared Turso (libSQL) client. Prefers plain TURSO_* env vars with
+// Vercel Turso integration (SCL_DATABASE_*) as a fallback.
 
 let client = null;
 
 function databaseConfig() {
   return {
-    url: process.env.SCL_DATABASE_TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL || "",
-    authToken: process.env.SCL_DATABASE_TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || undefined
+    url: process.env.TURSO_DATABASE_URL || process.env.SCL_DATABASE_TURSO_DATABASE_URL || "",
+    authToken: process.env.TURSO_AUTH_TOKEN || process.env.SCL_DATABASE_TURSO_AUTH_TOKEN || undefined
   };
 }
 

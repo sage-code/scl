@@ -2,7 +2,6 @@
 
 const { getDb } = require("../_lib/db");
 const { HttpError, sendJson, handle } = require("../_lib/http");
-const { requireRegistered } = require("../_lib/session");
 
 const WINDOW_DAYS = 30;
 const MAX_LEARNERS = 50;
@@ -12,14 +11,14 @@ module.exports = handle(async (req, res) => {
     throw new HttpError(405, "Method not allowed.");
   }
 
-  await requireRegistered(req);
-
   const cutoff = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const db = getDb();
   let result;
   try {
     result = await db.execute({
       sql: `select u.handle,
+                   max(c.public_id) as public_id,
+                   coalesce(max(c.display_name), u.handle) as display_name,
                    coalesce(u.avatar_url, max(c.avatar_url)) as avatar_url,
                    u.last_seen_at,
                    count(p.topic_key) as total_topics,
@@ -27,14 +26,14 @@ module.exports = handle(async (req, res) => {
                    group_concat(distinct p.roadmap_code) as tracks_csv,
                    max(p.updated_at) as last_progress_at
             from users u
+            join roadmap_progress p on p.user_id = u.id
             left join community_members c on c.user_id = u.id
-            left join roadmap_progress p on p.user_id = u.id
             where u.handle is not null
               and u.is_anonymous = 0
               and (p.updated_at >= ? or u.last_seen_at >= ?)
             group by u.id
-            having coalesce(u.avatar_url, max(c.avatar_url)) is not null
-            order by coalesce(max(p.updated_at), u.last_seen_at) desc
+            having count(p.topic_key) > 0
+            order by max(p.updated_at) desc
             limit ?`,
       args: [cutoff, cutoff, MAX_LEARNERS]
     });
@@ -46,13 +45,13 @@ module.exports = handle(async (req, res) => {
                    group_concat(distinct p.roadmap_code) as tracks_csv,
                    max(p.updated_at) as last_progress_at
             from users u
-            left join roadmap_progress p on p.user_id = u.id
+            join roadmap_progress p on p.user_id = u.id
             where u.handle is not null
               and u.is_anonymous = 0
-              and u.avatar_url is not null
               and (p.updated_at >= ? or u.last_seen_at >= ?)
             group by u.id
-            order by coalesce(max(p.updated_at), u.last_seen_at) desc
+            having count(p.topic_key) > 0
+            order by max(p.updated_at) desc
             limit ?`,
       args: [cutoff, cutoff, MAX_LEARNERS]
     });
@@ -60,6 +59,8 @@ module.exports = handle(async (req, res) => {
 
   const learners = result.rows.map((row) => ({
     handle: row.handle,
+    display_name: row.display_name || row.handle,
+    public_id: row.public_id || null,
     avatar_url: row.avatar_url || null,
     tracks: row.tracks_csv ? String(row.tracks_csv).split(",").filter(Boolean) : [],
     completed_topics: Number(row.completed_topics || 0),
