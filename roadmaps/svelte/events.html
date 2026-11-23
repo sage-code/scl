@@ -36,80 +36,83 @@
 <h1 id="chapter-6-handling-events">Chapter 6: Handling Events</h1>
 
 <div class="alert alert-secondary shadow-sm">
-In this chapter, you'll learn how to handle user interactions in Svelte. From simple click handlers to complex event management, we'll cover the essentials of working with events.
+Svelte connects DOM events and custom component events through a unified <code>on:</code> directive, with declarative modifiers that eliminate boilerplate around propagation and form submission.
 </div>
 
 <h2 id="basic-event-handlers">Basic Event Handlers</h2>
 
-<p>Attach event handlers using the <code>on:</code> directive:</p>
+<p>Attach DOM listeners to any HTML element using <code>on:&lt;event&gt;={handler}</code>. Pass a function reference rather than invoking the function in the template, and use native interactive elements like <code>&lt;button&gt;</code> instead of clickable <code>&lt;div&gt;</code> tags so keyboard focus and screen-reader roles work automatically:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  let clicks = 0;
+
   function handleClick() {
-    alert('Button clicked!');
+    clicks += 1;
   }
 &lt;/script&gt;
 
-&lt;button on:click={handleClick}&gt;Click me&lt;/button&gt;
+&lt;button type="button" on:click={handleClick}&gt;Clicked {clicks} times&lt;/button&gt;
 </code></pre>
 
 <h2 id="inline-event-handlers">Inline Event Handlers</h2>
 
-<p>You can also define inline event handlers:</p>
+<p>When a handler needs item-specific arguments—such as deleting a specific row inside an <code>{#each}</code> loop—use an inline arrow function. Unlike some runtime frameworks, Svelte compiles inline handlers efficiently without penalty:</p>
 
-<pre><code class="language-html">&lt;button on:click={() => alert('Clicked!')}&gt;Click me&lt;/button&gt;
+<pre><code class="language-html line-numbers">&lt;button type="button" on:click={() =&gt; deleteItem(item.id)}&gt;Delete&lt;/button&gt;
 </code></pre>
 
 <h2 id="event-modifiers">Event Modifiers</h2>
 
-<p>Svelte provides useful event modifiers for common patterns:</p>
+<p>Instead of repeating <code>event.preventDefault()</code> or <code>event.stopPropagation()</code> inside every handler body, chain pipe-separated modifiers directly onto the directive:</p>
 
 <ul>
-<li><strong>preventDefault:</strong> Prevents default browser behavior</li>
-<li><strong>stopPropagation:</strong> Stops event bubbling</li>
-<li><strong>passive:</strong> Improves scroll performance</li>
-<li><strong>nonpassive:</strong> Explicitly non-passive</li>
-<li><strong>capture:</strong> Fires during capture phase</li>
-<li><strong>once:</strong> Fires only once</li>
-<li><strong>self:</strong> Only fires if the event target is the element itself</li>
+<li><strong><code>preventDefault</code>:</strong> Calls <code>event.preventDefault()</code> before running the handler (essential for <code>on:submit</code>).</li>
+<li><strong><code>stopPropagation</code>:</strong> Prevents the event from bubbling to ancestor elements.</li>
+<li><strong><code>passive</code> / <code>nonpassive</code>:</strong> Controls scroll-blocking behavior on touch and wheel listeners.</li>
+<li><strong><code>capture</code>:</strong> Fires the handler during the capture phase instead of bubbling.</li>
+<li><strong><code>once</code>:</strong> Automatically removes the listener after its first invocation.</li>
+<li><strong><code>self</code>:</strong> Fires only when <code>event.target</code> is the element itself (useful for modal backdrop clicks).</li>
 </ul>
 
-<pre><code class="language-html">&lt;form on:submit|preventDefault={handleSubmit}&gt;
-  &lt;input type="text" /&gt;
-  &lt;button type="submit"&gt;Submit&lt;/button&gt;
+<pre><code class="language-html line-numbers">&lt;form on:submit|preventDefault={handleSubmit}&gt;
+  &lt;input type="text" bind:value={query} /&gt;
+  &lt;button type="submit"&gt;Search&lt;/button&gt;
 &lt;/form&gt;
 </code></pre>
 
 <h2 id="keyboard-events">Keyboard Events</h2>
 
-<p>Handle keyboard events with the <code>on:keydown</code> and <code>on:keyup</code> directives:</p>
+<p>Use <code>on:keydown</code> or <code>on:keyup</code> to support keyboard shortcuts, escape-to-close dialogs, or arrow-key list navigation. Always inspect <code>event.key</code> (rather than deprecated numeric <code>keyCode</code> values):</p>
 
-<pre><code class="language-html">&lt;input 
-  on:keydown={(e) => {
-    if (e.key === 'Enter') {
-      console.log('Enter pressed');
+<pre><code class="language-html line-numbers">&lt;input
+  type="text"
+  placeholder="Press Enter to add"
+  on:keydown={(e) =&gt; {
+    if (e.key === 'Enter' &amp;&amp; e.currentTarget.value.trim()) {
+      addTodo(e.currentTarget.value.trim());
     }
-  }} 
+  }}
 /&gt;
 </code></pre>
 
 <h2 id="custom-events">Custom Events</h2>
 
-<p>Dispatch custom events from components:</p>
+<p>Child components communicate upward by creating a dispatcher with <code>createEventDispatcher()</code> and calling <code>dispatch(eventName, detail)</code>. Parent components listen with the exact same <code>on:</code> syntax and read the payload from <code>event.detail</code>:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   import { createEventDispatcher } from 'svelte';
 
   const dispatch = createEventDispatcher();
 
   function notifyParent() {
-    dispatch('custom-event', { data: 'Hello parent!' });
+    dispatch('confirm', { timestamp: Date.now() });
   }
 &lt;/script&gt;
 
-&lt;button on:click={notifyParent}&gt;Send Event&lt;/button&gt;
+&lt;button type="button" on:click={notifyParent}&gt;Confirm Action&lt;/button&gt;
 </code></pre>
 
-<p>Event handling in Svelte is intuitive and flexible!</p>
+<p><strong>Practice:</strong> Build a modal dialog that closes when clicking its backdrop (<code>on:click|self</code>) or pressing <code>Escape</code>, and dispatches a custom <code>confirm</code> event when the primary button is clicked.</p>
 
       </main>
     </div>

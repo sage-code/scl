@@ -36,85 +36,103 @@
 <h1 id="chapter-3-svelte-basics">Chapter 3: Svelte Basics</h1>
 
 <div class="alert alert-secondary shadow-sm">
-In this chapter, we'll learn the fundamentals of creating Svelte components. You'll understand the structure of a Svelte file, how to work with templates, and how to pass data between components using props.
+Svelte compiles single-file <code>.svelte</code> components into targeted DOM updates at build time. Understanding component anatomy, props, expressions, and template control blocks gives you the foundation for every application you will build.
 </div>
 
 <h2 id="anatomy-of-a-svelte-component">Anatomy of a Svelte Component</h2>
 
-<p>A Svelte component is a .svelte file that contains three sections: script, markup, and style. Each section is optional but often used together.</p>
+<p>Every <code>.svelte</code> file groups its logic, HTML template, and scoped CSS into one cohesive module. Unlike runtime virtual-DOM frameworks, the Svelte compiler analyzes these three blocks together so unused CSS is stripped and reactive variables wire directly to the exact DOM text nodes or attributes that depend on them:</p>
 
-<pre><code class="language-html">&lt;script&gt;
-  // JavaScript code here
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  // Top-level `let` bindings are reactive in Svelte templates
   let message = 'Hello, Svelte!';
 &lt;/script&gt;
 
 &lt;h1&gt;{message}&lt;/h1&gt;
 
 &lt;style&gt;
+  /* Scoped automatically to this component's &lt;h1&gt; via a generated hash class */
   h1 {
-    color: purple;
+    color: #38bdf8;
+    font-size: 1.5rem;
   }
 &lt;/style&gt;
 </code></pre>
 
 <h3 id="sections-explained">Sections Explained:</h3>
 
+<p>Each section plays a distinct role and can be omitted when a component does not need it:</p>
+
 <ul>
-<li><strong>&lt;script&gt;:</strong> Contains your JavaScript logic, state variables, and functions.</li>
-<li><strong>Markup:</strong> HTML template with Svelte directives and data bindings.</li>
-<li><strong>&lt;style&gt;:</strong> CSS scoped to this component only.</li>
+<li><strong><code>&lt;script&gt;</code>:</strong> Holds component state, imports, helper functions, and prop declarations. Code here runs once when the component instance is created.</li>
+<li><strong>Markup:</strong> Standard HTML extended with curly-brace JavaScript expressions, template blocks (<code>{#if}</code>, <code>{#each}</code>), and directives (<code>on:</code>, <code>bind:</code>).</li>
+<li><strong><code>&lt;style&gt;</code>:</strong> CSS rules automatically scoped to elements in this component, preventing accidental style leaks across the rest of the application.</li>
 </ul>
 
 <h2 id="working-with-props">Working with Props</h2>
 
-<p>Props allow you to pass data from a parent component to a child component. In Svelte, you export variables to create props:</p>
+<p>Props pass data from a parent component down to a child component. In Svelte, prefixing a variable with <code>export let</code> in the child's <code>&lt;script&gt;</code> block declares it as an external prop. Providing a default value makes the prop optional and prevents <code>undefined</code> from rendering in the DOM when the parent omits it:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  // `name` defaults to 'World' if the caller omits it; `role` is optional
   export let name = 'World';
+  export let role = 'Learner';
 &lt;/script&gt;
 
-&lt;p&gt;Hello, {name}!&lt;/p&gt;
+&lt;p&gt;Hello, {name} ({role})!&lt;/p&gt;
 </code></pre>
 
-<p>When using this component, you can pass data like this:</p>
+<p>A parent component passes props just like HTML attributes, or uses curly braces to pass dynamic JavaScript values and objects:</p>
 
-<pre><code class="language-html">&lt;Greeting name="Alice" /&gt;
+<pre><code class="language-html line-numbers">&lt;Greeting name="Alice" role="Engineer" /&gt;
 </code></pre>
+
+<p>Treat props as read-only inputs unless you explicitly opt into two-way binding with <code>bind:</code>. Mutating a prop inside a child without parent coordination creates hard-to-trace state drift.</p>
 
 <h2 id="displaying-data">Displaying Data</h2>
 
-<p>In your markup, use curly braces to display JavaScript expressions:</p>
+<p>Curly braces <code>{...}</code> evaluate any JavaScript expression—variables, arithmetic, method calls, or formatted strings—and escape the result safely against HTML injection. To render lists, wrap repeated markup in an <code>{#each}</code> block and supply a unique key expression in parentheses <code>(item.id)</code> so Svelte can reorder, insert, or remove rows without recreating unchanged DOM nodes:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let count = 0;
-  let items = ['Apple', 'Banana', 'Orange'];
+  let items = [
+    { id: 1, label: 'Apple' },
+    { id: 2, label: 'Banana' },
+    { id: 3, label: 'Orange' }
+  ];
 &lt;/script&gt;
 
-&lt;p&gt;Count: {count}&lt;/p&gt;
+&lt;p&gt;Total items: {items.length} (selected: {count})&lt;/p&gt;
 
 &lt;ul&gt;
-  {#each items as item}
-    &lt;li&gt;{item}&lt;/li&gt;
+  {#each items as item, index (item.id)}
+    &lt;li&gt;{index + 1}. {item.label}&lt;/li&gt;
+  {:else}
+    &lt;li&gt;No items in the list.&lt;/li&gt;
   {/each}
 &lt;/ul&gt;
 </code></pre>
 
+<p>Notice the optional <code>{:else}</code> clause inside <code>{#each}</code>: it renders automatically when the array is empty, eliminating a separate length check.</p>
+
 <h2 id="conditional-rendering">Conditional Rendering</h2>
 
-<p>Use the {#if} block to conditionally render elements:</p>
+<p>HTML has no built-in branching syntax, so Svelte provides <code>{#if}</code>, <code>{:else if}</code>, and <code>{:else}</code> blocks. Only the active branch is mounted in the DOM, which keeps event listeners and child component state clean when switching between loading, error, and ready views:</p>
 
-<pre><code class="language-html">&lt;script&gt;
-  let isVisible = true;
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  export let status = 'loading'; // 'loading' | 'ready' | 'error'
 &lt;/script&gt;
 
-{#if isVisible}
-  &lt;p&gt;This is visible!&lt;/p&gt;
+{#if status === 'loading'}
+  &lt;p&gt;Loading workspace...&lt;/p&gt;
+{:else if status === 'error'}
+  &lt;p role="alert"&gt;Could not load workspace.&lt;/p&gt;
 {:else}
-  &lt;p&gt;This is hidden!&lt;/p&gt;
+  &lt;p&gt;Workspace is ready.&lt;/p&gt;
 {/if}
 </code></pre>
 
-<p>Now you have the foundations for building Svelte components. In the next chapter, we'll explore more advanced component patterns!</p>
+<p><strong>Practice:</strong> Build a <code>ProductCard.svelte</code> component that accepts <code>title</code>, <code>price</code>, and <code>inStock</code> props, renders a formatted price badge, and uses <code>{#if}</code> to switch between an active status and an out-of-stock notice.</p>
 
       </main>
     </div>

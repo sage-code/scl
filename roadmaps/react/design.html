@@ -13,28 +13,73 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
 <header id="dynamic-header" class="container-fluid pb-2"></header>
-<div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h1 id="react-design-patterns">React Design and Engineering Patterns</h1>
-<div class="alert alert-secondary shadow-sm">React design quality depends on component contracts, reuse strategy, and behavior consistency under change.</div>
-<h2 id="component-api-design">Component API design</h2>
-<p>Design component APIs for readability and extension. Avoid prop explosion and ambiguous booleans.</p>
-<h2 id="patterns-reuse">Reuse patterns</h2>
-<ul><li>Composition with children and slots.</li><li>Custom hooks for shared behavior.</li><li>Renderless logic components when needed.</li></ul>
-<h2 id="testing-design">Testing design</h2>
-<p>Test user outcomes and behavior contracts instead of internal implementation details.</p>
-<h2 id="performance-patterns">Performance patterns</h2>
-<p>Profile first, then optimize with memoization or structural changes based on evidence.</p>
-<h2 id="engineering-checklist">Engineering checklist</h2>
-<ol><li>Clear API contracts.</li><li>Accessible interactions.</li><li>Deterministic side effects.</li><li>Documented trade-offs.</li></ol>
-<h2 id="practice-design">Practice</h2>
-<p>Design a reusable data-table component API and implement one production-quality usage in a feature module.</p>
-</main></div></div>
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled"></ul>
+      </div>
+    </aside>
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+      <h1 id="react-design-patterns">React Design and Engineering Patterns</h1>
+      <div class="alert alert-secondary shadow-sm">Long-lived React codebases depend on clean component contracts, composable reuse, behavior-focused tests, and measured optimization.</div>
+
+      <h2 id="component-api-design">Component API design</h2>
+      <p>Design component props for clarity and extension. Avoid "prop explosion"—dozens of boolean flags like <code>isCompact</code>, <code>hasShadow</code>, <code>showIcon</code>, and <code>hideBorder</code> that create conflicting combinations. Instead, use explicit variants (<code>size="sm" | "md"</code>) and composition slots (<code>children</code>, <code>header</code>, <code>actions</code>):</p>
+      <pre><code class="language-jsx line-numbers">function Panel({ title, actions, children }) {
+  // Composition slots avoid rigid boolean flags for every header variation
+  return (
+    &lt;section className="card p-3"&gt;
+      &lt;header className="d-flex justify-content-between align-items-center mb-2"&gt;
+        &lt;h3 className="h5 mb-0"&gt;{title}&lt;/h3&gt;
+        {actions &amp;&amp; &lt;div&gt;{actions}&lt;/div&gt;}
+      &lt;/header&gt;
+      &lt;div&gt;{children}&lt;/div&gt;
+    &lt;/section&gt;
+  );
+}</code></pre>
+
+      <h2 id="patterns-reuse">Reuse patterns</h2>
+      <p>Choose the lightest reuse mechanism that fits the problem:</p>
+      <ul>
+        <li><strong>Composition with <code>children</code> and slots:</strong> Share layout shells and visual framing without coupling to inner content.</li>
+        <li><strong>Custom hooks (<code>usePagination</code>, <code>useDebounce</code>):</strong> Share stateful behavior and side-effect orchestration across unrelated UI components.</li>
+        <li><strong>Compound components:</strong> Pair a parent context with subcomponents (such as <code>Tabs</code>, <code>Tabs.List</code>, <code>Tabs.Panel</code>) when child elements need implicit shared state.</li>
+      </ul>
+
+      <h2 id="testing-design">Testing design</h2>
+      <p>Write tests that exercise what users actually see and do—querying by accessible role, label, or visible text—rather than asserting on internal hook state or CSS class names. Tests coupled to user behavior survive refactoring, whereas tests coupled to implementation details break whenever you rename a helper:</p>
+      <pre><code class="language-jsx line-numbers">// Prefer behavior-oriented queries (e.g., React Testing Library)
+// render(&lt;Counter initial={0} /&gt;);
+// await user.click(screen.getByRole("button", { name: /increment/i }));
+// expect(screen.getByText("Count: 1")).toBeInTheDocument();</code></pre>
+
+      <h2 id="performance-patterns">Performance patterns</h2>
+      <p>Measure with the React DevTools Profiler before optimizing. When profiling confirms a genuine bottleneck, first fix structural causes—such as moving state down into a smaller child component or passing <code>children</code> so parent re-renders skip unchanged subtrees—before reaching for <code>React.memo</code>, <code>useMemo</code>, or <code>useCallback</code>.</p>
+
+      <h2 id="engineering-checklist">Engineering checklist</h2>
+      <p>Review new components and features against these four quality gates:</p>
+      <ol>
+        <li>Clear, minimal prop contracts with sensible defaults.</li>
+        <li>Keyboard-accessible interactions and semantic HTML elements.</li>
+        <li>Deterministic side effects with proper cleanup and error handling.</li>
+        <li>Behavior-focused tests covering happy paths, empty states, and failures.</li>
+      </ol>
+
+      <h2 id="practice-design">Practice</h2>
+      <p>Design a reusable <code>DataTable</code> component using composition slots for toolbar actions and empty states, extract its sorting/pagination state into a custom hook, and write behavior tests for sorting and empty results.</p>
+    </main>
+  </div>
+</div>
 <hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer>
 </div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>

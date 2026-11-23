@@ -36,98 +36,107 @@
 <h1 id="chapter-4-building-components">Chapter 4: Building Components</h1>
 
 <div class="alert alert-secondary shadow-sm">
-In this chapter, we'll dive deeper into advanced component patterns in Svelte. You'll learn about component lifecycle, slots for composition, and how to create truly reusable components.
+Reusable components depend on well-defined lifecycles, flexible slot composition, and explicit event contracts between parent and child boundaries.
 </div>
 
 <h2 id="component-lifecycle">Component Lifecycle</h2>
 
-<p>Svelte components have lifecycle functions that let you run code at particular times in the component's life:</p>
+<p>Every Svelte component moves through mounting, updating, and destruction phases. Importing lifecycle hooks from <code>svelte</code> lets you integrate with browser APIs, timers, or third-party DOM libraries without leaking resources when a component leaves the screen:</p>
 
 <ul>
-<li><strong>onMount:</strong> Runs after the component is mounted to the DOM. Perfect for initializing data.</li>
-<li><strong>beforeUpdate:</strong> Runs before the DOM is updated.</li>
-<li><strong>afterUpdate:</strong> Runs after the DOM is updated.</li>
-<li><strong>onDestroy:</strong> Runs when the component is destroyed.</li>
+<li><strong><code>onMount</code>:</strong> Runs once after the component is first rendered into the DOM. Ideal for reading element dimensions, starting subscriptions, or fetching initial client data. Returning a function from <code>onMount</code> automatically registers it as a cleanup callback.</li>
+<li><strong><code>beforeUpdate</code>:</strong> Runs immediately before the DOM updates after state changes—useful for capturing scroll position before new list items are inserted.</li>
+<li><strong><code>afterUpdate</code>:</strong> Runs right after the DOM syncs with the latest state, allowing you to restore scroll position or focus.</li>
+<li><strong><code>onDestroy</code>:</strong> Runs when the component is unmounted; always clear intervals, event listeners, or WebSocket connections here to prevent memory leaks.</li>
 </ul>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   import { onMount } from 'svelte';
 
-  onMount(() => {
-    console.log('Component mounted!');
-    // Initialize data here
+  let seconds = 0;
+
+  onMount(() =&gt; {
+    const timer = setInterval(() =&gt; {
+      seconds += 1;
+    }, 1000);
+
+    // Returned cleanup runs automatically when the component unmounts
+    return () =&gt; clearInterval(timer);
   });
 &lt;/script&gt;
+
+&lt;p&gt;Elapsed: {seconds}s&lt;/p&gt;
 </code></pre>
 
 <h2 id="using-slots">Using Slots</h2>
 
-<p>Slots allow components to accept content from parent components, enabling flexible composition:</p>
+<p>Passing HTML or nested components through props quickly becomes rigid. Svelte's <code>&lt;slot&gt;</code> element acts as a placeholder where parent components inject arbitrary markup, keeping wrapper components focused on layout, borders, and spacing. You can also place fallback content inside <code>&lt;slot&gt;...&lt;/slot&gt;</code> that renders when the caller provides nothing:</p>
 
-<pre><code class="language-html">&lt;!-- Card.svelte --&gt;
-&lt;div class="card"&gt;
-  &lt;slot&gt;&lt;/slot&gt;
-&lt;/div&gt;
+<pre><code class="language-html line-numbers">&lt;!-- Card.svelte --&gt;
+&lt;section class="card"&gt;
+  &lt;slot&gt;
+    &lt;p&gt;No content provided.&lt;/p&gt;
+  &lt;/slot&gt;
+&lt;/section&gt;
 
 &lt;style&gt;
   .card {
-    border: 1px solid #ccc;
+    border: 1px solid #334155;
+    border-radius: 0.5rem;
     padding: 1rem;
   }
 &lt;/style&gt;
 </code></pre>
 
-<p>Usage:</p>
+<p>Any markup placed between the opening and closing <code>&lt;Card&gt;</code> tags flows into that default slot while still retaining access to the parent component's scope:</p>
 
-<pre><code class="language-html">&lt;Card&gt;
-  &lt;h2&gt;Hello!&lt;/h2&gt;
-  &lt;p&gt;This content goes into the slot.&lt;/p&gt;
+<pre><code class="language-html line-numbers">&lt;Card&gt;
+  &lt;h2&gt;Account Summary&lt;/h2&gt;
+  &lt;p&gt;This content is injected into the default slot.&lt;/p&gt;
 &lt;/Card&gt;
 </code></pre>
 
 <h2 id="named-slots">Named Slots</h2>
 
-<p>For more complex layouts, use named slots:</p>
+<p>When a layout shell has distinct regions—such as a header, main body, and action footer—use named slots (<code>&lt;slot name="..."&gt;</code>) so callers target each region explicitly regardless of element order:</p>
 
-<pre><code class="language-html">&lt;!-- Layout.svelte --&gt;
-&lt;header&gt;
-  &lt;slot name="header"&gt;&lt;/slot&gt;
-&lt;/header&gt;
-&lt;main&gt;
-  &lt;slot&gt;&lt;/slot&gt;
-&lt;/main&gt;
-&lt;footer&gt;
-  &lt;slot name="footer"&gt;&lt;/slot&gt;
-&lt;/footer&gt;
+<pre><code class="language-html line-numbers">&lt;!-- Layout.svelte --&gt;
+&lt;div class="panel"&gt;
+  &lt;header&gt;&lt;slot name="header"&gt;&lt;/slot&gt;&lt;/header&gt;
+  &lt;main&gt;&lt;slot&gt;&lt;/slot&gt;&lt;/main&gt;
+  &lt;footer&gt;&lt;slot name="footer"&gt;&lt;/slot&gt;&lt;/footer&gt;
+&lt;/div&gt;
 </code></pre>
 
-<p>Usage:</p>
+<p>Callers assign elements to a named slot using the <code>slot="..."</code> attribute; any element without a <code>slot</code> attribute goes into the unnamed default slot:</p>
 
-<pre><code class="language-html">&lt;Layout&gt;
-  &lt;div slot="header"&gt;Header content&lt;/div&gt;
-  &lt;p&gt;Main content&lt;/p&gt;
-  &lt;div slot="footer"&gt;Footer content&lt;/div&gt;
+<pre><code class="language-html line-numbers">&lt;Layout&gt;
+  &lt;h3 slot="header"&gt;Billing Settings&lt;/h3&gt;
+  &lt;p&gt;Manage your payment methods and invoices.&lt;/p&gt;
+  &lt;button slot="footer" type="button"&gt;Save changes&lt;/button&gt;
 &lt;/Layout&gt;
 </code></pre>
 
 <h2 id="event-forwarding">Event Forwarding</h2>
 
-<p>Forward events from child components to parent components:</p>
+<p>While props carry data downward, events communicate user intent upward. A child component can create a typed dispatcher with <code>createEventDispatcher()</code> to emit domain events with a payload, or forward a native DOM event like <code>on:click</code> (with no handler value) so parent components can listen directly:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   import { createEventDispatcher } from 'svelte';
 
+  export let itemId;
   const dispatch = createEventDispatcher();
 
-  function handleClick() {
-    dispatch('click', { message: 'Button clicked!' });
+  function handleArchive() {
+    // Emit a domain event with structured detail instead of coupling to parent logic
+    dispatch('archive', { id: itemId });
   }
 &lt;/script&gt;
 
-&lt;button on:click={handleClick}&gt;Click me&lt;/button&gt;
+&lt;button type="button" on:click={handleArchive}&gt;Archive&lt;/button&gt;
 </code></pre>
 
-<p>You now have the tools to build flexible, reusable Svelte components!</p>
+<p><strong>Practice:</strong> Create a reusable <code>ModalShell.svelte</code> component with named <code>header</code>, default body, and <code>footer</code> slots, a cleanup-safe <code>Escape</code> key listener registered in <code>onMount</code>, and a custom <code>close</code> event dispatched to the parent.</p>
 
       </main>
     </div>

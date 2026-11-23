@@ -36,60 +36,65 @@
 <h1 id="chapter-10-fetching-data">Chapter 10: Fetching Data with Svelte</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Most applications need to fetch data from APIs. In this chapter, you'll learn how to make API calls, handle loading and error states, and work with asynchronous data in Svelte.
+Asynchronous data fetching requires explicit loading, error, and cancellation handling. Svelte pairs standard <code>fetch</code> calls with lifecycle hooks and reactive stores to keep UI state predictable.
 </div>
 
 <h2 id="basic-api-calls">Basic API Calls</h2>
 
-<p>Use the Fetch API or third-party libraries to make API calls. Here's a basic example:</p>
+<p>Run client-side data fetches inside <code>onMount</code> so requests execute only in the browser after the component mounts. Remember that <code>fetch()</code> only rejects on network failures—HTTP 404 or 500 responses still resolve—so always check <code>response.ok</code> before parsing JSON, and pass an <code>AbortController</code> signal so unmounting cancels in-flight requests:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   import { onMount } from 'svelte';
 
   let data = null;
   let error = null;
 
-  onMount(async () => {
-    try {
-      const response = await fetch('https://api.example.com/data');
-      if (!response.ok) throw new Error('Network response was not ok');
-      data = await response.json();
-    } catch (err) {
-      error = err.message;
-    }
+  onMount(() =&gt; {
+    const controller = new AbortController();
+
+    fetch('/api/summary', { signal: controller.signal })
+      .then(res =&gt; {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(json =&gt; { data = json; })
+      .catch(err =&gt; {
+        if (err.name !== 'AbortError') error = err.message;
+      });
+
+    return () =&gt; controller.abort();
   });
 &lt;/script&gt;
 
 {#if error}
-  &lt;p class="error"&gt;Error: {error}&lt;/p&gt;
+  &lt;p class="error" role="alert"&gt;Error: {error}&lt;/p&gt;
 {:else if data}
-  &lt;p&gt;Data loaded: {JSON.stringify(data)}&lt;/p&gt;
+  &lt;p&gt;Loaded {data.count} records.&lt;/p&gt;
 {:else}
   &lt;p&gt;Loading...&lt;/p&gt;
 {/if}
 
 &lt;style&gt;
-  .error { color: red; }
+  .error { color: #f87171; }
 &lt;/style&gt;
 </code></pre>
 
 <h2 id="handling-loading-and-error-states">Handling Loading and Error States</h2>
 
-<p>Properly manage different states in your component:</p>
+<p>Separate loading, error, empty, and populated branches explicitly in your template. Using a <code>try / catch / finally</code> block guarantees <code>loading</code> resets to <code>false</code> even when a request fails, and keying the <code>{#each}</code> block by <code>(item.id)</code> preserves DOM state across refreshes:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   import { onMount } from 'svelte';
 
-  let loading = false;
-  let data = null;
+  let loading = true;
+  let items = [];
   let error = null;
 
-  onMount(async () => {
-    loading = true;
+  onMount(async () =&gt; {
     try {
       const response = await fetch('/api/posts');
-      if (!response.ok) throw new Error('Failed to fetch');
-      data = await response.json();
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      items = await response.json();
     } catch (err) {
       error = err.message;
     } finally {
@@ -99,25 +104,25 @@ Most applications need to fetch data from APIs. In this chapter, you'll learn ho
 &lt;/script&gt;
 
 {#if loading}
-  &lt;p&gt;Loading...&lt;/p&gt;
+  &lt;p&gt;Loading posts...&lt;/p&gt;
 {:else if error}
-  &lt;div class="alert alert-danger"&gt;{error}&lt;/div&gt;
-{:else if data}
+  &lt;div class="alert alert-danger" role="alert"&gt;{error}&lt;/div&gt;
+{:else if items.length === 0}
+  &lt;p&gt;No posts found.&lt;/p&gt;
+{:else}
   &lt;ul&gt;
-    {#each data as item (item.id)}
+    {#each items as item (item.id)}
       &lt;li&gt;{item.title}&lt;/li&gt;
     {/each}
   &lt;/ul&gt;
-{:else}
-  &lt;p&gt;No data available.&lt;/p&gt;
 {/if}
 </code></pre>
 
 <h2 id="working-with-stores">Working with Stores</h2>
 
-<p>For complex data management, use Svelte Stores:</p>
+<p>When multiple components share fetched data—such as a notification list or user profile—move the fetch logic and state into a Svelte store (<code>writable</code>). Prefixing a store name with <code>$</code> inside any <code>.svelte</code> component automatically subscribes to updates and unsubscribes on destroy:</p>
 
-<pre><code class="language-html">// stores.js
+<pre><code class="language-javascript line-numbers">// stores.js
 import { writable } from 'svelte/store';
 
 export const posts = writable([]);
@@ -129,8 +134,8 @@ export async function loadPosts() {
   error.set(null);
   try {
     const response = await fetch('/api/posts');
-    const data = await response.json();
-    posts.set(data);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    posts.set(await response.json());
   } catch (err) {
     error.set(err.message);
   } finally {
@@ -139,9 +144,10 @@ export async function loadPosts() {
 }
 </code></pre>
 
-<p>Use in components:</p>
+<p>Components import the store and read <code>$posts</code>, <code>$loading</code>, and <code>$error</code> reactively without manual subscription boilerplate:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  import { onMount } from 'svelte';
   import { posts, loading, error, loadPosts } from './stores';
 
   onMount(loadPosts);
@@ -158,34 +164,38 @@ export async function loadPosts() {
     {/each}
   &lt;/ul&gt;
 {/if}
-
-&lt;style&gt;
-  .error { color: red; }
-&lt;/style&gt;
 </code></pre>
 
 <h2 id="post-requests">POST Requests</h2>
 
-<p>Send data to an API:</p>
+<p>For mutations like creating or updating records, trigger <code>fetch</code> from an event handler rather than <code>onMount</code>, set the <code>Content-Type: application/json</code> header, and verify <code>response.ok</code> before updating local state:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let title = '';
+  let saving = false;
 
   async function addPost() {
-    const response = await fetch('/api/posts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title })
-    });
-    return await response.json();
+    if (!title.trim() || saving) return;
+    saving = true;
+    try {
+      const response = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim() })
+      });
+      if (!response.ok) throw new Error('Failed to create post');
+      title = '';
+    } finally {
+      saving = false;
+    }
   }
 &lt;/script&gt;
 
 &lt;input bind:value={title} placeholder="Post title" /&gt;
-&lt;button on:click={addPost}&gt;Add Post&lt;/button&gt;
+&lt;button type="button" on:click={addPost} disabled={saving}&gt;Add Post&lt;/button&gt;
 </code></pre>
 
-<p>Fetching data in Svelte is straightforward and reactive!</p>
+<p><strong>Practice:</strong> Create a shared <code>posts</code> store with <code>loadPosts()</code> and <code>createPost(title)</code> actions, handling HTTP errors, empty states, and in-flight button disabling.</p>
 
       </main>
     </div>

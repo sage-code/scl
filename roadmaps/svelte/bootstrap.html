@@ -36,51 +36,67 @@
 <h1 id="chapter-8-bootstrap-with-svelte">Chapter 8: Bootstrap with Svelte</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Integrating Bootstrap with Svelte is straightforward. This chapter covers installing Bootstrap, using Bootstrap components, and building responsive layouts in Svelte.
+Pairing Bootstrap's grid and design tokens with Svelte's reactive templates gives you consistent layout primitives while keeping interactive state firmly under Svelte's control.
 </div>
 
 <h2 id="installing-bootstrap">Installing Bootstrap</h2>
 
-<p>Bootstrap is already available via CDN in most Svelte projects. For better control, install it via npm:</p>
+<p>Install Bootstrap as a project dependency so Vite bundles and versions its CSS alongside your app rather than relying on external CDN availability:</p>
 
-<pre><code class="language-html">npm install bootstrap</code></pre>
+<pre><code class="language-bash line-numbers">npm install bootstrap</code></pre>
 
-<p>Then import it in your main.js:</p>
+<p>Import the compiled stylesheet once in your application entry point (such as <code>src/main.js</code>). Avoid importing Bootstrap's imperative DOM JavaScript bundle when Svelte manages component state—instead, toggle visibility, tabs, and alerts with Svelte <code>{#if}</code> blocks and <code>class:</code> directives so Svelte never conflicts with external DOM mutations:</p>
 
-<pre><code class="language-html">import 'bootstrap/dist/css/bootstrap.min.css';</code></pre>
+<pre><code class="language-javascript line-numbers">// src/main.js
+import 'bootstrap/dist/css/bootstrap.min.css';
+import App from './App.svelte';
+
+export default new App({ target: document.getElementById('app') });
+</code></pre>
 
 <h2 id="using-bootstrap-components">Using Bootstrap Components</h2>
 
-<p>Bootstrap components work seamlessly in Svelte. Here's an example with buttons and alerts:</p>
+<p>Wrap repeated Bootstrap markup—like dismissible alerts, cards, or action buttons—inside thin Svelte components so feature pages pass clean semantic props instead of duplicating utility classes everywhere:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let showAlert = true;
 &lt;/script&gt;
 
 {#if showAlert}
-  &lt;div class="alert alert-info" role="alert"&gt;
-    This is a Bootstrap alert!
-    &lt;button type="button" class="btn-close" on:click={() => showAlert = false}&gt;&lt;/button&gt;
+  &lt;div class="alert alert-info d-flex justify-content-between align-items-center" role="alert"&gt;
+    &lt;span&gt;Your workspace settings were saved.&lt;/span&gt;
+    &lt;button
+      type="button"
+      class="btn-close"
+      aria-label="Close"
+      on:click={() =&gt; showAlert = false}
+    &gt;&lt;/button&gt;
   &lt;/div&gt;
 {/if}
 
-&lt;button class="btn btn-primary"&gt;Primary Button&lt;/button&gt;
-&lt;button class="btn btn-success"&gt;Success Button&lt;/button&gt;
+&lt;div class="d-flex gap-2"&gt;
+  &lt;button type="button" class="btn btn-primary"&gt;Save&lt;/button&gt;
+  &lt;button type="button" class="btn btn-outline-secondary"&gt;Cancel&lt;/button&gt;
+&lt;/div&gt;
 </code></pre>
 
 <h2 id="responsive-layouts">Responsive Layouts</h2>
 
-<p>Use Bootstrap's grid system for responsive layouts:</p>
+<p>Use Bootstrap's 12-column responsive grid (<code>.container</code>, <code>.row</code>, <code>.col-md-*</code>) for page-level structure while reserving Svelte's scoped <code>&lt;style&gt;</code> blocks for component-specific polish:</p>
 
-<pre><code class="language-html">&lt;div class="container mt-5"&gt;
-  &lt;div class="row"&gt;
-    &lt;div class="col-md-6"&gt;
-      &lt;h2&gt;Left Column&lt;/h2&gt;
-      &lt;p&gt;This content spans 6 columns on medium screens and up.&lt;/p&gt;
+<pre><code class="language-html line-numbers">&lt;div class="container mt-4"&gt;
+  &lt;div class="row g-3"&gt;
+    &lt;div class="col-12 col-md-6"&gt;
+      &lt;div class="card p-3"&gt;
+        &lt;h2 class="h5"&gt;Summary&lt;/h2&gt;
+        &lt;p class="mb-0"&gt;Full width on mobile, 6 columns on medium screens and up.&lt;/p&gt;
+      &lt;/div&gt;
     &lt;/div&gt;
-    &lt;div class="col-md-6"&gt;
-      &lt;h2&gt;Right Column&lt;/h2&gt;
-      &lt;p&gt;This is the right column content.&lt;/p&gt;
+    &lt;div class="col-12 col-md-6"&gt;
+      &lt;div class="card p-3"&gt;
+        &lt;h2 class="h5"&gt;Activity&lt;/h2&gt;
+        &lt;p class="mb-0"&gt;Stacks cleanly below on narrow viewports.&lt;/p&gt;
+      &lt;/div&gt;
     &lt;/div&gt;
   &lt;/div&gt;
 &lt;/div&gt;
@@ -88,33 +104,41 @@ Integrating Bootstrap with Svelte is straightforward. This chapter covers instal
 
 <h2 id="form-components">Form Components</h2>
 
-<p>Bootstrap forms work great with Svelte's two-way binding:</p>
+<p>Bootstrap's <code>.form-label</code>, <code>.form-control</code>, and <code>.is-invalid</code> classes pair naturally with Svelte's <code>bind:value</code> and reactive validation state:</p>
 
-<pre><code class="language-html">&lt;script&gt;
-  let formData = {
-    email: '',
-    password: ''
-  };
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  let formData = { email: '', password: '' };
+  let submitted = false;
+
+  $: emailInvalid = submitted &amp;&amp; !formData.email.includes('@');
 
   function handleSubmit() {
-    console.log(formData);
+    submitted = true;
+    if (!emailInvalid) {
+      console.log('Submitting:', formData.email);
+    }
   }
 &lt;/script&gt;
 
-&lt;form on:submit|preventDefault={handleSubmit}&gt;
+&lt;form on:submit|preventDefault={handleSubmit} novalidate&gt;
   &lt;div class="mb-3"&gt;
-    &lt;label class="form-label" for="email"&gt;Email&lt;/label&gt;
-    &lt;input type="email" class="form-control" id="email" bind:value={formData.email} /&gt;
+    &lt;label class="form-label" for="bs-email"&gt;Email&lt;/label&gt;
+    &lt;input
+      type="email"
+      id="bs-email"
+      class="form-control"
+      class:is-invalid={emailInvalid}
+      bind:value={formData.email}
+    /&gt;
+    {#if emailInvalid}
+      &lt;div class="invalid-feedback"&gt;Enter a valid email address.&lt;/div&gt;
+    {/if}
   &lt;/div&gt;
-  &lt;div class="mb-3"&gt;
-    &lt;label class="form-label" for="password"&gt;Password&lt;/label&gt;
-    &lt;input type="password" class="form-control" id="password" bind:value={formData.password} /&gt;
-  &lt;/div&gt;
-  &lt;button type="submit" class="btn btn-primary"&gt;Submit&lt;/button&gt;
+  &lt;button type="submit" class="btn btn-primary"&gt;Sign in&lt;/button&gt;
 &lt;/form&gt;
 </code></pre>
 
-<p>Bootstrap and Svelte combine for powerful, responsive applications!</p>
+<p><strong>Practice:</strong> Build a two-column settings page using Bootstrap's grid, a dismissible Svelte alert banner, and a validated Bootstrap form with <code>class:is-invalid</code> feedback.</p>
 
       </main>
     </div>

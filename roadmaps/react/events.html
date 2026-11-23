@@ -13,30 +13,75 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
 <header id="dynamic-header" class="container-fluid pb-2"></header>
-<div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h1 id="events-interaction">Events and Interaction</h1>
-<div class="alert alert-secondary shadow-sm">Event handling is application behavior design. Keep interaction paths explicit and testable.</div>
-<h2 id="event-binding">Event binding basics</h2>
-<pre><code class="language-jsx">function SaveButton({ onSave }) {
-  return &lt;button onClick={onSave}&gt;Save&lt;/button&gt;;
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled"></ul>
+      </div>
+    </aside>
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+      <h1 id="events-interaction">Events and Interaction</h1>
+      <div class="alert alert-secondary shadow-sm">Event handling is application behavior design. Explicit, accessible interaction paths keep UI logic predictable and testable.</div>
+
+      <h2 id="event-binding">Event binding basics</h2>
+      <p>React attaches event handlers using camelCase props such as <code>onClick</code>, <code>onChange</code>, and <code>onSubmit</code>. Pass a <strong>function reference</strong> rather than calling the function during render—writing <code>onClick={handleSave()}</code> executes immediately on every render instead of waiting for a click. React wraps native browser events in a <code>SyntheticEvent</code> object so properties like <code>event.preventDefault()</code> and <code>event.stopPropagation()</code> behave consistently across browsers:</p>
+      <pre><code class="language-jsx line-numbers">function SaveButton({ onSave, isSaving }) {
+  // Pass the handler reference; React invokes it only when the user clicks
+  return (
+    &lt;button type="button" onClick={onSave} disabled={isSaving}&gt;
+      {isSaving ? "Saving..." : "Save changes"}
+    &lt;/button&gt;
+  );
 }</code></pre>
-<h2 id="event-arguments">Passing event and arguments</h2>
-<pre><code class="language-jsx">&lt;button onClick={(e) =&gt; handleDelete(e, id)}&gt;Delete&lt;/button&gt;</code></pre>
-<h2 id="event-delegation">Event delegation strategy</h2>
-<p>For large repeated lists, centralize interaction at container level when it simplifies behavior wiring.</p>
-<h2 id="interaction-architecture">Interaction architecture</h2>
-<p>Separate command intent from presentational markup so business actions stay easy to test and refactor.</p>
-<h2 id="professional-tips-events">Professional tips</h2>
-<ol><li>Keep handlers small and deterministic.</li><li>Avoid hidden global side effects in click handlers.</li><li>Add telemetry around critical user flows.</li></ol>
-<h2 id="practice-events">Practice</h2>
-<p>Create row-level actions for a table and design confirmation/error behavior for destructive operations.</p>
-</main></div></div>
+
+      <h2 id="event-arguments">Passing event and arguments</h2>
+      <p>When a handler needs item-specific context—such as deleting a specific row in a list—wrap the call in an inline arrow function so the argument is captured without invoking the handler at render time. Keep both the event object and domain identifier explicit when you need to stop propagation or inspect modifier keys:</p>
+      <pre><code class="language-jsx line-numbers">function TaskRow({ task, onSelect, onDelete }) {
+  function handleDeleteClick(event) {
+    // Prevent row selection when the user clicks the nested delete button
+    event.stopPropagation();
+    onDelete(task.id);
+  }
+
+  return (
+    &lt;li onClick={() =&gt; onSelect(task.id)}&gt;
+      &lt;span&gt;{task.title}&lt;/span&gt;
+      &lt;button type="button" onClick={handleDeleteClick} aria-label={`Delete ${task.title}`}&gt;
+        Delete
+      &lt;/button&gt;
+    &lt;/li&gt;
+  );
+}</code></pre>
+
+      <h2 id="event-delegation">Event delegation strategy</h2>
+      <p>Under the hood, React already delegates events to the root container rather than attaching individual DOM listeners to every element. Still, in large repeated tables or grids, centralizing callbacks at the container level—passing a single <code>onAction(actionType, rowId)</code> prop or reading <code>data-*</code> attributes—reduces prop plumbing and keeps child row components focused on rendering.</p>
+
+      <h2 id="interaction-architecture">Interaction architecture</h2>
+      <p>Separate <strong>intent</strong> from <strong>presentation</strong>: a button or menu item should emit a domain-meaningful callback like <code>onArchiveOrder(orderId)</code> rather than embedding API calls or toast notifications inside presentational markup. Use native interactive elements (<code>&lt;button&gt;</code>, <code>&lt;a&gt;</code>, <code>&lt;input&gt;</code>) instead of clickable <code>&lt;div&gt;</code> tags so keyboard navigation (<code>Enter</code>, <code>Space</code>, <code>Tab</code>) and screen-reader semantics work out of the box.</p>
+
+      <h2 id="professional-tips-events">Professional tips</h2>
+      <p>Keep interaction flows resilient under real user behavior:</p>
+      <ol>
+        <li>Keep handlers small and deterministic; delegate multi-step workflows to helper functions or hooks.</li>
+        <li>Guard against double-clicks on async actions by disabling the trigger or tracking pending state.</li>
+        <li>Never attach click handlers to non-interactive elements like <code>&lt;div&gt;</code> or <code>&lt;span&gt;</code> when a <code>&lt;button&gt;</code> fits.</li>
+      </ol>
+
+      <h2 id="practice-events">Practice</h2>
+      <p>Build an interactive task list where clicking a row opens details, clicking a nested delete button asks for confirmation without triggering row selection, and keyboard users can operate every action.</p>
+    </main>
+  </div>
+</div>
 <hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer>
 </div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>

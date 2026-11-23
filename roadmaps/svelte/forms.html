@@ -36,87 +36,103 @@
 <h1 id="chapter-9-working-with-forms">Chapter 9: Working with Forms</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Forms are essential for user interaction. In this chapter, you'll learn how to create forms in Svelte with two-way binding, validation, and custom form components.
+Forms are critical user-input surfaces. Svelte's <code>bind:</code> directive eliminates repetitive <code>onChange</code> boilerplate while keeping validation, accessibility, and submission states explicit.
 </div>
 
 <h2 id="two-way-data-binding">Two-Way Data Binding</h2>
 
-<p>Svelte's <code>bind:</code> directive makes form handling incredibly simple:</p>
+<p>In plain HTML, inputs hold their own DOM state. Using <code>bind:value={variable}</code> creates a two-way link: typing in the input updates your JavaScript variable, and assigning to that variable in code updates the input. For <code>type="number"</code> or <code>type="range"</code> inputs, Svelte automatically coerces the bound value to a JavaScript number instead of a string. Always pair inputs with an explicit <code>&lt;label for="..."&gt;</code> for accessibility:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let name = '';
   let email = '';
 &lt;/script&gt;
 
-&lt;input bind:value={name} placeholder="Enter name" /&gt;
-&lt;input type="email" bind:value={email} placeholder="Enter email" /&gt;
+&lt;label for="user-name"&gt;Name&lt;/label&gt;
+&lt;input id="user-name" bind:value={name} placeholder="Enter name" /&gt;
 
-&lt;p&gt;Name: {name}&lt;/p&gt;
-&lt;p&gt;Email: {email}&lt;/p&gt;
+&lt;label for="user-email"&gt;Email&lt;/label&gt;
+&lt;input id="user-email" type="email" bind:value={email} placeholder="Enter email" /&gt;
+
+&lt;p&gt;Preview: {name || 'Anonymous'} ({email || 'no email'})&lt;/p&gt;
 </code></pre>
 
 <h2 id="form-submission">Form Submission</h2>
 
-<p>Handle form submission with the <code>on:submit</code> directive:</p>
+<p>Wrap related inputs in a semantic <code>&lt;form&gt;</code> element and attach <code>on:submit|preventDefault={handleSubmit}</code>. Using a real <code>&lt;form&gt;</code> lets users submit by pressing <code>Enter</code> inside any text field, while <code>|preventDefault</code> stops the browser from reloading the page. Track an explicit <code>submitting</code> flag to prevent duplicate requests:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let formData = { name: '', email: '' };
+  let submitting = false;
 
-  function handleSubmit() {
-    console.log('Form submitted:', formData);
+  async function handleSubmit() {
+    submitting = true;
+    try {
+      await saveUser(formData);
+    } finally {
+      submitting = false;
+    }
   }
 &lt;/script&gt;
 
 &lt;form on:submit|preventDefault={handleSubmit}&gt;
-  &lt;input bind:value={formData.name} placeholder="Name" /&gt;
-  &lt;input type="email" bind:value={formData.email} placeholder="Email" /&gt;
-  &lt;button type="submit"&gt;Submit&lt;/button&gt;
+  &lt;input bind:value={formData.name} placeholder="Name" required /&gt;
+  &lt;input type="email" bind:value={formData.email} placeholder="Email" required /&gt;
+  &lt;button type="submit" disabled={submitting}&gt;
+    {submitting ? 'Saving...' : 'Submit'}
+  &lt;/button&gt;
 &lt;/form&gt;
 </code></pre>
 
 <h2 id="form-validation">Form Validation</h2>
 
-<p>Add validation logic to your forms:</p>
+<p>Store validation errors in an object keyed by field name so each input can display its own inline message and set <code>aria-invalid</code> for screen readers. Validate on submit (and optionally on <code>blur</code> after a field is touched) rather than showing errors before the user finishes typing:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let email = '';
   let errors = {};
 
   function validateForm() {
-    errors = {};
-    if (!email) {
-      errors.email = 'Email is required';
+    const next = {};
+    if (!email.trim()) {
+      next.email = 'Email is required.';
     } else if (!email.includes('@')) {
-      errors.email = 'Invalid email format';
+      next.email = 'Enter a valid email address.';
     }
+    errors = next;
+    return Object.keys(next).length === 0;
   }
 
   function handleSubmit() {
-    validateForm();
-    if (Object.keys(errors).length === 0) {
-      console.log('Form is valid');
+    if (validateForm()) {
+      console.log('Valid submission:', email);
     }
   }
 &lt;/script&gt;
 
-&lt;form on:submit|preventDefault={handleSubmit}&gt;
-  &lt;input bind:value={email} placeholder="Email" /&gt;
+&lt;form on:submit|preventDefault={handleSubmit} novalidate&gt;
+  &lt;input
+    type="email"
+    bind:value={email}
+    aria-invalid={Boolean(errors.email)}
+    placeholder="Email"
+  /&gt;
   {#if errors.email}
-    &lt;p class="error"&gt;{errors.email}&lt;/p&gt;
+    &lt;p class="error" role="alert"&gt;{errors.email}&lt;/p&gt;
   {/if}
   &lt;button type="submit"&gt;Submit&lt;/button&gt;
 &lt;/form&gt;
 
 &lt;style&gt;
-  .error { color: red; }
+  .error { color: #f87171; }
 &lt;/style&gt;
 </code></pre>
 
 <h2 id="checkboxes-and-selects">Checkboxes and Selects</h2>
 
-<p>Binding works with various input types:</p>
+<p>Different form controls bind to different properties: checkboxes use <code>bind:checked</code> for booleans, radio groups use <code>bind:group</code>, and <code>&lt;select&gt;</code> dropdowns use <code>bind:value</code>:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let agreement = false;
   let country = '';
 &lt;/script&gt;
@@ -132,11 +148,10 @@ Forms are essential for user interaction. In this chapter, you'll learn how to c
   &lt;option value="uk"&gt;UK&lt;/option&gt;
 &lt;/select&gt;
 
-&lt;p&gt;Agreement: {agreement}&lt;/p&gt;
-&lt;p&gt;Country: {country}&lt;/p&gt;
+&lt;p&gt;Agreement: {agreement} | Country: {country || 'None'}&lt;/p&gt;
 </code></pre>
 
-<p>Svelte makes form handling elegant and efficient!</p>
+<p><strong>Practice:</strong> Build a registration form with name, email, country select, and terms checkbox, validating all fields on submit and disabling the submit button until the request resolves.</p>
 
       </main>
     </div>

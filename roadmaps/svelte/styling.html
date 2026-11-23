@@ -36,97 +36,110 @@
 <h1 id="chapter-7-styling-in-svelte">Chapter 7: Styling in Svelte</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Svelte provides powerful and flexible styling capabilities. In this chapter, we'll explore component-scoped CSS, global styles, and dynamic styling techniques.
+Svelte compiles <code>&lt;style&gt;</code> blocks into component-scoped CSS at build time, giving you isolation without runtime CSS-in-JS overhead, plus clean directives for dynamic classes and custom properties.
 </div>
 
 <h2 id="component-scoped-styles">Component-Scoped Styles</h2>
 
-<p>One of Svelte's best features is that CSS in a component is automatically scoped to that component:</p>
+<p>Any CSS written inside a component's <code>&lt;style&gt;</code> tag is automatically scoped to that component by adding a deterministic hash class (such as <code>svelte-1a2b3c</code>) to matching elements. You can write plain element or class selectors like <code>h2</code> or <code>.card</code> without worrying about colliding with another component's styles, and the Svelte compiler warns you if a selector does not match any element in the markup:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let count = 0;
 &lt;/script&gt;
 
-&lt;div&gt;
-  &lt;h1&gt;Count: {count}&lt;/h1&gt;
-  &lt;button on:click={() => count++}&gt;Increment&lt;/button&gt;
-&lt;/div&gt;
+&lt;section class="counter-box"&gt;
+  &lt;h2&gt;Count: {count}&lt;/h2&gt;
+  &lt;button type="button" on:click={() =&gt; count++}&gt;Increment&lt;/button&gt;
+&lt;/section&gt;
 
 &lt;style&gt;
-  div {
-    background: #f0f0f0;
+  .counter-box {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 0.5rem;
     padding: 1rem;
   }
 
-  h1 {
-    color: purple;
-  }
-
   button {
-    background: purple;
-    color: white;
+    background: #0284c7;
+    color: #f8fafc;
     border: none;
     padding: 0.5rem 1rem;
     cursor: pointer;
   }
+
+  /* Always preserve visible keyboard focus indicators */
+  button:focus-visible {
+    outline: 2px solid #38bdf8;
+    outline-offset: 2px;
+  }
 &lt;/style&gt;
 </code></pre>
 
-<p>The styles only apply to this component. Other components won't be affected!</p>
-
 <h2 id="dynamic-styles">Dynamic Styles</h2>
 
-<p>Use reactive variables in your styles:</p>
+<p>To toggle a CSS class conditionally based on reactive state, use Svelte's <code>class:</code> directive instead of string concatenation. When the class name matches the boolean variable name, you can even use the shorthand <code>class:active</code>:</p>
 
-<pre><code class="language-html">&lt;script&gt;
-  let isActive = false;
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  let active = false;
 &lt;/script&gt;
 
-&lt;div class:active={isActive}&gt;
-  Conditional class
-&lt;/div&gt;
+&lt;button
+  type="button"
+  class:active
+  aria-pressed={active}
+  on:click={() =&gt; active = !active}
+&gt;
+  {active ? 'Enabled' : 'Disabled'}
+&lt;/button&gt;
 
 &lt;style&gt;
-  div {
-    padding: 1rem;
+  button {
+    padding: 0.5rem 1rem;
+    background: #334155;
+    color: #e2e8f0;
   }
 
   .active {
-    background: green;
-    color: white;
+    background: #16a34a;
+    color: #ffffff;
   }
 &lt;/style&gt;
 </code></pre>
 
 <h2 id="inline-styles">Inline Styles</h2>
 
-<p>Apply inline styles dynamically:</p>
+<p>For values driven by runtime state—such as progress-bar widths, coordinates, or user-chosen theme colors—use the <code>style:</code> directive or CSS custom properties passed to a child component (<code>&lt;ProgressBar --bar-color="#38bdf8" /&gt;</code>):</p>
 
-<pre><code class="language-html">&lt;script&gt;
-  let color = 'purple';
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  let progress = 65;
+  let accent = '#38bdf8';
 &lt;/script&gt;
 
-&lt;div style="color: {color}; background: lightgray; padding: 1rem;"&gt;
-  Dynamically styled text
+&lt;div class="track"&gt;
+  &lt;div class="fill" style:width={`${progress}%`} style:background={accent}&gt;&lt;/div&gt;
 &lt;/div&gt;
+
+&lt;style&gt;
+  .track { background: #1e293b; height: 0.75rem; border-radius: 999px; overflow: hidden; }
+  .fill { height: 100%; transition: width 0.2s ease; }
+&lt;/style&gt;
 </code></pre>
 
 <h2 id="global-styles">Global Styles</h2>
 
-<p>Use <code>:global()</code> to apply global styles from a component:</p>
+<p>When you genuinely need a rule inside a component to style child-slot content or document-level elements like <code>body</code>, wrap only that selector in <code>:global(...)</code>. Keep global overrides rare and prefer a dedicated global token stylesheet for app-wide typography and colors:</p>
 
-<pre><code class="language-html">&lt;style&gt;
-  :global(body) {
-    background: #f9f9f9;
-  }
-
-  :global(.utility-class) {
-    margin: 1rem;
+<pre><code class="language-html line-numbers">&lt;style&gt;
+  /* Scoped wrapper styles any injected &lt;a&gt; inside a slot */
+  .prose :global(a) {
+    color: #38bdf8;
+    text-decoration: underline;
   }
 &lt;/style&gt;
 </code></pre>
 
-<p>Svelte's styling system is flexible and keeps your stylesheets organized!</p>
+<p><strong>Practice:</strong> Build a <code>StatusPill.svelte</code> component with scoped base styles, a <code>class:selected</code> toggle, a dynamic <code>style:border-color</code> prop, and <code>:focus-visible</code> keyboard outlines.</p>
 
       </main>
     </div>

@@ -13,29 +13,104 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
 <header id="dynamic-header" class="container-fluid pb-2"></header>
-<div class="container-fluid px-0"><div class="row g-0"><aside class="side-bar col-lg-3 col-12"><div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top"><div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div><hr><ul id="bookmark-list" class="list-unstyled"></ul></div></aside><main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
-<h1 id="forms-validation">Forms and Validation</h1>
-<div class="alert alert-secondary shadow-sm">Forms are high-risk user surfaces. Reliable validation and clear error messaging are professional requirements.</div>
-<h2 id="controlled-components">Controlled components</h2>
-<pre><code class="language-jsx">const [email, setEmail] = useState("");
-&lt;input value={email} onChange={(e) =&gt; setEmail(e.target.value)} /&gt;</code></pre>
-<h2 id="validation-strategy">Validation strategy</h2>
-<p>Validate on submit and optionally on blur. Avoid noisy validation while users type.</p>
-<h2 id="error-modeling">Error modeling</h2>
-<p>Represent field errors by field key to keep form UX scalable and maintainable.</p>
-<h2 id="async-submit">Async submit flow</h2>
-<p>Handle loading, success, and failure states explicitly so users always understand request state.</p>
-<h2 id="professional-tips-forms">Professional tips</h2>
-<ol><li>Keep form state local unless broadly shared.</li><li>Disable submit during pending requests.</li><li>Show actionable error text, not generic failures.</li></ol>
-<h2 id="practice-forms">Practice</h2>
-<p>Build a profile editor form with inline validation, async submit, and success/error feedback.</p>
-</main></div></div>
+<div class="container-fluid px-0">
+  <div class="row g-0">
+    <aside class="side-bar col-lg-3 col-12">
+      <div id="study-sidebar" class="sidebar-content shadow-sm p-3 sticky-top">
+        <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="mb-0" id="lab-topics">Lab Topics</h5></div>
+        <hr>
+        <ul id="bookmark-list" class="list-unstyled"></ul>
+      </div>
+    </aside>
+    <main id="main-content" class="col-lg-9 col-12 order-2 order-lg-1 p-3">
+      <h1 id="forms-validation">Forms and Validation</h1>
+      <div class="alert alert-secondary shadow-sm">Forms are high-risk user surfaces. Reliable validation, accessible error wiring, and clear submission states are core engineering requirements.</div>
+
+      <h2 id="controlled-components">Controlled components</h2>
+      <p>In a <strong>controlled component</strong>, React state is the single source of truth for the input's current value. Every keystroke fires <code>onChange</code>, updates state, and re-renders the input with the new <code>value</code>. This makes it straightforward to format input, enforce constraints, or disable submission when required fields are empty. Always pair inputs with an explicit <code>&lt;label htmlFor="..."&gt;</code> so screen readers announce the field:</p>
+      <pre><code class="language-jsx line-numbers">import { useState } from "react";
+
+function NewsletterForm({ onSubscribe }) {
+  const [email, setEmail] = useState("");
+
+  function handleSubmit(event) {
+    event.preventDefault(); // Prevent full-page browser reload
+    onSubscribe(email.trim());
+  }
+
+  return (
+    &lt;form onSubmit={handleSubmit} noValidate&gt;
+      &lt;label htmlFor="newsletter-email"&gt;Work email&lt;/label&gt;
+      &lt;input
+        id="newsletter-email"
+        type="email"
+        value={email}
+        onChange={e =&gt; setEmail(e.target.value)}
+        required
+      /&gt;
+      &lt;button type="submit"&gt;Subscribe&lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+
+      <h2 id="validation-strategy">Validation strategy</h2>
+      <p>Validate at the right moment so users get helpful feedback without feeling interrupted:</p>
+      <ul>
+        <li><strong>On submit:</strong> Always validate the full form when the user submits so incomplete fields are caught together.</li>
+        <li><strong>On blur (touched):</strong> Track which fields the user has visited and display inline errors after they leave a field, rather than flashing red errors on the very first keystroke.</li>
+        <li><strong>Server validation:</strong> Client checks improve responsiveness, but the server remains the authority—always map backend field errors back onto the form.</li>
+      </ul>
+
+      <h2 id="error-modeling">Error modeling</h2>
+      <p>Model validation errors as a dictionary keyed by field name (for example, <code>{ email: "Enter a valid address" }</code>) plus an optional form-level error for server failures. Connect each message to its input with <code>aria-invalid</code> and <code>aria-describedby</code> so assistive technologies read the error immediately:</p>
+      <pre><code class="language-jsx line-numbers">function validateProfile(values) {
+  const errors = {};
+  if (!values.name.trim()) errors.name = "Display name is required.";
+  if (!values.email.includes("@")) errors.email = "Enter a valid email address.";
+  return errors;
+}</code></pre>
+
+      <h2 id="async-submit">Async submit flow</h2>
+      <p>When submitting to an API, track submission status explicitly (<code>idle</code>, <code>submitting</code>, <code>succeeded</code>, <code>failed</code>). Disable the submit button while a request is in flight to prevent duplicate records, clear stale errors on retry, and announce the outcome clearly:</p>
+      <pre><code class="language-jsx line-numbers">async function handleFormSubmit(event) {
+  event.preventDefault();
+  const nextErrors = validateProfile(values);
+  if (Object.keys(nextErrors).length &gt; 0) {
+    setErrors(nextErrors);
+    return;
+  }
+
+  setStatus("submitting");
+  setServerError(null);
+  try {
+    await saveProfile(values);
+    setStatus("succeeded");
+  } catch (err) {
+    setStatus("failed");
+    setServerError(err.message || "Could not save profile.");
+  }
+}</code></pre>
+
+      <h2 id="professional-tips-forms">Professional tips</h2>
+      <p>Keep form code maintainable as fields and rules expand:</p>
+      <ol>
+        <li>Keep form state local to the form or route unless another distant view genuinely depends on unsaved drafts.</li>
+        <li>Disable submit triggers during pending requests to prevent accidental double-submissions.</li>
+        <li>Show actionable error text ("Password must be at least 12 characters") rather than generic failure banners.</li>
+      </ol>
+
+      <h2 id="practice-forms">Practice</h2>
+      <p>Build a profile editor form with controlled inputs, field-keyed validation on blur and submit, accessible <code>aria-describedby</code> error messages, and an async submit flow with pending and failure states.</p>
+    </main>
+  </div>
+</div>
 <hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer>
 </div>
 <button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>

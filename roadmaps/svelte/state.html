@@ -36,73 +36,80 @@
 <h1 id="chapter-5-reactive-state">Chapter 5: Reactive State</h1>
 
 <div class="alert alert-secondary shadow-sm">
-Svelte's reactivity system is one of its most powerful features. Unlike other frameworks, Svelte makes reactivity feel natural and intuitive. In this chapter, you'll learn how to create and manage reactive state.
+Svelte implements reactivity at compile time by instrumenting variable assignments. Knowing how assignment triggers updates—and how to derive values with <code>$:</code>—prevents subtle stale-UI bugs with arrays and objects.
 </div>
 
 <h2 id="declaring-reactive-variables">Declaring Reactive Variables</h2>
 
-<p>In Svelte, any variable declared in the script block is potentially reactive:</p>
+<p>Any top-level <code>let</code> variable referenced in a Svelte template is reactive: reassigning it with <code>=</code>, <code>+=</code>, or <code>++</code> schedules a batched DOM update for only the expressions that depend on it. Because Svelte tracks <em>assignments</em> rather than object mutations, calling <code>items.push(x)</code> alone will not trigger an update unless you reassign <code>items = [...items, x]</code> (or <code>items = items</code>):</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let count = 0;
+  let history = [];
 
   function increment() {
-    count += 1;  // Svelte detects this change automatically
+    count += 1;
+    // Reassign the array reference so Svelte detects the update
+    history = [...history, count];
   }
 &lt;/script&gt;
 
-&lt;p&gt;Count: {count}&lt;/p&gt;
-&lt;button on:click={increment}&gt;Increment&lt;/button&gt;
+&lt;p&gt;Count: {count} (steps: {history.length})&lt;/p&gt;
+&lt;button type="button" on:click={increment}&gt;Increment&lt;/button&gt;
 </code></pre>
-
-<p>When you assign a new value to <code>count</code>, Svelte automatically updates the UI. No need for setState() or action dispatchers!</p>
 
 <h2 id="reactive-declarations">Reactive Declarations</h2>
 
-<p>Use the <code>$:</code> label to create reactive declarations that automatically update when their dependencies change:</p>
+<p>When one value depends on another, storing both independently risks letting them drift out of sync. Prefixing an assignment with Svelte's <code>$:</code> reactive label tells the compiler to recompute that variable automatically whenever any value read on its right-hand side changes:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let count = 0;
-  let doubled;
 
+  // Svelte declares and updates `doubled` automatically whenever `count` changes
   $: doubled = count * 2;
 &lt;/script&gt;
 
 &lt;p&gt;Count: {count}&lt;/p&gt;
 &lt;p&gt;Doubled: {doubled}&lt;/p&gt;
-&lt;button on:click={() => count++}&gt;Increment&lt;/button&gt;
+&lt;button type="button" on:click={() =&gt; count++}&gt;Increment&lt;/button&gt;
 </code></pre>
 
-<p>The <code>$:</code> directive ensures that <code>doubled</code> updates whenever <code>count</code> changes.</p>
+<p>Reactive declarations are topologically ordered by the compiler, meaning <code>$: quadrupled = doubled * 2</code> will always evaluate after <code>doubled</code> regardless of line order in <code>&lt;script&gt;</code>.</p>
 
 <h2 id="reactive-statements">Reactive Statements</h2>
 
-<p>You can also use <code>$:</code> for statements, not just declarations:</p>
+<p>You can also attach <code>$:</code> to an <code>if</code> block or a multi-line block <code>$: { ... }</code> to run side effects—such as logging, persisting drafts to <code>localStorage</code>, or clamping out-of-range inputs—whenever referenced state updates. Keep reactive blocks focused and avoid mutating a variable inside a statement that also reads it, which can cause infinite update loops:</p>
 
-<pre><code class="language-html">&lt;script&gt;
+<pre><code class="language-html line-numbers">&lt;script&gt;
   let count = 0;
+  let warning = '';
 
   $: if (count &gt; 10) {
-    console.log('Count exceeded 10!');
+    warning = 'Threshold exceeded: consider resetting.';
+  } else {
+    warning = '';
   }
 &lt;/script&gt;
 </code></pre>
 
 <h2 id="computed-properties">Computed Properties</h2>
 
-<p>Create computed properties that re-calculate when dependencies change:</p>
+<p>Derived values like full names, filtered lists, and cart totals should always be computed with <code>$:</code> rather than duplicated in manual event handlers. Because Svelte evaluates <code>$:</code> statements only when their dependencies actually change, derived lists stay fast and consistent:</p>
 
-<pre><code class="language-html">&lt;script&gt;
-  let firstName = 'John';
-  let lastName = 'Doe';
+<pre><code class="language-html line-numbers">&lt;script&gt;
+  let firstName = 'Ada';
+  let lastName = 'Lovelace';
+  let query = '';
+  let tasks = ['Write tests', 'Review PR', 'Deploy build'];
 
-  $: fullName = `${firstName} ${lastName}`;
+  $: fullName = `${firstName} ${lastName}`.trim();
+  $: visibleTasks = tasks.filter(t =&gt; t.toLowerCase().includes(query.toLowerCase()));
 &lt;/script&gt;
 
-&lt;p&gt;Full name: {fullName}&lt;/p&gt;
+&lt;p&gt;Owner: {fullName} ({visibleTasks.length} matching tasks)&lt;/p&gt;
 </code></pre>
 
-<p>Svelte's reactivity system makes state management intuitive and efficient!</p>
+<p><strong>Practice:</strong> Build a reactive shopping cart component with an <code>items</code> array, add/remove handlers using immutable array reassignment, and <code>$:</code> declarations for <code>subtotal</code>, <code>tax</code>, and <code>total</code>.</p>
 
       </main>
     </div>
