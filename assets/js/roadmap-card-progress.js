@@ -238,9 +238,12 @@
         if (!c) return false;
         if (keyLower === "sage_progress_" + c) return true;
         if (keyLower === "sage_lab_complete_" + c) return true;
+        if (keyLower === "sage_lab_complete-" + c) return true;
+        if (keyLower.indexOf("sage_lab_complete-") === 0 && keyLower.endsWith("-" + c)) return true;
         if (keyLower.indexOf("sage_progress-") === 0 && keyLower.endsWith("-" + c)) return true;
         if (keyLower.indexOf("sage_read_ms_" + c + "_") === 0) return true;
         if (keyLower.indexOf("sage_read_ms-" + c + "-") === 0) return true;
+        if (keyLower.indexOf("sage_read_ms-") === 0 && keyLower.endsWith("-" + c)) return true;
         return false;
       }) || labIds.some(function (labId) {
         var l = String(labId || "").toLowerCase();
@@ -258,6 +261,16 @@
     keysToRemove.forEach(function (k) {
       localStorage.removeItem(k);
     });
+
+    var anonKey = "sage-roadmap-index-in-progress-anonymous";
+    var anonRaw = localStorage.getItem(anonKey);
+    if (anonRaw) {
+      var anonMap = safeParseObject(anonRaw);
+      if (anonMap[trackKey]) {
+        delete anonMap[trackKey];
+        localStorage.setItem(anonKey, JSON.stringify(anonMap));
+      }
+    }
 
     if (window.roadmapState && typeof window.roadmapState.getUser === "function" && window.roadmapState.getUser()) {
       for (var j = 0; j < courseIds.length; j += 1) {
@@ -338,7 +351,8 @@
     if (!userId) {
       return statusMap;
     }
-    var anonRaw = localStorage.getItem("sage-roadmap-index-in-progress-anonymous");
+    var anonKey = "sage-roadmap-index-in-progress-anonymous";
+    var anonRaw = localStorage.getItem(anonKey);
     if (!anonRaw) {
       return statusMap;
     }
@@ -355,6 +369,7 @@
     if (changed) {
       writeStatusMap(merged);
     }
+    localStorage.removeItem(anonKey);
     return merged;
   }
 
@@ -413,6 +428,22 @@
       return STATUS_IN_PROGRESS;
     }
 
+    return STATUS_NOT_STARTED;
+  }
+
+  function stepRight(status) {
+    var current = normalizeStatus(status);
+    if (current === STATUS_NOT_STARTED) {
+      return STATUS_IN_PROGRESS;
+    }
+    return STATUS_COMPLETED;
+  }
+
+  function stepLeft(status) {
+    var current = normalizeStatus(status);
+    if (current === STATUS_COMPLETED) {
+      return STATUS_IN_PROGRESS;
+    }
     return STATUS_NOT_STARTED;
   }
 
@@ -496,30 +527,93 @@
 
     currentToggle.disabled = false;
     currentToggle.setAttribute("aria-disabled", "false");
-    currentToggle.setAttribute("title", "Click to set status manually. Auto status still updates when no manual override exists.");
+    currentToggle.setAttribute("title", "Tap to rotate status, or drag left/right to switch.");
 
     if (currentToggle.dataset.manualStatusWired !== "true") {
       currentToggle.dataset.manualStatusWired = "true";
-      currentToggle.addEventListener("click", async function () {
-        var nextStatus = cycleStatus(normalizeStatus(card.getAttribute("data-progress-status")));
 
+      var applyNewStatus = async function (nextStatus) {
+        var liveMap = readStatusMap();
         if (nextStatus === STATUS_NOT_STARTED) {
-          delete statusMap[key];
+          delete liveMap[key];
         } else {
-          statusMap[key] = nextStatus;
+          liveMap[key] = nextStatus;
         }
 
-        writeStatusMap(statusMap);
+        writeStatusMap(liveMap);
         card.setAttribute("data-progress-status", nextStatus);
+        card.dataset.userTouched = "true";
         applyVisual(wrap, nextStatus);
+        window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
 
         if (nextStatus === STATUS_NOT_STARTED) {
           await clearAllProgressForTrack(key);
         } else {
           await syncCardStatusRemote(key, nextStatus);
         }
+      };
 
-        window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
+      var dragState = null;
+      var suppressClickUntil = 0;
+
+      currentToggle.addEventListener("pointerdown", function (e) {
+        if (e.pointerType === "mouse" && e.button !== 0) {
+          return;
+        }
+        dragState = {
+          pointerId: e.pointerId,
+          startX: e.clientX,
+          didDrag: false
+        };
+        if (typeof currentToggle.setPointerCapture === "function") {
+          try {
+            currentToggle.setPointerCapture(e.pointerId);
+          } catch (_err) {
+            // ignore
+          }
+        }
+      });
+
+      currentToggle.addEventListener("pointermove", function (e) {
+        if (!dragState || e.pointerId !== dragState.pointerId) {
+          return;
+        }
+        if (Math.abs(e.clientX - dragState.startX) >= 6) {
+          dragState.didDrag = true;
+        }
+      });
+
+      var finishPointer = function (e) {
+        if (!dragState || e.pointerId !== dragState.pointerId) {
+          return;
+        }
+        var dx = e.clientX - dragState.startX;
+        var wasDrag = dragState.didDrag;
+        dragState = null;
+
+        if (wasDrag) {
+          suppressClickUntil = Date.now() + 250;
+          var current = normalizeStatus(card.getAttribute("data-progress-status"));
+          var targetStatus = dx > 0 ? stepRight(current) : stepLeft(current);
+          if (targetStatus !== current) {
+            applyNewStatus(targetStatus);
+          }
+        }
+      };
+
+      currentToggle.addEventListener("pointerup", finishPointer);
+      currentToggle.addEventListener("pointercancel", function (e) {
+        if (dragState && e.pointerId === dragState.pointerId) {
+          dragState = null;
+        }
+      });
+
+      currentToggle.addEventListener("click", function () {
+        if (Date.now() < suppressClickUntil) {
+          return;
+        }
+        var current = normalizeStatus(card.getAttribute("data-progress-status"));
+        applyNewStatus(cycleStatus(current));
       });
     }
   }
@@ -567,37 +661,72 @@
 
     var validKeys = new Set(cards.map(topicKeyForCard).filter(Boolean));
     var statusMap = normalizeStatusMap(migrateAnonymousStatusMap(readStatusMap()), validKeys);
-    var remoteStatsByTrack = {};
     var localKeys = collectLocalStorageKeys();
+
+    // Render and wire all cards immediately from local state so switches never block.
+    cards.forEach(function (card) {
+      var key = topicKeyForCard(card);
+      enhanceCard(card, statusMap, {}, localKeys);
+    });
+    window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
 
     if (hasSessionUser()) {
       Object.keys(statusMap).forEach(function (trackKey) {
         syncCardStatusRemote(trackKey, statusMap[trackKey]);
       });
 
+      var api = getApi();
       var sync = getSync();
-      if (sync && typeof sync.loadRoadmapProgress === "function") {
-        for (var i = 0; i < cards.length; i += 1) {
-          var key = topicKeyForCard(cards[i]);
-          if (!key || remoteStatsByTrack[key]) {
-            continue;
-          }
+      var remoteStatsByTrack = {};
+      var seenKeys = new Set();
 
-          try {
-            remoteStatsByTrack[key] = await sync.loadRoadmapProgress(canonicalCourseIdForTrack(key));
-          } catch (_error) {
-            remoteStatsByTrack[key] = {};
-          }
+      await Promise.all(cards.map(async function (card) {
+        var key = topicKeyForCard(card);
+        if (!key || seenKeys.has(key)) {
+          return;
         }
-      }
+        seenKeys.add(key);
+
+        var stats = {};
+        try {
+          if (api && typeof api.list === "function") {
+            var res = await api.list(key);
+            var rows = (res && !res.error && res.data && res.data.rows) ? res.data.rows : [];
+            var cardRow = rows.find(function (r) { return r && r.topic_key === CARD_STATUS_TOPIC_KEY; });
+            if (cardRow) {
+              stats[key] = {
+                done: cardRow.status === "done",
+                percent: Number(cardRow.progress_percent || 0)
+              };
+            }
+          }
+          if (!stats[key] && sync && typeof sync.loadRoadmapProgress === "function") {
+            var courseStats = await sync.loadRoadmapProgress(canonicalCourseIdForTrack(key));
+            var topicVals = Object.values(courseStats || {});
+            if (topicVals.length > 0) {
+              var allDone = topicVals.every(function (v) { return v && v.done; });
+              var anyStarted = topicVals.some(function (v) { return v && (v.done || Number(v.percent) > 0); });
+              if (allDone || anyStarted) {
+                stats[key] = { done: allDone, percent: allDone ? 100 : 50 };
+              }
+            }
+          }
+        } catch (_error) {
+          // ignore remote fetch errors
+        }
+        remoteStatsByTrack[key] = stats;
+      }));
+
+      var latestMap = normalizeStatusMap(readStatusMap(), validKeys);
+      cards.forEach(function (card) {
+        if (card.dataset.userTouched === "true") {
+          return;
+        }
+        var key = topicKeyForCard(card);
+        enhanceCard(card, latestMap, remoteStatsByTrack[key] || {}, localKeys);
+      });
+      window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
     }
-
-    cards.forEach(function (card) {
-      var key = topicKeyForCard(card);
-      enhanceCard(card, statusMap, remoteStatsByTrack[key] || {}, localKeys);
-    });
-
-    window.dispatchEvent(new CustomEvent("roadmap-card-status-updated"));
   }
 
   document.addEventListener("DOMContentLoaded", function () {

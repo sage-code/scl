@@ -126,10 +126,47 @@
     });
   }
 
+  function ensureFlatGrid() {
+    var shell = document.querySelector(".home-grid-shell");
+    if (!shell) {
+      return null;
+    }
+
+    var flatGrid = document.getElementById("roadmap-flat-grid");
+    if (!flatGrid) {
+      flatGrid = document.createElement("div");
+      flatGrid.id = "roadmap-flat-grid";
+      flatGrid.className = "home-lane-grid d-none";
+      shell.insertBefore(flatGrid, shell.firstChild);
+    }
+
+    return flatGrid;
+  }
+
   function applyFilter(categoryValue, statusValue, cards, lanes, emptyState) {
     var activeCategory = categoryValue || "all";
     var activeStatus = normalizeStatusFilter(statusValue);
+    var flattenCategories = activeStatus !== "all";
+    var flatGrid = ensureFlatGrid();
     var visibleCount = 0;
+
+    if (flatGrid) {
+      if (flattenCategories) {
+        cards.forEach(function (card) {
+          if (card.parentElement !== flatGrid) {
+            flatGrid.appendChild(card);
+          }
+        });
+        flatGrid.classList.remove("d-none");
+      } else {
+        cards.forEach(function (card) {
+          if (card._originalGrid && card.parentElement !== card._originalGrid) {
+            card._originalGrid.appendChild(card);
+          }
+        });
+        flatGrid.classList.add("d-none");
+      }
+    }
 
     cards.forEach(function (card) {
       var category = String(card.getAttribute("data-category") || "").trim().toLowerCase();
@@ -149,8 +186,12 @@
     });
 
     lanes.forEach(function (lane) {
-      lane.classList.toggle("d-none", !hasVisibleCard(lane));
+      lane.classList.toggle("d-none", flattenCategories || !hasVisibleCard(lane));
     });
+
+    if (flatGrid && flattenCategories) {
+      flatGrid.classList.toggle("d-none", visibleCount === 0);
+    }
 
     if (emptyState) {
       emptyState.classList.toggle("d-none", visibleCount > 0);
@@ -167,6 +208,12 @@
     if (!filterSelect || !statusFilterSelect || cards.length === 0) {
       return;
     }
+
+    cards.forEach(function (card) {
+      if (!card._originalGrid) {
+        card._originalGrid = card.parentElement;
+      }
+    });
 
     var initialCategory = getSavedFilter();
     if (!filterSelect.querySelector('option[value="' + initialCategory + '"]')) {
