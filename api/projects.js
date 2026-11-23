@@ -232,6 +232,24 @@ module.exports = handle(async (req, res) => {
     return;
   }
 
+  if (body.action === "cancel") {
+    const projectId = validateText(body.project_id, "Project ID", 64);
+    const existing = await db.execute({
+      sql: "select id, status from project_contributors where project_id = ? and user_id = ? limit 1",
+      args: [projectId, session.user.id]
+    });
+    const row = existing.rows[0];
+    if (!row) {
+      throw new HttpError(404, "Contributor request not found.");
+    }
+    if (row.status !== "pending") {
+      throw new HttpError(400, "Only pending requests can be canceled.");
+    }
+    await db.execute({ sql: "delete from project_contributors where id = ?", args: [row.id] });
+    sendJson(res, 200, { ok: true, canceled: true });
+    return;
+  }
+
   if (body.action === "leave") {
     const requestId = validateText(body.request_id, "Request ID", 64);
     const existing = await db.execute({

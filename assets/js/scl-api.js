@@ -123,7 +123,8 @@
       approveContributor: function (requestId, approved) {
         return post("/api/projects/", { action: "approve", request_id: requestId, approved: Boolean(approved) });
       },
-      leaveProject: function (requestId) { return post("/api/projects/", { action: "leave", request_id: requestId }); }
+      leaveProject: function (requestId) { return post("/api/projects/", { action: "leave", request_id: requestId }); },
+      cancelProject: function (projectId) { return post("/api/projects/", { action: "cancel", project_id: projectId }); }
     },
     community: {
       profile: function () { return request("GET", "/api/community/profile/"); },

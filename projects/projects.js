@@ -1,6 +1,9 @@
 (function () {
   var tbody = document.getElementById("projects-table-body");
   var addBtn = document.getElementById("projects-add-btn");
+  var prevBtn = document.getElementById("projects-prev-btn");
+  var nextBtn = document.getElementById("projects-next-btn");
+  var pageInfo = document.getElementById("projects-page-info");
   var actionColHead = document.getElementById("projects-action-col");
   var statusBox = document.getElementById("projects-status");
   var dialog = document.getElementById("dialog-project");
@@ -10,12 +13,14 @@
     return;
   }
 
+  var PAGE_SIZE = 5;
   var state = {
     projects: [],
     categories: [],
     canEdit: false,
     myRequests: {},
-    pendingJoinHandled: false
+    pendingJoinHandled: false,
+    currentPage: 1
   };
 
   var CATEGORY_NEW_VALUE = "__new__";
@@ -62,14 +67,40 @@
     }
 
     var colCount = state.canEdit ? 8 : 7;
-    if (!state.projects.length) {
+    var totalProjects = state.projects.length;
+    var totalPages = Math.max(1, Math.ceil(totalProjects / PAGE_SIZE));
+    if (state.currentPage > totalPages) {
+      state.currentPage = totalPages;
+    }
+    if (state.currentPage < 1) {
+      state.currentPage = 1;
+    }
+
+    if (prevBtn) {
+      prevBtn.disabled = state.currentPage <= 1;
+    }
+    if (nextBtn) {
+      nextBtn.disabled = state.currentPage >= totalPages;
+    }
+
+    if (!totalProjects) {
+      if (pageInfo) {
+        pageInfo.textContent = "";
+      }
       tbody.innerHTML = '<tr><td colspan="' + colCount + '" class="text-center text-secondary">No projects found.</td></tr>';
       return;
     }
 
+    var startIndex = (state.currentPage - 1) * PAGE_SIZE;
+    var pageProjects = state.projects.slice(startIndex, startIndex + PAGE_SIZE);
+    if (pageInfo) {
+      pageInfo.textContent = "Showing " + (startIndex + 1) + "\u2013" + (startIndex + pageProjects.length)
+        + " of " + totalProjects + " (Page " + state.currentPage + " of " + totalPages + ")";
+    }
+
     var grouped = [];
     var byCat = new Map();
-    state.projects.forEach(function (proj) {
+    pageProjects.forEach(function (proj) {
       var cat = proj.category || "Other";
       if (!byCat.has(cat)) {
         var bucket = { category: cat, items: [] };
@@ -87,12 +118,12 @@
         var srcHref = safeHref(p.source_url);
         var isExternal = href.indexOf("https://") === 0;
         var reqStatus = state.myRequests[p.id] || "";
-        var joinClass = reqStatus === "approved"
-          ? "btn-outline-success"
-          : (reqStatus === "pending" ? "btn-outline-warning" : "btn-outline-info");
+        var joinIcon = reqStatus === "approved"
+          ? "👍🏾"
+          : (reqStatus === "pending" ? "✊🏾" : "✋🏾");
         var joinTitle = reqStatus === "approved"
           ? "Approved contributor"
-          : (reqStatus === "pending" ? "Join request pending" : ("Request to join " + p.name));
+          : (reqStatus === "pending" ? "Request pending — click to cancel" : ("Request to join " + p.name));
         html += "<tr>";
         html += "<td>" + (idx + 1) + "</td>";
         html += '<td class="text-center"><span title="' + escapeHtml(p.status_title) + '" style="cursor:help; color: ' + escapeHtml(p.status_color || "#6c757d") + ';">' + escapeHtml(p.status_icon || "🛠️") + "</span></td>";
@@ -101,8 +132,8 @@
         html += "<td>" + escapeHtml(p.technology) + "</td>";
         html += '<td class="text-center"><a href="' + escapeHtml(srcHref) + '" target="_blank" rel="noopener noreferrer nofollow" title="GitHub Repository">GitHub</a></td>';
         html += '<td class="text-center">'
-          + '<button type="button" class="btn ' + joinClass + ' btn-sm rounded-circle project-row-edit-btn project-row-join-btn" data-join-id="' + escapeHtml(p.id) + '" aria-label="' + escapeHtml(joinTitle) + '" title="' + escapeHtml(joinTitle) + '">'
-          + '<span aria-hidden="true">✋🏾</span>'
+          + '<button type="button" class="btn btn-outline-info btn-sm rounded-circle project-row-edit-btn project-row-join-btn" data-join-id="' + escapeHtml(p.id) + '" aria-label="' + escapeHtml(joinTitle) + '" title="' + escapeHtml(joinTitle) + '">'
+          + '<span aria-hidden="true">' + joinIcon + "</span>"
           + "</button></td>";
         if (state.canEdit) {
           html += '<td class="text-center">'
@@ -293,10 +324,77 @@
     return Boolean(window.roadmapState && typeof window.roadmapState.isRegistered === "function" && window.roadmapState.isRegistered());
   }
 
+  function renderSummaryStatus() {
+    if (!isRegisteredUser()) {
+      showStatus(statusBox, "", "info");
+      return;
+    }
+
+    var user = window.roadmapState && typeof window.roadmapState.getUser === "function"
+      ? window.roadmapState.getUser()
+      : null;
+    var username = (user && (user.handle || user.display_name || user.email)) || "Member";
+
+    var pendingCount = 0;
+    var approvedCount = 0;
+    Object.keys(state.myRequests || {}).forEach(function (projId) {
+      var st = state.myRequests[projId];
+      if (st === "approved") {
+        approvedCount += 1;
+      } else if (st === "pending") {
+        pendingCount += 1;
+      }
+    });
+
+    if (approvedCount > 0 && pendingCount > 0) {
+      showStatus(
+        statusBox,
+        username + ": You are contributor approved for " + approvedCount + " "
+          + (approvedCount === 1 ? "project" : "projects") + " and have "
+          + pendingCount + " pending " + (pendingCount === 1 ? "request" : "requests") + ".",
+        "info"
+      );
+    } else if (approvedCount > 0) {
+      showStatus(
+        statusBox,
+        username + ": You are contributor approved for " + approvedCount + " "
+          + (approvedCount === 1 ? "project" : "projects") + ".",
+        "success"
+      );
+    } else if (pendingCount > 0) {
+      showStatus(
+        statusBox,
+        username + ": You have " + pendingCount + " pending "
+          + (pendingCount === 1 ? "request" : "requests") + ".",
+        "info"
+      );
+    } else {
+      showStatus(statusBox, "", "info");
+    }
+  }
+
   async function requestJoinProject(projectId) {
     if (!isRegisteredUser()) {
       var returnTarget = "/projects/?join=" + encodeURIComponent(projectId);
       window.location.href = "/roadmaps/login.html?return=" + encodeURIComponent(returnTarget);
+      return;
+    }
+
+    var currentStatus = state.myRequests[projectId] || "";
+    if (currentStatus === "approved") {
+      renderSummaryStatus();
+      return;
+    }
+
+    if (currentStatus === "pending") {
+      var cancelRes = await window.sclApi.projects.cancelProject(projectId);
+      if (cancelRes.error) {
+        showStatus(statusBox, cancelRes.error.message || "Could not cancel your request.", "danger");
+        return;
+      }
+      delete state.myRequests[projectId];
+      renderProjects();
+      renderSummaryStatus();
       return;
     }
 
@@ -308,7 +406,7 @@
 
     state.myRequests[projectId] = (res.data && res.data.status) || "pending";
     renderProjects();
-    showStatus(statusBox, (res.data && res.data.message) || "Your request was recorded.", "success");
+    renderSummaryStatus();
   }
 
   async function maybeCompletePendingJoin() {
@@ -337,10 +435,32 @@
     state.canEdit = Boolean(res.data && res.data.can_edit === true);
     state.myRequests = (res.data && res.data.my_requests && typeof res.data.my_requests === "object") ? res.data.my_requests : {};
     renderProjects();
+    renderSummaryStatus();
     await maybeCompletePendingJoin();
   }
 
+  function wirePagination() {
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () {
+        if (state.currentPage > 1) {
+          state.currentPage -= 1;
+          renderProjects();
+        }
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () {
+        var totalPages = Math.max(1, Math.ceil(state.projects.length / PAGE_SIZE));
+        if (state.currentPage < totalPages) {
+          state.currentPage += 1;
+          renderProjects();
+        }
+      });
+    }
+  }
+
   wireDialog();
+  wirePagination();
   loadProjects();
   window.addEventListener("roadmap-auth-changed", function () {
     loadProjects();
