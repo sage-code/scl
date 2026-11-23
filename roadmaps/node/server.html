@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
@@ -22,18 +23,29 @@
 <h1 id="node-server">Node.js Server</h1>
 <div class="alert alert-secondary shadow-sm">A Node server turns runtime skills into a real service. Start with the core HTTP module before adding a framework.</div>
 <h2 id="http-module">HTTP module</h2>
-<pre><code class="language-javascript">import http from "node:http";
+<p>Node's built-in <code>node:http</code> module creates an HTTP server without external dependencies. Every incoming request fires your handler with a readable stream (<code>req</code>) and a writable response stream (<code>res</code>). Always bind to <code>process.env.PORT</code> with a local fallback so the server works in both development and cloud containers:</p>
+<pre><code class="language-javascript line-numbers">import http from "node:http";
 
 const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Hello from Node");
-});</code></pre>
+  const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+  if (req.method === "GET" && url.pathname === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify({ ok: true }));
+  }
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: "Not Found" }));
+});
+
+const port = Number(process.env.PORT) || 3000;
+server.listen(port, () => console.log(`Listening on :${port}`));</code></pre>
 <h2 id="routes">Routes</h2>
-<p>Keep routing explicit. A small route table is easier to debug than implicit control flow.</p>
+<p>Parse <code>req.url</code> with the standard <code>URL</code> constructor so query parameters and pathnames are separated cleanly. Even before adopting a framework like Express or Fastify, keeping a clear route table (matching both HTTP method and pathname) makes request flow easy to trace and test.</p>
 <h2 id="response-design">Response design</h2>
-<ul><li>Set status codes intentionally.</li><li>Return a clear content type.</li><li>Keep error messages useful but safe.</li></ul>
+<p>Every response must set its status code and headers before calling <code>res.end()</code>, and every code path in your handler must end the response so clients never hang waiting for a timeout:</p>
+<ul><li><strong>Intentional status codes:</strong> Return <code>200</code>/<code>201</code> for success, <code>400</code> for invalid input, <code>404</code> for unknown routes, and <code>500</code> for unexpected server faults.</li><li><strong>Explicit <code>Content-Type</code>:</strong> Always declare <code>application/json</code> or <code>text/plain; charset=utf-8</code>.</li><li><strong>Safe error payloads:</strong> Log full stack traces server-side, but return concise, non-sensitive error messages to HTTP callers.</li></ul>
 <h2 id="practice-server">Practice</h2>
-<ol><li>Create one server that answers two paths.</li><li>Return a different status code for unknown paths.</li><li>Record one reason to avoid business logic inside the request handler.</li></ol>
+<p>Extend the core HTTP server above and test it with <code>curl</code>:</p>
+<ol><li>Add a <code>GET /time</code> route that returns the current ISO timestamp as JSON.</li><li>Return <code>405 Method Not Allowed</code> when a client sends <code>POST /health</code>.</li><li>Extract the route-matching logic into a pure helper function so it can be unit-tested without opening a network port.</li></ol>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'node',topicId:'server',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
 <script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script>

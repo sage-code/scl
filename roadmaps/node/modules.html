@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
@@ -22,17 +23,27 @@
 <h1 id="node-modules">Node.js Modules</h1>
 <div class="alert alert-secondary shadow-sm">Modules define boundaries. In Node, the choice between CommonJS and ES modules affects syntax, tooling, and interop.</div>
 <h2 id="commonjs">CommonJS</h2>
-<pre><code class="language-javascript">const path = require("node:path");
-module.exports = { path };</code></pre>
+<p>CommonJS (<code>require</code> / <code>module.exports</code>) was Node's original module system and loads modules synchronously from disk. Notice the <code>node:</code> prefix on built-in modules (such as <code>node:path</code>), which makes it unmistakable that an import comes from Node core rather than an npm package:</p>
+<pre><code class="language-javascript line-numbers">const path = require("node:path");
+
+function buildConfigPath(dir) {
+  return path.join(dir, "config.json");
+}
+
+module.exports = { buildConfigPath };</code></pre>
 <h2 id="esm">ES modules</h2>
-<pre><code class="language-javascript">import path from "node:path";
-export function joinPath() {
-  return path.join("a", "b");
+<p>ECMAScript Modules (ESM) use static <code>import</code> and <code>export</code> syntax, matching browser JavaScript and enabling tree-shaking in bundlers. Enable ESM in Node by setting <code>"type": "module"</code> in <code>package.json</code> or naming files with the <code>.mjs</code> extension, and always include explicit file extensions on relative imports:</p>
+<pre><code class="language-javascript line-numbers">import path from "node:path";
+
+export function joinPath(base, file) {
+  return path.join(base, file);
 }</code></pre>
 <h2 id="design-rules">Design rules</h2>
-<ul><li>Export only the names you want other files to depend on.</li><li>Use one module style per project unless you have a migration reason.</li><li>Keep file boundaries aligned with business boundaries when possible.</li></ul>
+<p>Clean module boundaries prevent circular dependencies and keep refactors safe:</p>
+<ul><li><strong>Minimal public surface:</strong> Export only the functions and types other modules actually need; keep helpers file-private.</li><li><strong>One system per project:</strong> Standardize on ESM for new Node projects (or CommonJS if maintaining an older stack) rather than mixing both unnecessarily.</li><li><strong>Avoid circular imports:</strong> If module A imports module B and B imports A, extract the shared types or helpers into a third module C.</li></ul>
 <h2 id="practice-modules">Practice</h2>
-<ol><li>Create one file that exports a helper function.</li><li>Import it from another file and call it once.</li><li>Record how module boundaries reduced coupling.</li></ol>
+<p>Practice structuring a multi-file Node package:</p>
+<ol><li>Create <code>math.mjs</code> exporting two pure functions and import them from <code>index.mjs</code>.</li><li>Import <code>node:path</code> and <code>node:fs/promises</code> using the <code>node:</code> protocol prefix.</li><li>Verify what error Node throws if you omit the <code>.mjs</code> extension in an ESM relative import.</li></ol>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'node',topicId:'modules',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
 <script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script>

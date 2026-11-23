@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
@@ -22,16 +23,31 @@
 <h1 id="kotlin-coroutines">Kotlin Coroutines</h1>
 <div class="alert alert-secondary shadow-sm">Coroutines give Kotlin a clean way to write asynchronous code without callback nesting. They are common in Android and backend services.</div>
 <h2 id="suspend-functions">Suspend functions</h2>
-<pre><code class="language-kotlin">suspend fun loadUser(): String = "Ada"</code></pre>
+<p>A <code>suspend</code> function can pause execution at a suspension point (such as a network call or <code>delay</code>) without blocking the underlying OS thread, then resume where it left off. Because suspension is compiled into a state machine, asynchronous code reads sequentially from top to bottom without nested callbacks:</p>
+<pre><code class="language-kotlin line-numbers">import kotlinx.coroutines.delay
+
+suspend fun loadUser(id: String): String {
+    delay(100)               // suspends coroutine without blocking the thread
+    return "User($id)"
+}</code></pre>
 <h2 id="structured-concurrency">Structured concurrency</h2>
-<p>Use scopes to keep async work organized. The goal is predictable cancellation and easier error handling.</p>
+<p>Coroutines always run inside a <code>CoroutineScope</code>, which ties child tasks to a parent lifecycle. If a parent scope is cancelled (for example, a user closes a screen or an HTTP request times out) or a sibling fails, all child coroutines are cancelled automatically so background work never leaks:</p>
+<pre><code class="language-kotlin line-numbers">import kotlinx.coroutines.*
+
+suspend fun fetchDashboard(): Pair&lt;String, String&gt; = coroutineScope {
+    // Launch two independent I/O calls concurrently within this scope
+    val user = async { loadUser("42") }
+    val stats = async { delay(120); "12 tasks" }
+    user.await() to stats.await()
+}</code></pre>
 <h2 id="async-flow">Async flow</h2>
-<p>Coroutines work well for I/O, parallel waits, and layered service code where the control flow should still read like ordinary code.</p>
+<p>Use <code>Dispatchers.IO</code> for blocking disk or network calls, <code>Dispatchers.Default</code> for CPU-bound work, and <code>Dispatchers.Main</code> for UI updates—never block a UI or default dispatcher thread with synchronous I/O. For streams of multiple asynchronous values over time, Kotlin provides cold <code>Flow&lt;T&gt;</code> pipelines with operators like <code>map</code>, <code>filter</code>, and <code>catch</code>.</p>
 <h2 id="practice-coroutines">Practice</h2>
+<p>Apply suspension and structured concurrency concepts to a small workflow:</p>
 <ol>
-  <li>Write one suspend function stub.</li>
-  <li>Explain why structured concurrency matters in production systems.</li>
-  <li>Write one note about where coroutines fit better than raw threads.</li>
+  <li>Write two <code>suspend</code> functions and run them concurrently inside <code>coroutineScope</code> using <code>async</code> and <code>await</code>.</li>
+  <li>Explain what happens to sibling coroutines if one <code>async</code> child throws an exception inside <code>coroutineScope</code>.</li>
+  <li>Identify which dispatcher (<code>IO</code>, <code>Default</code>, or <code>Main</code>) fits database queries versus JSON parsing.</li>
 </ol>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'kotlin',topicId:'coroutines',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

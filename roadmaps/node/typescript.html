@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
@@ -22,19 +23,22 @@
 <h1 id="node-typescript">Node.js and TypeScript</h1>
 <div class="alert alert-secondary shadow-sm">TypeScript adds types, editor support, and safer refactors to Node projects. Node does not execute TypeScript source directly in the usual runtime path; you compile it or run it through a TypeScript-aware loader.</div>
 <h2 id="how-it-runs">How it runs</h2>
+<p>TypeScript is a compile-time type checker and language superset that erases type annotations to produce standard JavaScript. In production, compile TypeScript to <code>dist/</code> ahead of time and run plain <code>node dist/app.js</code>; during local development, a fast loader or Node's built-in type stripping avoids a slow manual rebuild step:</p>
 <ol>
-  <li>Write <code>.ts</code> files.</li>
-  <li>Use a compiler or runtime loader such as <code>tsc</code>, <code>tsx</code>, or <code>ts-node</code>.</li>
-  <li>Run the generated JavaScript or the loader command inside Node.</li>
+  <li>Write typed <code>.ts</code> source files under <code>src/</code> with <code>"strict": true</code> in <code>tsconfig.json</code>.</li>
+  <li>Run <code>tsc --noEmit</code> in CI to catch type errors across the whole project.</li>
+  <li>Execute locally with <code>tsx</code> (or compile to <code>dist/</code> with <code>tsc</code> for production containers).</li>
 </ol>
 <h2 id="common-tooling">Common tooling</h2>
+<p>Pick tooling that keeps local iteration fast while still running full type checks before deployment:</p>
 <ul>
-  <li><strong>tsc</strong> for compiling TypeScript to JavaScript.</li>
-  <li><strong>tsx</strong> for fast local execution during development.</li>
-  <li><strong>ts-node</strong> for direct TypeScript execution in some workflows.</li>
+  <li><strong><code>tsc</code>:</strong> The official TypeScript compiler; authoritative for type checking and emitting <code>dist/</code> JavaScript + declaration files.</li>
+  <li><strong><code>tsx</code>:</strong> Fast esbuild-backed runner for local development and scripts without configuring complex loaders.</li>
+  <li><strong><code>@types/node</code>:</strong> Type definitions for Node built-in modules (<code>node:fs</code>, <code>node:http</code>, <code>process</code>).</li>
 </ul>
 <h2 id="recommended-structure">Recommended structure</h2>
-<pre><code class="language-text">src/
+<p>Keep compiled output (<code>dist/</code>) separate from authored source (<code>src/</code>) and git-ignored so generated files never drift from TypeScript source:</p>
+<pre><code class="language-text line-numbers">src/
   app.ts
   config/
   routes/
@@ -43,16 +47,18 @@
 dist/
   app.js</code></pre>
 <h2 id="typing-guidelines">Typing guidelines</h2>
+<p>TypeScript checks types at compile time and erases them at runtime—it cannot protect your server from malformed JSON sent over HTTP:</p>
 <ul>
-  <li>Type public function inputs and outputs first.</li>
-  <li>Prefer explicit domain types over repeated inline object shapes.</li>
-  <li>Keep runtime validation even when types exist, because external input is still untrusted.</li>
+  <li><strong>Explicit public contracts:</strong> Type exported function parameters, return types, and service interfaces explicitly.</li>
+  <li><strong>Name domain models:</strong> Prefer named <code>interface</code> or <code>type</code> aliases over repeated inline object shapes.</li>
+  <li><strong>Validate at boundaries:</strong> Always validate untrusted request bodies and environment variables at runtime (for example, with Zod or manual guards) before casting to a TypeScript type.</li>
 </ul>
 <h2 id="practice-typescript">Practice</h2>
+<p>Set up a minimal typed Node script and verify compile-time checks:</p>
 <ol>
-  <li>Create one <code>.ts</code> file with a typed function.</li>
-  <li>Choose one tool to run or compile it.</li>
-  <li>Record whether you prefer compile-first or loader-first execution for local development.</li>
+  <li>Initialize <code>tsconfig.json</code> with <code>"strict": true</code> and install <code>@types/node</code>.</li>
+  <li>Write a typed <code>parsePort(raw: string | undefined): number</code> helper and run <code>tsc --noEmit</code>.</li>
+  <li>Explain why <code>req.body as User</code> without runtime validation is unsafe in an HTTP handler.</li>
 </ol>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'node',topicId:'typescript',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>

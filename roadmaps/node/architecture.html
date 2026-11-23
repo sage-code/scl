@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
@@ -22,14 +23,16 @@
 <h1 id="node-architecture">Node.js Architecture</h1>
 <div class="alert alert-secondary shadow-sm">Good Node architecture is simple, boring, and explicit. Keep boundaries small, isolate I/O, and keep the runtime entrypoint thin.</div>
 <h2 id="common-use-cases">Common use cases</h2>
+<p>Node.js fits workloads where non-blocking I/O, fast JSON handling, and shared JavaScript/TypeScript tooling deliver high productivity:</p>
 <ul>
-  <li>HTTP APIs and backend services.</li>
-  <li>CLI tools and automation scripts.</li>
-  <li>Build tooling, dev servers, and project scaffolding.</li>
-  <li>Real-time apps that need sockets or event-driven I/O.</li>
+  <li><strong>HTTP APIs and backend services:</strong> REST/GraphQL gateways, BFFs (Backend-for-Frontend), and webhook processors.</li>
+  <li><strong>CLI tools and automation scripts:</strong> Repository linters, code generators, and deployment helpers.</li>
+  <li><strong>Build tooling and dev servers:</strong> Bundlers, static-site generators, and local mock servers.</li>
+  <li><strong>Real-time apps:</strong> WebSocket servers, chat relays, and Server-Sent Events (SSE) streams.</li>
 </ul>
 <h2 id="layered-layout">Layered layout</h2>
-<pre><code class="language-text">src/
+<p>Organizing files by responsibility prevents HTTP request objects (<code>req</code>, <code>res</code>) and SQL queries from leaking into core business logic:</p>
+<pre><code class="language-text line-numbers">src/
   app.ts          # process bootstrap and composition root
   routes/         # HTTP or CLI adapters
   services/       # business rules
@@ -37,15 +40,17 @@
   config/         # environment and startup settings
   types/          # shared domain types</code></pre>
 <h2 id="design-rules">Design rules</h2>
+<p>Apply these four boundary rules so services stay testable as they grow:</p>
 <ol>
-  <li>Keep the entry file small and startup-only.</li>
-  <li>Separate business rules from transport code.</li>
-  <li>Wrap external APIs in adapters so you can replace them later.</li>
-  <li>Use environment variables for deployment settings, never hard-coded secrets.</li>
+  <li>Keep the entry file small and startup-only (load config, wire dependencies, start listening, handle <code>SIGTERM</code>).</li>
+  <li>Separate business rules from transport code so services can be tested without HTTP mocks.</li>
+  <li>Wrap external APIs and databases in repository/client adapters so you can swap providers or inject fakes in tests.</li>
+  <li>Validate environment variables once at startup and fail fast if required secrets are missing.</li>
 </ol>
 <h2 id="architecture-choice">Architecture choice</h2>
-<p>For most Node apps, start with a layered or feature-based architecture. Use a feature-based structure when the app will grow by product area. Use a layered structure when the app is small, service-oriented, or needs a clean separation between HTTP, services, and persistence.</p>
+<p>For most Node apps, start with a layered or feature-based architecture. Use a feature-based structure (grouping <code>users/</code>, <code>billing/</code>, <code>orders/</code> with their own routes and services) when the app grows by product area. Use a layered structure when the app is small, service-oriented, or needs a clean separation between HTTP, services, and persistence.</p>
 <h2 id="practice-architecture">Practice</h2>
+<p>Map out a clean boundary between transport and domain logic:</p>
 <ol>
   <li>Sketch a Node app with an entry file, one service, and one adapter.</li>
   <li>Mark which file is allowed to touch HTTP and which file contains business rules.</li>

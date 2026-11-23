@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" href="/images/favicon.ico">
   <link rel="stylesheet" href="/assets/prism.css">
-  <script src="/assets/prism.js">></script>
+  <script src="/assets/prism.js"></script>
   <link rel="stylesheet" href="/assets/css/sage-common.css">  <link rel="stylesheet" href="/assets/css/content-topic.css">    <link rel="stylesheet" href="/assets/css/content-sidebar.css">
+  <link rel="stylesheet" href="/assets/css/content-code.css">
 </head>
 <body>
 <div class="container">
@@ -22,18 +23,30 @@
 <h1 id="node-async">Node.js Async</h1>
 <div class="alert alert-secondary shadow-sm">Async behavior is central to Node. Learn how the event loop, promises, and async functions keep I/O responsive.</div>
 <h2 id="event-loop">Event loop</h2>
-<p>Node schedules I/O work instead of blocking the process. That design makes it efficient for servers and tooling.</p>
+<p>Node.js executes your JavaScript on a single main thread and delegates non-blocking I/O (network sockets, timers, filesystem reads) to the OS kernel and libuv thread pool. As soon as an I/O call finishes, its callback or Promise reaction is queued on the event loop. Because one thread serves all concurrent requests, running synchronous CPU loops or <code>fs.readFileSync</code> inside an active server stalls every other client.</p>
 <h2 id="promises">Promises</h2>
-<pre><code class="language-javascript">function wait(ms) {
+<p>A <code>Promise</code> represents a future value that settles once as either fulfilled or rejected. Prefer built-in Promise-based APIs such as <code>node:fs/promises</code> or <code>node:timers/promises</code> instead of wrapping callback APIs manually:</p>
+<pre><code class="language-javascript line-numbers">function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}</code></pre>
+}
+
+wait(50).then(() => console.log("timer settled"));</code></pre>
 <h2 id="async-await">async/await</h2>
-<pre><code class="language-javascript">async function run() {
-  await wait(100);
-  console.log("done");
-}</code></pre>
+<p><code>async</code> functions let you write Promise chains as sequential steps with standard <code>try / catch</code> error handling. Watch for accidental serialization: awaiting two independent I/O calls one after another doubles total latency, whereas <code>Promise.all()</code> runs them concurrently:</p>
+<pre><code class="language-javascript line-numbers">async function run() {
+  try {
+    // Run independent async operations concurrently instead of sequentially
+    const [a, b] = await Promise.all([wait(100), wait(100)]);
+    console.log("done in ~100ms", a, b);
+  } catch (err) {
+    console.error("Async step failed:", err);
+  }
+}
+
+run();</code></pre>
 <h2 id="practice-async">Practice</h2>
-<ol><li>Write one promise that resolves after a timeout.</li><li>Wrap it in an async function and await the result.</li><li>Explain why blocking the event loop hurts throughput.</li></ol>
+<p>Test concurrency and error handling with Promises:</p>
+<ol><li>Read two files concurrently using <code>fs.readFile</code> from <code>node:fs/promises</code> and <code>Promise.all()</code>.</li><li>Wrap an <code>await</code> call in <code>try / catch</code> and handle a rejected Promise gracefully.</li><li>Explain why calling <code>JSON.parse</code> on a 50 MB payload on the main thread hurts HTTP throughput.</li></ol>
 </main></div></div><hr><footer class="footer copyright"><p class="x-small text-secondary mb-0">&copy; 2026 Sage-Code Laboratory</p></footer></div><button id="open-sidebar" class="btn btn-primary d-lg-none shadow-lg" type="button"><span style="font-size:24px;">&#9776;</span></button>
 <script>window.TOPIC_CONFIG={labId:'node',topicId:'async',homeLink:'./index.html#topics',labHomeLink:'./index.html',inlineContent:true};</script>
 <script src="/sage.js" defer></script><script src="/assets/js/topic-loader.js" defer></script>
