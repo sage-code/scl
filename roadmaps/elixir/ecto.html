@@ -36,6 +36,9 @@
 </div>
 
 <h2 id="the-ecto-flow">The Ecto Flow</h2>
+<p>
+  Because Elixir data is immutable, Ecto separates data definition, input validation, and database I/O into distinct stages. A schema maps database columns to an Elixir struct, a changeset casts and validates untrusted input into a pure data structure, and the repository executes the persistence call only when the changeset is valid.
+</p>
 <figure class="figure d-block mx-auto my-4">
   <img src="/roadmaps/elixir/img/elixir-ecto-flow.svg" class="figure-img img-fluid rounded" alt="Data flows from user params through a schema, a changeset with validations, and the Repo into the database" loading="lazy">
   <figcaption class="figure-caption text-center">Fig. 1 — Changesets are pipelines of validation: invalid input never reaches the Repo, and errors accumulate in a struct you can render.</figcaption>
@@ -91,9 +94,15 @@ MyApp.Accounts.User
 |&gt; select([u], {u.id, u.email})
 |&gt; Repo.all()</code></pre>
 <h2 id="migrations-and-transactions">Migrations and Transactions</h2>
+<p>
+  Schema definitions describe how Elixir views your tables, while migrations version-control the actual DDL changes applied to the database. Run the Mix generators to create and apply migration files:
+</p>
 <pre><code class="language-bash line-numbers">mix ecto.create                     # create the database
 mix ecto.gen.migration add_visits_index
 mix ecto.migrate                    # apply pending migrations</code></pre>
+<p>
+  When multiple writes must succeed or roll back together, wrap them in <code>Repo.transaction/1</code> or build a declarative <code>Ecto.Multi</code> pipeline so each step receives the named outputs of earlier steps:
+</p>
 <pre><code class="language-elixir line-numbers"># A migration — forward AND down, reviewable in git.
 defmodule MyApp.Repo.Migrations.AddVisitsIndex do
   use Ecto.Migration
@@ -144,6 +153,9 @@ filters = MyApp.Search.Filters.changeset(%{"query" =&gt; "elixir", "min_price" =
 filters.valid?     #=&gt; false — validation ran, no DB involved</code></pre>
 
 <h2 id="practice-ecto">Practice</h2>
+<p>
+  Apply the schema, changeset, and transaction patterns above in a small Mix project or IEx session:
+</p>
 <ol>
   <li>Model a <code>Post</code> with a <code>belongs_to</code> author, then write a query that preloads comments with a count.</li>
   <li>Demonstrate a <code>unique_constraint</code> firing on a duplicate email and render the error message.</li>

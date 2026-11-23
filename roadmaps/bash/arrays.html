@@ -50,6 +50,8 @@
 
 <h3 id="creating">Creating an Array</h3>
 
+<p>Compound assignment with parentheses builds an indexed array in a single expression, while <code>+=</code> appends new elements without overwriting existing indices. Because Bash arrays are sparse, you can also assign to any non-negative integer index directly without preallocating intermediate slots.</p>
+
 <pre><code class="language-bash line-numbers">fruits=(apple banana cherry)         # three elements, indices 0..2
 fruits+=(date)                      # append one element
 declare -a caps                     # explicit declaration
@@ -61,6 +63,8 @@ caps[0]=A; caps[2]=C                # sparse: index 1 is unset
 </div>
 
 <h3 id="accessing">Accessing Elements</h3>
+
+<p>Parameter expansion syntax lets you read individual elements, count populated slots, or inspect which indices are currently defined. Notice the difference between <code>@</code> and <code>*</code>: when double-quoted, <code>"${fruits[@]}"</code> preserves each element as its own argument, whereas <code>"${fruits[*]}"</code> joins them with the first character of <code>IFS</code>.</p>
 
 <pre><code class="language-bash line-numbers">echo "${fruits[0]}"      # apple
 echo "${fruits[-1]}"     # date   (last element, Bash 4.3+)
@@ -74,6 +78,8 @@ echo "${!fruits[@]}"     # the indices themselves
 
 <h3 id="slicing">Slicing</h3>
 
+<p>Range slicing extracts a contiguous window of elements using <code>${arr[@]:offset:length}</code>, which is useful when skipping positional flags or batching arguments. The same syntax works on the positional parameters array <code>$@</code>.</p>
+
 <pre><code class="language-bash line-numbers">set -- one two three four
 echo "${@:2:2}"                    # two three  (2 elements from index 2)
 a=(10 20 30 40 50)
@@ -81,6 +87,8 @@ echo "${a[@]:1:3}"                 # 20 30 40
 </code></pre>
 
 <h3 id="iterate">Iterating</h3>
+
+<p>Looping over <code>"${fruits[@]}"</code> visits every value safely even when filenames or strings contain whitespace. When you need the index alongside the value—for example, when updating elements in place or handling sparse arrays—iterate over <code>"${!fruits[@]}"</code> instead.</p>
 
 <pre><code class="language-bash line-numbers">for f in "${fruits[@]}"; do
   printf 'item: %s\n' "$f"        # one iteration per element, spaces safe
@@ -93,6 +101,8 @@ done
 
 <h3 id="modifying">Modifying and Removing</h3>
 
+<p>You can overwrite an element by index, delete a single slot with <code>unset</code>, or clear the entire array by assigning <code>()</code>. Always quote the subscript passed to <code>unset</code> so Bash does not attempt pathname globbing if a file matching the brackets exists in the working directory.</p>
+
 <pre><code class="language-bash line-numbers">fruits[1]="blueberry"    # replace
 unset 'fruits[2]'        # delete index 2 (quote it! otherwise glob risk)
 fruits=()                # empty the whole array
@@ -103,6 +113,8 @@ fruits=()                # empty the whole array
 <p>Declared with <code>declare -A</code>, associative arrays use arbitrary string keys. They are the closest thing Bash has to a dictionary.</p>
 
 <h3 id="declaring-assoc">Declaring and Filling</h3>
+
+<p>Associative arrays require Bash 4.0 or newer and must be declared explicitly with <code>declare -A</code> (or <code>local -A</code> inside a function). You can populate keys individually or batch multiple key-value pairs using bracketed compound syntax.</p>
 
 <pre><code class="language-bash line-numbers">declare -A score
 score[alice]=90
@@ -116,6 +128,8 @@ score+=( [carol]=88 [dave]=64 )     # add several at once
 
 <h3 id="reading-assoc">Reading and Iterating</h3>
 
+<p>Lookups use the string key inside brackets, and <code>"${!score[@]}"</code> expands to the set of keys. Because hash-table iteration order is unspecified in Bash, avoid relying on insertion order when printing reports or comparing output.</p>
+
 <pre><code class="language-bash line-numbers">echo "${score[alice]}"        # 90
 echo "${#score[@]}"           # 4
 for k in "${!score[@]}"; do
@@ -124,6 +138,8 @@ done
 </code></pre>
 
 <h3 id="lookup-table">A Practical Lookup Table</h3>
+
+<p>Associative arrays shine as lightweight configuration or dispatch tables in shell scripts, replacing repetitive <code>case</code> blocks when mapping extensions, environments, or service endpoints. Combining lookup expansion with a default fallback (<code>:-unknown</code>) keeps scripts resilient under <code>set -u</code>.</p>
 
 <pre><code class="language-bash line-numbers">declare -A ext=(
   [sh]="shell"   [py]="python"
@@ -139,6 +155,8 @@ describe run.sh         # run.sh -> shell
 </code></pre>
 
 <h2 id="pitfalls">Pitfalls</h2>
+
+<p>Array bugs in Bash are often silent because unquoted expansions and missing declarations rarely raise syntax errors immediately. Keep these common traps in mind when writing portable scripts:</p>
 
 <ul>
   <li><strong>Unquoted <code>[@]</code>:</strong> splits elements on spaces — always <code>"${arr[@]}"</code>.</li>

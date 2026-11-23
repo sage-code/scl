@@ -46,26 +46,59 @@
 
 
 <div class="alert alert-secondary shadow-sm">
-Over time, a database need maintenance.
-This are administrative tasks that keep a database healthy and functional.
-In case of power failure or natural desasters a database can break or stop working.
-In this case we need to repair the database back into production.
+Over time, every production database needs structured maintenance.
+Routine administrative tasks keep schemas healthy, queries fast, and recovery reliable.
+In the event of hardware failure, human error, or natural disasters, disciplined backup and restore procedures allow you to recover the database back into production with minimal data loss.
 </div>
 
 <h2 id="maintenance-tasks">Maintenance Tasks</h2>
 
-<ul>
-<li><b>Install:&nbsp;</b> run database creation and schema build;</li>
-<li><b>Secure:&nbsp;</b> create roles, urser and grand access;</li>
-<li><b>Evolve:&nbsp;</b> run evolution scripts to update schema;</li>
-<li><b>Load:&nbsp;</b> add initial or previously extracted data;</li>
-<li><b>Extract:&nbsp;</b> export data into data files;</li>
-<li><b>Transform:&nbsp;</b> modify data structure;</li>
-<li><b>Replicate:&nbsp;</b> transfer data to a remote database;</li>
-<li><b>Backup:&nbsp;</b> save data and database structure;</li>
-<li><b>Restore:&nbsp;</b> import data and structure from a backup.</li>
+<p>Database administration spans the full lifecycle from initial provisioning to disaster recovery. Each stage requires repeatable scripts rather than ad-hoc manual changes:</p>
 
+<ul>
+<li><b>Install:</b> Run database creation and initial schema build scripts.</li>
+<li><b>Secure:</b> Create roles, users, and least-privilege grants.</li>
+<li><b>Evolve:</b> Run versioned migration scripts to update schemas safely.</li>
+<li><b>Load:</b> Populate initial seed data or import previously extracted datasets.</li>
+<li><b>Extract:</b> Export tables or schemas into portable dump or data files.</li>
+<li><b>Transform:</b> Clean, normalize, or reshape data structures between stages.</li>
+<li><b>Replicate:</b> Synchronize changes to standby or remote databases.</li>
+<li><b>Backup:</b> Capture consistent snapshots of datafiles, control files, and archive logs.</li>
+<li><b>Restore:</b> Recover data and structure from verified backups and test the recovery path regularly.</li>
 </ul>
+
+<h2 id="backup-and-recovery">Backup and Recovery</h2>
+
+<p>In Oracle environments, physical backups are managed with Recovery Manager (RMAN), while logical exports and schema transfers use Data Pump (<code>expdp</code> / <code>impdp</code>). Physical backups protect against media failure and support point-in-time recovery; logical exports are ideal for migrating schemas between environments.</p>
+
+<pre><code class="language-bash line-numbers"># Physical full backup with archived redo logs via RMAN
+rman target / &lt;&lt;'EOF'
+BACKUP DATABASE PLUS ARCHIVELOG;
+DELETE NOPROMPT OBSOLETE;
+EOF
+
+# Logical schema export with Oracle Data Pump
+expdp app_admin/secret@prod schemas=HR directory=DATA_PUMP_DIR dumpfile=hr_backup.dmp logfile=hr_exp.log</code></pre>
+
+<h2 id="monitoring-and-health">Statistics and Health Checks</h2>
+
+<p>As tables grow and data distributions shift, the query optimizer relies on fresh statistics to pick efficient execution plans. Gathering table statistics and checking for invalid PL/SQL objects after schema deployments prevents silent performance regressions.</p>
+
+<pre><code class="language-sql line-numbers">-- Refresh optimizer statistics for the HR schema
+BEGIN
+  DBMS_STATS.GATHER_SCHEMA_STATS(
+    ownname          =&gt; 'HR',
+    estimate_percent =&gt; DBMS_STATS.AUTO_SAMPLE_SIZE,
+    cascade          =&gt; TRUE
+  );
+END;
+/
+
+-- Detect any invalid packages, views, or triggers after a migration
+SELECT object_name, object_type, status
+FROM user_objects
+WHERE status &lt;&gt; 'VALID'
+ORDER BY object_type, object_name;</code></pre>
 
 <hr>
 

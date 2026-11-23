@@ -47,7 +47,7 @@
           Testing and documentation are part of the language and toolchain, not add-ons. <code>#[test]</code> unit tests, <code>tests/</code> integration tests, and <code>///</code> doc-tests all run with one command: <code>cargo test</code>.
         </div>
         <h2 id="unit">Unit Tests</h2>
-        <p>Unit tests live in a <code>#[cfg(test)]</code> module inside the same file as the code they test. Annotate each test with <code>#[test]</code>; cargo runs them all with one command:</p>
+        <p>Unit tests live in a <code>#[cfg(test)]</code> module inside the same file as the code they test, which means they are stripped from release binaries and can inspect private helper functions directly. Annotate each test function with <code>#[test]</code>; Cargo compiles and runs them in parallel by default.</p>
         <pre><code class="language-rust line-numbers">pub fn add(left: usize, right: usize) -> usize {
     left + right
 }
@@ -67,11 +67,12 @@ mod tests {
     }
 }
 </code></pre>
+        <p>Run the test suite from the project root with <code>cargo test</code>. Because tests run concurrently, avoid sharing mutable global state or hard-coded temporary file paths across test functions.</p>
         <pre><code class="language-bash line-numbers">cargo test        # compiles and runs every #[test]
 </code></pre>
 
         <h2 id="assert">Assertions</h2>
-        <p>Rust ships a family of assertion macros. <code>assert!</code> checks a condition, <code>assert_eq!</code>/<code>assert_ne!</code> compare two values with debug formatting, and <code>#[should_panic]</code> documents expected failures:</p>
+        <p>Rust ships a family of assertion macros. <code>assert!</code> checks a boolean condition, <code>assert_eq!</code> and <code>assert_ne!</code> compare two values and print both sides on failure using <code>Debug</code> formatting, and <code>#[should_panic]</code> verifies that invalid inputs fail loudly as intended.</p>
         <pre><code class="language-rust line-numbers">#[cfg(test)]
 mod tests {
     #[test]
@@ -90,12 +91,13 @@ mod tests {
 </code></pre>
 
         <h2 id="integration">Integration Tests</h2>
-        <p>Integration tests exercise your crate as an external consumer would, from files under <code>tests/</code>. They import your library crate by name:</p>
+        <p>Integration tests exercise your crate as an external consumer would, from separate files under the top-level <code>tests/</code> directory. Unlike unit tests, each file in <code>tests/</code> is compiled as its own crate and can only call your library's <code>pub</code> API.</p>
         <pre><code class="language-text line-numbers">hello/
 ├── src/lib.rs
 └── tests/
     └── integration.rs
 </code></pre>
+        <p>Import your crate by its package name from <code>Cargo.toml</code> and verify end-to-end behavior across modules:</p>
         <pre><code class="language-rust line-numbers">// tests/integration.rs — imports the library crate `hello`
 use hello::add;
 
@@ -106,7 +108,7 @@ fn test_through_public_api() {
 </code></pre>
 
         <h2 id="doctests">Doc-tests</h2>
-        <p>Code blocks inside <code>///</code> documentation comments are compiled and run by <code>cargo test</code> too. This keeps docs and code from drifting apart:</p>
+        <p>Code blocks inside <code>///</code> documentation comments are compiled and executed by <code>cargo test</code> as standalone examples. This catches stale documentation automatically whenever a function signature or return value changes.</p>
         <pre><code class="language-rust line-numbers">/// Adds two unsigned integers.
 ///
 /// # Examples
@@ -119,6 +121,7 @@ pub fn add(left: usize, right: usize) -> usize {
     left + right
 }
 </code></pre>
+        <p>You can run only documentation tests during quick edits or generate the full HTML reference locally with Cargo:</p>
         <pre><code class="language-bash line-numbers">cargo test --doc    # run only the doc-tests
 cargo doc --open    # build the rendered docs
 </code></pre>

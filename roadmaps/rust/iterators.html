@@ -71,7 +71,7 @@
 </code></pre>
 
         <h2 id="iter">Iterators</h2>
-        <p>An iterator is a <em>lazy</em> sequence: nothing runs until you consume it. Call <code>.iter()</code> (borrow), <code>.into_iter()</code> (own), or <code>.iter_mut()</code> (mutable) to obtain one, then drive it with a <code>for</code> loop:</p>
+        <p>An iterator is a <em>lazy</em> sequence: nothing runs until you consume it. Call <code>.iter()</code> (borrow), <code>.into_iter()</code> (own), or <code>.iter_mut()</code> (mutable) to obtain one, then drive it with a <code>for</code> loop. Because iterators only produce values on demand, reversing or chaining them avoids intermediate heap allocations.</p>
         <pre><code class="language-rust line-numbers">fn main() {
     let numbers = vec![1, 2, 3, 4, 5];
 
@@ -88,7 +88,7 @@
 </code></pre>
 
         <h2 id="combinators">Combinators</h2>
-        <p>Adapter methods transform one iterator into another lazily. Chain <code>map</code>, <code>filter</code>, and friends, then materialize the result only at the end with <code>collect</code>:</p>
+        <p>Adapter methods transform one iterator into another lazily. Chain <code>map</code>, <code>filter</code>, and friends, then materialize the result only at the end with <code>collect</code>. The Rust compiler fuses these chained adapters into a single tight loop at compile time, matching hand-written C-style loops in performance without sacrificing readability.</p>
         <pre><code class="language-rust line-numbers">fn main() {
     // square, keep even, sum the whole pipeline
     let total: i32 = (1..=10)
@@ -104,7 +104,7 @@
 </code></pre>
 
         <h2 id="consume">Consuming Adapters</h2>
-        <p>Adapters like <code>fold</code>, <code>count</code>, <code>any</code>, <code>all</code>, and <code>max</code> run the whole iteration and return a single value:</p>
+        <p>Every lazy pipeline needs a terminal consumer that drives <code>next()</code> until the iterator is exhausted or short-circuits. Methods like <code>fold</code>, <code>count</code>, <code>any</code>, <code>all</code>, and <code>max_by_key</code> reduce a stream to a single value, and short-circuiting consumers like <code>any</code> stop as soon as the outcome is known.</p>
         <pre><code class="language-rust line-numbers">fn main() {
     let words = ["the", "quick", "brown", "fox"];
 
@@ -116,6 +116,7 @@
     println!("longest = {:?}", longest);
 }
 </code></pre>
+        <p>Watch for ownership when choosing between <code>.iter()</code> and <code>.into_iter()</code>: <code>.into_iter()</code> moves elements out of the collection so you cannot use the vector afterward, whereas <code>.iter()</code> borrows elements by reference and leaves the original collection intact.</p>
 
         <div class="alert alert-info shadow-sm">
           <strong>Practice move:</strong> rewrite a <code>for</code> loop from the <a href="/roadmaps/rust/demo_examples.html">lab examples</a> as a <code>map</code>/<code>filter</code>/<code>collect</code> chain and confirm the output is identical.
