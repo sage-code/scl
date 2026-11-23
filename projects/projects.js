@@ -60,13 +60,16 @@
 
   function renderProjects() {
     if (addBtn) {
-      addBtn.hidden = !state.canEdit;
+      addBtn.hidden = false;
+      addBtn.classList.toggle("project-forbidden-btn", !state.canEdit);
+      addBtn.setAttribute("aria-disabled", state.canEdit ? "false" : "true");
+      addBtn.title = state.canEdit ? "Add project" : "Managers and Mentors only";
     }
     if (actionColHead) {
-      actionColHead.hidden = !state.canEdit;
+      actionColHead.hidden = false;
     }
 
-    var colCount = state.canEdit ? 8 : 7;
+    var colCount = 8;
     var totalProjects = state.projects.length;
     var totalPages = Math.max(1, Math.ceil(totalProjects / PAGE_SIZE));
     if (state.currentPage > totalPages) {
@@ -139,6 +142,12 @@
           html += '<td class="text-center">'
             + '<button type="button" class="btn btn-outline-secondary btn-sm rounded-circle project-row-edit-btn" data-project-id="' + escapeHtml(p.id) + '" aria-label="Edit ' + escapeHtml(p.name) + '" title="Edit project">'
             + '<i class="bi bi-pencil" aria-hidden="true"></i>'
+            + "</button></td>";
+        } else {
+          html += '<td class="text-center">'
+            + '<button type="button" class="btn btn-outline-secondary btn-sm rounded-circle project-row-edit-btn project-forbidden-btn" aria-disabled="true" aria-label="Edit ' + escapeHtml(p.name) + ' (Managers and Mentors only)" title="Managers and Mentors only">'
+            + '<i class="bi bi-pencil icon-normal" aria-hidden="true"></i>'
+            + '<i class="bi bi-slash-circle icon-forbidden" aria-hidden="true"></i>'
             + "</button></td>";
         }
         html += "</tr>";
@@ -259,6 +268,9 @@
 
     if (addBtn) {
       addBtn.addEventListener("click", function () {
+        if (!state.canEdit) {
+          return;
+        }
         openProjectModal(null);
       });
     }
