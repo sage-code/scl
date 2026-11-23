@@ -421,7 +421,7 @@ async function getTrackedRoadmaps(userId) {
                    sum(case when topic_key != '@card::status' and (status = 'done' or progress_percent >= 100) then 1 else 0 end) as done_count
             from roadmap_progress
             where user_id = ?
-              and lower(roadmap_code) not in ('romanian', 'english')
+              and lower(roadmap_code) not in ('romanian', 'english', 'roadmap-hub-preferences')
             group by roadmap_code
             order by min(created_at) asc, roadmap_code asc`,
       args: [userId]
