@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const heroMessage = `We write Code and Tutorials. 
 * Learn for free, zero obligation.
 * Register to track your progress.
-* Learn, build, break, and iterate.
+* Create, build, break, and iterate.
 `;
 
     function toHtmlWithBreaks(text) {
