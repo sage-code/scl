@@ -31,6 +31,7 @@ EXCLUDE_PATTERNS = {
     "template.json",           # JSON templates
     "-content.html",           # Content fragment files
     "/components/",            # Non-route components folder
+    "/layouts/",               # Shared HTML partials (not standalone pages)
     "index.html" if os.path.exists("components") else None,  # components/index if exists
     # Add specific drafting/WIP pages if needed
 }
@@ -168,8 +169,23 @@ def should_exclude(file_path, relative_path, url):
     return False
 
 
+def to_canonical_url(base_url, relative_path):
+    """Map a repo-relative HTML path to its Vercel clean-URL + trailing-slash form."""
+    norm = relative_path.replace("\\", "/").lstrip("./")
+    if norm == "index.html":
+        return base_url.rstrip("/") + "/"
+    if norm.endswith("/index.html"):
+        return base_url.rstrip("/") + "/" + norm[:-len("index.html")]
+    if norm.endswith(".html"):
+        return base_url.rstrip("/") + "/" + norm[:-len(".html")] + "/"
+    return urljoin(base_url.rstrip("/") + "/", norm)
+
+
 def get_priority_and_freq(url_path):
     """Determine priority and changefreq based on URL patterns"""
+    if url_path.rstrip("/") == BASE_URL.rstrip("/"):
+        return 1.0, "weekly"
+
     default_priority = 0.6
     default_freq = "monthly"
     
@@ -225,17 +241,18 @@ def generate_sitemap(base_url, source_dir, output_file):
     excluded_count = 0
     
     # Walk through all directories
+    skip_dirs = {'node_modules', '__pycache__', '.git', 'public', 'layouts', 'scripts', 'agents', 'manual', 'tracking', 'api'}
     for root, dirs, files in os.walk(source_dir):
-        # Skip hidden directories and common non-essential folders
-        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', '__pycache__', '.git', 'public']]
+        # Skip hidden directories and non-public folders
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in skip_dirs]
         
         for file in sorted(files):
             if file.endswith(".html"):
                 file_path = os.path.join(root, file)
                 relative_path = os.path.relpath(file_path, source_dir).replace("\\", "/")
                 
-                # Convert to URL format
-                url = urljoin(base_url + "/", relative_path)
+                # Convert to canonical clean-URL format (matches Vercel cleanUrls + trailingSlash)
+                url = to_canonical_url(base_url, relative_path)
                 
                 # Check if file should be excluded
                 if should_exclude(file_path, relative_path, url):
@@ -345,14 +362,14 @@ def update_sitemap(base_url, source_dir, output_file, changed, deleted):
     touched = 0
 
     for rel_path in deleted:
-        url = urljoin(base_url + "/", rel_path)
+        url = to_canonical_url(base_url, rel_path)
         if urls_dict.pop(url, None) is not None:
             touched += 1
             print(f"  [DEL]  {rel_path}")
 
     for rel_path in changed:
         file_path = os.path.join(source_dir, rel_path)
-        url = urljoin(base_url + "/", rel_path)
+        url = to_canonical_url(base_url, rel_path)
         if not os.path.exists(file_path):
             # Changed on disk but gone now (e.g. renamed) - treat as deletion.
             if urls_dict.pop(url, None) is not None:
