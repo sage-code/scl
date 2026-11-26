@@ -142,12 +142,65 @@
     zig: "Zig Tutorial"
   };
 
-  var ENGINEERING_TRACKS = new Set(["cse", "dsa", "pgp", "tek", "dba", "sml", "hpc", "osd", "dsl"]);
+  // Badge codes: 3-letter uppercase code for Engineering courses;
+  // language-specific file extension for Programming courses.
+  var TRACK_BADGE_CODES = {
+    // Engineering (3 letters)
+    cse: "CSE",
+    dsa: "DSA",
+    pgp: "PGP",
+    tek: "TEK",
+    dba: "DBA",
+    sml: "SML",
+    hpc: "HPC",
+    osd: "OSD",
+    dsl: "DSL",
+    // Programming (file extension specific to language)
+    ada: "adb",
+    assembly: "asm",
+    bash: "sh",
+    c: "c",
+    cpp: "cpp",
+    csharp: "cs",
+    css: "css",
+    dart: "dart",
+    elixir: "ex",
+    flutter: "dart",
+    fortran: "f90",
+    go: "go",
+    html: "html",
+    java: "java",
+    javascript: "js",
+    julia: "jl",
+    kotlin: "kt",
+    nim: "nim",
+    node: "mjs",
+    odin: "odin",
+    php: "php",
+    plsql: "sql",
+    python: "Py",
+    react: "jsx",
+    ruby: "rb",
+    rust: "rs",
+    scala: "scala",
+    svelte: "svelte",
+    swift: "swift",
+    tscript: "ts",
+    vue: "vue",
+    wasm: "wasm",
+    zig: "zig"
+  };
 
-  function formatRoadmapCourseTitle(track) {
+  function resolveBadgeCode(track, explicitCode) {
+    if (explicitCode) return String(explicitCode).trim();
     var key = String(track || "cse").trim().toLowerCase();
-    var code = key.toUpperCase();
-    var title = ROADMAP_TITLES[key] || (code + " Roadmap");
+    return TRACK_BADGE_CODES[key] || key.toUpperCase();
+  }
+
+  function formatRoadmapCourseTitle(track, badgeCode) {
+    var key = String(track || "cse").trim().toLowerCase();
+    var code = badgeCode || resolveBadgeCode(key);
+    var title = ROADMAP_TITLES[key] || (key.toUpperCase() + " Roadmap");
     return code + " - " + title;
   }
 
@@ -627,8 +680,8 @@
       (preset && preset.recipient_name) ||
       "Sage-Code Member";
 
-    var courseTitle = (cert && cert.course_title) || formatRoadmapCourseTitle(track);
-    var badgeCode = (cert && cert.badge_code) || track.toUpperCase() || "CSE";
+    var badgeCode = resolveBadgeCode(track, cert && cert.badge_code);
+    var courseTitle = (cert && cert.course_title) || formatRoadmapCourseTitle(track, badgeCode);
 
     var leftSignerName = (cert && cert.left_signer_name) || (preset && preset.left_signer_name) || "Claudiu Moise";
     var leftSignerRole = (cert && cert.left_signer_role) || (preset && preset.left_signer_role) || "SPONSOR";
@@ -726,17 +779,34 @@
     var fields = resolveCertificateFields(profile, cert);
     var qrMarkup = renderQrSvgMarkup(fields.qr_url, 250);
     var badgeCode = fields.badge_code || "CSE";
-    var badgeSize = badgeCode.length > 5 ? "16px" : badgeCode.length > 3 ? "28px" : "38px";
-    var badgeY = badgeCode.length > 5 ? "1204" : badgeCode.length > 3 ? "1208" : "1212";
+    var isLongBadge = badgeCode.length > 3;
 
     var svg = template
       .replace(/\[NAME\]|\{\{?RECIPIENT_NAME\}?\}/g, escapeXml(fields.recipient_name))
-      .replace(/\[COURSE\]|\{\{?COURSE_TITLE\}?\}/g, escapeXml(fields.course_title))
-      .replace(
+      .replace(/\[COURSE\]|\{\{?COURSE_TITLE\}?\}/g, escapeXml(fields.course_title));
+
+    if (isLongBadge) {
+      var pillWidth = Math.max(150, Math.min(200, 96 + badgeCode.length * 16));
+      var pillX = (1000 - pillWidth / 2).toFixed(1);
+      var innerWidth = (pillWidth - 14).toFixed(1);
+      var innerX = (1000 - (pillWidth - 14) / 2).toFixed(1);
+      var pillMarkup = [
+        '<g id="cert-badge-shape">',
+        '  <rect x="' + pillX + '" y="1154" width="' + pillWidth + '" height="88" rx="44" ry="44" fill="#f4c014" stroke="#e0b014" stroke-width="6" />',
+        '  <rect x="' + innerX + '" y="1161" width="' + innerWidth + '" height="74" rx="37" ry="37" fill="#dce3ec" stroke="#b88430" stroke-width="2.5" />',
+        '</g>'
+      ].join("\n    ");
+      svg = svg.replace(/<g id="cert-badge-shape">[\s\S]*?<\/g>/, pillMarkup);
+      var fontSize = badgeCode.length >= 6 ? "30px" : "34px";
+      var textY = badgeCode.length >= 6 ? "1209" : "1210";
+      svg = svg.replace(
         'id="cert-badge-code" x="1000" y="1212" text-anchor="middle" class="cert-badge-text">[CODE]',
-        'id="cert-badge-code" x="1000" y="' + badgeY + '" text-anchor="middle" style="font-size:' + badgeSize + '" class="cert-badge-text">' + escapeXml(fields.badge_code)
-      )
-      .replace(/\[CODE\]|\{\{?BADGE_CODE\}?\}/g, escapeXml(fields.badge_code))
+        'id="cert-badge-code" x="1000" y="' + textY + '" text-anchor="middle" style="font-size:' + fontSize + '" class="cert-badge-text">' + escapeXml(badgeCode)
+      );
+    }
+
+    svg = svg
+      .replace(/\[CODE\]|\{\{?BADGE_CODE\}?\}/g, escapeXml(badgeCode))
       .replace(/\[LEFT_SIG\]|\{\{?LEFT_SIG\}?\}/g, escapeXml(fields.left_sig))
       .replace(/\[LEFT_SIGNER\]|\{\{?LEFT_SIGNER_NAME\}?\}/g, escapeXml(fields.left_signer_name))
       .replace(/\[LEFT_ROLE\]|\{\{?LEFT_SIGNER_ROLE\}?\}/g, escapeXml(fields.left_signer_role))
