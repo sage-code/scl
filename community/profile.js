@@ -486,24 +486,109 @@
     hintEl.hidden = !educationEditMode;
   }
 
+  var activeCertificateState = null;
+
+  function wireCertificateDownloadButton() {
+    var downloadBtn = document.getElementById("certificate-download-btn");
+    if (!downloadBtn || downloadBtn.dataset.wired === "true") return;
+    downloadBtn.dataset.wired = "true";
+    downloadBtn.addEventListener("click", async function () {
+      if (!activeCertificateState) return;
+      downloadBtn.disabled = true;
+      try {
+        var dataUrl = activeCertificateState.jpegDataUrl;
+        if (!dataUrl && activeCertificateState.svg && window.sclCertificate) {
+          dataUrl = await window.sclCertificate.renderSvgToJpegDataUrl(activeCertificateState.svg, 0.94);
+          activeCertificateState.jpegDataUrl = dataUrl;
+        }
+        if (dataUrl) {
+          var a = document.createElement("a");
+          a.href = dataUrl;
+          a.download = activeCertificateState.fileName || "certificate.jpg";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+      } catch (_err) {
+        // Ignore export error
+      } finally {
+        downloadBtn.disabled = false;
+      }
+    });
+  }
+
+  async function openCertificateModal(profile, cert) {
+    var dlg = document.getElementById("dialog-certificate");
+    var svgWrap = document.getElementById("certificate-modal-svg-wrap");
+    var img = document.getElementById("certificate-modal-img");
+    var dlgTitle = document.getElementById("dialog-certificate-title");
+    if (!dlg) return;
+
+    wireCertificateDownloadButton();
+    var titleText = (cert && cert.title) || (profile && profile.certification_label) || "Certificate of Completion";
+    if (dlgTitle) dlgTitle.textContent = titleText;
+
+    if (window.sclCertificate && svgWrap) {
+      try {
+        var generated = await window.sclCertificate.buildCertificateSvg(profile, cert);
+        svgWrap.innerHTML = generated.svg;
+        svgWrap.setAttribute("aria-label", titleText + " for " + generated.fields.recipient_name);
+        svgWrap.hidden = false;
+        if (img) {
+          img.hidden = true;
+          img.removeAttribute("src");
+        }
+        activeCertificateState = {
+          svg: generated.svg,
+          fields: generated.fields,
+          fileName: window.sclCertificate.buildDownloadFileName(generated.fields),
+          jpegDataUrl: null
+        };
+        if (!dlg.open) dlg.showModal();
+        return;
+      } catch (_err) {
+        // Fallback to image if SVG template fails
+      }
+    }
+
+    if (img && cert && cert.url) {
+      if (svgWrap) {
+        svgWrap.replaceChildren();
+        svgWrap.hidden = true;
+      }
+      img.hidden = false;
+      img.src = cert.url;
+      img.alt = titleText;
+      activeCertificateState = {
+        svg: null,
+        fields: null,
+        fileName: "certificate.jpg",
+        jpegDataUrl: cert.url
+      };
+      if (!dlg.open) dlg.showModal();
+    }
+  }
+
   function renderCertificates(profile) {
     var empty = document.getElementById("profile-certificate-empty");
     var list = document.getElementById("profile-certificates-list");
     list.replaceChildren();
 
     var certs = Array.isArray(profile.certificates) ? profile.certificates.slice() : [];
-    if (certs.length === 0 && profile.certificate_url) {
+    if (certs.length === 0 && (profile.certificate_url || profile.is_legacy_verified)) {
       certs.push({
         title: profile.certification_label || "Certificate of Completion",
-        url: profile.certificate_url
+        url: profile.certificate_url || "/community/certificate/template.svg",
+        is_legacy: Boolean(profile.is_legacy_verified)
       });
     }
 
     certs.forEach(function (cert) {
-      if (!cert || !cert.url) return;
+      if (!cert) return;
+      var rawUrl = cert.url || "/community/certificate/template.svg";
       var safeUrl;
       try {
-        var parsed = new URL(cert.url, window.location.origin);
+        var parsed = new URL(rawUrl, window.location.origin);
         if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
         safeUrl = parsed.href;
       } catch (_error) {
@@ -513,29 +598,15 @@
       var link = document.createElement("a");
       link.href = safeUrl;
       link.className = "btn btn-outline-primary btn-sm";
-      if (safeUrl.indexOf(window.location.origin) !== 0) {
-        link.target = "_blank";
-        link.rel = "noopener noreferrer nofollow";
-      }
       var icon = document.createElement("i");
       icon.className = "bi bi-patch-check-fill me-1";
       icon.setAttribute("aria-hidden", "true");
       link.append(icon, document.createTextNode(cert.title || "View Certificate"));
 
-      if (/\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(safeUrl) || safeUrl.indexOf("/community/certificate/") !== -1) {
-        link.addEventListener("click", function (e) {
-          var dlg = document.getElementById("dialog-certificate");
-          var img = document.getElementById("certificate-modal-img");
-          var dlgTitle = document.getElementById("dialog-certificate-title");
-          if (dlg && img) {
-            e.preventDefault();
-            img.src = safeUrl;
-            img.alt = cert.title || "Certificate";
-            if (dlgTitle) dlgTitle.textContent = cert.title || "Certificate";
-            dlg.showModal();
-          }
-        });
-      }
+      link.addEventListener("click", function (e) {
+        e.preventDefault();
+        openCertificateModal(profile, cert);
+      });
 
       li.append(link);
       list.append(li);
