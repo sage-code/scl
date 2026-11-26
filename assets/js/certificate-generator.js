@@ -197,11 +197,9 @@
     return TRACK_BADGE_CODES[key] || key.toUpperCase();
   }
 
-  function formatRoadmapCourseTitle(track, badgeCode) {
+  function formatRoadmapCourseTitle(track) {
     var key = String(track || "cse").trim().toLowerCase();
-    var code = badgeCode || resolveBadgeCode(key);
-    var title = ROADMAP_TITLES[key] || (key.toUpperCase() + " Roadmap");
-    return code + " - " + title;
+    return ROADMAP_TITLES[key] || (key.toUpperCase() + " Roadmap");
   }
 
   function escapeXml(str) {
@@ -681,7 +679,7 @@
       "Sage-Code Member";
 
     var badgeCode = resolveBadgeCode(track, cert && cert.badge_code);
-    var courseTitle = (cert && cert.course_title) || formatRoadmapCourseTitle(track, badgeCode);
+    var courseTitle = (cert && cert.course_title) || formatRoadmapCourseTitle(track);
 
     var leftSignerName = (cert && cert.left_signer_name) || (preset && preset.left_signer_name) || "Claudiu Moise";
     var leftSignerRole = (cert && cert.left_signer_role) || (preset && preset.left_signer_role) || "SPONSOR";

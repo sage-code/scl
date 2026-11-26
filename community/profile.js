@@ -598,10 +598,19 @@
       var link = document.createElement("a");
       link.href = safeUrl;
       link.className = "btn btn-outline-primary btn-sm";
+      var resolvedFields = window.sclCertificate && typeof window.sclCertificate.resolveCertificateFields === "function"
+        ? window.sclCertificate.resolveCertificateFields(profile, cert)
+        : null;
+      var btnCode = resolvedFields && resolvedFields.badge_code
+        ? String(resolvedFields.badge_code).toUpperCase()
+        : (cert.title || "CSE");
+      if (resolvedFields && resolvedFields.course_title) {
+        link.title = resolvedFields.course_title;
+      }
       var icon = document.createElement("i");
       icon.className = "bi bi-patch-check-fill me-1";
       icon.setAttribute("aria-hidden", "true");
-      link.append(icon, document.createTextNode(cert.title || "View Certificate"));
+      link.append(icon, document.createTextNode(btnCode));
 
       link.addEventListener("click", function (e) {
         e.preventDefault();

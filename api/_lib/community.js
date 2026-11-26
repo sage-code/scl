@@ -26,8 +26,25 @@ const TRACK_LABELS = {
   wasm: "WebAssembly", zig: "Zig"
 };
 
+const TRACK_BADGE_CODES = {
+  cse: "CSE", dsa: "DSA", pgp: "PGP", tek: "TEK", dba: "DBA",
+  sml: "SML", hpc: "HPC", osd: "OSD", dsl: "DSL",
+  ada: "ADB", assembly: "ASM", bash: "SH", c: "C", cpp: "CPP",
+  csharp: "CS", css: "CSS", dart: "DART", elixir: "EX", flutter: "DART",
+  fortran: "F90", go: "GO", html: "HTML", java: "JAVA", javascript: "JS",
+  julia: "JL", kotlin: "KT", nim: "NIM", node: "MJS", odin: "ODIN",
+  php: "PHP", plsql: "SQL", python: "PY", react: "JSX", ruby: "RB",
+  rust: "RS", scala: "SCALA", svelte: "SVELTE", swift: "SWIFT",
+  tscript: "TS", vue: "VUE", wasm: "WASM", zig: "ZIG"
+};
+
 function trackLabel(track) {
   return TRACK_LABELS[track] || track;
+}
+
+function trackCertCode(track) {
+  const key = String(track || "").trim().toLowerCase();
+  return TRACK_BADGE_CODES[key] || key.toUpperCase() || "CSE";
 }
 
 function validateHttpsUrl(raw, label) {
@@ -314,7 +331,7 @@ function buildCertificates(row, qualifiedTracks, trackedRoadmaps) {
     certificates.push({
       track: primaryTrack,
       topic: row.qualified_topic || null,
-      title: primaryTrack ? `${trackLabel(primaryTrack)} Certificate` : (row.certification_label || "Certificate of Completion"),
+      title: primaryTrack ? trackCertCode(primaryTrack) : (row.certification_label || "CSE"),
       url: row.certificate_url || `/roadmaps/${encodeURIComponent(primaryTrack || "cse")}/`
     });
   }
@@ -325,7 +342,7 @@ function buildCertificates(row, qualifiedTracks, trackedRoadmaps) {
     certificates.push({
       track,
       topic: qt.topic,
-      title: `${trackLabel(track)} Roadmap Certificate`,
+      title: trackCertCode(track),
       url: `/roadmaps/${encodeURIComponent(track)}/`
     });
   }
@@ -338,7 +355,7 @@ function buildCertificates(row, qualifiedTracks, trackedRoadmaps) {
       certificates.push({
         track: code,
         topic: "fundamentals",
-        title: `${trackLabel(code)} Certificate`,
+        title: trackCertCode(code),
         url: `/roadmaps/${encodeURIComponent(code)}/`
       });
     }
