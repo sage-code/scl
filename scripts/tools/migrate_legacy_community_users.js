@@ -122,11 +122,24 @@ function parseLegacyMember(entry) {
   const projects = extractProjects(html);
   const paragraphs = extractEducationParagraphs(html);
 
+  const certFile = certMatch ? path.basename(certMatch[1]).toLowerCase() : "";
+  let qualifiedTrack = "cse";
+  let qualifiedTopic = "fundamentals";
+  if (entry.slug === "george" || certFile.includes("george")) {
+    qualifiedTrack = "go";
+    qualifiedTopic = "syntax";
+  } else if (entry.slug === "liviu" || certFile.includes("liviu")) {
+    qualifiedTrack = "dart";
+    qualifiedTopic = "fundamentals";
+  }
+
   return {
     slug: entry.slug,
     display_name: entry.name,
     role: entry.role,
     certification_label: entry.certification,
+    qualified_track: qualifiedTrack,
+    qualified_topic: qualifiedTopic,
     member_since: Number(entry.since),
     bio,
     avatar_rel: avatarMatch ? avatarMatch[1].replace(/^\//, "") : null,
@@ -245,7 +258,7 @@ async function main() {
                contact_json, paragraphs_json,
                qualified_track, qualified_topic, role, certification_label, certificate_url,
                member_since, is_legacy_verified, is_published, claimed_at, created_at, updated_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, 'cse', 'fundamentals', ?, ?, ?, ?, 1, 1, ?, ?, ?)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)
             on conflict (user_id) do update set
               display_name = excluded.display_name,
               avatar_url = coalesce(excluded.avatar_url, community_members.avatar_url),
@@ -253,6 +266,8 @@ async function main() {
               projects_json = excluded.projects_json,
               contact_json = excluded.contact_json,
               paragraphs_json = excluded.paragraphs_json,
+              qualified_track = excluded.qualified_track,
+              qualified_topic = excluded.qualified_topic,
               role = excluded.role,
               certification_label = excluded.certification_label,
               certificate_url = coalesce(excluded.certificate_url, community_members.certificate_url),
@@ -269,6 +284,8 @@ async function main() {
         JSON.stringify(m.projects),
         JSON.stringify(m.contact || {}),
         JSON.stringify(m.paragraphs || []),
+        m.qualified_track,
+        m.qualified_topic,
         m.role,
         m.certification_label,
         certUrl,

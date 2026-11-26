@@ -15,78 +15,57 @@
   var LEGACY_CERT_PRESETS = {
     gmoise: {
       recipient_name: "Georgiana Moise",
-      course_title: "CSE-7 Web Design",
-      badge_code: "CSE",
-      left_sig: "claudiu",
+      track: "cse",
       left_signer_name: "Claudiu Moise",
       left_signer_role: "SPONSOR",
-      right_sig: "elucian",
       right_signer_name: "Elucian Moise",
       right_signer_role: "INSTRUCTOR"
     },
     ineva: {
       recipient_name: "Regina Ganser",
-      course_title: "CSE-07- Web Design",
-      badge_code: "CSE",
-      left_sig: "laura",
+      track: "cse",
       left_signer_name: "Laura Moise",
       left_signer_role: "CEO",
-      right_sig: "elucian",
       right_signer_name: "Elucian Moise",
       right_signer_role: "INSTRUCTOR"
     },
     cmoise: {
       recipient_name: "Claudiu Moise",
-      course_title: "CSE Software Engineering",
-      badge_code: "CSE",
-      left_sig: "laura",
+      track: "cse",
       left_signer_name: "Laura Moise",
       left_signer_role: "CEO",
-      right_sig: "elucian",
       right_signer_name: "Elucian Moise",
       right_signer_role: "INSTRUCTOR"
     },
     elucian: {
       recipient_name: "Elucian Moise",
-      course_title: "CSE Software Engineering",
-      badge_code: "CSE",
-      left_sig: "claudiu",
+      track: "cse",
       left_signer_name: "Claudiu Nicolae",
       left_signer_role: "SPONSOR",
-      right_sig: "laura",
       right_signer_name: "Laura Moise",
       right_signer_role: "INSTRUCTOR"
     },
     laura: {
       recipient_name: "Marina Moise",
-      course_title: "CSE Software Engineering",
-      badge_code: "CSE",
-      left_sig: "claudiu",
+      track: "cse",
       left_signer_name: "Claudiu Nicolae",
       left_signer_role: "SPONSOR",
-      right_sig: "elucian",
       right_signer_name: "Elucian Simeon",
       right_signer_role: "INSTRUCTOR"
     },
     george: {
       recipient_name: "George C Antohi",
-      course_title: "CSP-1 Go Fundamentals",
-      badge_code: "CSP",
-      left_sig: "claudiu",
+      track: "go",
       left_signer_name: "Claudiu Moise",
       left_signer_role: "SPONSOR",
-      right_sig: "elucian",
       right_signer_name: "Elucian Moise",
       right_signer_role: "INSTRUCTOR"
     },
     liviu: {
       recipient_name: "Liviu Ditoiu",
-      course_title: "CSP-3 Dart Fundamentals",
-      badge_code: "CSP",
-      left_sig: "laura",
+      track: "dart",
       left_signer_name: "Claudiu Moise",
       left_signer_role: "SPONSOR",
-      right_sig: "elucian",
       right_signer_name: "Elucian Moise",
       right_signer_role: "INSTRUCTOR"
     }
@@ -117,50 +96,60 @@
     "csp-liviu": "liviu"
   };
 
-  var TRACK_COURSE_TITLES = {
-    ada: "Ada Programming",
-    assembly: "Assembly Language",
+  // Real roadmap titles matching each roadmap track index page
+  var ROADMAP_TITLES = {
+    ada: "Ada Roadmap",
+    assembly: "Assembly Tutorial",
     bash: "Bash Scripting",
-    c: "C Programming",
-    cpp: "C++ Programming",
-    cse: "CSE Software Engineering",
-    csharp: "C# Programming",
-    css: "CSS Web Design",
-    dart: "Dart Fundamentals",
-    dba: "Database Administration",
-    dsa: "Data Structures & Algorithms",
-    dsl: "Domain-Specific Languages",
-    elixir: "Elixir Programming",
-    flutter: "Flutter Development",
-    fortran: "Fortran Programming",
-    go: "Go Fundamentals",
-    hpc: "High Performance Computing",
-    html: "HTML5 Fundamentals",
+    c: "C Tutorial",
+    cpp: "C++ Tutorial",
+    cse: "Software Engineering Roadmap",
+    csharp: "C# Tutorial",
+    css: "CSS Roadmap",
+    dart: "Dart Roadmap",
+    dba: "DBA Roadmap",
+    dsa: "DSA Roadmap",
+    dsl: "DSL Roadmap",
+    elixir: "Elixir Roadmap",
+    flutter: "Flutter Roadmap",
+    fortran: "Fortran Tutorial",
+    go: "Go Programming Tutorial",
+    hpc: "Computer Hardware",
+    html: "HTML Roadmap",
     java: "Java Programming",
-    javascript: "JavaScript Fundamentals",
-    julia: "Julia Programming",
-    kotlin: "Kotlin Programming",
-    nim: "Nim Programming",
-    node: "Node.js Development",
-    odin: "Odin Programming",
-    osd: "Operating Systems Design",
-    pgp: "Polyglot Programming",
-    php: "PHP Development",
-    plsql: "PL/SQL Database Programming",
-    python: "Python Fundamentals",
-    react: "React Development",
-    ruby: "Ruby Programming",
-    rust: "Rust Programming",
-    scala: "Scala Programming",
-    sml: "Systems Modeling Language",
-    svelte: "Svelte Development",
-    swift: "Swift Programming",
-    tek: "TechOps Engineering",
-    tscript: "TypeScript Development",
-    vue: "Vue.js Development",
-    wasm: "WebAssembly",
-    zig: "Zig Programming"
+    javascript: "JavaScript Roadmap",
+    julia: "Julia Tutorial",
+    kotlin: "Kotlin Roadmap",
+    nim: "Nim Tutorial",
+    node: "Node.js Roadmap",
+    odin: "Odin Tutorial",
+    osd: "Open Source Development Roadmap",
+    pgp: "Programming Paradigms Roadmap",
+    php: "PHP Roadmap",
+    plsql: "SQL & PL/SQL Tutorial",
+    python: "Python Roadmap",
+    react: "React Roadmap",
+    ruby: "Ruby Roadmap",
+    rust: "Rust Tutorial",
+    scala: "Scala Tutorial",
+    sml: "SML Roadmap",
+    svelte: "Svelte Roadmap",
+    swift: "Swift Tutorial",
+    tek: "TechOps Roadmap",
+    tscript: "TypeScript for JavaScript Developers",
+    vue: "Vue Roadmap",
+    wasm: "WASM Roadmap",
+    zig: "Zig Tutorial"
   };
+
+  var ENGINEERING_TRACKS = new Set(["cse", "dsa", "pgp", "tek", "dba", "sml", "hpc", "osd", "dsl"]);
+
+  function formatRoadmapCourseTitle(track) {
+    var key = String(track || "cse").trim().toLowerCase();
+    var code = key.toUpperCase();
+    var title = ROADMAP_TITLES[key] || (code + " Roadmap");
+    return code + " - " + title;
+  }
 
   function escapeXml(str) {
     return String(str == null ? "" : str)
@@ -631,41 +620,15 @@
   function resolveCertificateFields(profile, cert) {
     var userId = resolveUserId(profile, cert);
     var preset = LEGACY_CERT_PRESETS[userId] || null;
-    var track = String((cert && cert.track) || (profile && profile.qualified_track) || "cse").trim().toLowerCase();
-    var isLegacyCert = Boolean(
-      preset &&
-      (!cert || !cert.track || cert.is_legacy || (cert.url && (cert.url.indexOf("/certificate") !== -1 || cert.url.indexOf("/legacy/") !== -1)))
-    );
+    var track = String((cert && cert.track) || (preset && preset.track) || (profile && profile.qualified_track) || "cse").trim().toLowerCase();
 
     var recipientName =
-      (isLegacyCert && preset && preset.recipient_name) ||
       (profile && profile.display_name) ||
       (preset && preset.recipient_name) ||
       "Sage-Code Member";
 
-    var courseTitle;
-    if (cert && cert.course_title) {
-      courseTitle = cert.course_title;
-    } else if (isLegacyCert && preset) {
-      courseTitle = preset.course_title;
-    } else if (cert && cert.track && TRACK_COURSE_TITLES[track]) {
-      courseTitle = TRACK_COURSE_TITLES[track];
-    } else if (preset) {
-      courseTitle = preset.course_title;
-    } else {
-      courseTitle = TRACK_COURSE_TITLES[track] || (track.toUpperCase() + " Fundamentals");
-    }
-
-    var badgeCode;
-    if (cert && cert.badge_code) {
-      badgeCode = cert.badge_code;
-    } else if (isLegacyCert && preset) {
-      badgeCode = preset.badge_code;
-    } else if (track) {
-      badgeCode = track.toUpperCase();
-    } else {
-      badgeCode = "CSE";
-    }
+    var courseTitle = (cert && cert.course_title) || formatRoadmapCourseTitle(track);
+    var badgeCode = (cert && cert.badge_code) || track.toUpperCase() || "CSE";
 
     var leftSignerName = (cert && cert.left_signer_name) || (preset && preset.left_signer_name) || "Claudiu Moise";
     var leftSignerRole = (cert && cert.left_signer_role) || (preset && preset.left_signer_role) || "SPONSOR";
@@ -679,6 +642,7 @@
 
     return {
       user_id: userId,
+      track: track,
       qr_url: qrUrl,
       recipient_name: recipientName,
       course_title: courseTitle,
@@ -761,10 +725,17 @@
     await ensureCertificateFonts();
     var fields = resolveCertificateFields(profile, cert);
     var qrMarkup = renderQrSvgMarkup(fields.qr_url, 250);
+    var badgeCode = fields.badge_code || "CSE";
+    var badgeSize = badgeCode.length > 5 ? "16px" : badgeCode.length > 3 ? "28px" : "38px";
+    var badgeY = badgeCode.length > 5 ? "1204" : badgeCode.length > 3 ? "1208" : "1212";
 
     var svg = template
       .replace(/\[NAME\]|\{\{?RECIPIENT_NAME\}?\}/g, escapeXml(fields.recipient_name))
       .replace(/\[COURSE\]|\{\{?COURSE_TITLE\}?\}/g, escapeXml(fields.course_title))
+      .replace(
+        'id="cert-badge-code" x="1000" y="1212" text-anchor="middle" class="cert-badge-text">[CODE]',
+        'id="cert-badge-code" x="1000" y="' + badgeY + '" text-anchor="middle" style="font-size:' + badgeSize + '" class="cert-badge-text">' + escapeXml(fields.badge_code)
+      )
       .replace(/\[CODE\]|\{\{?BADGE_CODE\}?\}/g, escapeXml(fields.badge_code))
       .replace(/\[LEFT_SIG\]|\{\{?LEFT_SIG\}?\}/g, escapeXml(fields.left_sig))
       .replace(/\[LEFT_SIGNER\]|\{\{?LEFT_SIGNER_NAME\}?\}/g, escapeXml(fields.left_signer_name))

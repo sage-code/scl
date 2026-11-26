@@ -270,7 +270,8 @@ async function getMember(userId) {
     args: [userId]
   });
   const qualifiedTracks = qualifiedRoadmaps(attemptsResult.rows);
-  member.certificates = buildCertificates(result.rows[0], qualifiedTracks);
+  const trackedRoadmaps = await getTrackedRoadmaps(userId);
+  member.certificates = buildCertificates(result.rows[0], qualifiedTracks, trackedRoadmaps);
   return member;
 }
 
@@ -300,23 +301,47 @@ function parseJsonArray(raw, label) {
   }
 }
 
-function buildCertificates(row, qualifiedTracks) {
+function buildCertificates(row, qualifiedTracks, trackedRoadmaps) {
   const certificates = [];
-  if (row && row.certificate_url) {
+  const seenTracks = new Set();
+  const isLegacy = Boolean(row && Number(row.is_legacy_verified) === 1);
+
+  if (row && (row.certificate_url || (isLegacy && row.qualified_track))) {
+    const primaryTrack = row.qualified_track ? String(row.qualified_track).trim().toLowerCase() : null;
+    if (primaryTrack) {
+      seenTracks.add(primaryTrack);
+    }
     certificates.push({
-      track: row.qualified_track || null,
+      track: primaryTrack,
       topic: row.qualified_topic || null,
-      title: row.certification_label || "Certificate of Completion",
-      url: row.certificate_url
+      title: primaryTrack ? `${trackLabel(primaryTrack)} Certificate` : (row.certification_label || "Certificate of Completion"),
+      url: row.certificate_url || `/roadmaps/${encodeURIComponent(primaryTrack || "cse")}/`
     });
   }
   for (const qt of qualifiedTracks || []) {
+    const track = String(qt.track || "").trim().toLowerCase();
+    if (!track || seenTracks.has(track)) continue;
+    seenTracks.add(track);
     certificates.push({
-      track: qt.track,
+      track,
       topic: qt.topic,
-      title: `${trackLabel(qt.track)} Roadmap Certificate`,
-      url: `/roadmaps/${encodeURIComponent(qt.track)}/`
+      title: `${trackLabel(track)} Roadmap Certificate`,
+      url: `/roadmaps/${encodeURIComponent(track)}/`
     });
+  }
+  if (isLegacy && Array.isArray(trackedRoadmaps)) {
+    for (const rm of trackedRoadmaps) {
+      if (!rm || rm.status !== "Completed" || !rm.code) continue;
+      const code = String(rm.code).trim().toLowerCase();
+      if (!code || seenTracks.has(code)) continue;
+      seenTracks.add(code);
+      certificates.push({
+        track: code,
+        topic: "fundamentals",
+        title: `${trackLabel(code)} Certificate`,
+        url: `/roadmaps/${encodeURIComponent(code)}/`
+      });
+    }
   }
   return certificates;
 }
@@ -381,7 +406,7 @@ function publicMemberFromRow(row, qualifiedTracks, testimonials, roadmaps, proje
   if (!member) {
     return null;
   }
-  const certificates = buildCertificates(row, qualifiedTracks);
+  const certificates = buildCertificates(row, qualifiedTracks, roadmaps);
   return {
     public_id: member.public_id,
     display_name: member.display_name,
@@ -414,16 +439,20 @@ async function getTrackedRoadmaps(userId) {
   let progRows = [];
   try {
     const progRes = await db.execute({
-      sql: `select roadmap_code,
+      sql: `select case
+                     when lower(roadmap_code) like 'csp-%-main' then substr(lower(roadmap_code), 5, length(roadmap_code) - 9)
+                     when lower(roadmap_code) like '%-main' then substr(lower(roadmap_code), 1, length(roadmap_code) - 5)
+                     else lower(roadmap_code)
+                   end as roadmap_code,
                    min(created_at) as started_at,
                    max(case when topic_key = '@card::status' then status else null end) as card_status,
-                   count(case when topic_key != '@card::status' then 1 end) as topic_count,
-                   sum(case when topic_key != '@card::status' and (status = 'done' or progress_percent >= 100) then 1 else 0 end) as done_count
+                   count(case when topic_key != '@card::status' and instr(topic_key, '::@') = 0 then 1 end) as topic_count,
+                   sum(case when topic_key != '@card::status' and instr(topic_key, '::@') = 0 and (status = 'done' or progress_percent >= 100) then 1 else 0 end) as done_count
             from roadmap_progress
             where user_id = ?
-              and lower(roadmap_code) not in ('romanian', 'english', 'roadmap-hub-preferences')
-            group by roadmap_code
-            order by min(created_at) asc, roadmap_code asc`,
+              and lower(roadmap_code) not in ('romanian', 'english', 'roadmap-hub-preferences', 'eve')
+            group by 1
+            order by min(created_at) asc, 1 asc`,
       args: [userId]
     });
     progRows = progRes.rows;
